@@ -1,3 +1,4 @@
+import type { ResolvedCredential } from './credential/resolved-credential';
 import type { ProviderErrorCode } from './errors';
 import type { SecretString } from './secret-string';
 
@@ -12,10 +13,25 @@ export interface McpToolDefinition {
   readonly inputSchema: JsonSchema;
 }
 
-/** Per-call context handed to an adapter. Consumer-agnostic: no tenant/plan/business identity. */
-export interface ProviderCallContext {
-  /** Decrypted Hop-A credential. Never persisted, cached, or logged. */
+/**
+ * Inbound, PRE-resolution context: the raw wire value (a forwarded credential or an ephemeral
+ * reference) + routing metadata. Flows from the HTTP edge to the dispatch point, where the
+ * `CredentialResolver` turns it into a `ProviderCallContext`. Never persisted, cached, or logged.
+ */
+export interface InboundCallContext {
+  /** Raw Hop-A wire value — a credential (`forwarded`) or a reference (`reference`). */
   readonly token: SecretString;
+  /** Opaque, provider-scoped routing data (e.g. accountKey, storeDomain). Validated per adapter. */
+  readonly metadata?: Record<string, unknown>;
+}
+
+/**
+ * Per-call context handed to a provider, POST-resolution. Consumer-agnostic: no tenant/plan/business
+ * identity. The credential is already resolved; provider execution is defined in terms of it.
+ */
+export interface ProviderCallContext {
+  /** The resolved credential (convergence point of both delivery strategies). */
+  readonly credential: ResolvedCredential;
   /** Opaque, provider-scoped routing data (e.g. accountKey, storeDomain). Validated per adapter. */
   readonly metadata?: Record<string, unknown>;
 }

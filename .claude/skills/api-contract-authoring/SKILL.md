@@ -62,6 +62,17 @@ Run through the [checklist.md](checklist.md) before finalizing.
 
 ## Golden Rules for Contract Authoring
 
+### 🔬 Evidence Before Contract (foundational)
+
+> **An API contract describes only observed behavior of the real target system.** Documentation, SDKs,
+> and examples prepare the verification but never substitute for evidence obtained by executing against
+> the target environment.
+
+When integrating an external provider whose surface is uncertain (multiple API "flavors", docs that lag
+the live API), verify each concrete value — URLs, field names, headers, response shapes, provider error
+codes — against a real sandbox/test call **before** it enters the contract. This is the contract-level
+twin of the feature-design's "no new architecture" guardrail: **the contract introduces no assumptions.**
+
 ### 🏗️ Architecture Alignment
 
 | Rule | Why |

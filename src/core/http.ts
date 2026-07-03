@@ -1,5 +1,5 @@
+import type { HttpRequest } from './auth/http-request';
 import { ProviderErrorCode } from './errors';
-import type { SecretString } from './secret-string';
 
 /**
  * Universal HTTP-status → ProviderErrorCode policy (the typed-error contract). Centralized so it is
@@ -15,17 +15,6 @@ export function mapHttpStatusToErrorCode(status: number): ProviderErrorCode {
 
 export type FetchLike = typeof globalThis.fetch;
 
-export interface RequestOptions {
-  readonly method?: 'GET' | 'POST';
-  readonly headers?: Record<string, string>;
-  readonly body?: string | URLSearchParams;
-  /** Applied as `Authorization: Bearer <token>` at this single egress point; NEVER logged. */
-  readonly token?: SecretString;
-  readonly timeoutMs?: number;
-  /** Injectable for deterministic tests (default: global fetch). */
-  readonly fetchImpl?: FetchLike;
-}
-
 export type RequestResult =
   | { readonly ok: true; readonly status: number; readonly data: unknown }
   | {
@@ -38,26 +27,33 @@ export type RequestResult =
 const DEFAULT_TIMEOUT_MS = 15_000;
 const MAX_ERROR_BODY = 500;
 
+export interface TransportOptions {
+  readonly timeoutMs?: number;
+  /** Injectable for deterministic tests (default: global fetch). */
+  readonly fetchImpl?: FetchLike;
+}
+
 /**
- * Minimal JSON request helper: timeout, token applied at egress (never logged), non-2xx mapped to a
- * typed error result. NOT a generic HTTP framework — provider-specific request shaping stays in the
- * provider's client (red line in the ADR).
+ * Auth-blind HTTP transport: send a fully materialized `HttpRequest` (headers already built by the
+ * AuthenticationMaterializer — no credential here) with a timeout, map non-2xx to a typed error
+ * result. Knows nothing of `SecretString` or any auth scheme. NOT a generic framework —
+ * provider-specific request shaping stays in the provider's client (red line in the ADR).
  */
-export async function requestJson(url: string, opts: RequestOptions = {}): Promise<RequestResult> {
+export async function sendRequest(
+  req: HttpRequest,
+  opts: TransportOptions = {},
+): Promise<RequestResult> {
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
 
-  const headers: Record<string, string> = { accept: 'application/json', ...opts.headers };
-  if (opts.token !== undefined) {
-    headers.authorization = `Bearer ${opts.token.reveal()}`;
-  }
+  const headers: Record<string, string> = { accept: 'application/json', ...req.headers };
 
   try {
-    const res = await fetchImpl(url, {
-      method: opts.method ?? 'GET',
+    const res = await fetchImpl(req.url, {
+      method: req.method,
       headers,
-      body: opts.body,
+      body: req.body,
       signal: controller.signal,
     });
     if (!res.ok) {

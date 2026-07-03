@@ -1,7 +1,8 @@
 import type { z } from 'zod';
 
+import type { RequestSpec } from './auth/http-request';
 import type { ProviderErrorCode } from './errors';
-import type { SecretString } from './secret-string';
+import type { RequestResult } from './http';
 
 /**
  * The light result a handler returns. The provider dispatcher (createProvider) wraps it into the
@@ -19,9 +20,14 @@ export function err(code: ProviderErrorCode, message: string): ToolOutcome {
   return { ok: false, code, message };
 }
 
-/** Context handed to a tool handler: the credential + the already-validated, typed metadata. */
+/**
+ * Context handed to a tool handler: an authenticated-request executor + the already-validated, typed
+ * metadata. The handler builds a `RequestSpec` and calls `request(spec)`; the core materializes auth
+ * (reveals + applies placement) and transports it, so the handler never touches the secret.
+ */
 export interface ToolHandlerContext<M = unknown> {
-  readonly token: SecretString;
+  /** Execute an authenticated request; the core reveals + applies auth and sends it. */
+  readonly request: (spec: RequestSpec) => Promise<RequestResult>;
   readonly metadata: M;
 }
 

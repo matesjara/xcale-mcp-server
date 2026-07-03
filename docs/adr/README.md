@@ -24,5 +24,6 @@ Full rationale, alternatives, and the responsibility split live in `docs/archite
 | [typed-tool-result-error-contract](typed-tool-result-error-contract.md) | Accepted | Discriminated-union result + closed error codes |
 | [additive-contract-versioning](additive-contract-versioning.md) | Accepted | Additive evolution; `schemaVersion`; provider lifecycle; catalog stability policy |
 | [credential-forwarding-and-token-model](credential-forwarding-and-token-model.md) | Accepted (scope-bounded) | Token model; ephemeral references before financial providers |
+| [credential-delivery-strategies](credential-delivery-strategies.md) | Accepted | `forwarded`\|`reference` strategies; credential-resolution phase; Hop-B reference resolution; `credential_exchange` descriptor variant |
 | [typescript-strictness-config](typescript-strictness-config.md) | Accepted | Full strict minus exactOptionalPropertyTypes (MCP SDK type incompatibility); revisit trigger |
 | [canonical-provider-pattern](canonical-provider-pattern.md) | Accepted | Reference adapter pattern: single-source schemas + typed handlers, explicit pagination, explicit context, fidelity-over-unification, share-policies-not-assumptions, DI+fixtures+conformance |

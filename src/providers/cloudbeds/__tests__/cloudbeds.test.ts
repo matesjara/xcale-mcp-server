@@ -17,7 +17,10 @@ function fakeFetch(routes: Record<string, { status?: number; body: unknown }>): 
   }) as FetchLike;
 }
 
-const ctx = (metadata: Record<string, unknown>) => ({ token: new SecretString('tok'), metadata });
+const ctx = (metadata: Record<string, unknown>) => ({
+  credential: { secret: new SecretString('tok') },
+  metadata,
+});
 
 describe('cloudbeds provider', () => {
   it('passes the generic provider conformance suite', async () => {

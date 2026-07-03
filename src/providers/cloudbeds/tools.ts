@@ -58,7 +58,7 @@ export function buildCloudbedsTools(
       }),
       handler: async (args, ctx) => {
         const { propertyID } = ctx.metadata as CloudbedsContext;
-        const res = await client.get('getReservations', ctx.token, {
+        const res = await client.get('getReservations', ctx.request, {
           propertyID,
           pageNumber: args.page,
           resultsPerPage: args.pageSize, // Cloudbeds' param name for page size
@@ -95,7 +95,7 @@ export function buildCloudbedsTools(
       description: 'Get a single reservation by its id.',
       input: z.object({ reservationID: z.string().min(1) }).strict(),
       handler: async (args, ctx) => {
-        const res = await client.get('getReservation', ctx.token, {
+        const res = await client.get('getReservation', ctx.request, {
           propertyID: ctx.metadata.propertyID,
           reservationID: args.reservationID,
         });
@@ -109,7 +109,7 @@ export function buildCloudbedsTools(
       description: 'Get a single guest by its id.',
       input: z.object({ guestID: z.string().min(1) }).strict(),
       handler: async (args, ctx) => {
-        const res = await client.get('getGuest', ctx.token, {
+        const res = await client.get('getGuest', ctx.request, {
           propertyID: ctx.metadata.propertyID,
           guestID: args.guestID,
         });
@@ -123,7 +123,7 @@ export function buildCloudbedsTools(
       description: 'Get available room types for a date range.',
       input: z.object({ startDate: z.string().min(1), endDate: z.string().min(1) }).strict(),
       handler: async (args, ctx) => {
-        const res = await client.get('getAvailableRoomTypes', ctx.token, {
+        const res = await client.get('getAvailableRoomTypes', ctx.request, {
           propertyID: ctx.metadata.propertyID,
           startDate: args.startDate,
           endDate: args.endDate,
@@ -138,7 +138,7 @@ export function buildCloudbedsTools(
       description: 'List the room types configured for the property.',
       input: z.object({}).strict(),
       handler: async (_args, ctx) => {
-        const res = await client.get('getRoomTypes', ctx.token, {
+        const res = await client.get('getRoomTypes', ctx.request, {
           propertyID: ctx.metadata.propertyID,
         });
         const u = unwrap(res, 'getRoomTypes');
@@ -151,7 +151,7 @@ export function buildCloudbedsTools(
       description: 'Get the property (hotel) details.',
       input: z.object({}).strict(),
       handler: async (_args, ctx) => {
-        const res = await client.get('getHotelDetails', ctx.token, {
+        const res = await client.get('getHotelDetails', ctx.request, {
           propertyID: ctx.metadata.propertyID,
         });
         const u = unwrap(res, 'getHotelDetails');

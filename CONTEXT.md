@@ -107,6 +107,20 @@ type + field labels; oauth2 → URLs/scopes/placement). Lets Rail A run auth flo
 variant (`PROVIDER_AUTH_EXPIRED`, `PROVIDER_RATE_LIMITED`, …); evolves additively only. _Avoid_:
 free-form error strings.
 
+**Error-ownership boundary (invariant)** — a `ProviderErrorCode` (and any `ToolResult`) is emitted
+**iff the failure belongs to the provider domain** — determined by *who owns the cause*, **not** by
+the temporal phase nor by whether a valid credential ever materialized. Failures owned by the
+**transport / internal protocol** (Hop-B, expired or already-consumed [Ephemeral reference](#),
+resolution never reached) are never a `ProviderErrorCode` and produce **no `ToolResult`** at all.
+Consequences that pin the boundary: a resolve-time **mint** failure because the durable credential
+was revoked/unrefreshable is **provider-owned** → `PROVIDER_AUTH_EXPIRED` (even though no valid JWT
+ever existed and no data call ran — "is this connection still usable?" is no); an **expired
+reference** is **transport-owned** → one transparent retry, then a transport error. The consumer
+never needs to know *where* auth failed. _Avoid_: defining the boundary by "a credential existed" or
+"execution began" (a revoked-credential mint failure breaks that framing); `REFERENCE_EXPIRED` /
+`REFERENCE_ALREADY_USED` inside `ProviderErrorCode`; a `ToolResult(kind:'error')` for a
+transport-owned failure.
+
 **Credential-in-Transit-Only** — the server may process a provider credential in memory for one
 invocation, but must never persist it (DBs, queues, persistent caches, logs, metrics, traces,
 dumps). The governing invariant of the credential boundary. See
@@ -115,6 +129,94 @@ dumps). The governing invariant of the credential boundary. See
 **`SecretString`** — branded wrapper type for the forwarded credential whose `toJSON`/`toString`/
 `inspect` return `"[REDACTED]"`; `.reveal()` is called only at the provider egress, only inside
 `src/providers/**`. The mechanical enforcement of Credential-in-Transit-Only.
+
+**Credential delivery strategy** — how a provider's credential reaches the server on a `tools/call`.
+Exactly **two** strategies exist: `forwarded` (`X-Provider-Token` carries the usable credential; the
+server uses it directly — non-financial providers, e.g. Nevatal, Cloudbeds) and `reference`
+(`X-Provider-Token` carries an [Ephemeral reference](#) the server resolves just-in-time via the
+[Credential Authority](#) — financial/high-risk providers, e.g. Siigo, ePayco). Declared per provider
+in its `authDescriptor` and published in the catalog, so one declaration drives both sides: the
+consumer knows *what to send*, the server knows *whether to resolve*. The core has a single
+`forwarded`-vs-`reference` branch. _Avoid_: a per-provider strategy (a "siigo strategy"); an
+`if slug === 'siigo'` in core/protocol; a third strategy without an ADR.
+
+**Credential Resolution phase** — the server-side pipeline stage between Transport and Provider
+Execution that turns inbound credential material into a uniform [`ResolvedCredential`](#),
+dispatched by the provider's `credentialDelivery`. Both strategies flow through it via a
+`CredentialResolver`: `ForwardedCredentialResolver` (near-identity — wraps the `X-Provider-Token`
+value) and `ReferenceCredentialResolver` (Hop-B callback to the [Credential Authority](#), which owns
+the mint/reuse/refresh policy). Both yield the **same** resolved-credential shape, after which the
+pipeline is byte-for-byte identical — so a delivery strategy is confined to one swappable resolver,
+never an `if forwarded/else` in the runtime (dispatch is `resolvers[provider.auth.delivery].resolve()`).
+An **earned** Strategy pattern — two real strategies exist today (Cloudbeds/Nevatal `forwarded`, Siigo
+`reference`) — not a premature one. **Exactly one resolution per `tools/call`**: one `ResolvedCredential`,
+request-scoped, reused across every provider egress in that call — a call never resolves multiple
+references. _Avoid_: branching on the delivery strategy inside provider/runtime code; putting mint
+policy in the server-side resolver (it belongs to the Credential Authority); resolving more than one
+reference per call or distributed resolution inside the runtime; a third resolver without an ADR.
+
+**`ResolvedCredential`** — the uniform runtime representation a `CredentialResolver` returns and that
+Provider Execution consumes (via [Authentication Materialization](#)); the convergence point of both
+delivery strategies. Its **concrete representation is an implementation detail**: today a `SecretString`
+(one secret suffices for bearer/api_key/basic), but the concept is "the material needed to
+authenticate", which would generalize to richer material (e.g. `keyId`+`secretKey`+`region`+`algorithm`)
+if imperative auth ever lands — a change confined to the resolver + materializer, never the transport.
+_Avoid_: coupling the concept to `SecretString` in code the transport or a provider can see; treating a
+bare secret as its permanent shape.
+
+**Authentication Materialization** — the core, transport-blind step that consumes an `AuthDescriptor` +
+a `ResolvedCredential`, **reveals** the secret, and produces a **fully materialized, plain `HttpRequest`**
+(the single `.reveal()` egress point). The HTTP transport that runs the request knows nothing of
+`SecretString`, `ResolvedCredential`, or any auth scheme (bearer/api_key/basic/cookie) — it just sends a
+built request. This is the swap point for a future imperative (signed-request) auth variant. _Avoid_:
+leaving a `SecretString` in the materializer's output (materialization must finish there, not straddle
+into transport); the transport knowing any auth scheme; `.reveal()` outside this step.
+
+**Ephemeral reference** — a single-use, high-entropy, short-TTL (≤60s) **opaque nonce** that stands in
+for a provider credential on the wire under the `reference` delivery strategy. It resolves to a
+**connection**, not a specific token — the Credential Authority decides at resolve time whether to
+mint, reuse, or refresh the real credential. Implements the "Alternative B (ephemeral references)" of
+[credential-forwarding-and-token-model](docs/adr/credential-forwarding-and-token-model.md) without
+full RFC 8693 machinery; the wire contract is the same shape, so the internal mechanism can later
+harden to RFC 8693 without a contract change. On resolution failure (TTL expiry / already-consumed),
+the consumer retries **exactly once** with a fresh reference — a second failure is systemic, not a TTL
+race, and must surface rather than loop. The two delivery strategies **converge** at Provider
+Execution: `forwarded` = backend sends credential → server executes; `reference` = backend sends
+reference → server resolves → server executes — identical from execution onward, so the strategy
+lives at a single pipeline point. _Avoid_: putting the `connectionId` or the real token in the
+reference value (must be an unguessable nonce); "single-use" meaning one provider HTTP call rather
+than one resolution per `tools/call`; unbounded resolve retries.
+
+**Credential Authority** — Rail A's resolved role in the reference model: the single owner of provider
+secrets that also **resolves** ephemeral references to real credentials just-in-time, encapsulating
+the mint/reuse/refresh policy behind a `POST /internal/credentials/resolve` endpoint (Hop-B
+authenticated). _Avoid_: "the place where tokens are stored" (it is the resolution authority, not a
+passive store); moving resolution to a shared cache the server reads (that re-splits custody).
+
+**Execution Engine** — xcale-mcp-server's resolved role: it executes provider calls with a credential
+it receives (or resolves) per call and immediately discards; it is never a custodian. The counterpart
+of the [Credential Authority](#). _Avoid_: the server reading a credential store directly.
+
+**`credential_exchange` (auth descriptor variant)** — the additive `ProviderAuthDescriptor` variant
+for providers that mint a short-lived bearer token from durable credentials via a token endpoint
+(Siigo: `POST /auth` with `username`+`access_key` → 24h JWT). Rail A (the Credential Authority) runs
+it **generically** from the descriptor. Strictly **declarative**: `tokenEndpoint`, `method`,
+`bodyFields` (logical→wire name mapping), `responseFields` (token + expiry keys; OAuth-style
+defaults), `staticHeaders` (name + source), `tokenPlacement`. It carries **no behavior** — no hooks,
+templates, expressions, signing, or JSON-path. A provider needing *imperative* auth (HMAC/signing)
+does NOT extend this variant: it reopens where the mint runs (a declarative descriptor can't express
+it and Rail A can't run the server's code) and requires its own variant + an ADR. _Avoid_: growing
+this into a config-DSL / interpreter.
+
+**Provider institutional identity (e.g. Siigo `Partner-Id`)** — a **non-secret, constant identifier**
+of xcale-as-integrator that a provider requires on every call (Siigo: the integrator app name, 3–100
+alphanumerics, e.g. `xcaleContabilidad`). It is *knowledge/config*, not per-user *custody* — leaking
+it alone grants no access — so the "custody stays in Rail A" invariant does not apply to it. The
+`authDescriptor` declares the header requirement (`name` + `source: deployment`); the **value** is
+deployment config wherever a process calls the provider (the server for all data calls; Rail A for the
+mint) and is **never** placed in the published catalog (that would inject consumer identity into a
+consumer-agnostic contract). _Avoid_: calling it a secret/credential; building machinery to avoid
+duplicating a constant; putting its value in the descriptor or catalog.
 
 **Consumer-agnostic** — architectural principle #2: public contracts carry no consumer-specific
 concepts (no xcale entities, tenant ids, plan/business terms); the server is told _which token_ and
@@ -156,7 +258,14 @@ auto-pagination and internal 429 retry loops (return `PROVIDER_RATE_LIMITED`; co
 
 **Explicit Context** — when an operation can target multiple logical contexts (property, org,
 workspace…), the target is explicit + validated via the provider's own `metadataSchema` (zod),
-never inferred. The core knows no field names (no `propertyID` in the framework).
+never inferred. The core knows no field names (no `propertyID` in the framework). Whether a provider
+declares a `contextSchema` is determined by the **cardinality of connection → operational scope**,
+**not** by the provider: `1 connection → 1 scope` ⇒ no `contextSchema` (the resolved connection fully
+determines the scope — e.g. one Siigo credential = one company/NIT); `1 connection → N scopes` ⇒
+`contextSchema` required (the token alone can't disambiguate — e.g. Cloudbeds `propertyID`). A user
+operating several scopes is modeled as **multiple connections** (Rail A resolves exactly one per call)
+unless a single connection genuinely spans many. _Avoid_: "Cloudbeds is the exception"; inferring that
+a whole category (e.g. financial providers) does/doesn't use metadata from one provider's cardinality.
 
 **Fidelity over Unification** — `data` preserves the provider's original semantics; only the
 envelope is standardized. Curation (documented field projection) yes; cross-provider canonical

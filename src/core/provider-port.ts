@@ -1,6 +1,14 @@
 import type { JsonSchema, McpToolDefinition, ProviderCallContext, ToolResult } from './types';
 
 /**
+ * How a provider's credential reaches the server on a `tools/call`
+ * (ADR: credential-delivery-strategies). Exactly two strategies; opt-in per provider (default
+ * `forwarded`). Published in the catalog so one declaration drives both the consumer (what to send)
+ * and the server (whether to resolve a reference).
+ */
+export type CredentialDelivery = 'forwarded' | 'reference';
+
+/**
  * Non-secret auth blueprint a provider publishes via the catalog (ADR:
  * provider-knowledge-vs-credential-custody). Adaptive — as rich as the auth type requires.
  * SECRETS (clientId/clientSecret/keys) NEVER appear here; they are the consumer's generic config.
@@ -8,6 +16,7 @@ import type { JsonSchema, McpToolDefinition, ProviderCallContext, ToolResult } f
 export type ProviderAuthDescriptor =
   | {
       readonly type: 'api_key' | 'bearer';
+      readonly credentialDelivery?: CredentialDelivery;
       readonly fields: ReadonlyArray<{
         readonly key: string;
         readonly label: string;
@@ -16,11 +25,40 @@ export type ProviderAuthDescriptor =
     }
   | {
       readonly type: 'oauth2';
+      readonly credentialDelivery?: CredentialDelivery;
       readonly authorizationUrl: string;
       readonly tokenUrl: string;
       readonly scopes: readonly string[];
       readonly tokenPlacement: 'bearer_header' | 'custom_header';
       readonly supportsRefresh: boolean;
+    }
+  | {
+      /**
+       * Declarative credential-exchange mint (Siigo-class): a durable credential is exchanged at a
+       * token endpoint for a short-lived bearer token. Rail A (the Credential Authority) runs this
+       * generically from the descriptor; secrets never appear here. STRICTLY DECLARATIVE — data only,
+       * never hooks/templates/expressions (ADR: credential-delivery-strategies). Imperative auth
+       * (HMAC/signing) is NOT an extension of this variant — it requires its own variant + an ADR.
+       */
+      readonly type: 'credential_exchange';
+      readonly credentialDelivery?: CredentialDelivery;
+      /** Token endpoint that mints the short-lived token. */
+      readonly tokenEndpoint: string;
+      readonly method: 'POST';
+      /** Map logical credential fields → the provider's wire field names (used verbatim, never interpolated). */
+      readonly bodyFields: Readonly<Record<string, string>>;
+      /** Where to read the token (and optional expiry) in the mint response. */
+      readonly responseFields: { readonly token: string; readonly expiry?: string };
+      /**
+       * Non-secret static headers required on every call (e.g. Siigo `Partner-Id`). The header name
+       * is knowledge; its VALUE comes from deployment config, never from this descriptor or the catalog.
+       */
+      readonly staticHeaders?: ReadonlyArray<{
+        readonly name: string;
+        readonly source: 'deployment';
+      }>;
+      /** How the minted token is applied to data calls. */
+      readonly tokenPlacement: 'bearer_header';
     };
 
 /** Optional capabilities a provider may declare. Reserved (modeled, not enforced in v1). */
