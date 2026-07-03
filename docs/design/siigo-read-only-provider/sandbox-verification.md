@@ -88,6 +88,30 @@ assigned a `Partner-Id`), which *leans* toward Flavor B. **But** the public port
 
 - **Officially documented (SDK):** `GET /v1/customers`, `GET /v1/invoices`, `GET /v1/products` (paginated). Single-item GET-by-id paths and reference-data paths (`/v1/account-groups`, `/v1/taxes`, `/v1/document-types`) to be confirmed alongside Q-4.
 
+### Functional surface from official docs (hypothesis-grade — [developers.siigo.com](https://developers.siigo.com/docs/siigoapi/))
+
+Extracted to prepare B3 and seed the traceability matrix. **None of this is Observed; none enters the
+contract until B1.**
+
+- **Resources documented (Officially documented):** `products`, `customers`, `invoices` (sales),
+  `purchases`, `credit-notes`, `vouchers` (cash receipts), `payment-receipts`, `journals`,
+  `quotations`, `purchase-support-documents`. **Our read-first scope stays: customers, invoices,
+  products.**
+- **Pagination (Officially documented / SDK):** request query `page` + `page_size`; response envelope
+  `{ pagination: { page, page_size, total_results }, results: [ … ] }`. → our uniform `page`/`pageSize`
+  maps to `page`/`page_size`; the list unwrap reads `results` + `pagination.total_results`. **Confirm in B1.**
+- **Per-endpoint pages exist** (e.g. `…/invoice/3-get-invoices`, `…/customer/…`, `…/productos/consultar-producto`)
+  with request/response examples, but are JS-rendered (not machine-extractable) — the shapes are
+  Observed from real captures in B1, not scraped.
+
+### New questions for the sandbox (do not resolve by assumption)
+
+| # | Question | Confidence now |
+|:--|:--|:--|
+| Q-6 | Exact **error envelope** shape (a "Manejo de errores" section + a `Detail` field are documented; the JSON structure — `Errors[]`? `code`/`message`/`detail`? — is unconfirmed). | Inferred |
+| Q-7 | The **GET-by-id path** for customers/invoices/products (does `get_*` exist as a dedicated endpoint, and what shape). | Inferred |
+| Q-8 | Whether the **list response** is uniform across customers/invoices/products (same `pagination`/`results` envelope). | Officially documented (assumed uniform) |
+
 ---
 
 ## 2. Minimal sandbox checklist (ordered)
