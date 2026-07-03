@@ -3,7 +3,10 @@
 > **Scope**: cross-repo (xcale-mcp-server + xcale-backend). **Upstream**:
 > [feature-design.md](feature-design.md) · [sandbox-verification.md](sandbox-verification.md) ·
 > ADR [credential-delivery-strategies](../../adr/credential-delivery-strategies.md).
-> **Status**: Phase A authored (implementable now). Phase B held at slice level (gated).
+> **Status**: **Phase A COMPLETE & committed** (both repos green — mcp-server 70 tests, backend 155
+> connections tests). **Phase B is evidence-gated and currently BLOCKED at B0** (external: a Siigo test
+> account's `userName`+`accessKey` and the assigned `Partner-Id`). No provider code or API contract is
+> written until B1 produces Observed facts.
 
 ## Meta-description
 
@@ -229,30 +232,59 @@ src/modules/mcp/                (MCP client — reference emission)
 
 ---
 
-# PHASE B — Siigo (held; slice-level only)
+# PHASE B — Siigo (evidence-driven; gates are mandatory, not recommendations)
 
-## B1 — Discovery & Contract  *(depends entirely on sandbox)*
-| Slice | Deliverable |
-|:--|:--|
-| B1.1 | Run `sandbox-verification.md` checklist; capture evidence |
-| B1.2 | Freeze Q-1..Q-4 as **Observed** (each datum cites its evidence) |
-| B1.3 | Author `docs/design/siigo-read-only-provider/api-contract.md` from Observed facts only |
-| B1.4 | Validate contract against the frozen evidence |
+> **Operating rule for this phase.** Work strictly by the roadmap below. Do not advance provider
+> implementation or author the API contract before its gate is green. Treat every gate as mandatory.
+> If a gate is blocked by **missing external evidence**, STOP at that gate and state exactly what
+> evidence is missing. **Never** substitute Observed evidence with documentation, SDKs, or inference.
 
-## GATE B1 → B2
-- [ ] Every Q-1..Q-4 datum **Observed** (not documented/inferred) with cited evidence.
-- [ ] `api-contract.md` exists and contains **zero** unverified values.
+## B0 — Prerequisites  *(external; the current blocker)*
+**Objective:** gather everything needed to Observe the provider facts. Produces nothing in code.
+Required inputs (owned by Siigo/xcale, not this repo):
+- A working Siigo **test account** with `userName` + `accessKey`.
+- The **`Partner-Id`** Siigo assigned to xcale.
+- Ability to execute real calls against Siigo and capture request/response evidence.
 
-## B2 — Siigo implementation  *(BLOCKED BY API CONTRACT — per-file detail authored at Gate B1→B2)*
-Slice-level only; all derived from the contract, never from documentation:
-| Slice | Repo | Deliverable |
+**GATE B0 → B1**
+- [ ] Credentials + `Partner-Id` available, and someone can run real calls.
+
+## B1 — Sandbox Verification  *(turns hypotheses into Observed facts)*
+**Objective:** execute the full [`sandbox-verification.md`](sandbox-verification.md) checklist and record
+evidence. Covers: auth (body field names), token (fields + TTL), base URL, endpoint/flavor, `Partner-Id`,
+pagination params, error shapes, rate limits.
+**Output:** every Q-1..Q-4 datum in state **Observed**, each citing its evidence (request/response capture).
+
+**GATE B1 → B2**
+- [ ] Zero remaining hypotheses: every Q-1..Q-4 datum is **Observed** (not documented/inferred) with cited evidence.
+
+## B2 — API Contract  *(BLOCKED BY B1 — documents, does not discover)*
+**Objective:** author `docs/design/siigo-read-only-provider/api-contract.md` using **only** B1's evidence:
+endpoints, request/response, auth, pagination, error model, headers, schemas. Nothing is discovered here.
+
+**GATE B2 → B3**
+- [ ] `api-contract.md` exists and contains **zero** unverified values (every concrete value traces to B1 evidence).
+
+## B3 — Provider Implementation  *(BLOCKED BY B2 — a translation of the contract)*
+Slice-level (per-file detail authored at Gate B2→B3 against the frozen contract):
+| Slice | Repo | Deliverable (all derived from the contract) |
 |:--|:--|:--|
-| B2.1 | mcp | `src/providers/siigo/` (manifest, auth `credential_exchange`, client, read tools, errors, `__fixtures__/`, conformance) + one line in `providers/index.ts` |
-| B2.2 | mcp | Read tools: customers/invoices/products (list+get) — schemas from the contract |
-| B2.3 | be | Register Siigo `credential_exchange` provider; connect flow (`userName`+`accessKey`, validate by minting once); `Partner-Id` from deployment config |
-| B2.4 | both | Error mapping per contract; observability; conformance + prod-gate smoke |
+| B3.1 | mcp | `src/providers/siigo/` (manifest, `credential_exchange` auth, client, read tools, errors, `__fixtures__/`, conformance) + one line in `providers/index.ts` |
+| B3.2 | mcp | Read tools: customers/invoices/products (list+get) — schemas from the contract |
+| B3.3 | be | Register Siigo `credential_exchange` provider; connect flow (`userName`+`accessKey`, validate by minting once); `Partner-Id` from deployment config; catalog `credentialDelivery: reference` |
+| B3.4 | be | **Reference emission** (the A9b deferral): `mcp-tool-executor` sends a reference for `reference` providers + one transparent retry on `reference_invalid` |
 
-> B2 tasks are marked **BLOCKED BY API CONTRACT**. No placeholders with the appearance of final data.
+## B4 — Integration & E2E  *(BLOCKED BY B3)*
+Validate the full reference path end-to-end with a real reference provider: resolve endpoint ↔ reference
+flow ↔ `credential_exchange` mint ↔ tool execution ↔ error mapping ↔ token expiry/refresh ↔ revocation
+(reconnect). This is where the reference path is proven e2e for the first time (impossible before a real
+reference provider existed).
+
+## FINAL GATE (Phase B done)
+- [ ] Tests + e2e green in both repos.
+- [ ] Siigo provider operational (read-first); reference path validated e2e.
+- [ ] Docs synchronized (contract, CONTEXT.md, security review).
+- [ ] Prod-soak criteria (see Feature Design §9 gate) met before opening the Slice 2 write-path.
 
 ---
 
