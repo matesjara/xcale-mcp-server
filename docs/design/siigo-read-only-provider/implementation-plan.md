@@ -239,15 +239,41 @@ src/modules/mcp/                (MCP client — reference emission)
 > If a gate is blocked by **missing external evidence**, STOP at that gate and state exactly what
 > evidence is missing. **Never** substitute Observed evidence with documentation, SDKs, or inference.
 
-## B0 — Prerequisites  *(external; the current blocker)*
-**Objective:** gather everything needed to Observe the provider facts. Produces nothing in code.
-Required inputs (owned by Siigo/xcale, not this repo):
+> **Phase B splits two kinds of work.** *Discovery* (B0–B2) **produces** provider knowledge;
+> *Implementation* (B3–B5) **consumes** it. Same separation as ADR → Feature Design → Sandbox
+> Verification → API Contract, replicated at execution level.
+
+### — DISCOVERY —
+
+## B0 — Internal Readiness + External Prerequisites
+**Objective:** lock everything that does NOT depend on Observed facts, so B1 is pure execution and B3
+is pure translation. **Two parts:**
+
+**B0-internal (fact-free — do now):** *knowledge, not stub code.*
+- **Curated read-tool set (locked, product decision from the Feature Design):**
+  `mcp_siigo_list_customers` / `mcp_siigo_get_customer`, `mcp_siigo_list_invoices` /
+  `mcp_siigo_get_invoice`, `mcp_siigo_list_products` / `mcp_siigo_get_product`. (`get_*` existence is
+  confirmed in B1, checklist step 5.)
+- **No `contextSchema`** — one Siigo credential = one company/NIT (cardinality rule).
+- **Architecture boundary (binding):** thin passthrough adapter — tools return the provider's `data`
+  **verbatim** (Fidelity over Unification, `canonical-provider-pattern`). **No** `mapper.ts`, **no**
+  internal canonical DTOs (`CustomerSummary`…), **no** hand-written output schemas. Uniform input is
+  `page`/`pageSize` only; provider-specific filters are added in B3 from the contract.
+- **Per-tool B1 evidence map:** each tool's B3 body needs exactly — the base URL + resource path
+  (Q-2), pagination param names (Q-4), and (for `get_*`) the by-id path shape. Nothing else.
+
+> **Deliberately NOT in B0:** stub code files (`auth.ts`/`client.ts`/`provider.ts`) — they cannot
+> compile without B1 facts (the `credential_exchange` descriptor needs `tokenEndpoint`/`bodyFields`),
+> and pre-scaffolding them is the pre-abstraction `soul.md` cautions against. B3 scaffolds + fills in
+> one pass (`add-provider`).
+
+**B0-external (the blocker — owned by Siigo/xcale, not this repo):**
 - A working Siigo **test account** with `userName` + `accessKey`.
 - The **`Partner-Id`** Siigo assigned to xcale.
-- Ability to execute real calls against Siigo and capture request/response evidence.
+- Ability to execute real calls and capture request/response evidence.
 
 **GATE B0 → B1**
-- [ ] Credentials + `Partner-Id` available, and someone can run real calls.
+- [ ] B0-internal locked (above). External: credentials + `Partner-Id` available, real calls runnable.
 
 ## B1 — Sandbox Verification  *(turns hypotheses into Observed facts)*
 **Objective:** execute the full [`sandbox-verification.md`](sandbox-verification.md) checklist and record
@@ -265,20 +291,26 @@ endpoints, request/response, auth, pagination, error model, headers, schemas. No
 **GATE B2 → B3**
 - [ ] `api-contract.md` exists and contains **zero** unverified values (every concrete value traces to B1 evidence).
 
-## B3 — Provider Implementation  *(BLOCKED BY B2 — a translation of the contract)*
+### — IMPLEMENTATION (consumes B2; pure translation, no discovery) —
+
+## B3 — Provider Adapter  *(BLOCKED BY B2 — a translation of the contract)*
 Slice-level (per-file detail authored at Gate B2→B3 against the frozen contract):
 | Slice | Repo | Deliverable (all derived from the contract) |
 |:--|:--|:--|
 | B3.1 | mcp | `src/providers/siigo/` (manifest, `credential_exchange` auth, client, read tools, errors, `__fixtures__/`, conformance) + one line in `providers/index.ts` |
-| B3.2 | mcp | Read tools: customers/invoices/products (list+get) — schemas from the contract |
+| B3.2 | mcp | Read tools: customers/invoices/products (list+get) — input filters + passthrough `data` from the contract (NO mapper/DTO — Fidelity over Unification) |
 | B3.3 | be | Register Siigo `credential_exchange` provider; connect flow (`userName`+`accessKey`, validate by minting once); `Partner-Id` from deployment config; catalog `credentialDelivery: reference` |
-| B3.4 | be | **Reference emission** (the A9b deferral): `mcp-tool-executor` sends a reference for `reference` providers + one transparent retry on `reference_invalid` |
 
-## B4 — Integration & E2E  *(BLOCKED BY B3)*
-Validate the full reference path end-to-end with a real reference provider: resolve endpoint ↔ reference
-flow ↔ `credential_exchange` mint ↔ tool execution ↔ error mapping ↔ token expiry/refresh ↔ revocation
-(reconnect). This is where the reference path is proven e2e for the first time (impossible before a real
-reference provider existed).
+## B4 — Integration  *(BLOCKED BY B3)*
+The A9b deferral lands here: `mcp-tool-executor` **reference emission** — for `reference` providers,
+send a single-use reference (via the reference store) instead of the token, + one transparent retry on
+`reference_invalid`; backend catalog reads `credentialDelivery`.
+
+## B5 — E2E  *(BLOCKED BY B4)*
+Validate the full reference path end-to-end with the first real reference provider: resolve endpoint ↔
+reference flow ↔ `credential_exchange` mint ↔ tool execution ↔ error mapping ↔ token expiry/refresh ↔
+revocation (reconnect). First time the reference path is proven e2e (impossible before a real reference
+provider existed).
 
 ## FINAL GATE (Phase B done)
 - [ ] Tests + e2e green in both repos.
