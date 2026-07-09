@@ -158,5 +158,19 @@ export function buildCloudbedsTools(
         return u.ok ? ok(u.data) : err(u.code, u.message);
       },
     }),
+
+    tool({
+      name: `mcp_${SLUG}_list_properties`,
+      description:
+        'List the properties (hotels) this connection can access. Needs no propertyID — used to discover which property to operate on.',
+      input: z.object({}).strict(),
+      handler: async (_args, ctx) => {
+        // `getHotels` is token-scoped and takes no propertyID: it returns exactly the properties the
+        // connection can see. This is the discovery entry point (see manifest.contextDiscovery).
+        const res = await client.get('getHotels', ctx.request, {});
+        const u = unwrap(res, 'getHotels');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
   ];
 }

@@ -109,4 +109,28 @@ describe('cloudbeds provider', () => {
     const r = await provider.callTool('mcp_cloudbeds_get_hotel_details', {}, ctx({}));
     expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
   });
+
+  it('list_properties (discovery tool) runs WITHOUT propertyID context and calls getHotels', async () => {
+    const hotels = { success: true, data: [{ propertyID: '320754', propertyName: 'Demo Hotel' }] };
+    let calledUrl = '';
+    const capturingFetch = (async (url: string | URL) => {
+      calledUrl = url.toString();
+      return new Response(JSON.stringify(hotels), { status: 200 });
+    }) as FetchLike;
+    const provider = createCloudbedsProvider({ fetchImpl: capturingFetch });
+    // Empty context — the discovery tool must be exempt from the propertyID requirement.
+    const r = await provider.callTool('mcp_cloudbeds_list_properties', {}, ctx({}));
+    expect(r).toMatchObject({ kind: 'success' });
+    expect((r as { data: unknown }).data).toEqual(hotels.data);
+    expect(new URL(calledUrl).pathname.endsWith('/getHotels')).toBe(true);
+  });
+
+  it('publishes contextDiscovery in the manifest (propertyID via list_properties)', () => {
+    const provider = createCloudbedsProvider();
+    expect(provider.manifest.contextDiscovery).toEqual({
+      key: 'propertyID',
+      tool: 'mcp_cloudbeds_list_properties',
+      resultPath: '0.propertyID',
+    });
+  });
 });

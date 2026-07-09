@@ -89,6 +89,21 @@ export interface ProviderManifest {
   readonly deprecated?: boolean;
   readonly sunsetDate?: string;
   readonly capabilities?: ProviderCapabilities;
+  /**
+   * How the consumer can AUTO-RESOLVE this provider's required call context after connect, instead
+   * of asking the user for it in a form. Names a discovery tool that needs NO context and lists the
+   * entities carrying the context value, plus where to read it. When present, the consumer discovers
+   * the context post-OAuth (e.g. Cloudbeds `propertyID` via `getHotels`) rather than collecting it —
+   * eliminating a whole class of "wrong value pasted" errors. STRICTLY DECLARATIVE (data only).
+   */
+  readonly contextDiscovery?: {
+    /** The context key it resolves — matches the required key in `contextSchema` (e.g. `propertyID`). */
+    readonly key: string;
+    /** A no-context tool that lists entities carrying `key` (e.g. `mcp_cloudbeds_list_properties`). */
+    readonly tool: string;
+    /** Dot-path into the tool's success `data` where the value lives (e.g. `0.propertyID`). */
+    readonly resultPath: string;
+  };
 }
 
 /**

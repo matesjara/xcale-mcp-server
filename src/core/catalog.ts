@@ -21,6 +21,12 @@ export interface CatalogEntry {
   readonly capabilities?: ProviderCapabilities;
   readonly deprecated?: boolean;
   readonly sunsetDate?: string;
+  /** How the consumer auto-resolves the required context after connect (e.g. propertyID via getHotels). */
+  readonly contextDiscovery?: {
+    readonly key: string;
+    readonly tool: string;
+    readonly resultPath: string;
+  };
 }
 
 /** Derive the capability catalog from the registry (the source of truth is the explicit list). */
@@ -41,6 +47,7 @@ export function buildCatalog(registry: ProviderRegistry): CatalogEntry[] {
       ...(m.capabilities !== undefined ? { capabilities: m.capabilities } : {}),
       ...(m.deprecated !== undefined ? { deprecated: m.deprecated } : {}),
       ...(m.sunsetDate !== undefined ? { sunsetDate: m.sunsetDate } : {}),
+      ...(m.contextDiscovery !== undefined ? { contextDiscovery: m.contextDiscovery } : {}),
     };
   });
 }

@@ -56,8 +56,12 @@ export function createProvider<M = unknown>(spec: ProviderSpec<M>): IProvider {
         });
       }
 
+      // The context-discovery tool resolves the required context, so by definition it cannot require
+      // it — exempt it from metadata validation (see manifest.contextDiscovery). Every other tool is
+      // still validated against the provider's metadataSchema before its handler runs.
+      const discoveryTool = spec.manifest.contextDiscovery?.tool;
       let metadata: M;
-      if (spec.metadataSchema) {
+      if (spec.metadataSchema && toolName !== discoveryTool) {
         const parsedMeta = spec.metadataSchema.safeParse(ctx.metadata ?? {});
         if (!parsedMeta.success) {
           return toolError({
@@ -69,7 +73,7 @@ export function createProvider<M = unknown>(spec: ProviderSpec<M>): IProvider {
         }
         metadata = parsedMeta.data;
       } else {
-        metadata = undefined as M;
+        metadata = (ctx.metadata ?? {}) as M;
       }
 
       const parsedArgs = tool.input.safeParse(args);
