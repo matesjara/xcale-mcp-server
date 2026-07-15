@@ -9,12 +9,17 @@ import type { CloudbedsContext } from './context';
 import { SLUG } from './manifest';
 
 type Unwrapped =
-  | { readonly ok: true; readonly data: unknown }
+  | { readonly ok: true; readonly data: unknown; readonly total?: number }
   | { readonly ok: false; readonly code: ProviderErrorCode; readonly message: string };
 
 /**
  * Cloudbeds wraps payloads as `{ success, data, total?, message? }`. Provider-specific shaping stays
  * here. Fidelity over unification: we return the provider's `data` verbatim (no entity remodeling).
+ *
+ * NOTE (observed): Cloudbeds answers a bad request with **HTTP 200 + `success:false`** (e.g. a missing
+ * required param, or `"Scope required for this call was not granted by property."`), so the envelope —
+ * not the status code — is what tells us a call failed. Every tool must unwrap through here; that is
+ * why the paginated list reuses it too rather than re-implementing the check.
  */
 function unwrap(res: RequestResult, method: string): Unwrapped {
   if (!res.ok) {
@@ -24,7 +29,9 @@ function unwrap(res: RequestResult, method: string): Unwrapped {
       message: `Cloudbeds ${method} failed (HTTP ${res.status})`,
     };
   }
-  const body = res.data as { success?: boolean; data?: unknown; message?: string } | null;
+  const body = res.data as
+    | { success?: boolean; data?: unknown; total?: number; message?: string }
+    | null;
   if (body && body.success === false) {
     return {
       ok: false,
@@ -32,7 +39,8 @@ function unwrap(res: RequestResult, method: string): Unwrapped {
       message: body.message ?? `Cloudbeds ${method} returned success=false`,
     };
   }
-  return { ok: true, data: body && 'data' in body ? body.data : body };
+  const data = body && 'data' in body ? body.data : body;
+  return body?.total !== undefined ? { ok: true, data, total: body.total } : { ok: true, data };
 }
 
 /**
@@ -66,27 +74,14 @@ export function buildCloudbedsTools(
           checkInFrom: args.checkInFrom,
           checkInTo: args.checkInTo,
         });
-        if (!res.ok) {
-          return {
-            ok: false,
-            code: res.errorCode,
-            message: `Cloudbeds getReservations failed (HTTP ${res.status})`,
-          };
-        }
-        const body = res.data as {
-          success?: boolean;
-          data?: unknown[];
-          total?: number;
-          message?: string;
-        } | null;
-        if (body && body.success === false) {
-          return {
-            ok: false,
-            code: ProviderErrorCode.PROVIDER_ERROR,
-            message: body.message ?? 'getReservations success=false',
-          };
-        }
-        return { ok: true, items: body?.data ?? [], totalResults: body?.total };
+        // Reuse the shared envelope unwrap — same `success/data/total` contract as every other tool.
+        const u = unwrap(res, 'getReservations');
+        if (!u.ok) return { ok: false, code: u.code, message: u.message };
+        return {
+          ok: true,
+          items: Array.isArray(u.data) ? u.data : [],
+          totalResults: u.total,
+        };
       },
     }),
 
@@ -129,6 +124,35 @@ export function buildCloudbedsTools(
           endDate: args.endDate,
         });
         const u = unwrap(res, 'getAvailableRoomTypes');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_get_rate_plans`,
+      description:
+        'Get the priceable rate plans for a date range: per room type its rateID, total rate for the ' +
+        'range and rooms available. Set detailedRates for a per-night breakdown (nightly rate plus ' +
+        'stay restrictions such as minLos and closedToArrival). The rateID is what creating a ' +
+        'reservation requires, and the nightly detail is what an accurate quote requires.',
+      input: z
+        .object({
+          startDate: z.string().min(1),
+          endDate: z.string().min(1),
+          roomTypeID: z.string().optional(),
+          detailedRates: z.boolean().optional(),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const res = await client.get('getRatePlans', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          startDate: args.startDate,
+          endDate: args.endDate,
+          roomTypeID: args.roomTypeID,
+          // Cloudbeds reads this as a query string; send the wire value it expects.
+          detailedRates: args.detailedRates === undefined ? undefined : String(args.detailedRates),
+        });
+        const u = unwrap(res, 'getRatePlans');
         return u.ok ? ok(u.data) : err(u.code, u.message);
       },
     }),

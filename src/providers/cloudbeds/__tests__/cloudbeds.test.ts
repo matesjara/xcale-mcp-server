@@ -125,6 +125,73 @@ describe('cloudbeds provider', () => {
     expect(new URL(calledUrl).pathname.endsWith('/getHotels')).toBe(true);
   });
 
+  it('get_rate_plans sends the date range + propertyID and serialises detailedRates for the wire', async () => {
+    let calledUrl = '';
+    const capturingFetch = (async (url: string | URL) => {
+      calledUrl = url.toString();
+      return new Response(JSON.stringify({ success: true, data: [] }), { status: 200 });
+    }) as FetchLike;
+    const provider = createCloudbedsProvider({ fetchImpl: capturingFetch });
+    await provider.callTool(
+      'mcp_cloudbeds_get_rate_plans',
+      { startDate: '2026-08-10', endDate: '2026-08-12', detailedRates: true },
+      ctx({ propertyID: 'PROP1' }),
+    );
+    const qs = new URL(calledUrl).searchParams;
+    expect(qs.get('propertyID')).toBe('PROP1');
+    expect(qs.get('startDate')).toBe('2026-08-10');
+    expect(qs.get('endDate')).toBe('2026-08-12');
+    expect(qs.get('detailedRates')).toBe('true');
+  });
+
+  it('get_rate_plans returns the rate plans verbatim (rateID + nightly detail reach the consumer)', async () => {
+    const ratePlans = {
+      success: true,
+      data: [
+        {
+          rateID: '3206090',
+          roomTypeID: '679065',
+          roomRate: 700,
+          roomRateDetailed: [{ date: '2026-08-10', rate: 350, minLos: 1 }],
+        },
+      ],
+    };
+    const provider = createCloudbedsProvider({
+      fetchImpl: fakeFetch({ getRatePlans: { body: ratePlans } }),
+    });
+    const r = await provider.callTool(
+      'mcp_cloudbeds_get_rate_plans',
+      { startDate: '2026-08-10', endDate: '2026-08-12' },
+      ctx({ propertyID: 'PROP1' }),
+    );
+    expect(r).toMatchObject({ kind: 'success' });
+    expect((r as { data: unknown }).data).toEqual(ratePlans.data);
+  });
+
+  // Observed against the live sandbox: Cloudbeds answers a *bad* request with HTTP 200 and
+  // `success:false` (missing param, or an ungranted scope) — the envelope, not the status code, is
+  // what fails. A tool that trusted the 200 would hand the agent a phantom empty result.
+  it('surfaces an HTTP 200 + success:false envelope as an error, never as success', async () => {
+    const provider = createCloudbedsProvider({
+      fetchImpl: fakeFetch({
+        getRatePlans: {
+          status: 200,
+          body: { success: false, message: 'Scope required for this call was not granted by property.' },
+        },
+      }),
+    });
+    const r = await provider.callTool(
+      'mcp_cloudbeds_get_rate_plans',
+      { startDate: '2026-08-10', endDate: '2026-08-12' },
+      ctx({ propertyID: 'PROP1' }),
+    );
+    expect(r).toMatchObject({
+      kind: 'error',
+      code: ProviderErrorCode.PROVIDER_ERROR,
+      message: 'Scope required for this call was not granted by property.',
+    });
+  });
+
   it('publishes contextDiscovery in the manifest (propertyID via list_properties)', () => {
     const provider = createCloudbedsProvider();
     expect(provider.manifest.contextDiscovery).toEqual({

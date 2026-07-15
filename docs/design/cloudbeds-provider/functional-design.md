@@ -65,11 +65,11 @@ conversational-Booking scope (different vertical/ops surface).
 |:--|:--|:--|:--|
 | Available room types | `getAvailableRoomTypes` | [HAVE] | what's bookable |
 | Room types | `getRoomTypes` | [HAVE] | descriptions/occupancy |
-| Rate plans | `getRatePlans` | **[NEXT]** | **priceable rate options (rateID/roomRateID for create)** |
-| Rate detail | `getRate` | **[NEXT]** | **exact price for dates → the quote** |
-| Rooms with fees/taxes | `getRoomsFeesAndTaxes` | [NEXT] | all-in nightly price |
+| Rate plans | `getRatePlans` | **[HAVE — W1]** | **the quote**: rateID for create + per-night rates & restrictions via `detailedRates` (§7) |
+| Rate detail | `getRate` | **[DROPPED]** | redundant with `get_rate_plans` — evidence §7 |
+| Rooms with fees/taxes | `getRoomsFeesAndTaxes` | [BLOCKED] | all-in nightly price — **scope not granted** (§7) |
 | Eligible rates / policies | `getEligibleRates` | [LATER] | policy-aware quoting |
-| Packages | `getPackages` / `getPackageNames` | [LATER] | package offers |
+| Packages | `getPackages` / `getPackageNames` | **[OUT]** | `Package: Read` **not granted** to the app (§7) |
 
 > **Key insight:** a trustworthy conversational **quote** needs `getRatePlans` + `getRate` (+ taxes/fees),
 > and `postReservation` needs `roomRateID`/`rateID` — so **Rates is the highest-value missing domain**,
@@ -164,7 +164,7 @@ existing availability/property reads.
 | Wave | Tools | Unlocks | Depends on |
 |:--|:--|:--|:--|
 | **W0 (done)** | 7 read tools | "browse a property" | — |
-| **W1 — Quote** | `getRatePlans`, `getRate`, `getTaxesAndFees` | honest conversational pricing; supplies `roomRateID` | W0 |
+| **W1 — Quote (done 2026-07-15)** | `get_rate_plans` (`getRatePlans`, incl. `detailedRates`) | honest conversational pricing (per-night + restrictions); supplies the `rateID` create needs | W0 |
 | **W2 — Book (E-08)** | `create_reservation` (`postReservation`) + ext-ref filter | the booking + reconciliation | W1 (rate ref), auth `write:reservation` |
 | **W3 — Manage** | `modify_reservation` (`putReservation`), cancel | change/cancel a booking | W2 |
 | **W4 — Notify** | Cloudbeds `postWebhook` wiring → lifecycle notifier reuse | agent-narrated post-booking updates | W2, backend notifier |
@@ -177,10 +177,36 @@ existing availability/property reads.
 
 ---
 
-## 6. Open decisions for review
+## 6. Decisions (resolved 2026-07-15)
 
-1. **Booking v1 scope** = W1 + W2 + W3 (+ W4 notifications)? Or W1+W2 only for the first end-to-end demo?
-2. **Rates modeling:** one `get_rate_quote` tool that the agent calls per date-range, or expose
-   `getRatePlans`/`getRate` separately? (Consumer-agnostic + fidelity argues for exposing the raw
-   endpoints; a "quote" convenience risks putting business logic in the provider.)
-3. **Webhooks (W4):** is lifecycle-driven notification in scope for the first Booking core, or deferred?
+1. **Booking v1 scope = W1 + W2 + W3** (quote + book + modify/cancel). A booking conversation that
+   cannot change or cancel is incomplete, so W3 is in v1. W4 (notifications) stays deferred — and is
+   additionally scope-blocked (§7).
+2. **Rates modeling = expose the raw endpoints.** No `get_quote` convenience tool: quoting strategy,
+   upsell and policy are Booking Core logic. A quote tool would put business logic in the provider and
+   couple it to one consumer — both forbidden by soul.md.
+3. **Webhooks (W4) = deferred.** See §7: no webhook scope is granted to the app, so W4 cannot be built
+   as specified regardless of appetite.
+
+---
+
+## 7. Sandbox evidence (observed 2026-07-15, property `320754`) — corrections to this doc
+
+Probed live with a write-scoped token. **Three corrections to the model above:**
+
+| Endpoint | Observed | Consequence |
+|:--|:--|:--|
+| `getRatePlans` | `startDate` **required**; returns per room type `rateID`, `roomRate`/`totalRate` **for the whole range**, `roomsAvailable`. With `detailedRates=true` it adds `roomRateDetailed[]`: **per-night** `rate` **plus stay restrictions** (`minLos`, `maxLos`, `closedToArrival`, `closedToDeparture`, `blocked`). | **This one endpoint is the whole quote.** Shipped as `get_rate_plans` (W1). |
+| `getRate` | Requires `roomTypeID` + `startDate` (**not** `rateID`, as §2.2 assumed). Returns the same fields as one `getRatePlans` entry, for a single room type (as strings: `"700.00"`). | **Strictly redundant** with `get_rate_plans`. **Not shipped** — per §0's selection principle, it has not earned its place. Revisit only if a conversation proves the narrower call is needed. |
+| `getTaxesAndFees` | `{"success": false, "message": "Scope required for this call was not granted by property."}` | **Scope-blocked.** The app authorizes *Taxes and Fees: Read*, but the **token** carries only the 7 scopes the descriptor requests. Needs the taxes scope added to `auth.ts` **and a reconnect**. Same for `getRoomsFeesAndTaxes` (which additionally requires `roomsTotal` **and** `roomsCount`). |
+
+**Wire trap (now covered by a test):** Cloudbeds answers a **bad request with HTTP 200 + `success:false`**
+— missing param *and* ungranted scope both look like a success at the status-code level. The envelope, not
+the status, decides. Every tool must unwrap through the shared `unwrap()`; a tool that trusted the 200
+would hand the agent a phantom empty result.
+
+**Scope reality vs the app's grant list.** The app is authorized for 31 scopes, but the **descriptor**
+decides what the token actually carries. Anything outside the requested set fails at runtime with the
+scope message above — so *"the app allows it"* is **not** enough. `Package: Read` is **not** granted at
+all → **Packages move from [LATER] to [OUT]** (§2.2). `Reservation: Delete` is **not** granted → cancel
+**must** go through `putReservation` status, which is what §2.3/W3 already assumed. ✔
