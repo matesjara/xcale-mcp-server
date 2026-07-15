@@ -236,6 +236,22 @@ Either outcome leaves this contract complete: the MCP exposes both `sourceReserv
 `thirdPartyIdentifier` (in the response) — the consumer decides. E-P2 only tells the consumer which of the
 two documented strategies to use.
 
+> ### ✅ E-P2 RESOLVED — 2026-07-15: **H-P2 FAILS**
+>
+> Observed through the real MCP against sandbox `320754`: a reservation created with
+> `thirdPartyIdentifier=xtest-6e81b73c` is **not** returned by
+> `getReservations?sourceReservationId=xtest-6e81b73c` (**0 items**). The two fields are **not** the same
+> underlying value — `sourceReservationId` is an accepted filter that simply never matches our stamp.
+>
+> **Therefore the consumer reconciles client-side** (the fallback this section already specified): fetch a
+> **bounded window** (by date/status) and match on each reservation's `thirdPartyIdentifier`, which the
+> response **does** expose (verified). The **Booking gate** owns this — it is a business concern, and the
+> MCP stays stateless.
+>
+> **The MCP contract is unaffected:** both surfaces stay exposed (`sourceReservationId` as a pass-through
+> filter, `thirdPartyIdentifier` verbatim in each object). This is exactly the outcome the contract
+> planned for — no rework, only a decided strategy.
+
 ### 3.4 Conformance rules
 
 - Adding the filters MUST NOT change existing behavior when they are absent (additive).
@@ -291,15 +307,23 @@ production flow uses, and doubles as the end-to-end conformance test the roadmap
 `x-api-key` sandbox call (postReservation accepts `x-api-key` **[DOC]**) is the fast fallback if a wire
 detail must be confirmed before the tool exists.
 
-| # | Item | Hypothesis | Experiment |
-|:--|:--|:--|:--|
-| **7-A** | `rooms`/`adults`/`children` form-urlencoded serialization | Cloudbeds expects PHP-style bracketed arrays (`rooms[0][roomTypeID]=…`) | Send a 1-room booking both as bracketed array and (fallback) JSON-string; the accepted form is frozen into `client.post`. |
-| **7-B** | P-2 correlation (`sourceReservationId` ↔ `thirdPartyIdentifier`) | H-P2 (§3.3) | E-P2 (§3.3). **Sandbox-observed 2026-07-10:** `sourceReservationId` is a **valid accepted filter** (`getReservations?sourceReservationId=…` → 200 + empty, not 400). The stamp↔filter *correlation* still needs a created reservation (E-P2). |
-| **7-C** | Page-size param name | `resultsPerPage` works (observed) but docs say `pageSize` | **Sandbox-observed 2026-07-10:** both `resultsPerPage` and `pageSize` return 200 (no 400); the sandbox has only 1 reservation, so which is *respected* is undecidable now — resolves here once ≥2 reservations exist. Existing code does not error. |
-| **7-D** | Base host for the write | `hotels.cloudbeds.com/api/v1.3` (observed for reads) also serves `postReservation` | **Sandbox-observed 2026-07-10:** **both** `hotels.cloudbeds.com` and `api.cloudbeds.com` serve reads (200). Host is not a blocker; re-confirm the write on the observed host. |
+**ALL FOUR OBSERVED — 2026-07-15**, through the real MCP tool with the Rail A `write:reservation` token
+(the production path, as the method above requires), against sandbox property `320754`.
 
-Every row is a **bounded, falsifiable observation**, not an open question — the contract states the
-expected behavior and the check that confirms it.
+| # | Item | Hypothesis | **Result** |
+|:--|:--|:--|:--|
+| **7-A** | `rooms`/`adults`/`children` form-urlencoded serialization | PHP-style bracketed arrays (`rooms[0][roomTypeID]=…`) | ✅ **CONFIRMED.** `create_reservation` via MCP → `reservationID 6767771513016`, `status: confirmed`, `grandTotal: 770`. Bracketed encoding frozen into `client.post()`. |
+| **7-B** | P-2 correlation (`sourceReservationId` ↔ `thirdPartyIdentifier`) | H-P2 (§3.3) | ❌ **H-P2 FAILS — see §3.3.** Created with `thirdPartyIdentifier=xtest-6e81b73c`; `getReservations?sourceReservationId=xtest-6e81b73c` → **0 items**. The filter does **not** correlate with the stamp. The response object **does** expose `thirdPartyIdentifier` → the documented fallback (client-side match over a bounded window) is the strategy. |
+| **7-C** | Page-size param name | `resultsPerPage` works (observed) but docs say `pageSize` | ⚠️ **The code was wrong — real bug, now fixed.** With 27 reservations: `resultsPerPage=2` → **27 rows** (silently ignored); `pageSize=2` → **2 rows**. The contract's "follow the observed-working `resultsPerPage`" was an artifact of a 1-reservation sandbox where nothing could be disambiguated. **The doc was right:** the tool now sends `pageSize`. Re-verified through the MCP: 2 of 28. |
+| **7-D** | Base host for the write | `hotels.cloudbeds.com/api/v1.3` also serves `postReservation` | ✅ **CONFIRMED** by the 7-A create. Host stands. |
+
+**Why 7-C matters beyond a param name:** the wrong name meant every `list_reservations` returned the
+**entire** reservation set regardless of `pageSize` — an unbounded provider payload flowing straight into
+the agent's context. It was invisible while the sandbox held one reservation.
+
+**Wire trap confirmed across the board:** Cloudbeds answers a bad request with **HTTP 200 + `success:false`**
+(missing param *and* ungranted scope). The status code cannot be trusted; the envelope decides. Every tool
+unwraps through the shared `unwrap()`, and a test locks it in.
 
 ---
 
@@ -310,4 +334,7 @@ expected behavior and the check that confirms it.
 - [x] New/changed tool contracts specified (`create_reservation`, `list_reservations` filter).
 - [x] Auth-scope requirement (`write:reservation`) recorded.
 - [x] P-2 documented as reality + hypothesis + experiment (not a placeholder).
-- [ ] §7 experiments observed in sandbox → fold results in (implementation phase, first conformance test).
+- [x] §7 experiments observed in sandbox → results folded in (2026-07-15, via the real MCP tool). 7-A ✅,
+      7-D ✅, **7-B: H-P2 FAILS** → consumer reconciles client-side on `thirdPartyIdentifier` (§3.3),
+      **7-C: the contract's `resultsPerPage` was wrong** → the tool now sends `pageSize` (a real bug the
+      1-reservation sandbox had hidden).

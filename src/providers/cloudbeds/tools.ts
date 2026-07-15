@@ -63,16 +63,30 @@ export function buildCloudbedsTools(
         status: z.string().optional(),
         checkInFrom: z.string().optional(),
         checkInTo: z.string().optional(),
+        // External-reference filters — how a consumer reconciles a booking it created. Each
+        // reservation in the response also carries `thirdPartyIdentifier` verbatim, so a consumer can
+        // reconcile either server-side (this filter) or client-side over a bounded window.
+        sourceReservationId: z
+          .string()
+          .optional()
+          .describe("Filter by the source system's reservation id (external reference)."),
+        sourceId: z.string().optional().describe('Filter by source id (channel/booking-engine).'),
       }),
       handler: async (args, ctx) => {
         const { propertyID } = ctx.metadata as CloudbedsContext;
         const res = await client.get('getReservations', ctx.request, {
           propertyID,
           pageNumber: args.page,
-          resultsPerPage: args.pageSize, // Cloudbeds' param name for page size
+          // `pageSize` — NOT `resultsPerPage`. Settled against the sandbox with 27 reservations
+          // (api-contract §7-C): `resultsPerPage=2` returns all 27 (silently ignored), `pageSize=2`
+          // returns 2. The old name made every list return the full set — unbounded provider payload
+          // straight into the agent's context.
+          pageSize: args.pageSize,
           status: args.status,
           checkInFrom: args.checkInFrom,
           checkInTo: args.checkInTo,
+          sourceReservationId: args.sourceReservationId,
+          sourceId: args.sourceId,
         });
         // Reuse the shared envelope unwrap — same `success/data/total` contract as every other tool.
         const u = unwrap(res, 'getReservations');
@@ -124,6 +138,85 @@ export function buildCloudbedsTools(
           endDate: args.endDate,
         });
         const u = unwrap(res, 'getAvailableRoomTypes');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_create_reservation`,
+      description:
+        'Create a reservation (booking) for the property. Requires the stay dates, the primary guest, ' +
+        'and per room type the rooms/adults/children counts. Get roomTypeID and roomRateID from the ' +
+        'availability/rate tools — never invent them. Booking-only: this declares a payment method but ' +
+        'captures no card and moves no money. Pass thirdPartyIdentifier to stamp your own external ' +
+        'reference so you can reconcile the booking later.',
+      input: z
+        .object({
+          // Stay
+          startDate: z.string().min(1).describe('Check-in date, YYYY-MM-DD'),
+          endDate: z.string().min(1).describe('Check-out date, YYYY-MM-DD'),
+
+          // Primary guest
+          guestFirstName: z.string().min(1),
+          guestLastName: z.string().min(1),
+          guestCountry: z.string().length(2).describe('ISO 3166-1 alpha-2'),
+          guestZip: z.string().min(1),
+          guestEmail: z.string().email(),
+          guestPhone: z.string().optional(),
+          guestGender: z.enum(['M', 'F', 'N/A']).optional(),
+
+          // Rooms / occupancy — arrays keyed by room type
+          rooms: z
+            .array(
+              z.object({
+                roomTypeID: z.string().min(1),
+                quantity: z.number().int().positive(),
+                roomID: z.string().optional(),
+                roomRateID: z.string().optional(),
+              }),
+            )
+            .min(1),
+          adults: z
+            .array(
+              z.object({
+                roomTypeID: z.string().min(1),
+                quantity: z.number().int().nonnegative(),
+                roomID: z.string().optional(),
+              }),
+            )
+            .min(1),
+          children: z
+            .array(
+              z.object({
+                roomTypeID: z.string().min(1),
+                quantity: z.number().int().nonnegative(),
+                roomID: z.string().optional(),
+              }),
+            )
+            .min(1),
+
+          // Booking-only payment declaration — NO card capture (api-contract §2.4).
+          paymentMethod: z.enum(['cash', 'credit', 'ebanking', 'pay_pal']).default('cash'),
+
+          // Consumer-supplied external reference for reconciliation (the consumer owns idempotency).
+          thirdPartyIdentifier: z.string().optional(),
+
+          // Misc
+          estimatedArrivalTime: z.string().optional().describe('HH:mm 24h'),
+          sendEmailConfirmation: z.boolean().optional().describe('Cloudbeds default is true'),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const res = await client.post('postReservation', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          ...args,
+          // Booleans must reach the wire as strings; the rest is passed through verbatim.
+          sendEmailConfirmation:
+            args.sendEmailConfirmation === undefined
+              ? undefined
+              : String(args.sendEmailConfirmation),
+        });
+        const u = unwrap(res, 'postReservation');
         return u.ok ? ok(u.data) : err(u.code, u.message);
       },
     }),

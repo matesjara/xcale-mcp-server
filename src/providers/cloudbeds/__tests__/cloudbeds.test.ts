@@ -33,6 +33,9 @@ describe('cloudbeds provider', () => {
     expect(provider.contextSchema).toMatchObject({ type: 'object' });
   });
 
+  // Settled against the live sandbox with 27 reservations (api-contract §7-C): Cloudbeds respects
+  // `pageSize` and silently IGNORES `resultsPerPage` — `resultsPerPage=2` returned all 27 rows,
+  // `pageSize=2` returned 2. Sending the wrong name made every list return the whole set.
   it('translates the uniform page/pageSize contract to Cloudbeds param names + sends propertyID', async () => {
     let calledUrl = '';
     const capturingFetch = (async (url: string | URL) => {
@@ -48,8 +51,8 @@ describe('cloudbeds provider', () => {
     const qs = new URL(calledUrl).searchParams;
     expect(qs.get('propertyID')).toBe('PROP1');
     expect(qs.get('pageNumber')).toBe('2');
-    expect(qs.get('resultsPerPage')).toBe('10');
-    expect(qs.get('pageSize')).toBeNull(); // not Cloudbeds' name
+    expect(qs.get('pageSize')).toBe('10'); // the name Cloudbeds actually honours
+    expect(qs.get('resultsPerPage')).toBeNull(); // ignored by the provider — never send it
   });
 
   it('list_reservations returns a uniform PaginatedResult (items kept verbatim)', async () => {
@@ -190,6 +193,107 @@ describe('cloudbeds provider', () => {
       code: ProviderErrorCode.PROVIDER_ERROR,
       message: 'Scope required for this call was not granted by property.',
     });
+  });
+
+  // --- create_reservation (E-08 write path) -------------------------------------------------
+
+  const validBooking = {
+    startDate: '2026-08-10',
+    endDate: '2026-08-12',
+    guestFirstName: 'Ana',
+    guestLastName: 'Gomez',
+    guestCountry: 'CO',
+    guestZip: '110111',
+    guestEmail: 'ana@example.com',
+    rooms: [{ roomTypeID: '679065', quantity: 1, roomRateID: '3206090' }],
+    adults: [{ roomTypeID: '679065', quantity: 2 }],
+    children: [{ roomTypeID: '679065', quantity: 0 }],
+  };
+
+  async function captureCreate(args: Record<string, unknown>) {
+    let body = '';
+    let calledUrl = '';
+    let method = '';
+    const capturingFetch = (async (url: string | URL, init?: RequestInit) => {
+      calledUrl = url.toString();
+      method = init?.method ?? 'GET';
+      body = init?.body?.toString() ?? '';
+      return new Response(JSON.stringify({ success: true, reservationID: 'R-1' }), { status: 200 });
+    }) as FetchLike;
+    const provider = createCloudbedsProvider({ fetchImpl: capturingFetch });
+    const r = await provider.callTool(
+      'mcp_cloudbeds_create_reservation',
+      args,
+      ctx({ propertyID: 'PROP1' }),
+    );
+    return { r, body: new URLSearchParams(body), calledUrl, method };
+  }
+
+  it('create_reservation POSTs form-encoded bracketed arrays and injects propertyID from context', async () => {
+    const { r, body, calledUrl, method } = await captureCreate(validBooking);
+    expect(r).toMatchObject({ kind: 'success' });
+    expect(method).toBe('POST');
+    expect(calledUrl.endsWith('/postReservation')).toBe(true);
+    // propertyID is Explicit Context — never an agent arg.
+    expect(body.get('propertyID')).toBe('PROP1');
+    // §7-A: PHP-style bracketed arrays, confirmed against the sandbox.
+    expect(body.get('rooms[0][roomTypeID]')).toBe('679065');
+    expect(body.get('rooms[0][quantity]')).toBe('1');
+    expect(body.get('rooms[0][roomRateID]')).toBe('3206090');
+    expect(body.get('adults[0][quantity]')).toBe('2');
+    expect(body.get('children[0][quantity]')).toBe('0');
+    // Booking-only: a declared method, defaulted by the schema.
+    expect(body.get('paymentMethod')).toBe('cash');
+  });
+
+  it('create_reservation never sends card/payment-authorization fields (booking-only stays booking-only)', async () => {
+    const { body } = await captureCreate({
+      ...validBooking,
+      thirdPartyIdentifier: 'xtest-1',
+    });
+    expect(body.get('cardToken')).toBeNull();
+    expect(body.get('paymentAuthorizationCode')).toBeNull();
+    // The consumer's external reference does reach the wire (it owns reconciliation).
+    expect(body.get('thirdPartyIdentifier')).toBe('xtest-1');
+  });
+
+  it('create_reservation rejects an unknown field (strict schema) and never reaches the provider', async () => {
+    const provider = createCloudbedsProvider({ fetchImpl: fakeFetch({}) });
+    const r = await provider.callTool(
+      'mcp_cloudbeds_create_reservation',
+      { ...validBooking, cardToken: 'tok_visa' },
+      ctx({ propertyID: 'PROP1' }),
+    );
+    expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+  });
+
+  it('create_reservation returns the provider payload verbatim (fields live at the envelope root)', async () => {
+    const created = { success: true, reservationID: '9312390733482', status: 'confirmed', grandTotal: 770 };
+    const provider = createCloudbedsProvider({
+      fetchImpl: fakeFetch({ postReservation: { body: created } }),
+    });
+    const r = await provider.callTool(
+      'mcp_cloudbeds_create_reservation',
+      validBooking,
+      ctx({ propertyID: 'PROP1' }),
+    );
+    expect(r).toMatchObject({ kind: 'success' });
+    expect((r as { data: unknown }).data).toEqual(created);
+  });
+
+  it('list_reservations passes the external-reference filter through (consumer-side reconciliation)', async () => {
+    let calledUrl = '';
+    const capturingFetch = (async (url: string | URL) => {
+      calledUrl = url.toString();
+      return new Response(JSON.stringify({ success: true, data: [], total: 0 }), { status: 200 });
+    }) as FetchLike;
+    const provider = createCloudbedsProvider({ fetchImpl: capturingFetch });
+    await provider.callTool(
+      'mcp_cloudbeds_list_reservations',
+      { page: 1, pageSize: 10, sourceReservationId: 'xtest-abc' },
+      ctx({ propertyID: 'PROP1' }),
+    );
+    expect(new URL(calledUrl).searchParams.get('sourceReservationId')).toBe('xtest-abc');
   });
 
   it('publishes contextDiscovery in the manifest (propertyID via list_properties)', () => {
