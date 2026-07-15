@@ -244,6 +244,106 @@ read as evidence of absence.* **Probe before declaring something impossible.**
 `endpointUrl` is ours to set, no third-party console. So W4's trigger is **not blocked by anything
 external**; it only needs a public URL (ngrok in dev). That removes the reason W4 looked impossible.
 
+### 7.2 The event vocabulary — observed, not inferred (2026-07-15)
+
+§7.1 said the action list could only be trusted after a real delivery. It has now been observed. Method:
+because `endpointUrl` is ours, every candidate action was subscribed to **its own URL**
+(`/obs/<object>__<action>`), so the delivery identifies itself by which path it reaches. A real booking
+was created and cancelled against sandbox 320754.
+
+**All 12 candidate subscriptions returned `success:true` — including `reservation/zzz_bogus_action`,
+invented as a negative control.** Only 4 ever delivered. The 200 is worth exactly nothing; the control
+never fired, so the method discriminates.
+
+| Subscribed | Delivered? |
+|:--|:--|
+| `reservation/created` | ✅ on create |
+| `guest/created` | ✅ on create |
+| `guest/assigned` | ✅ on create |
+| `reservation/status_changed` | ✅ on cancel |
+| `reservation/cancelled`, `modified`, `updated`, `changed`, `dates_changed`, `deleted`, `accommodation_status_changed` | ❌ never |
+| `reservation/zzz_bogus_action` (control) | ❌ never |
+
+**A cancel is a `status_changed`, not a `cancelled`.** There is no `cancelled` action — the plausible
+name is the wrong one, which is precisely why guessing would have produced a notifier that never fires.
+
+**One create emits TWO OR THREE deliveries, and the count is not fixed.** A booking for a *new* guest
+emits `guest/created` → `guest/assigned` → `reservation/created` (~1s apart, out of causal order by
+timestamp). A booking for a guest Cloudbeds already knows (same email ⇒ same `guestID`) emits only
+`guest/assigned` + `reservation/created` — **no `guest/created`**. Observed both ways. So a consumer
+cannot count deliveries to decide when a booking is "complete", and one that notifies per delivery
+notifies two-to-three times per booking. **Dedup on the reservation, not on the delivery.**
+
+#### The payload (verbatim, `reservation/status_changed`)
+
+```json
+{"reservationID":"2326925352181","propertyID":320754,"propertyID_str":"320754",
+ "status":"canceled","previousStatus":"confirmed",
+ "actor":{"type":"api-client","id":"xcale_D1V3aoC7zjl2pJOPrfwQvFXg"},
+ "subReservations":[{"id":"233559641","roomId":"","subReservationId":"2326925352181",
+                     "startDate":"2026-09-14","endDate":"2026-09-16"}],
+ "version":"1.0","event":"reservation/status_changed","timestamp":1784141201.429757}
+```
+
+What the wire settles for W4's design:
+
+- **The payload self-identifies** via `event: "<object>/<action>"`. The per-action URL was a discovery
+  device; production needs **one** endpoint and can dispatch on `event`.
+- **`status` + `previousStatus` carry the transition.** A status notification needs no re-read.
+- **🔑 `actor` solves the echo problem — and the discriminator is now OBSERVED, not assumed.** The same
+  cancel was performed twice, once through our API and once by a human clicking *Cancel reservation* in
+  the Cloudbeds admin UI:
+
+  | Cancel performed by | `actor` |
+  |:--|:--|
+  | our API client | `{"type":"api-client","id":"xcale_D1V3aoC7zjl2pJOPrfwQvFXg"}` |
+  | a human in the Cloudbeds UI | `{"type":"user","id":"196623333724237"}` |
+
+  **`actor.type` is the echo discriminator.** `api-client` + our own client id ⇒ our write, which the
+  agent already narrated in-band ⇒ **skip**. `type:"user"` ⇒ a human at the property changed the booking
+  ⇒ **notify**. Matching on `actor.id` (not just the type) matters: another integration on the same
+  property would also be `api-client`, and its writes ARE out-of-band for us.
+  Note `guest/created` and `reservation/created` carried **no** `actor` field at all — absence must be
+  handled, not assumed.
+- **Casing is inconsistent across objects.** `reservation/*` uses `propertyID`/`reservationID`;
+  `guest/*` uses `propertyId`/`guestId`/`reservationId`. Same concept, different spelling per object —
+  the parser must be per-event, not shared.
+- **`propertyID` arrives as a JSON number AND as `propertyID_str`.** Use the `_str` twin; property ids
+  are identifiers, and a 64-bit id through a JSON float is a silent corruption.
+- **No event/delivery id.** Dedup must be synthesized (`event` + entity id + `timestamp`).
+- **No retry observed** (none needed — we answered 200). Retry semantics remain **unknown**.
+
+#### 🚨 Deliveries are UNAUTHENTICATED
+
+```
+user-agent: CloudBeds-Webhooks/4.0.0     from 54.186.119.140 (AWS)
+```
+
+**No signature. No HMAC. No shared secret. No auth header of any kind.** Unlike Shopify
+(`x-shopify-hmac-sha256`) and Meta (`x-hub-signature-256`), Cloudbeds proves nothing. Anyone who learns
+the endpoint URL can post a forged `reservation/status_changed`.
+
+Since soul.md ranks Security first, the receiver **must not trust the payload as a business fact**. The
+mitigation is threefold and none of it is optional:
+1. **An unguessable per-subscription secret in the path** — the URL is ours to set, so it doubles as the
+   bearer. It must therefore be treated as a credential (never logged, rotatable).
+2. **Re-read from Cloudbeds before acting on anything that matters.** The payload is a *hint that
+   something changed*, never the truth of what it changed to.
+3. **Never let a webhook mutate state directly** — it triggers a reconciliation, it does not perform one.
+
+`subscriptionID` is **deterministic**: deleting all 12 subscriptions and re-creating them returned the
+byte-identical ids, so it is a hash of (property, endpointUrl, object, action). Re-subscribing is
+therefore naturally idempotent — `ensure`, not `create`.
+
+**The reservation status vocabulary** (read off the admin UI's own status dropdown, so it is the
+property-facing truth): `Confirmed`, `Confirmation Pending`, `Canceled`, `In-House`, `Checked Out`,
+`No-Show`. The wire value for a cancel is `canceled` (one `l`).
+
+**Still unknown (do not guess):** the retry policy and timeout; what `accommodation_status_changed` and
+`dates_changed` respond to (a checkout-date change was never tried); whether `deleted` exists at all;
+whether the other statuses (`no-show`, `checked out`, `in-house`) each emit `status_changed` — only
+`confirmed → canceled` has been observed.
+
 **Scope reality vs the app's grant list.** The app is authorized for 31 scopes, but the **descriptor**
 decides what the token actually carries. Anything outside the requested set fails at runtime with the
 scope message above — so *"the app allows it"* is **not** enough. `Package: Read` is **not** granted at
