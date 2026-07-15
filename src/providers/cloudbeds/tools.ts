@@ -689,6 +689,159 @@ export function buildCloudbedsTools(
       },
     }),
 
+    // ---- Revenue / inventory group ----------------------------------------------------------------
+
+    tool({
+      name: `mcp_${SLUG}_get_dashboard`,
+      requiredScopes: ['read:dashboard'], // spec: getDashboard
+      description:
+        'Get the property’s dashboard for a date: the day’s headline numbers (arrivals, departures, ' +
+        'occupancy and revenue as the PMS reports them). Use it to answer "how are we doing".',
+      input: z
+        .object({
+          date: z.string().optional().describe('YYYY-MM-DD. Defaults to the property’s today.'),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const res = await client.get('getDashboard', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          date: args.date,
+        });
+        const u = unwrap(res, 'getDashboard');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    definePaginatedList({
+      name: `mcp_${SLUG}_list_room_blocks`,
+      requiredScopes: ['read:roomblock'], // spec: getRoomBlocks
+      description:
+        'List room blocks — rooms held out of sale (blocked, out of service, or on courtesy hold). ' +
+        'Use it to explain why a room is unavailable when availability looks wrong.',
+      input: z.object({
+        roomBlockID: z.string().optional(),
+        roomTypeID: z.string().optional(),
+        roomID: z.string().optional(),
+        startDate: z.string().optional().describe('YYYY-MM-DD. Defaults to today.'),
+        endDate: z.string().optional().describe('YYYY-MM-DD. Defaults to today.'),
+      }),
+      handler: async (args, ctx) => {
+        const res = await client.get('getRoomBlocks', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          pageNumber: args.page,
+          pageSize: args.pageSize,
+          roomBlockID: args.roomBlockID,
+          roomTypeID: args.roomTypeID,
+          roomID: args.roomID,
+          startDate: args.startDate,
+          endDate: args.endDate,
+        });
+        const u = unwrap(res, 'getRoomBlocks');
+        if (!u.ok) return { ok: false, code: u.code, message: u.message };
+        return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_create_room_block`,
+      requiredScopes: ['write:roomblock'], // spec: postRoomBlock
+      description:
+        'Hold rooms out of sale for a date range — a maintenance block, an out-of-service room, or a ' +
+        'courtesy hold. Rooms sent together share one block.',
+      input: z
+        .object({
+          roomBlockType: z.enum(['blocked_dates', 'out_of_service', 'courtesy_hold']),
+          roomBlockReason: z.string().min(1),
+          startDate: z.string().min(1).describe('YYYY-MM-DD'),
+          endDate: z.string().min(1).describe('YYYY-MM-DD'),
+          rooms: z
+            .array(z.object({ roomID: z.string(), roomTypeID: z.string() }))
+            .min(1)
+            .describe('Rooms to block. For split inventory send only source rooms.'),
+          firstName: z.string().optional().describe('Courtesy holds: who the hold is for.'),
+          lastName: z.string().optional(),
+          lengthOfHoldInHours: z.number().int().positive().optional(),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        // `rooms` rides the PHP-style bracketed encoding the client already implements
+        // (`rooms[0][roomID]=…`) — the same shape `create_reservation` proved against the sandbox.
+        const res = await client.post('postRoomBlock', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          ...args,
+        });
+        const u = unwrap(res, 'postRoomBlock');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_update_room_block`,
+      requiredScopes: ['write:roomblock'], // spec: putRoomBlock
+      description:
+        'Change an existing room block: its reason, dates, or the rooms it covers. Get the ' +
+        'roomBlockID from list_room_blocks.',
+      input: z
+        .object({
+          roomBlockID: z.string().min(1),
+          roomBlockReason: z.string().optional(),
+          startDate: z.string().optional().describe('YYYY-MM-DD'),
+          endDate: z.string().optional().describe('YYYY-MM-DD'),
+          rooms: z.array(z.object({ roomID: z.string(), roomTypeID: z.string() })).optional(),
+          lengthOfHoldInHours: z.number().int().positive().optional(),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        // `put*` → PUT (a `put*` sent as POST is a router-level 404 — observed; see client.ts).
+        const res = await client.put('putRoomBlock', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          ...args,
+        });
+        const u = unwrap(res, 'putRoomBlock');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    definePaginatedList({
+      name: `mcp_${SLUG}_list_allotment_blocks`,
+      requiredScopes: ['read:allotmentBlock'], // spec: getAllotmentBlocks
+      description:
+        'List allotment blocks — room inventory reserved for a group, event, or contract. Use it to ' +
+        'see what is committed elsewhere before promising rooms.',
+      input: z.object({
+        allotmentBlockCode: z.string().optional(),
+        allotmentBlockName: z.string().optional(),
+        allotmentBlockStatus: z.string().optional().describe('Comma-separate for several.'),
+        groupCode: z.string().optional(),
+        roomTypeID: z.string().optional(),
+        startDate: z.string().optional().describe('YYYY-MM-DD'),
+        endDate: z.string().optional().describe('YYYY-MM-DD'),
+      }),
+      handler: async (args, ctx) => {
+        const res = await client.get('getAllotmentBlocks', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          pageNumber: args.page,
+          pageSize: args.pageSize,
+          allotmentBlockCode: args.allotmentBlockCode,
+          allotmentBlockName: args.allotmentBlockName,
+          allotmentBlockStatus: args.allotmentBlockStatus,
+          groupCode: args.groupCode,
+          roomTypeID: args.roomTypeID,
+          startDate: args.startDate,
+          endDate: args.endDate,
+        });
+        const u = unwrap(res, 'getAllotmentBlocks');
+        if (!u.ok) return { ok: false, code: u.code, message: u.message };
+        return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+      },
+    }),
+
+    // NOT built yet — allotment WRITES and allotment NOTES. The spec declares
+    // `createAllotmentBlockNotes` / `updateAllotmentBlockNotes` as POST but under **read**
+    // :allotmentBlock. Either the spec is wrong or Cloudbeds writes under a read scope; copying it
+    // blind would put that error into our contract, and `requiredScopes` is exactly the field a wrong
+    // copy corrupts. Settle it against the property first — see tool-map.md §6.
+
     tool({
       name: `mcp_${SLUG}_list_webhook_subscriptions`,
       requiredScopes: [], // spec: getWebhooks

@@ -34,10 +34,12 @@ describe('cloudbeds scopes — derived from tools, bounded by the app registrati
     // by accident — a diff here means the consent screen changed for real users. Updating it is a
     // decision, not a chore: consent is binary, so a hotel cannot decline one line of it.
     expect(auth.scopes).toEqual([
+      'read:allotmentBlock',
       'read:appPropertySettings',
       'read:communication',
       'read:currency',
       'read:customFields',
+      'read:dashboard',
       'read:guest',
       'read:hotel',
       'read:item',
@@ -45,10 +47,12 @@ describe('cloudbeds scopes — derived from tools, bounded by the app registrati
       'read:rate',
       'read:reservation',
       'read:room',
+      'read:roomblock',
       'read:taxesAndFees',
       'read:user',
       'write:guest',
       'write:reservation',
+      'write:roomblock',
     ]);
   });
 
