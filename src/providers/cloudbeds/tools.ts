@@ -356,6 +356,163 @@ export function buildCloudbedsTools(
       },
     }),
 
+    // ---- Administrative group (read) -------------------------------------------------------------
+    // Scope→method mapping taken from the published OpenAPI spec, not from memory:
+    // github.com/cloudbeds/openapi-specs › src/pms-v1.3-openapi.yaml (`security` per operation).
+    // See docs/design/cloudbeds-scope-coverage/tool-map.md for why these are the chosen groupings.
+
+    tool({
+      name: `mcp_${SLUG}_get_property_configuration`,
+      // Four scopes, four single-GET endpoints, ONE question an agent actually asks: "how is this
+      // property set up?". Splitting them would be four trivial tools competing for the agent's
+      // attention — the curation trade-off this repo already documents (Shopify 490 → ~41).
+      requiredScopes: [
+        'read:appPropertySettings',
+        'read:currency',
+        'read:taxesAndFees',
+        'read:customFields',
+      ], // spec: getAppPropertySettings, getCurrencySettings, getTaxesAndFees, getCustomFields
+      description:
+        'Get how this property is configured: app settings, currency, taxes and fees, and custom ' +
+        'fields. Use it before quoting prices or filling fields, so amounts and required data are right.',
+      input: z.object({}).strict(),
+      handler: async (_args, ctx) => {
+        const { propertyID } = ctx.metadata;
+        const parts = [
+          { key: 'appSettings', method: 'getAppPropertySettings' },
+          { key: 'currency', method: 'getCurrencySettings' },
+          { key: 'taxesAndFees', method: 'getTaxesAndFees' },
+          { key: 'customFields', method: 'getCustomFields' },
+        ] as const;
+
+        const data: Record<string, unknown> = {};
+        const unavailable: Record<string, string> = {};
+        for (const part of parts) {
+          const u = unwrap(await client.get(part.method, ctx.request, { propertyID }), part.method);
+          if (u.ok) data[part.key] = u.data;
+          else unavailable[part.key] = u.message;
+        }
+
+        // Partial results are reported, never silently dropped: a property's PLAN can legitimately
+        // lack one of these capabilities (the real meaning of Cloudbeds' "not granted by property"),
+        // and failing all four because one is absent would make the tool useless for that hotel.
+        // Everything failing is a real failure, not a partial one.
+        if (Object.keys(data).length === 0) {
+          return err(
+            ProviderErrorCode.PROVIDER_ERROR,
+            `No property configuration could be read: ${Object.values(unavailable).join(' | ')}`,
+          );
+        }
+        return ok(
+          Object.keys(unavailable).length > 0 ? { ...data, unavailable } : data,
+          Object.keys(unavailable).length > 0
+            ? `Partial: ${Object.keys(unavailable).join(', ')} unavailable for this property.`
+            : undefined,
+        );
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_get_payment_options`,
+      requiredScopes: ['read:payment'], // spec: getPaymentMethods, getPaymentsCapabilities
+      description:
+        'Get the payment methods this property accepts and what it can do with payments. Use it ' +
+        'before promising a guest a way to pay.',
+      input: z.object({}).strict(),
+      handler: async (_args, ctx) => {
+        const { propertyID } = ctx.metadata;
+        const methods = unwrap(
+          await client.get('getPaymentMethods', ctx.request, { propertyID }),
+          'getPaymentMethods',
+        );
+        if (!methods.ok) return err(methods.code, methods.message);
+        const caps = unwrap(
+          await client.get('getPaymentsCapabilities', ctx.request, { propertyID }),
+          'getPaymentsCapabilities',
+        );
+        // Capabilities are supplementary: methods alone already answer "how can this guest pay?".
+        return ok(
+          caps.ok
+            ? { methods: methods.data, capabilities: caps.data }
+            : { methods: methods.data, capabilities: null, capabilitiesError: caps.message },
+        );
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_list_items`,
+      requiredScopes: ['read:item'], // spec: getItems, getItemCategories
+      description:
+        'List the sellable items (extras, products) of this property and their categories. Use it to ' +
+        'answer what can be added to a stay.',
+      input: z
+        .object({
+          itemCategoryID: z.string().optional().describe('Restrict to one category.'),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const { propertyID } = ctx.metadata;
+        const items = unwrap(
+          await client.get('getItems', ctx.request, {
+            propertyID,
+            itemCategoryID: args.itemCategoryID,
+          }),
+          'getItems',
+        );
+        if (!items.ok) return err(items.code, items.message);
+        const cats = unwrap(
+          await client.get('getItemCategories', ctx.request, { propertyID }),
+          'getItemCategories',
+        );
+        return ok(cats.ok ? { items: items.data, categories: cats.data } : { items: items.data });
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_list_email_templates`,
+      // Read-only on purpose. `write:communication` (creating templates/schedules) is deliberately NOT
+      // built: an agent authoring a hotel's outbound email is real risk with no demonstrated use case.
+      requiredScopes: ['read:communication'], // spec: getEmailTemplates, getEmailSchedule
+      description:
+        'List this property’s email templates and their send schedule. Read-only: use it to see what ' +
+        'the property already sends guests automatically.',
+      input: z.object({}).strict(),
+      handler: async (_args, ctx) => {
+        const { propertyID } = ctx.metadata;
+        const templates = unwrap(
+          await client.get('getEmailTemplates', ctx.request, { propertyID }),
+          'getEmailTemplates',
+        );
+        if (!templates.ok) return err(templates.code, templates.message);
+        const schedule = unwrap(
+          await client.get('getEmailSchedule', ctx.request, { propertyID }),
+          'getEmailSchedule',
+        );
+        return ok(
+          schedule.ok
+            ? { templates: templates.data, schedule: schedule.data }
+            : { templates: templates.data },
+        );
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_list_users`,
+      requiredScopes: ['read:user'], // spec: getUsers
+      description:
+        'List the staff users of this property. Use it to know who can be assigned or contacted.',
+      input: z.object({}).strict(),
+      handler: async (_args, ctx) => {
+        // `property_ids` — snake_case AND plural, unlike every other method's `propertyID`. Taken from
+        // the spec, not from the surrounding convention, which would have been wrong here.
+        const res = await client.get('getUsers', ctx.request, {
+          property_ids: ctx.metadata.propertyID,
+        });
+        const u = unwrap(res, 'getUsers');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
     tool({
       name: `mcp_${SLUG}_list_webhook_subscriptions`,
       requiredScopes: [], // spec: getWebhooks

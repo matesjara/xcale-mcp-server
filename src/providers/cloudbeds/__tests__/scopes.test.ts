@@ -31,13 +31,22 @@ describe('cloudbeds scopes — derived from tools, bounded by the app registrati
     if (auth.type !== 'oauth2') throw new Error('cloudbeds must publish an oauth2 descriptor');
 
     // Pinned deliberately. This list is what every hotel is asked to consent to, so it must never move
-    // by accident — a diff here means the consent screen changed for real users.
+    // by accident — a diff here means the consent screen changed for real users. Updating it is a
+    // decision, not a chore: consent is binary, so a hotel cannot decline one line of it.
     expect(auth.scopes).toEqual([
+      'read:appPropertySettings',
+      'read:communication',
+      'read:currency',
+      'read:customFields',
       'read:guest',
       'read:hotel',
+      'read:item',
+      'read:payment',
       'read:rate',
       'read:reservation',
       'read:room',
+      'read:taxesAndFees',
+      'read:user',
       'write:guest',
       'write:reservation',
     ]);
