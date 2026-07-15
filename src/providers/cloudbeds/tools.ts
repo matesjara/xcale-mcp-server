@@ -335,5 +335,68 @@ export function buildCloudbedsTools(
         return u.ok ? ok(u.data) : err(u.code, u.message);
       },
     }),
+
+    tool({
+      name: `mcp_${SLUG}_list_webhook_subscriptions`,
+      description:
+        'List this property’s webhook subscriptions: per subscription its id, endpointUrl, object and ' +
+        'action. Use it to check what is actually subscribed before changing anything.',
+      input: z.object({}).strict(),
+      handler: async (_args, ctx) => {
+        const res = await client.get('getWebhooks', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+        });
+        const u = unwrap(res, 'getWebhooks');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_ensure_webhook_subscription`,
+      description:
+        'Subscribe an endpoint URL to a property event. Idempotent: re-running with the same url, ' +
+        'object and action returns the same subscription rather than adding a duplicate. ' +
+        'IMPORTANT: Cloudbeds does NOT validate `action` — it accepts an unknown one and creates a ' +
+        'subscription that never fires, so a success here does NOT prove the event exists. Only these ' +
+        'have been observed to deliver: reservation/created, reservation/status_changed, ' +
+        'guest/created, guest/assigned. Anything else must be confirmed by observing a real delivery.',
+      input: z
+        .object({
+          endpointUrl: z.string().url().describe('Public HTTPS URL that will receive deliveries.'),
+          object: z.string().min(1).describe('Event object, e.g. "reservation" or "guest".'),
+          action: z.string().min(1).describe('Event action, e.g. "created" or "status_changed".'),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        // `ensure`, not `create`: the subscriptionID is a deterministic hash of
+        // (property, endpointUrl, object, action) — observed by deleting all subscriptions and
+        // re-creating them, which returned byte-identical ids. So Cloudbeds itself dedupes, and the
+        // honest verb is the idempotent one. Naming this `create` would invite callers to guard
+        // against duplicates that cannot happen.
+        const res = await client.post('postWebhook', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          ...args,
+        });
+        const u = unwrap(res, 'postWebhook');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_delete_webhook_subscription`,
+      description:
+        'Delete a webhook subscription by its id. The id is the `id` field returned by the list tool ' +
+        '(the same value the subscribe tool returns as `subscriptionID`).',
+      input: z.object({ subscriptionID: z.string().min(1) }).strict(),
+      handler: async (args, ctx) => {
+        // DELETE with query-string params — a DELETE body is not parsed (see `client.del`).
+        const res = await client.del('deleteWebhook', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          subscriptionID: args.subscriptionID,
+        });
+        const u = unwrap(res, 'deleteWebhook');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
   ];
 }

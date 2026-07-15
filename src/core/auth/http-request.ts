@@ -8,7 +8,13 @@
  * scheme — it just sends a built request.
  */
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT';
+/**
+ * The verbs the transport can materialize auth for. `DELETE` was added when the first provider needed
+ * it (Cloudbeds' webhook management). This is a generic HTTP capability, not provider knowledge — the
+ * self-containment invariant keeps *provider* semantics out of core, and a verb the core already
+ * transports for every provider is not that. No provider name appears here.
+ */
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
 /** What a provider client builds: the request minus authentication. */
 export interface RequestSpec {

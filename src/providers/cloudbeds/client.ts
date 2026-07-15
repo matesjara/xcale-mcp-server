@@ -28,6 +28,12 @@ export interface CloudbedsClient {
     request: AuthedRequest,
     body: Record<string, unknown>,
   ): Promise<RequestResult>;
+  /**
+   * DELETE with its params on the **query string**. Observed against the live sandbox: Cloudbeds does
+   * not parse a DELETE body, so params sent as a form body are simply absent and the call fails the
+   * required-param check. This is why `del` takes `QueryParams` and not a body like `post`/`put` do.
+   */
+  del(method: string, request: AuthedRequest, params: QueryParams): Promise<RequestResult>;
 }
 
 /**
@@ -83,6 +89,18 @@ export function createCloudbedsClient(deps: CloudbedsClientDeps = {}): Cloudbeds
         url: `${baseUrl}/${method}`,
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         body: formEncode(body),
+      });
+    },
+    del(method, request, params) {
+      // Query string, not a body — a DELETE body is not parsed (see the interface note).
+      const qs = new URLSearchParams();
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined) qs.set(key, String(value));
+      }
+      const query = qs.toString();
+      return request({
+        method: 'DELETE',
+        url: query ? `${baseUrl}/${method}?${query}` : `${baseUrl}/${method}`,
       });
     },
   };
