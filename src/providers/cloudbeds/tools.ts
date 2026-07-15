@@ -222,6 +222,52 @@ export function buildCloudbedsTools(
     }),
 
     tool({
+      name: `mcp_${SLUG}_modify_reservation`,
+      description:
+        'Modify an existing reservation: cancel it (status: "canceled"), extend or shorten the stay ' +
+        '(checkoutDate), change the rooms, or set the estimated arrival time. At least one of those ' +
+        'must be given. NOTE: the check-in date CANNOT be changed — only the check-out date; to move ' +
+        'a check-in, cancel and create a new reservation.',
+      input: z
+        .object({
+          reservationID: z.string().min(1),
+          status: z
+            .string()
+            .optional()
+            .describe(
+              'New reservation status — use "canceled" to cancel the booking. The property validates ' +
+                'the value and rejects a transition it does not allow.',
+            ),
+          checkoutDate: z
+            .string()
+            .optional()
+            .describe('New check-out date, YYYY-MM-DD (extends/shortens the stay).'),
+          rooms: z
+            .array(
+              z.object({
+                roomTypeID: z.string().min(1),
+                quantity: z.number().int().positive(),
+                roomID: z.string().optional(),
+                roomRateID: z.string().optional(),
+              }),
+            )
+            .optional(),
+          estimatedArrivalTime: z.string().optional().describe('HH:mm 24h'),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        // `putReservation` requires HTTP PUT and at least one mutable field; Cloudbeds names the exact
+        // set in its own error, so we let it validate rather than duplicating that rule here.
+        const res = await client.put('putReservation', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          ...args,
+        });
+        const u = unwrap(res, 'putReservation');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
       name: `mcp_${SLUG}_get_rate_plans`,
       description:
         'Get the priceable rate plans for a date range: per room type its rateID, total rate for the ' +

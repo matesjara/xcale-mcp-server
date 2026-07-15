@@ -23,6 +23,11 @@ export interface CloudbedsClient {
     request: AuthedRequest,
     body: Record<string, unknown>,
   ): Promise<RequestResult>;
+  put(
+    method: string,
+    request: AuthedRequest,
+    body: Record<string, unknown>,
+  ): Promise<RequestResult>;
 }
 
 /**
@@ -65,6 +70,16 @@ export function createCloudbedsClient(deps: CloudbedsClientDeps = {}): Cloudbeds
     post(method, request, body) {
       return request({
         method: 'POST',
+        url: `${baseUrl}/${method}`,
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: formEncode(body),
+      });
+    },
+    // Cloudbeds maps the method-name prefix to the HTTP verb: a `put*` method sent as POST is a
+    // router-level 404 (`{"status":false,"error":"Unknown method."}`) — observed, not assumed.
+    put(method, request, body) {
+      return request({
+        method: 'PUT',
         url: `${baseUrl}/${method}`,
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         body: formEncode(body),

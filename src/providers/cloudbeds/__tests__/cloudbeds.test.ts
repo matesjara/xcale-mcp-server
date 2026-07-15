@@ -296,6 +296,70 @@ describe('cloudbeds provider', () => {
     expect(new URL(calledUrl).searchParams.get('sourceReservationId')).toBe('xtest-abc');
   });
 
+  // --- modify_reservation (W3) -----------------------------------------------------------------
+
+  // Observed: Cloudbeds maps the method-name prefix to the HTTP verb. `putReservation` sent as POST is
+  // a router 404 (`{"status":false,"error":"Unknown method."}`); as PUT it validates and works. This
+  // test pins the verb, because getting it wrong fails as "endpoint doesn't exist", not as a bad request.
+  it('modify_reservation uses HTTP PUT (a POST is an Unknown-method 404 at Cloudbeds)', async () => {
+    let method = '';
+    let calledUrl = '';
+    let body = '';
+    const capturingFetch = (async (url: string | URL, init?: RequestInit) => {
+      method = init?.method ?? 'GET';
+      calledUrl = url.toString();
+      body = init?.body?.toString() ?? '';
+      return new Response(JSON.stringify({ success: true, data: { status: 'canceled' } }), { status: 200 });
+    }) as FetchLike;
+    const provider = createCloudbedsProvider({ fetchImpl: capturingFetch });
+    const r = await provider.callTool(
+      'mcp_cloudbeds_modify_reservation',
+      { reservationID: 'R-1', status: 'canceled' },
+      ctx({ propertyID: 'PROP1' }),
+    );
+    expect(r).toMatchObject({ kind: 'success' });
+    expect(method).toBe('PUT');
+    expect(calledUrl.endsWith('/putReservation')).toBe(true);
+    const qs = new URLSearchParams(body);
+    expect(qs.get('propertyID')).toBe('PROP1');
+    expect(qs.get('reservationID')).toBe('R-1');
+    // Cancel is a status transition: Reservation:Delete is not granted, so this is the only path.
+    expect(qs.get('status')).toBe('canceled');
+  });
+
+  it('modify_reservation surfaces a rejected status transition as an error', async () => {
+    const provider = createCloudbedsProvider({
+      fetchImpl: fakeFetch({
+        putReservation: {
+          status: 200,
+          body: { success: false, message: 'Incorrect status. You cannot change status' },
+        },
+      }),
+    });
+    const r = await provider.callTool(
+      'mcp_cloudbeds_modify_reservation',
+      { reservationID: 'R-1', status: 'bogus_status' },
+      ctx({ propertyID: 'PROP1' }),
+    );
+    expect(r).toMatchObject({
+      kind: 'error',
+      code: ProviderErrorCode.PROVIDER_ERROR,
+      message: 'Incorrect status. You cannot change status',
+    });
+  });
+
+  it('modify_reservation rejects the non-modifiable check-in date (strict schema)', async () => {
+    const provider = createCloudbedsProvider({ fetchImpl: fakeFetch({}) });
+    // Cloudbeds' mutable set is [customFields, estimatedArrivalTime, rooms, status, checkoutDate,
+    // dateCreated] — `startDate` is NOT modifiable, so the schema must not accept it.
+    const r = await provider.callTool(
+      'mcp_cloudbeds_modify_reservation',
+      { reservationID: 'R-1', startDate: '2026-10-06' },
+      ctx({ propertyID: 'PROP1' }),
+    );
+    expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+  });
+
   it('publishes contextDiscovery in the manifest (propertyID via list_properties)', () => {
     const provider = createCloudbedsProvider();
     expect(provider.manifest.contextDiscovery).toEqual({

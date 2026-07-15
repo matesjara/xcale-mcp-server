@@ -8,7 +8,7 @@
  * scheme — it just sends a built request.
  */
 
-export type HttpMethod = 'GET' | 'POST';
+export type HttpMethod = 'GET' | 'POST' | 'PUT';
 
 /** What a provider client builds: the request minus authentication. */
 export interface RequestSpec {

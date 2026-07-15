@@ -26,7 +26,15 @@ conversational need**, not by covering the API.
 
 ---
 
-## 1. Current state (v0.2.0 — read-first pilot)
+## 1. Current state
+
+> **Updated 2026-07-15 — Booking v1 (W1+W2+W3) is shipped on the provider side.** Beyond the seven read
+> tools below, the provider now has `get_rate_plans` (the quote), `create_reservation`, and
+> `modify_reservation` (cancel / checkoutDate / rooms), plus the external-reference filter on
+> `list_reservations`. What remains for a booking conversation is **consumer-side**: the Booking vertical
+> module and its gate (which owns reconciliation). See §5 and §7.
+
+### The original read-first pilot (v0.2.0)
 
 Seven read tools (`tools.ts`), all `GET`, read scopes only:
 
@@ -82,8 +90,8 @@ conversational-Booking scope (different vertical/ops surface).
 | Get one | `getReservation` | [HAVE] | detail |
 | With rate details | `getReservationsWithRateDetails` | [LATER] | richer read |
 | Assignments / room details | `getReservationAssignments`, `getReservationRoomDetails` | [LATER] | ops |
-| **Create** | `postReservation` | **[E-08]** | **the booking** |
-| **Modify** | `putReservation` | **[NEXT]** | **change dates/rooms; cancel via status** |
+| **Create** | `postReservation` | **[HAVE — W2]** | **the booking** |
+| **Modify / cancel** | `putReservation` | **[HAVE — W3]** | cancel via `status`; extend/shorten via `checkoutDate`; change `rooms`. **Check-in date is NOT modifiable** (§7) |
 | Notes | `postReservationNote` / `getReservationNotes` | [LATER] | agent annotations |
 
 ### 2.4 Guests
@@ -165,8 +173,8 @@ existing availability/property reads.
 |:--|:--|:--|:--|
 | **W0 (done)** | 7 read tools | "browse a property" | — |
 | **W1 — Quote (done 2026-07-15)** | `get_rate_plans` (`getRatePlans`, incl. `detailedRates`) | honest conversational pricing (per-night + restrictions); supplies the `rateID` create needs | W0 |
-| **W2 — Book (E-08)** | `create_reservation` (`postReservation`) + ext-ref filter | the booking + reconciliation | W1 (rate ref), auth `write:reservation` |
-| **W3 — Manage** | `modify_reservation` (`putReservation`), cancel | change/cancel a booking | W2 |
+| **W2 — Book (done 2026-07-15)** | `create_reservation` (`postReservation`) + ext-ref filter | the booking + reconciliation | W1 (rate ref), auth `write:reservation` |
+| **W3 — Manage (done 2026-07-15)** | `modify_reservation` (`putReservation`): cancel via status, `checkoutDate`, `rooms` | change/cancel a booking | W2 |
 | **W4 — Notify** | Cloudbeds `postWebhook` wiring → lifecycle notifier reuse | agent-narrated post-booking updates | W2, backend notifier |
 | **Later** | notes, sources, guest CRUD, groups/allotments, stay ops | richer/group/ops flows | as needed |
 | **Out** | payments, housekeeping, door locks, BI/reports, comms email | separate verticals / ops / admin | — |
@@ -199,6 +207,8 @@ Probed live with a write-scoped token. **Three corrections to the model above:**
 | `getRatePlans` | `startDate` **required**; returns per room type `rateID`, `roomRate`/`totalRate` **for the whole range**, `roomsAvailable`. With `detailedRates=true` it adds `roomRateDetailed[]`: **per-night** `rate` **plus stay restrictions** (`minLos`, `maxLos`, `closedToArrival`, `closedToDeparture`, `blocked`). | **This one endpoint is the whole quote.** Shipped as `get_rate_plans` (W1). |
 | `getRate` | Requires `roomTypeID` + `startDate` (**not** `rateID`, as §2.2 assumed). Returns the same fields as one `getRatePlans` entry, for a single room type (as strings: `"700.00"`). | **Strictly redundant** with `get_rate_plans`. **Not shipped** — per §0's selection principle, it has not earned its place. Revisit only if a conversation proves the narrower call is needed. |
 | `getTaxesAndFees` | `{"success": false, "message": "Scope required for this call was not granted by property."}` | **Scope-blocked.** The app authorizes *Taxes and Fees: Read*, but the **token** carries only the 7 scopes the descriptor requests. Needs the taxes scope added to `auth.ts` **and a reconnect**. Same for `getRoomsFeesAndTaxes` (which additionally requires `roomsTotal` **and** `roomsCount`). |
+| `putReservation` (W3) | Sent as **POST** → `404 {"status":false,"error":"Unknown method."}`. Sent as **HTTP PUT** → works. | **Cloudbeds maps the method-name prefix to the HTTP verb** (`get*`→GET, `post*`→POST, `put*`→PUT). Getting this wrong fails as *"the endpoint does not exist"*, not as a bad request — a trap worth pinning with a test. The core's `HttpMethod` gained `'PUT'` (a generic transport verb, no provider knowledge in core). |
+| `putReservation` mutable set | `"At least one of the following parameter(s): [ customFields, estimatedArrivalTime, rooms, status, checkoutDate, dateCreated ] is(are) required"` | **§2.3's "change dates" was wrong.** `startDate`/`endDate` are **not** modifiable: only **`checkoutDate`** (extend/shorten). Moving a check-in means cancel + re-create. `status: "canceled"` **verified working** end-to-end (create → cancel → `getReservation` shows `canceled`), which confirms the cancel path given `Reservation: Delete` is not granted. An invalid status returns `"Incorrect status. You cannot change status"` — surfaced as an error, never a false success. |
 
 **Wire trap (now covered by a test):** Cloudbeds answers a **bad request with HTTP 200 + `success:false`**
 — missing param *and* ungranted scope both look like a success at the status-code level. The envelope, not
