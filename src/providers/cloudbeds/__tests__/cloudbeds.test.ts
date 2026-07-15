@@ -179,7 +179,10 @@ describe('cloudbeds provider', () => {
       fetchImpl: fakeFetch({
         getRatePlans: {
           status: 200,
-          body: { success: false, message: 'Scope required for this call was not granted by property.' },
+          body: {
+            success: false,
+            message: 'Scope required for this call was not granted by property.',
+          },
         },
       }),
     });
@@ -268,7 +271,12 @@ describe('cloudbeds provider', () => {
   });
 
   it('create_reservation returns the provider payload verbatim (fields live at the envelope root)', async () => {
-    const created = { success: true, reservationID: '9312390733482', status: 'confirmed', grandTotal: 770 };
+    const created = {
+      success: true,
+      reservationID: '9312390733482',
+      status: 'confirmed',
+      grandTotal: 770,
+    };
     const provider = createCloudbedsProvider({
       fetchImpl: fakeFetch({ postReservation: { body: created } }),
     });
@@ -309,7 +317,9 @@ describe('cloudbeds provider', () => {
       method = init?.method ?? 'GET';
       calledUrl = url.toString();
       body = init?.body?.toString() ?? '';
-      return new Response(JSON.stringify({ success: true, data: { status: 'canceled' } }), { status: 200 });
+      return new Response(JSON.stringify({ success: true, data: { status: 'canceled' } }), {
+        status: 200,
+      });
     }) as FetchLike;
     const provider = createCloudbedsProvider({ fetchImpl: capturingFetch });
     const r = await provider.callTool(
@@ -406,7 +416,9 @@ describe('cloudbeds webhook tools (W4)', () => {
     // The wire fact this tool exists to encode. Sending these as a form body silently drops them and
     // the call fails the required-param check.
     const { seen, fetchImpl } = capturing({ success: true, data: {} });
-    await call(fetchImpl, 'mcp_cloudbeds_delete_webhook_subscription', { subscriptionID: 'abc123' });
+    await call(fetchImpl, 'mcp_cloudbeds_delete_webhook_subscription', {
+      subscriptionID: 'abc123',
+    });
 
     expect(seen.method).toBe('DELETE');
     expect(seen.url).toContain('subscriptionID=abc123');
