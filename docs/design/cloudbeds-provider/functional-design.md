@@ -193,8 +193,10 @@ existing availability/property reads.
 2. **Rates modeling = expose the raw endpoints.** No `get_quote` convenience tool: quoting strategy,
    upsell and policy are Booking Core logic. A quote tool would put business logic in the provider and
    couple it to one consumer — both forbidden by soul.md.
-3. **Webhooks (W4) = deferred.** See §7: no webhook scope is granted to the app, so W4 cannot be built
-   as specified regardless of appetite.
+3. **Webhooks (W4) = deferred by scope choice, NOT by capability.** ⚠️ **Corrected 2026-07-15** — an
+   earlier version of this doc claimed W4 was *scope-blocked*. **That was wrong** (§7.1): webhooks work
+   with the token we already hold. W4 stays out of v1 because v1 is W1+W2+W3, not because it is
+   impossible.
 
 ---
 
@@ -214,6 +216,33 @@ Probed live with a write-scoped token. **Three corrections to the model above:**
 — missing param *and* ungranted scope both look like a success at the status-code level. The envelope, not
 the status, decides. Every tool must unwrap through the shared `unwrap()`; a tool that trusted the 200
 would hand the agent a phantom empty result.
+
+### 7.1 Webhooks are NOT scope-blocked — a correction, and the lesson behind it
+
+**Observed 2026-07-15 with the token we already hold** (7 scopes, no webhook scope among them):
+
+| Call | Result |
+|:--|:--|
+| `getWebhooks` | `{"success": true, "data": []}` — **works.** No scope error. |
+| `postWebhook` | Required-param chain `endpointUrl` → `object` → `action`, then **created a real subscription** (`{"success":true,"data":{"subscriptionID":"…"}}`). |
+| `deleteWebhook` | Works — but params must ride the **query string**; a DELETE body is not parsed. |
+
+**Webhooks require no scope at all.** A previous version of this doc asserted W4 was "scope-blocked" —
+**inferred from the absence of "Webhook" in the app's grant list, never observed.** The wire disagrees.
+The lesson is the same one `resultsPerPage` and the `patch-id` episode taught: *absence of evidence was
+read as evidence of absence.* **Probe before declaring something impossible.**
+
+**Two wire facts W4 must design around:**
+- **Cloudbeds does not validate `action`.** `action: 'bogus_action'` was accepted and created a live
+  subscription. So the event vocabulary cannot be discovered from an error, and a typo silently yields a
+  subscription that never fires. W4 must treat the action list as **doc-sourced and verified by
+  observing a real delivery**, not by trusting a 200.
+- **The subscription's read shape uses `id`**, while `postWebhook` returns `subscriptionID` — the same
+  value under two names.
+
+**Why this matters strategically:** unlike Meta, **we own the subscription end-to-end via the API** —
+`endpointUrl` is ours to set, no third-party console. So W4's trigger is **not blocked by anything
+external**; it only needs a public URL (ngrok in dev). That removes the reason W4 looked impossible.
 
 **Scope reality vs the app's grant list.** The app is authorized for 31 scopes, but the **descriptor**
 decides what the token actually carries. Anything outside the requested set fails at runtime with the
