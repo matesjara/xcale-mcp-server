@@ -356,6 +356,182 @@ export function buildCloudbedsTools(
       },
     }),
 
+    // ---- Sales group ------------------------------------------------------------------------------
+    // Adds no new scope: read/write guest and reservation are already requested. Pure coverage — the
+    // consent screen does not move.
+
+    definePaginatedList({
+      name: `mcp_${SLUG}_search_guests`,
+      requiredScopes: ['read:guest'], // spec: getGuestList
+      description:
+        'Search the property’s guests by name, email, phone, or stay dates. Use it to find an existing ' +
+        'guest before creating a new one, or to answer who is staying and when.',
+      input: z.object({
+        guestFirstName: z.string().optional(),
+        guestLastName: z.string().optional(),
+        guestEmail: z.string().optional(),
+        guestPhone: z.string().optional(),
+        status: z.string().optional().describe('Reservation status; comma-separate for several.'),
+        checkInFrom: z.string().optional(),
+        checkInTo: z.string().optional(),
+        checkOutFrom: z.string().optional(),
+        checkOutTo: z.string().optional(),
+      }),
+      handler: async (args, ctx) => {
+        // `getGuestList` over `getGuestsByFilter`/`getGuestsByStatus` deliberately: it is the only one
+        // of the three that paginates AND carries the rich filters, and its `status` is optional. The
+        // other two are strictly weaker subsets — `getGuestsByFilter` has no paging at all, which is
+        // how an unbounded guest list ends up in the agent's context (the `resultsPerPage` lesson).
+        const res = await client.get('getGuestList', ctx.request, {
+          // `propertyIDs` — plural, comma-separated — NOT the usual `propertyID`. From the spec.
+          propertyIDs: ctx.metadata.propertyID,
+          pageNumber: args.page,
+          pageSize: args.pageSize,
+          guestFirstName: args.guestFirstName,
+          guestLastName: args.guestLastName,
+          guestEmail: args.guestEmail,
+          guestPhone: args.guestPhone,
+          status: args.status,
+          checkInFrom: args.checkInFrom,
+          checkInTo: args.checkInTo,
+          checkOutFrom: args.checkOutFrom,
+          checkOutTo: args.checkOutTo,
+        });
+        const u = unwrap(res, 'getGuestList');
+        if (!u.ok) return { ok: false, code: u.code, message: u.message };
+        return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_update_guest`,
+      requiredScopes: ['write:guest'], // spec: putGuest
+      description:
+        'Update an existing guest’s details (name, email, phone, address). Only the fields you send ' +
+        'change. Use the guestID from a search or a reservation.',
+      input: z
+        .object({
+          guestID: z.string().min(1),
+          guestFirstName: z.string().optional(),
+          guestLastName: z.string().optional(),
+          guestEmail: z.string().email().optional(),
+          guestPhone: z.string().optional(),
+          guestCellPhone: z.string().optional(),
+          guestAddress1: z.string().optional(),
+          guestAddress2: z.string().optional(),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        // `put*` → PUT. A `put*` method sent as POST is a router-level 404 (observed, see client.ts).
+        const res = await client.put('putGuest', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          ...args,
+        });
+        const u = unwrap(res, 'putGuest');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_list_guest_notes`,
+      requiredScopes: ['read:guest'], // spec: getGuestNotes
+      description:
+        'List the notes on a guest’s profile. Use it to recall preferences or past issues.',
+      input: z.object({ guestID: z.string().min(1) }).strict(),
+      handler: async (args, ctx) => {
+        const res = await client.get('getGuestNotes', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          guestID: args.guestID,
+        });
+        const u = unwrap(res, 'getGuestNotes');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_add_guest_note`,
+      requiredScopes: ['write:guest'], // spec: postGuestNote
+      description:
+        'Add a note to a guest’s profile — a preference, allergy, or anything staff should know next time.',
+      input: z.object({ guestID: z.string().min(1), guestNote: z.string().min(1) }).strict(),
+      handler: async (args, ctx) => {
+        // `userID` exists on this method ("the actual user posting the note") and is NOT sent: a
+        // connection is an app, not a staff member, and inventing one would attribute the note to a
+        // person who did not write it.
+        const res = await client.post('postGuestNote', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          guestID: args.guestID,
+          guestNote: args.guestNote,
+        });
+        const u = unwrap(res, 'postGuestNote');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_list_reservation_notes`,
+      requiredScopes: ['read:reservation'], // spec: getReservationNotes
+      description: 'List the notes on a reservation. Use it to see what was agreed or flagged.',
+      input: z.object({ reservationID: z.string().min(1) }).strict(),
+      handler: async (args, ctx) => {
+        const res = await client.get('getReservationNotes', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          reservationID: args.reservationID,
+        });
+        const u = unwrap(res, 'getReservationNotes');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_add_reservation_note`,
+      requiredScopes: ['write:reservation'], // spec: postReservationNote
+      description:
+        'Add a note to a reservation — a special request or an agreement made with the guest.',
+      input: z
+        .object({ reservationID: z.string().min(1), reservationNote: z.string().min(1) })
+        .strict(),
+      handler: async (args, ctx) => {
+        const res = await client.post('postReservationNote', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          reservationID: args.reservationID,
+          reservationNote: args.reservationNote,
+        });
+        const u = unwrap(res, 'postReservationNote');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_assign_guest_to_room`,
+      requiredScopes: ['write:guest'], // spec: postGuestsToRoom
+      description:
+        'Assign guests to a room already on a reservation, optionally promoting one to main guest. ' +
+        'Use the roomID from the reservation, not a room number.',
+      input: z
+        .object({
+          reservationID: z.string().min(1),
+          roomID: z.number().int(),
+          guestIDs: z.string().min(1).describe('Guest id, or several comma-separated.'),
+          mainGuestId: z.string().optional().describe('Promote this guest to main guest.'),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        // The destructive options this method also supports (`removeGuestIDs`, `removeAll`,
+        // `removeGuestIDsFromRoom`) are deliberately NOT exposed: this tool adds. Removing guests from
+        // a room needs its own decision, not an optional flag an agent can reach for mid-sentence.
+        const res = await client.post('postGuestsToRoom', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          reservationID: args.reservationID,
+          roomID: args.roomID,
+          guestIDs: args.guestIDs,
+          mainGuestId: args.mainGuestId,
+        });
+        const u = unwrap(res, 'postGuestsToRoom');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
     // ---- Administrative group (read) -------------------------------------------------------------
     // Scope→method mapping taken from the published OpenAPI spec, not from memory:
     // github.com/cloudbeds/openapi-specs › src/pms-v1.3-openapi.yaml (`security` per operation).
