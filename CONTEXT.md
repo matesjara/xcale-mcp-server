@@ -101,7 +101,25 @@ server's internal list; the catalog is the published view of it).
 
 **`authDescriptor`** — the **non-secret**, adaptive auth blueprint a provider publishes (api*key →
 type + field labels; oauth2 → URLs/scopes/placement). Lets Rail A run auth flows generically.
-\_Avoid*: putting secrets (`clientId`/`clientSecret`) in it — those stay in the backend's Doppler.
+\_Avoid*: putting secrets (`clientId`/`clientSecret`) in it — those stay in the backend's Doppler;
+hand-maintaining `scopes` for an oauth2 provider (it is **derived** — see [`requiredScopes`](#)).
+
+**`requiredScopes`** — the OAuth scopes one tool needs in order to run, declared **on the tool** beside
+its `input` schema. Provider knowledge, so it lives in the adapter. It is the **single source** of a
+provider's scope surface: the `authDescriptor`'s `scopes` is the **union** of its tools' `requiredScopes`,
+never a hand-written list. Adding a tool therefore requests its scope automatically, and a
+hand-maintained list cannot drift from the provider's app registration. _Avoid_: a literal `scopes`
+array in an oauth2 `authDescriptor`; declaring a scope no tool uses (it would be requested and never
+exercised); declaring a scope the provider app is not registered for (it can break the authorize URL
+for **every** consumer — guard it with a test asserting the union ⊆ the app's registered set).
+
+**Scope grant (Cloudbeds-shaped, but general)** — what a provider actually authorizes for a connection.
+**Requested ⊇ granted.** When a provider's consent is **binary** (the user accepts the whole requested
+list or nothing — Cloudbeds), requested **==** granted, so the consumer's stored scope list is a faithful
+record despite recording only the request. The residue — capabilities the account's *plan* lacks — is not
+knowable ahead of time and surfaces only as a **runtime denial**. _Avoid_: assuming a token response
+carries the grant (Cloudbeds' does not — observed); treating the consumer's stored scope list as *proof*
+of a grant (it is a copy of the request; it is merely correct under binary consent).
 
 **`ProviderErrorCode`** — the closed, `as const` set of error codes on the `ToolResult` error
 variant (`PROVIDER_AUTH_EXPIRED`, `PROVIDER_RATE_LIMITED`, …); evolves additively only. _Avoid_:

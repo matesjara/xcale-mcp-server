@@ -40,6 +40,19 @@ export interface ToolDefinition<I extends z.ZodTypeAny = z.ZodTypeAny, M = unkno
   readonly name: string;
   readonly description: string;
   readonly input: I;
+  /**
+   * The provider scopes this tool needs to run — provider knowledge, so it lives with the tool.
+   *
+   * It is the SINGLE SOURCE of an oauth2 provider's scope surface: the `authDescriptor`'s `scopes` is
+   * the UNION of its tools' `requiredScopes` (`deriveOAuthScopes`), never a hand-written list. Adding a
+   * tool therefore requests its scope automatically, and no list can drift from the provider's app
+   * registration.
+   *
+   * `[]` is meaningful and NOT the same as omitted: it means "authenticates, but needs no specific
+   * scope" (e.g. Cloudbeds' webhook methods, which the OpenAPI spec declares as `OAuth2: []`).
+   * Omitted means the provider has no scope model at all (api_key providers).
+   */
+  readonly requiredScopes?: readonly string[];
   readonly handler: (args: z.infer<I>, ctx: ToolHandlerContext<M>) => Promise<ToolOutcome>;
 }
 

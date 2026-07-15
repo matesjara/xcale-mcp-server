@@ -29,9 +29,12 @@ function unwrap(res: RequestResult, method: string): Unwrapped {
       message: `Cloudbeds ${method} failed (HTTP ${res.status})`,
     };
   }
-  const body = res.data as
-    | { success?: boolean; data?: unknown; total?: number; message?: string }
-    | null;
+  const body = res.data as {
+    success?: boolean;
+    data?: unknown;
+    total?: number;
+    message?: string;
+  } | null;
   if (body && body.success === false) {
     return {
       ok: false,
@@ -58,6 +61,7 @@ export function buildCloudbedsTools(
   return [
     definePaginatedList({
       name: `mcp_${SLUG}_list_reservations`,
+      requiredScopes: ['read:reservation'], // spec: getReservations
       description: 'List reservations for the property, filtered by status and/or check-in dates.',
       input: z.object({
         status: z.string().optional(),
@@ -101,6 +105,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_get_reservation`,
+      requiredScopes: ['read:reservation'], // spec: getReservation
       description: 'Get a single reservation by its id.',
       input: z.object({ reservationID: z.string().min(1) }).strict(),
       handler: async (args, ctx) => {
@@ -115,6 +120,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_get_guest`,
+      requiredScopes: ['read:guest'], // spec: getGuest
       description: 'Get a single guest by its id.',
       input: z.object({ guestID: z.string().min(1) }).strict(),
       handler: async (args, ctx) => {
@@ -129,6 +135,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_get_availability`,
+      requiredScopes: ['read:room'], // spec: getAvailableRoomTypes
       description: 'Get available room types for a date range.',
       input: z.object({ startDate: z.string().min(1), endDate: z.string().min(1) }).strict(),
       handler: async (args, ctx) => {
@@ -144,6 +151,14 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_create_reservation`,
+      // The spec declares `postReservation` as `write:reservation` ONLY, and this tool calls no other
+      // method — so `write:guest` is, on paper, unnecessary. It is kept DELIBERATELY: the call creates
+      // the guest inline from the args below, we have never exercised it without `write:guest`, and this
+      // spec has already been caught omitting a real scope (`read:adjustment` appears in no `security`
+      // block yet the scope exists). The bet is asymmetric — dropping it saves one permission; being
+      // wrong breaks booking creation, the core flow — and settling it costs a reconnect, which has a
+      // real human cost. Remove only once a run without it is observed to succeed.
+      requiredScopes: ['write:reservation', 'write:guest'], // spec: postReservation
       description:
         'Create a reservation (booking) for the property. Requires the stay dates, the primary guest, ' +
         'and per room type the rooms/adults/children counts. Get roomTypeID and roomRateID from the ' +
@@ -223,6 +238,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_modify_reservation`,
+      requiredScopes: ['write:reservation'], // spec: putReservation
       description:
         'Modify an existing reservation: cancel it (status: "canceled"), extend or shorten the stay ' +
         '(checkoutDate), change the rooms, or set the estimated arrival time. At least one of those ' +
@@ -269,6 +285,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_get_rate_plans`,
+      requiredScopes: ['read:rate'], // spec: getRatePlans
       description:
         'Get the priceable rate plans for a date range: per room type its rateID, total rate for the ' +
         'range and rooms available. Set detailedRates for a per-night breakdown (nightly rate plus ' +
@@ -298,6 +315,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_list_room_types`,
+      requiredScopes: ['read:room'], // spec: getRoomTypes
       description: 'List the room types configured for the property.',
       input: z.object({}).strict(),
       handler: async (_args, ctx) => {
@@ -311,6 +329,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_get_hotel_details`,
+      requiredScopes: ['read:hotel'], // spec: getHotelDetails
       description: 'Get the property (hotel) details.',
       input: z.object({}).strict(),
       handler: async (_args, ctx) => {
@@ -324,6 +343,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_list_properties`,
+      requiredScopes: ['read:hotel'], // spec: getHotels
       description:
         'List the properties (hotels) this connection can access. Needs no propertyID — used to discover which property to operate on.',
       input: z.object({}).strict(),
@@ -338,6 +358,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_list_webhook_subscriptions`,
+      requiredScopes: [], // spec: getWebhooks
       description:
         'List this property’s webhook subscriptions: per subscription its id, endpointUrl, object and ' +
         'action. Use it to check what is actually subscribed before changing anything.',
@@ -353,6 +374,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_ensure_webhook_subscription`,
+      requiredScopes: [], // spec: postWebhook
       description:
         'Subscribe an endpoint URL to a property event. Idempotent: re-running with the same url, ' +
         'object and action returns the same subscription rather than adding a duplicate. ' +
@@ -384,6 +406,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_delete_webhook_subscription`,
+      requiredScopes: [], // spec: deleteWebhook
       description:
         'Delete a webhook subscription by its id. The id is the `id` field returned by the list tool ' +
         '(the same value the subscribe tool returns as `subscriptionID`).',
