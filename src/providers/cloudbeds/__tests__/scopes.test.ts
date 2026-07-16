@@ -51,6 +51,7 @@ describe('cloudbeds scopes — derived from tools, bounded by the app registrati
       'read:roomblock',
       'read:taxesAndFees',
       'read:user',
+      'write:allotmentBlock',
       'write:group',
       'write:guest',
       'write:reservation',

@@ -956,11 +956,116 @@ export function buildCloudbedsTools(
       },
     }),
 
-    // NOT built yet — allotment WRITES and allotment NOTES. The spec declares
-    // `createAllotmentBlockNotes` / `updateAllotmentBlockNotes` as POST but under **read**
-    // :allotmentBlock. Either the spec is wrong or Cloudbeds writes under a read scope; copying it
-    // blind would put that error into our contract, and `requiredScopes` is exactly the field a wrong
-    // copy corrupts. Settle it against the property first — see tool-map.md §6.
+    tool({
+      name: `mcp_${SLUG}_create_allotment_block`,
+      requiredScopes: ['write:allotmentBlock'], // spec: createAllotmentBlock
+      description:
+        'Create an allotment block — inventory held for a group, event or contract, so it is not sold ' +
+        'to anyone else. Get the rate plan from get_rate_plans and the group from list_groups.',
+      input: z
+        .object({
+          allotmentBlockName: z.string().min(1),
+          groupCode: z.string().optional().describe('The group this block belongs to.'),
+          eventCode: z.string().optional(),
+          ratePlanId: z.string().optional(),
+          rateType: z.string().optional(),
+          allotmentType: z.string().optional(),
+          allotmentBlockStatus: z.string().optional(),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const res = await client.post('createAllotmentBlock', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          ...args,
+        });
+        const u = unwrap(res, 'createAllotmentBlock');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_update_allotment_block`,
+      requiredScopes: ['write:allotmentBlock'], // spec: updateAllotmentBlock
+      description:
+        'Change an existing allotment block: its name, status, overbooking or auto-release. Get the ' +
+        'allotmentBlockCode from list_allotment_blocks.',
+      input: z
+        .object({
+          allotmentBlockCode: z.string().min(1),
+          allotmentBlockName: z.string().optional(),
+          allotmentBlockStatus: z.string().optional(),
+          allotmentType: z.string().optional(),
+          allowOverbooking: z.boolean().optional(),
+          autoRelease: z.boolean().optional(),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        // POST — `updateAllotmentBlock` is a POST endpoint (spec). No `put*` prefix to mislead here,
+        // but the same rule applies: read the verb, never infer it.
+        const res = await client.post('updateAllotmentBlock', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          ...args,
+        });
+        const u = unwrap(res, 'updateAllotmentBlock');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    definePaginatedList({
+      name: `mcp_${SLUG}_list_allotment_block_notes`,
+      requiredScopes: ['read:allotmentBlock'], // spec: listAllotmentBlockNotes
+      description:
+        'List the notes on an allotment block — what was agreed about that held inventory.',
+      input: z.object({ allotmentBlockCode: z.string().min(1) }),
+      handler: async (args, ctx) => {
+        const res = await client.get('listAllotmentBlockNotes', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          allotmentBlockCode: args.allotmentBlockCode,
+          pageNumber: args.page,
+          pageSize: args.pageSize,
+        });
+        const u = unwrap(res, 'listAllotmentBlockNotes');
+        if (!u.ok) return { ok: false, code: u.code, message: u.message };
+        return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_add_allotment_block_note`,
+      /**
+       * ⚠️ The spec declares `createAllotmentBlockNotes` — a POST that WRITES — under
+       * **read**:allotmentBlock. `write` is declared here anyway, deliberately.
+       *
+       * We tried to settle it (`probe allotment`) with the one token that could: it carries
+       * `read:allotmentBlock` and NOT `write:allotmentBlock`, so success or denial would have been
+       * unambiguous. The property has **zero allotment blocks**, so there is nothing to attach a note
+       * to and the run is INCONCLUSIVE — and it cannot be broken out of, because creating a block to
+       * test with needs the very scope in question.
+       *
+       * So: same asymmetric bet as `create_reservation`'s `write:guest`. This spec has already been
+       * caught omitting a real scope (`read:adjustment` appears in no `security` block yet the scope
+       * exists), a write declaring only read is the likelier error, and the extra scope costs nothing
+       * — its siblings above already request `write:allotmentBlock`. Drop it only once a run under
+       * read alone is OBSERVED to succeed.
+       */
+      requiredScopes: ['read:allotmentBlock', 'write:allotmentBlock'], // spec says read only — see above
+      description:
+        'Add a note to an allotment block — something agreed about that held inventory that staff ' +
+        'should know.',
+      input: z.object({ allotmentBlockCode: z.string().min(1), text: z.string().min(1) }).strict(),
+      handler: async (args, ctx) => {
+        const res = await client.post('createAllotmentBlockNotes', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          allotmentBlockCode: args.allotmentBlockCode,
+          text: args.text,
+        });
+        const u = unwrap(res, 'createAllotmentBlockNotes');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    // NOT built: `deleteAllotmentBlock`. Deleting held inventory for a group is not a conversational
+    // move — it is an operations decision with real money behind it, and it deserves its own call.
 
     tool({
       name: `mcp_${SLUG}_list_webhook_subscriptions`,

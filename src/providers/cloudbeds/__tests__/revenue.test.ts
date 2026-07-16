@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import type { FetchLike } from '../../../core/http';
 import { SecretString } from '../../../core/secret-string';
+import { createCloudbedsClient } from '../client';
 import { createCloudbedsProvider } from '../provider';
+import { buildCloudbedsTools } from '../tools';
+
+/** `listTools()` publishes the MCP wire shape; `requiredScopes` lives on the definition. */
+const buildCloudbedsToolsForTest = () => buildCloudbedsTools(createCloudbedsClient({}));
 
 const ctx = (metadata: Record<string, unknown> = { propertyID: 'PROP1' }) => ({
   credential: { secret: new SecretString('tok') },
@@ -148,19 +153,36 @@ describe('cloudbeds revenue / inventory tools', () => {
     });
   });
 
-  it('publishes no allotment WRITE tool yet — the spec contradicts itself there', () => {
-    // `createAllotmentBlockNotes`/`updateAllotmentBlockNotes` are POST but declared under
-    // **read**:allotmentBlock. Copying that blind would put the provider's own error into our
-    // contract, and `requiredScopes` is the field a wrong copy corrupts. Observe first.
-    const names = createCloudbedsProvider()
-      .listTools()
-      .map((t) => t.name);
-    expect(names).toContain('mcp_cloudbeds_list_allotment_blocks');
-    expect(names.some((n) => /allotment.*(note|create|update)/i.test(n))).toBe(false);
+  describe('allotment blocks', () => {
+    it('add_allotment_block_note declares write even though the spec says read only', () => {
+      /**
+       * `createAllotmentBlockNotes` is a POST that WRITES, declared under **read**:allotmentBlock.
+       * We tried to settle it with the only instrument that could — a token holding read and NOT
+       * write, so either answer would be unambiguous. The property has ZERO allotment blocks, so
+       * there is nothing to attach a note to; and the loop cannot be broken, because creating a
+       * block to test with needs the very scope in question. INCONCLUSIVE, and honestly so.
+       *
+       * So the conservative bet stands, like `write:guest` on create_reservation. This pins it as a
+       * DECISION: if someone later observes a run succeeding under read alone, they should drop
+       * `write` here and this test should be the thing that makes them think about it.
+       */
+      const notes = createCloudbedsProvider()
+        .listTools()
+        .find((t) => t.name === 'mcp_cloudbeds_add_allotment_block_note');
+      expect(notes).toBeDefined();
 
-    const auth = createCloudbedsProvider().auth;
-    if (auth.type !== 'oauth2') throw new Error('expected oauth2');
-    // Not built ⇒ not requested. That is the derivation doing the bookkeeping for us.
-    expect(auth.scopes).not.toContain('write:allotmentBlock');
+      const tools = buildCloudbedsToolsForTest();
+      const decl = tools.find((t) => t.name === 'mcp_cloudbeds_add_allotment_block_note');
+      expect(decl?.requiredScopes).toEqual(['read:allotmentBlock', 'write:allotmentBlock']);
+    });
+
+    it('does not publish a delete — dropping held inventory is not a conversational move', () => {
+      // `deleteAllotmentBlock` exists in the API. Held inventory for a group has money behind it;
+      // releasing it deserves its own decision, not a tool an agent can reach for mid-sentence.
+      const names = createCloudbedsProvider()
+        .listTools()
+        .map((t) => t.name);
+      expect(names.some((n) => /delete_allotment/i.test(n))).toBe(false);
+    });
   });
 });
