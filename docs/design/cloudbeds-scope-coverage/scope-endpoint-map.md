@@ -145,7 +145,38 @@ cosa). **La única señal es la denegación en runtime.** Eso invalida "filtrar 
 | H4 | `/userinfo` expone lo concedido | ❌ **FALSADA** — `acl` es otro vocabulario | — |
 | H5 | Los 3 scopes de §6 tienen endpoints no publicados | ✅ **son scopes VÁLIDOS** (están en el enum canónico de Cloudbeds, §11), pero ningún endpoint publicado los declara en `security` | qué protegen sigue sin saberse; no bloquea — y **no se piden**, porque sin endpoints no hay tools que los declaren |
 | H6 | El verbo HTTP se deriva del prefijo del método (`put*` → PUT) | ❌ **FALSADA por el spec.** Era NUESTRA regla, no de Cloudbeds: se observó con `putReservation` y se generalizó. `putGroup` · `putRate` · `putAppPropertySettings` · `patchGroup` · `patchRate` son **POST** | cerrada: `client.ts` corregido + test que ancla ambos lados |
-| H7 | `createAllotmentBlockNotes` (POST) necesita solo `read:allotmentBlock`, como dice el spec | ⚠️ **INCONCLUSA, y no falsable hoy**: la propiedad tiene cero allotment blocks y crear uno exige el scope en duda | `probe allotment` lo reporta como inconcluso en vez de inventar veredicto. La tool declara ambos scopes (apuesta asimétrica) |
+| H7 | `createAllotmentBlockNotes` (POST) necesita solo `read:allotmentBlock`, como dice el spec | ⚠️ **INCONCLUSA — y ahora INFALSABLE con esta conexión**: ver §12 | la tool declara ambos scopes (apuesta asimétrica). Para decidirlo hay que estrechar la petición primero |
+
+## 12. La reconexión del 2026-07-16 rompió el instrumento de H7 (y qué probó)
+
+**Confirmado tras la reconexión (predicho ANTES, sin retocar):**
+
+| | Antes | Predicho | Observado |
+|---|---|---|---|
+| Suscripciones en Cloudbeds | 1 | **1** | ✅ **1** |
+| `metadata.webhookSecret` | `1xiCwi8k…` | el mismo | ✅ **el mismo** |
+| Scopes concedidos | 19 | **22** | ✅ **22** |
+
+El secreto **sobrevivió**, así que el hook post-connect reutilizó la suscripción en vez de acuñar otra:
+el arreglo del rail (`upsert` escribe `metadata` por clave) funciona **contra una reconexión real**, no
+solo en tests. Antes habría habido 2, una huérfana 404-eando para siempre.
+
+**Cobertura en vivo: 12/12 OK.** `read:group` era la última denegación y ya pasa.
+
+**El coste, y es un principio general:** el experimento de H7 solo decide algo con un token que tenga
+`read:allotmentBlock` y **NO** `write:allotmentBlock` — entonces éxito prueba que el spec acierta y
+denegación que miente. Al conceder ambos, **el éxito ya no prueba nada**: cualquiera de los dos podría
+estar autorizando la escritura. La propiedad seguía con cero blocks, así que la ventana se cerró sin
+haberse podido usar.
+
+> **Lección:** ampliar un grant es irreversible para la observación. Un token estrecho es un
+> **instrumento**, y concederle scopes lo rompe. Si hay una pregunta que solo un token estrecho puede
+> responder, hay que responderla **antes** de ampliar.
+
+Para decidir H7 haría falta estrechar la petición en el MCP, reconectar (coste humano — ver
+`cloudbeds-reconnect-is-costly`) y probar. No vale la pena por un scope de más; la apuesta asimétrica se
+queda. `probe allotment` ahora **lee** los scopes concedidos y avisa de que el instrumento está romo —
+antes afirmaba su premisa con una cadena hardcodeada que la reconexión volvió falsa.
 
 ## 10. El consentimiento es BINARIO — y eso lo cambia todo
 
