@@ -689,6 +689,106 @@ export function buildCloudbedsTools(
       },
     }),
 
+    // ---- Groups (administrative) ------------------------------------------------------------------
+    // ⚠️ `putGroup` and `patchGroup` are **POST** endpoints, not PUT — the verb is not derivable from
+    // the method name (see `client.ts` › put). Written from the spec, per method.
+
+    definePaginatedList({
+      name: `mcp_${SLUG}_list_groups`,
+      requiredScopes: ['read:group'], // spec: getGroups
+      description:
+        'List the property’s groups (block bookings for a company, wedding, event or tour). Use it to ' +
+        'answer what group business the property holds.',
+      input: z.object({
+        groupCode: z.string().optional(),
+        type: z.string().optional().describe('The type of group.'),
+        status: z.string().optional(),
+        createdFrom: z.string().optional().describe('YYYY-MM-DD'),
+        createdTo: z.string().optional().describe('YYYY-MM-DD'),
+      }),
+      handler: async (args, ctx) => {
+        const res = await client.get('getGroups', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          pageNumber: args.page,
+          pageSize: args.pageSize,
+          groupCode: args.groupCode,
+          type: args.type,
+          status: args.status,
+          createdFrom: args.createdFrom,
+          createdTo: args.createdTo,
+        });
+        const u = unwrap(res, 'getGroups');
+        if (!u.ok) return { ok: false, code: u.code, message: u.message };
+        return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+      },
+    }),
+
+    definePaginatedList({
+      name: `mcp_${SLUG}_list_group_notes`,
+      requiredScopes: ['read:group'], // spec: getGroupNotes
+      description: 'List the notes on a group. Use it to see what was agreed with the organiser.',
+      input: z.object({ groupCode: z.string().min(1) }),
+      handler: async (args, ctx) => {
+        // Unusually, `pageSize`/`pageNumber` are REQUIRED here (spec) — the uniform contract already
+        // supplies both with defaults, so this is free rather than a special case.
+        const res = await client.get('getGroupNotes', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          groupCode: args.groupCode,
+          pageNumber: args.page,
+          pageSize: args.pageSize,
+        });
+        const u = unwrap(res, 'getGroupNotes');
+        if (!u.ok) return { ok: false, code: u.code, message: u.message };
+        return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_update_group`,
+      requiredScopes: ['write:group'], // spec: patchGroup
+      description:
+        'Update an existing group’s details (name, type, status, address). Only the fields you send ' +
+        'change. Get the groupCode from list_groups.',
+      input: z
+        .object({
+          groupCode: z.string().min(1),
+          name: z.string().optional(),
+          type: z.string().optional(),
+          status: z.string().optional(),
+          sourceID: z.string().optional(),
+          address1: z.string().optional(),
+          address2: z.string().optional(),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        // POST, despite the name — `patchGroup` is declared POST in the spec. `patchGroup` over
+        // `putGroup` because this is a partial update: putGroup takes no groupCode and replaces.
+        const res = await client.post('patchGroup', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          ...args,
+        });
+        const u = unwrap(res, 'patchGroup');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_add_group_note`,
+      requiredScopes: ['write:group'], // spec: postGroupNote
+      description:
+        'Add a note to a group — something agreed with the organiser that staff should know.',
+      input: z.object({ groupCode: z.string().min(1), groupNote: z.string().min(1) }).strict(),
+      handler: async (args, ctx) => {
+        const res = await client.post('postGroupNote', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          groupCode: args.groupCode,
+          groupNote: args.groupNote,
+        });
+        const u = unwrap(res, 'postGroupNote');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
     // ---- Revenue / inventory group ----------------------------------------------------------------
 
     tool({

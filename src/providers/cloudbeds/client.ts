@@ -81,8 +81,19 @@ export function createCloudbedsClient(deps: CloudbedsClientDeps = {}): Cloudbeds
         body: formEncode(body),
       });
     },
-    // Cloudbeds maps the method-name prefix to the HTTP verb: a `put*` method sent as POST is a
-    // router-level 404 (`{"status":false,"error":"Unknown method."}`) — observed, not assumed.
+    /**
+     * PUT — for the methods that actually want PUT. **The verb is NOT derivable from the name.**
+     *
+     * This comment used to claim "Cloudbeds maps the method-name prefix to the HTTP verb: a `put*`
+     * method sent as POST is a router-level 404". The 404 was real — observed on `putReservation` — but
+     * the RULE was a generalisation from that one case, and the published spec refutes it:
+     *
+     *   putReservation · putGuest · putGuestNote · putReservationNote · putRoomBlock  → PUT
+     *   putGroup · putRate · putAppPropertySettings · patchGroup · patchRate          → **POST**
+     *
+     * So five `put*`/`patch*` methods are POST endpoints, and following our own documented rule would
+     * 404 them. Check `pms-v1.3-openapi.yaml` per method; never infer the verb from the prefix.
+     */
     put(method, request, body) {
       return request({
         method: 'PUT',
