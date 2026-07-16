@@ -709,6 +709,46 @@ export function buildCloudbedsTools(
       },
     }),
 
+    /*
+     * ─── NOT BUILT ON PURPOSE: `post_adjustment` (`write:adjustment`) ─────────────────────────────
+     *
+     * PAUSED 2026-07-15 by JuanJo, financial. This is the note for whoever comes back to it — read it
+     * before deciding it is an easy win, because from the outside it looks like one: the scope is
+     * authorized and it is a single endpoint.
+     *
+     * WHAT IT DOES. `postAdjustment` — "Adds an adjustment to a reservation" (`reservationID`, `amount`,
+     * `type`, `notes`). A line on the guest's folio: a charge or a discount. It changes what a real
+     * person owes. In a conversation it reads as "te aplico 10% de descuento" or "te cargo el minibar".
+     *
+     * WHY IT IS NOT SAFE TO BUILD **TODAY** — three facts, all verified against the published spec and
+     * our app registration, not assumed:
+     *
+     *   1. WE COULD NOT UNDO IT. `deleteAdjustment` ("voids the AdjustmentID transaction") requires
+     *      `delete:adjustment`. That scope EXISTS in Cloudbeds' vocabulary and is NOT among our 32
+     *      registered scopes (see `REGISTERED_SCOPES` in auth.ts). So we could post a charge and never
+     *      void it through the API. Only a human in the Cloudbeds panel could.
+     *   2. WE COULD NOT EVEN READ THEM BACK. `read:adjustment` is authorized, but NO published endpoint
+     *      declares it — one of the three orphan scopes (docs/design/cloudbeds-scope-coverage). The
+     *      agent cannot list a reservation's adjustments to check its own work.
+     *   3. ⇒ It would be a BLIND, IRREVERSIBLE write on someone's bill. Post it, cannot verify it,
+     *      cannot correct it, and nobody notices until the guest reads the invoice.
+     *
+     * WHY "ASK THE GUEST FIRST" DOES NOT FIX IT. The instinct is to gate it behind a confirmation. But
+     * confirmation answers *when* it fires, and nothing above is about timing: a "yes" does not make a
+     * blind irreversible operation reversible or visible. (It is also the wrong person — a charge is the
+     * hotel's decision, not the guest's.)
+     *
+     * The refusal is not fear of the agent. It is that the provider has not given us the pieces to do it
+     * properly. Note what the refusal costs: nothing, and it enforces itself — NOT building the tool is
+     * what stops `write:adjustment` being requested (scopes are derived; see ADR tool-derived-oauth-scopes).
+     * It never reaches any hotel's consent screen.
+     *
+     * TO REOPEN, in this order: (1) register `delete:adjustment` in App Details, (2) find out whether
+     * `read:adjustment` has an endpoint at all (ask Cloudbeds — it cannot be settled from the spec).
+     * With verification and an undo, the design conversation becomes a real one. Until then this is a
+     * feature with its own decision, not a leftover on a list.
+     */
+
     // ---- Groups (administrative) ------------------------------------------------------------------
     // ⚠️ `putGroup` and `patchGroup` are **POST** endpoints, not PUT — the verb is not derivable from
     // the method name (see `client.ts` › put). Written from the spec, per method.

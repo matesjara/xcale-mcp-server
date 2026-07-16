@@ -62,9 +62,30 @@ trabajo de agente conversacional); `getGuestsModified`, `getSources` (sincroniza
 | `list_email_templates` | `getEmailTemplates` + `getEmailSchedule` | `read:communication` |
 | `list_users` | `getUsers` | `read:user` |
 
-⚠️ **`post_adjustment` es financiero.** Publica un cargo/ajuste en una cuenta. `soul.md` pone Security
-primero. **No debería entrar en la primera tanda**: merece decisión propia (¿confirmación humana?
-¿límite?), y `write:adjustment` es el único write financiero del lote.
+### ⛔ `post_adjustment` — EN PAUSA (decisión de JuanJo, 2026-07-15)
+
+**No se construye.** La nota completa vive en `providers/cloudbeds/tools.ts`, justo donde iría la tool —
+un doc de diseño se archiva; el comentario lo encuentra quien vaya a escribirla. Resumen:
+
+`postAdjustment` añade una línea a la cuenta del huésped (cargo o descuento): cambia lo que una persona
+real debe pagar. Desde fuera parece un win fácil —scope autorizado, un solo endpoint—. No lo es:
+
+1. **No podríamos anularlo.** `deleteAdjustment` exige `delete:adjustment`, que **existe en el vocabulario
+   de Cloudbeds y NO está entre nuestros 32 registrados**. Solo un humano en el panel podría revertirlo.
+2. **No podríamos leerlos.** `read:adjustment` está autorizado pero **ningún endpoint publicado lo
+   declara** (§6). El agente no puede verificar su propio trabajo.
+3. ⇒ **Escritura ciega e irreversible sobre la factura de alguien.**
+
+**Confirmar con el huésped no lo arregla:** la confirmación decide *cuándo* dispara, y nada de lo
+anterior es de timing — un "sí" no vuelve reversible ni visible una operación que no lo es. Además el
+cargo lo decide el hotel, no el huésped.
+
+No es miedo al agente: es que **el proveedor no nos ha dado las piezas**. Y la negativa se auto-aplica —
+no construir la tool es lo que impide pedir `write:adjustment`, así que nunca llega a la pantalla de
+consentimiento de ningún hotel.
+
+**Para reabrir:** registrar `delete:adjustment` en App Details y averiguar con Cloudbeds si
+`read:adjustment` tiene endpoint. Con verificación y marcha atrás, la conversación de diseño es otra.
 
 ⚠️ **`write:communication` (crear plantillas/programaciones de email) queda fuera de la propuesta.** Un
 agente que crea plantillas de correo del hotel es un riesgo sin caso de uso claro. Se lee, no se escribe.

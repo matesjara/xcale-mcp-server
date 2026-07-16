@@ -200,6 +200,30 @@ describe('cloudbeds administrative tools', () => {
     const tools = createCloudbedsProvider().listTools();
     const byName = new Map(tools.map((t) => [t.name, t]));
     expect(byName.get('mcp_cloudbeds_list_users')).toBeDefined();
-    expect(byName.has('mcp_cloudbeds_post_adjustment')).toBe(false); // financial — not in this batch
+  });
+
+  it('publishes NO adjustment tool, and therefore never asks a hotel for write:adjustment', () => {
+    /**
+     * PAUSED 2026-07-15 (JuanJo) — financial. The full reasoning is in `tools.ts`, where the tool would
+     * go; this is the fence, so that building it is a decision someone makes rather than a gap someone
+     * fills. From the outside it looks like an easy win: the scope is authorized, it is one endpoint.
+     *
+     * It is not. `postAdjustment` puts a charge or discount on a real guest's bill, and we hold neither
+     * of the tools needed to do that responsibly: `delete:adjustment` (to void it) is NOT among our
+     * registered scopes, and `read:adjustment` has no published endpoint (so it cannot be read back).
+     * Blind and irreversible. A human confirmation does not fix either — it answers *when* it fires.
+     *
+     * If you are deleting this test to build the tool: get `delete:adjustment` registered and confirm
+     * with Cloudbeds whether `read:adjustment` has an endpoint FIRST.
+     */
+    const provider = createCloudbedsProvider();
+    const names = provider.listTools().map((t) => t.name);
+    expect(names.some((n) => /adjustment/i.test(n))).toBe(false);
+
+    const auth = provider.auth;
+    if (auth.type !== 'oauth2') throw new Error('expected oauth2');
+    // The payoff of derived scopes: not building it is what keeps this off every hotel's consent screen.
+    expect(auth.scopes).not.toContain('write:adjustment');
+    expect(auth.scopes).not.toContain('read:adjustment');
   });
 });
