@@ -112,7 +112,37 @@ Sin él, una sola tool que declare un scope no registrado (`write:room`, `read:h
 scope en la URL de authorize y puede **romper el connect de todos los clientes**. Es el mismo espíritu
 que el ratchet del backend: mecánico, no interpretable.
 
-## 9. Orden propuesto
+## 8-bis. CERRADO — lo construido vs. lo predicho (2026-07-15)
+
+**Construido: 38 tools · 22 scopes.** El mapa predijo **~38 · 24**. La diferencia de scopes son
+exactamente las dos negativas deliberadas: `write:adjustment` (`post_adjustment` sigue esperando decisión
+sobre confirmación humana) y `write:communication` (un agente redactando el correo del hotel es riesgo sin
+caso de uso). **No construir la tool es lo que impide pedir el scope** — no hubo ninguna lista de la que
+acordarse de excluirlos.
+
+Lo que el mapa **no** predijo, y salió al construir:
+
+- **El verbo HTTP no se deriva del nombre.** `client.ts` afirmaba como hecho observado que `put*` → PUT.
+  Se observó con `putReservation` y **se generalizó**; el spec lo refuta para cinco métodos (`putGroup`,
+  `putRate`, `putAppPropertySettings`, `patchGroup`, `patchRate` son **POST**). Seguir nuestro propio
+  comentario documentado habría dado 404 en `update_group`. Corregido + test que ancla ambos lados.
+- **`getUsers` ignora `propertyID`** y solo respeta `property_ids` — pero devuelve 200 y datos correctos
+  con el nombre equivocado, porque el token ve una sola propiedad. En un hotel multi-propiedad habría
+  devuelto los usuarios de todas, sano de aspecto. Probado con `probe paramcheck`.
+- **La anomalía de scope de las notas de allotment no se pudo falsar.** La propiedad tiene **cero**
+  allotment blocks, y crear uno para probar exige el scope en duda. `probe allotment` reporta INCONCLUSO
+  en vez de inventar un veredicto; la tool declara ambos scopes, con la apuesta asimétrica documentada.
+- **`present_room_rates` no estaba olvidado: era incableable.** Una tarjeta necesita `rateID`, y el
+  agente no tenía tool de tarifas hasta que se cerró el hueco de cotización. Ya está cableado.
+- **Las descripciones pobres no eran cosmética.** `get_availability` decía 42 caracteres, así que lo que
+  devuelve había que enseñarlo en el prompt del consumidor — conocimiento de Cloudbeds en la persona de
+  un agente. Reescritas; la más corta pasó de 29 a 74.
+
+**Deuda viva:** los 22 scopes pedidos **no** son los 19 concedidos por la propiedad. Grupos y allotment
+darán `SCOPE DENIED` hasta la próxima reconexión (que tiene coste humano — ver la memoria
+`cloudbeds-reconnect-is-costly`).
+
+## 9. Orden propuesto (ejecutado)
 
 1. **El guardarraíl** (§8) — antes de que exista la primera tool nueva.
 2. **`requiredScopes` en las 13 existentes** + derivar `auth.ts`. Comportamiento idéntico (siguen siendo

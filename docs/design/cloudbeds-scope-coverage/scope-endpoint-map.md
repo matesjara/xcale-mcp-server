@@ -143,7 +143,9 @@ cosa). **La única señal es la denegación en runtime.** Eso invalida "filtrar 
 | H1 | El token no devuelve los scopes concedidos | ✅ **CONFIRMADA — observada en el cable** (2026-07-15, reconexión real). Keys de la respuesta: `["access_token","refresh_token","token_type","expires_in","resources"]`. **Sin campo `scope`.** El doc decía la verdad, pero ahora vale porque se observó | — |
 | H3 | Una cuenta de hotel normal no ve App Details | ✅ **CONFIRMADA** — ver §10 | — |
 | H4 | `/userinfo` expone lo concedido | ❌ **FALSADA** — `acl` es otro vocabulario | — |
-| H5 | Los 3 scopes de §6 tienen endpoints no publicados | ✅ **son scopes VÁLIDOS** (están en el enum canónico de Cloudbeds, §11), pero ningún endpoint publicado los declara en `security` | qué protegen sigue sin saberse; no bloquea |
+| H5 | Los 3 scopes de §6 tienen endpoints no publicados | ✅ **son scopes VÁLIDOS** (están en el enum canónico de Cloudbeds, §11), pero ningún endpoint publicado los declara en `security` | qué protegen sigue sin saberse; no bloquea — y **no se piden**, porque sin endpoints no hay tools que los declaren |
+| H6 | El verbo HTTP se deriva del prefijo del método (`put*` → PUT) | ❌ **FALSADA por el spec.** Era NUESTRA regla, no de Cloudbeds: se observó con `putReservation` y se generalizó. `putGroup` · `putRate` · `putAppPropertySettings` · `patchGroup` · `patchRate` son **POST** | cerrada: `client.ts` corregido + test que ancla ambos lados |
+| H7 | `createAllotmentBlockNotes` (POST) necesita solo `read:allotmentBlock`, como dice el spec | ⚠️ **INCONCLUSA, y no falsable hoy**: la propiedad tiene cero allotment blocks y crear uno exige el scope en duda | `probe allotment` lo reporta como inconcluso en vez de inventar veredicto. La tool declara ambos scopes (apuesta asimétrica) |
 
 ## 10. El consentimiento es BINARIO — y eso lo cambia todo
 
