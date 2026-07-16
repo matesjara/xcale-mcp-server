@@ -106,7 +106,10 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_get_reservation`,
       requiredScopes: ['read:reservation'], // spec: getReservation
-      description: 'Get a single reservation by its id.',
+      description:
+        'Get one reservation in full by its reservationID: status, stay dates, rooms, guests and ' +
+        'totals. Use it to answer anything about a specific booking, and to read back what was just ' +
+        'created. To find a reservation without its id, use list_reservations.',
       input: z.object({ reservationID: z.string().min(1) }).strict(),
       handler: async (args, ctx) => {
         const res = await client.get('getReservation', ctx.request, {
@@ -121,7 +124,10 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_get_guest`,
       requiredScopes: ['read:guest'], // spec: getGuest
-      description: 'Get a single guest by its id.',
+      description:
+        'Get one guest by their guestID: name, contact details and profile. Use it when you already ' +
+        'hold the id (from a reservation, or from search_guests). To find a guest you do NOT have an ' +
+        'id for, use search_guests instead.',
       input: z.object({ guestID: z.string().min(1) }).strict(),
       handler: async (args, ctx) => {
         const res = await client.get('getGuest', ctx.request, {
@@ -136,7 +142,15 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_get_availability`,
       requiredScopes: ['read:room'], // spec: getAvailableRoomTypes
-      description: 'Get available room types for a date range.',
+      // The most-called tool of the booking path, and it used to say only "Get available room types for
+      // a date range" — so what it RETURNS had to be taught in the consumer's prompt instead ("take the
+      // photos from roomTypePhotos, use the `image` field…"). That is provider knowledge living in the
+      // consumer. It belongs here, where it is written once for every consumer.
+      description:
+        'Get what can actually be sold for a date range: per room type, its roomTypeID, name, how many ' +
+        'rooms are free, the rate, and its official photos in `roomTypePhotos` (each with an `image` ' +
+        'URL). Availability and price BOTH depend on the dates, so ask for check-in and check-out ' +
+        'before calling. This is the only truth about what is free — never infer it from anything else.',
       input: z.object({ startDate: z.string().min(1), endDate: z.string().min(1) }).strict(),
       handler: async (args, ctx) => {
         const res = await client.get('getAvailableRoomTypes', ctx.request, {
@@ -316,7 +330,10 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_list_room_types`,
       requiredScopes: ['read:room'], // spec: getRoomTypes
-      description: 'List the room types configured for the property.',
+      description:
+        'List every room type the property has configured, with its description and capacity — the ' +
+        'catalogue, regardless of dates. It says nothing about what is FREE or what it costs: for that ' +
+        'use get_availability. Use this to describe a room, not to sell it.',
       input: z.object({}).strict(),
       handler: async (_args, ctx) => {
         const res = await client.get('getRoomTypes', ctx.request, {
@@ -330,7 +347,10 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_get_hotel_details`,
       requiredScopes: ['read:hotel'], // spec: getHotelDetails
-      description: 'Get the property (hotel) details.',
+      description:
+        'Get the hotel itself: address, contact, check-in/out times, policies and amenities. Use it to ' +
+        'answer questions about the property rather than about a room — "do you have parking?", "what ' +
+        'time is check-in?", "where are you?".',
       input: z.object({}).strict(),
       handler: async (_args, ctx) => {
         const res = await client.get('getHotelDetails', ctx.request, {
