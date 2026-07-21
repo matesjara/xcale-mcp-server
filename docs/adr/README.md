@@ -25,3 +25,5 @@ Full rationale, alternatives, and the responsibility split live in `docs/archite
 | [additive-contract-versioning](additive-contract-versioning.md) | Accepted | Additive evolution; `schemaVersion`; provider lifecycle; catalog stability policy |
 | [credential-forwarding-and-token-model](credential-forwarding-and-token-model.md) | Accepted (scope-bounded) | Token model; ephemeral references before financial providers |
 | [typescript-strictness-config](typescript-strictness-config.md) | Accepted | Full strict minus exactOptionalPropertyTypes (MCP SDK type incompatibility); revisit trigger |
+| [deployment-runtime-and-hosting](deployment-runtime-and-hosting.md) | Accepted | DO App Platform + Dockerfile; `tsx` as the production runtime (no build step); Doppler-rendered spec |
+| [canonical-provider-pattern](canonical-provider-pattern.md) | Accepted | Reference adapter pattern: single-source schemas + typed handlers, explicit pagination, explicit context, fidelity-over-unification, share-policies-not-assumptions, DI+fixtures+conformance |

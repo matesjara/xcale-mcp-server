@@ -1,0 +1,21 @@
+{
+  "success": true,
+  "total": 3,
+  "count": 2,
+  "data": [
+    {
+      "reservationID": "RES-1001",
+      "status": "confirmed",
+      "guestName": "A. Guest",
+      "checkIn": "2026-07-01",
+      "checkOut": "2026-07-03"
+    },
+    {
+      "reservationID": "RES-1002",
+      "status": "checked_in",
+      "guestName": "B. Guest",
+      "checkIn": "2026-07-02",
+      "checkOut": "2026-07-05"
+    }
+  ]
+}

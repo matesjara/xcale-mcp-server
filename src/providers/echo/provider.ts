@@ -1,53 +1,17 @@
-import { z } from 'zod';
-
-import { ProviderErrorCode } from '../../core/errors';
+import { createProvider } from '../../core/provider-factory';
 import type { IProvider } from '../../core/provider-port';
-import { type ToolResult, toolError, toolSuccess } from '../../core/types';
 import { echoAuth } from './auth';
-import { SLUG, echoManifest } from './manifest';
-import { TOOL_AUTH_CHECK, TOOL_SAY, echoTools } from './tools';
+import { echoManifest } from './manifest';
+import { echoTools } from './tools';
 
-const SaySchema = z.object({ message: z.string().min(1, 'message must not be empty') }).strict();
+/** Factory (DI-ready: future deps like clock/ids/retry/logger inject here). */
+export function createEchoProvider(): IProvider {
+  return createProvider({
+    manifest: echoManifest,
+    auth: echoAuth,
+    tools: echoTools,
+  });
+}
 
-export const echoProvider: IProvider = {
-  manifest: echoManifest,
-  auth: echoAuth,
-  listTools: () => echoTools,
-  callTool: async (toolName, args, ctx): Promise<ToolResult> => {
-    switch (toolName) {
-      case TOOL_SAY: {
-        const parsed = SaySchema.safeParse(args);
-        if (!parsed.success) {
-          return toolError({
-            code: ProviderErrorCode.INVALID_INPUT,
-            toolName,
-            providerSlug: SLUG,
-            message: parsed.error.issues.map((i) => i.message).join('; '),
-          });
-        }
-        return toolSuccess({ toolName, providerSlug: SLUG, data: { echoed: parsed.data.message } });
-      }
-
-      case TOOL_AUTH_CHECK: {
-        // A real adapter would call the provider API with ctx.token.reveal() here (egress only).
-        if (ctx.token.isEmpty()) {
-          return toolError({
-            code: ProviderErrorCode.AUTH_EXPIRED,
-            toolName,
-            providerSlug: SLUG,
-            message: 'No credential forwarded; reconnect required.',
-          });
-        }
-        return toolSuccess({ toolName, providerSlug: SLUG, data: { authenticated: true } });
-      }
-
-      default:
-        return toolError({
-          code: ProviderErrorCode.UNKNOWN_TOOL,
-          toolName,
-          providerSlug: SLUG,
-          message: `Unknown tool: ${toolName}`,
-        });
-    }
-  },
-};
+/** Default instance registered in src/providers/index.ts. */
+export const echoProvider = createEchoProvider();

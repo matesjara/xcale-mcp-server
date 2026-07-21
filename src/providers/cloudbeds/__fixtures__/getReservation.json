@@ -1,0 +1,11 @@
+{
+  "success": true,
+  "data": {
+    "reservationID": "RES-1001",
+    "status": "confirmed",
+    "guestName": "A. Guest",
+    "checkIn": "2026-07-01",
+    "checkOut": "2026-07-03",
+    "rooms": [{ "roomTypeName": "Standard", "rate": "100.00" }]
+  }
+}

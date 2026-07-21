@@ -21,11 +21,16 @@ afterAll(async () => {
   await app.close();
 });
 
-async function connect(providerToken = 'provider-token') {
+async function connect(providerToken = 'provider-token', metadata?: Record<string, unknown>) {
+  const headers: Record<string, string> = {
+    authorization: `Bearer ${SECRET}`,
+    'x-provider-token': providerToken,
+  };
+  if (metadata) {
+    headers['x-provider-metadata'] = Buffer.from(JSON.stringify(metadata)).toString('base64');
+  }
   const transport = new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`), {
-    requestInit: {
-      headers: { authorization: `Bearer ${SECRET}`, 'x-provider-token': providerToken },
-    },
+    requestInit: { headers },
   });
   const client = new Client({ name: 'test-client', version: '1.0.0' });
   await client.connect(transport);
@@ -39,6 +44,8 @@ describe('MCP protocol (e2e over Streamable HTTP, stateless)', () => {
     const names = tools.map((t) => t.name);
     expect(names).toContain('mcp_echo_say');
     expect(names).toContain('mcp_echo_auth_check');
+    // a real provider's tools are exposed through the protocol too (not just the registry)
+    expect(names).toContain('mcp_cloudbeds_list_reservations');
     await client.close();
   });
 
@@ -47,6 +54,19 @@ describe('MCP protocol (e2e over Streamable HTTP, stateless)', () => {
     const res = await client.callTool({ name: 'mcp_echo_say', arguments: { message: 'hola' } });
     expect(res.isError).toBeFalsy();
     expect(res.structuredContent).toMatchObject({ ok: true, data: { echoed: 'hola' } });
+    await client.close();
+  });
+
+  it('enforces the metadata channel: a context-requiring tool with no X-Provider-Metadata → INVALID_INPUT', async () => {
+    // No metadata header → the provider's metadataSchema (propertyID) rejects BEFORE any provider
+    // API call (no network). Proves the metadata gate is active over the wire.
+    const client = await connect();
+    const res = await client.callTool({
+      name: 'mcp_cloudbeds_get_hotel_details',
+      arguments: {},
+    });
+    expect(res.isError).toBe(true);
+    expect(res.structuredContent).toMatchObject({ code: 'PROVIDER_INVALID_INPUT' });
     await client.close();
   });
 

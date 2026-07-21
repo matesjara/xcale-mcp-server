@@ -11,7 +11,7 @@ Seeded from `docs/foundation.md` §17 and sharpened during the first `/grill` se
 clients. https://modelcontextprotocol.io
 
 **MCP server** — this repo (`xcale-mcp-server`); exposes provider tools over MCP.
-_Avoid_: "the gateway" as a synonym for the whole system — the gateway is the *shape*, the
+_Avoid_: "the gateway" as a synonym for the whole system — the gateway is the _shape_, the
 server is the artifact.
 
 **MCP client** — xcale-backend; consumes the server's tools. The only consumer in v1.
@@ -24,7 +24,7 @@ tool contract. _Avoid_: "integration" (overloaded — say "provider" for the ada
 runnable via `tools/call`.
 
 **Protocol boundary** — the MCP surface between backend and server, now **three pillars**:
-`server/discover` (capability catalog), `tools/list`, `tools/call`. The *only* interface between
+`server/discover` (capability catalog), `tools/list`, `tools/call`. The _only_ interface between
 the two systems. _Avoid_: calling it "two methods" (outdated); treating internal module APIs as
 "the boundary".
 
@@ -39,10 +39,11 @@ premature abstraction).
 "skin" wraps. The phrase "a plugin disguised as MCP" refers to this stance.
 
 **Stateless (two distinct senses — keep separate)** —
-  1. *stateless auth*: the server holds no credentials; it receives a token per call and
-     discards it (never persists, caches, or logs the raw token).
-  2. *stateless transport*: Streamable HTTP with **no** `Mcp-Session-Id`; each `tools/call` is
-     an independent POST. Chosen partly to sidestep MCP's session-elimination breaking change.
+
+1. _stateless auth_: the server holds no credentials; it receives a token per call and
+   discards it (never persists, caches, or logs the raw token).
+2. _stateless transport_: Streamable HTTP with **no** `Mcp-Session-Id`; each `tools/call` is
+   an independent POST. Chosen partly to sidestep MCP's session-elimination breaking change.
 
 **Hop A** — auth from the forwarded user token → the provider API (per-connection data, carried
 in `X-Provider-Token`).
@@ -54,15 +55,22 @@ in `X-Provider-Token`).
 **`X-Provider-Token`** — the request header carrying the decrypted, opaque provider credential
 for Hop A. The adapter applies it per its provider's scheme; the core never interprets it.
 
+**`X-Provider-Metadata`** — the request header carrying `ProviderCallContext.metadata` on the
+wire: an opaque JSON object (plain or base64-encoded), forwarded by the consumer and parsed in
+exactly one place (`src/server.ts` → `extractProviderMetadata`). The core never interprets it; the
+adapter's `metadataSchema` validates the keys it needs. _Avoid_: putting secrets here (it is not
+redacted like the token) or any consumer/tenant identity — it carries provider routing data only
+(e.g. `propertyID`).
+
 **`PROVIDER_AUTH_EXPIRED`** — the typed, machine-readable code returned in a `tools/call` result
 with `isError: true` (in `structuredContent`) when a provider returns 401/403. The backend maps
 this code → Rail A's `markConnectionAuthFailure()` → reconnect prompt. _Avoid_: signalling
 expiry as a JSON-RPC protocol error (rejected — it's a tool-execution failure, not protocol).
 
 **`ProviderCallContext.metadata`** — an opaque `Record<string, unknown>` channel for
-provider-scoped data an adapter needs beyond the token (e.g. `accountKey`, `storeDomain`). Each
-adapter validates the keys it needs with `zod`. _Avoid_: treating metadata as tenant/user
-identity — it carries no business meaning to the core.
+provider-scoped data an adapter needs beyond the token (e.g. `accountKey`, `storeDomain`). Carried
+on the wire via [`X-Provider-Metadata`](#). Each adapter validates the keys it needs with `zod`.
+_Avoid_: treating metadata as tenant/user identity — it carries no business meaning to the core.
 
 **Curation (author-time)** — we expose a high-signal tool set by **declaring only the tools that
 matter** in each adapter, not by running a runtime curation engine. _Avoid_: "the server curates"
@@ -91,9 +99,9 @@ metadata, `authDescriptor`, `contextSchema`, `toolCount`, health, and `schemaVer
 discovers providers from this instead of hardcoding them. _Avoid_: "the registry" (that is the
 server's internal list; the catalog is the published view of it).
 
-**`authDescriptor`** — the **non-secret**, adaptive auth blueprint a provider publishes (api_key →
+**`authDescriptor`** — the **non-secret**, adaptive auth blueprint a provider publishes (api*key →
 type + field labels; oauth2 → URLs/scopes/placement). Lets Rail A run auth flows generically.
-_Avoid_: putting secrets (`clientId`/`clientSecret`) in it — those stay in the backend's Doppler.
+\_Avoid*: putting secrets (`clientId`/`clientSecret`) in it — those stay in the backend's Doppler.
 
 **`ProviderErrorCode`** — the closed, `as const` set of error codes on the `ToolResult` error
 variant (`PROVIDER_AUTH_EXPIRED`, `PROVIDER_RATE_LIMITED`, …); evolves additively only. _Avoid_:
@@ -109,10 +117,10 @@ dumps). The governing invariant of the credential boundary. See
 `src/providers/**`. The mechanical enforcement of Credential-in-Transit-Only.
 
 **Consumer-agnostic** — architectural principle #2: public contracts carry no consumer-specific
-concepts (no xcale entities, tenant ids, plan/business terms); the server is told *which token* and
-*which tool*, never *which tenant*. xcale-backend is the **first consumer**, not a dependency.
+concepts (no xcale entities, tenant ids, plan/business terms); the server is told _which token_ and
+_which tool_, never _which tenant_. xcale-backend is the **first consumer**, not a dependency.
 _Avoid_: "the boundary between xcale-backend and the server" (it is the boundary between the server
-and *any* consumer). See `docs/adr/consumer-agnostic-contract.md`.
+and _any_ consumer). See `docs/adr/consumer-agnostic-contract.md`.
 
 **Provider lifecycle** — per-provider evolution metadata in `manifest.ts`/catalog: `providerVersion`
 (adapter semver), `apiVersion`, `deprecated`, `sunsetDate`. v1 ships `providerVersion` (+
@@ -123,9 +131,41 @@ the provider). See `docs/adr/additive-contract-versioning.md`.
 **Provider capabilities (reserved)** — optional flags a provider may declare in the catalog
 (`streaming`, `longRunning`, `webhooks`, `polling`, `files`, `pagination`, `autoRefresh`); absent =
 not supported. Reserved now so the model isn't limited to simple synchronous calls; each is built
-only on demonstrated need (*complexity on demand*). See `docs/architecture-review.md` §4.3.
+only on demonstrated need (_complexity on demand_). See `docs/architecture-review.md` §4.3.
 
 **Complexity on demand** — the rule that no new infrastructure (own DB, queues, scheduler, complex
 discovery, distributed plugin runtimes) is added until a demonstrable need exists; introducing any
 requires an ADR. Keeps the platform maintainable as providers grow. _Avoid_: building for a "might
 need it someday" scenario.
+
+---
+
+### Canonical provider patterns (from the Cloudbeds grill, 2026-06-21 — see `docs/adr/canonical-provider-pattern.md`)
+
+**`defineTool`** — the helper every tool is declared with: `{ name, description, input (zod), handler }`.
+The `input` is the **single source of truth** — it validates args AND generates the `tools/list`
+JSON Schema. The provider's `callTool` dispatcher validates before calling, so handlers get **typed,
+pre-validated** args. _Avoid_: a hand-written `inputSchema`, or `parse()` inside handler business logic.
+
+**Single Source of Truth (tool contract)** — each tool has one canonical schema; all derived forms
+(JSON Schema, types, docs) are generated from it. CI-enforced (no literal `inputSchema` in providers).
+
+**`PaginatedResult<T>`** — the uniform list envelope: `{ items, page, pageSize, totalPages?,
+totalResults?, hasMore? }`. List tools take `page`/`pageSize` (defaults + max). _Avoid_:
+auto-pagination and internal 429 retry loops (return `PROVIDER_RATE_LIMITED`; consumer decides).
+
+**Explicit Context** — when an operation can target multiple logical contexts (property, org,
+workspace…), the target is explicit + validated via the provider's own `metadataSchema` (zod),
+never inferred. The core knows no field names (no `propertyID` in the framework).
+
+**Fidelity over Unification** — `data` preserves the provider's original semantics; only the
+envelope is standardized. Curation (documented field projection) yes; cross-provider canonical
+entities (`Reservation`, `Guest`) no (would be domain logic). Override only via ADR.
+
+**Share policies, not assumptions** — the core centralizes universal invariants (security, typing,
+contracts, `mapHttpStatusToErrorCode`, token-at-egress); provider-specific behavior stays per-provider.
+No shared HTTP framework until ≥2 providers prove it (ADR required). _Avoid_: centralizing a guess.
+
+**`createXProvider(deps?)`** — provider factory with the HTTP transport (and future clock/ids/retry/
+logger) injectable; default instance registered in `src/providers/index.ts`. Enables deterministic
+unit tests against recorded `__fixtures__/` + the mandatory `runProviderConformance` suite.

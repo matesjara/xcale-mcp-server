@@ -12,16 +12,18 @@ consumers (xcale-backend first) consume capabilities over stable, consumer-agnos
 ## Stack
 
 - TypeScript (strict; `exactOptionalPropertyTypes` off — see `docs/adr/typescript-strictness-config.md`),
-  Node ≥20, ESM.
+  Node ≥20 (CI and the production image run 22), ESM.
 - Fastify 5 · `@modelcontextprotocol/sdk` (MCP, confined to `src/protocol/`) · zod · pino · Vitest.
-- Run via **tsx** (no build step yet — *complexity on demand*).
+- Run via **tsx** (no build step — *complexity on demand*). In production too, so `tsx` is a
+  **runtime** dependency (`dependencies`), not a dev tool — see `docs/adr/deployment-runtime-and-hosting.md`.
 - Quality gates: Prettier (format), `tsc --noEmit`, Vitest, `npm audit` — all enforced in CI
   (`.github/workflows/ci.yml`) on every PR to `dev`/`main`.
 
 ## Scripts
 
 - `npm run dev` — `doppler run -- tsx watch src/server.ts` (local; pulls secrets from Doppler).
-- `npm start` — `tsx src/server.ts` (env provided by the platform).
+- `npm start` — `node --import tsx src/server.ts` (env provided by the platform; same command the
+  container runs).
 - `npm run typecheck` — `tsc --noEmit`. `npm test` / `npm run test:watch` — Vitest.
 
 ## Secrets & config (Doppler)
@@ -43,6 +45,9 @@ consumers (xcale-backend first) consume capabilities over stable, consumer-agnos
 - `main` (default, protected: PR + 1 review) · `dev` (protected: PR). Implementation: feature
   branch → PR → `dev`; release: `dev` → `main` PR. Repo: https://github.com/JuanJo0775/xcale-mcp-server
 
-## Deploy (planned)
+## Deploy
 
-- DigitalOcean App Platform; Doppler for secret injection. Health: `GET /health`.
+- **DigitalOcean App Platform** (project XCALE, `nyc`), one Docker service tracking **`main`** with
+  `deploy_on_push` — merging the release PR *is* the deploy. Health: `GET /health`.
+- Spec is versioned in `.do/app.yaml`; `MCP_SERVER_SECRET` is a placeholder rendered from Doppler
+  (`prd`) at apply time. Runbook: `docs/deploy.md`. Rationale: `docs/adr/deployment-runtime-and-hosting.md`.

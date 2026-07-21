@@ -42,28 +42,50 @@ Create `src/providers/{slug}/` (or run `/scaffold-provider {slug}`):
   labels; oauth2 → URLs/scopes/placement/`supportsRefresh`). **Never** put `clientId`/`clientSecret`
   here — those are the consumer's generic config (Doppler).
 - `client.ts` — a thin API client (HTTP calls; applies the forwarded token; caches no secrets).
-- `tools/` — one file per tool: `name` (`mcp_{slug}_{verb}`), `description`, `inputSchema` (zod →
-  JSON Schema). **Curate at author time**: declare the high-signal subset, not every endpoint.
-- `errors.ts` — map provider errors → the closed `ProviderErrorCode` set.
-- `provider.ts` — the `IProvider` implementation tying it together.
-- `__fixtures__/` + `__tests__/conformance.test.ts`.
+- `tools/` — one file per tool, declared with **`defineTool`/`toolFactory`**: `name`
+  (`mcp_{slug}_{verb}`), `description`, and a **zod `input`** (the single source of truth — the
+  JSON Schema is generated, never hand-written). **Curate at author time**: the high-signal subset.
+- `errors.ts` — provider-specific error shaping on top of the shared `mapHttpStatusToErrorCode`.
+- `provider.ts` — `createXProvider(deps?)` factory calling `createProvider({...})`; default instance.
+- `__fixtures__/` (anonymized recorded responses) + `__tests__/` (conformance + behavior).
 
-### 2. Implement the `IProvider` contract
+### 2. Implement via the canonical helpers (ADR: canonical-provider-pattern)
+
+Use the core helpers — do **not** hand-roll a `callTool` switch or a JSON Schema:
 
 ```typescript
-export const {slug}Provider: IProvider = {
-  slug: '{slug}',
-  auth: {SLUG}_AUTH_DESCRIPTOR,        // from auth.ts (non-secret)
-  listTools: () => {SLUG}_TOOLS,
-  callTool: async (toolName, args, ctx) => {
-    // 1. resolve the handler for toolName; validate args + ctx.metadata with zod
-    // 2. call the provider API via client, using ctx.token.reveal() at egress (NEVER persist/log)
-    // 3. return a typed ToolResult; map 401/403 → { kind:'error', code: AUTH_EXPIRED, ... }
-  },
-};
+// metadata typed once (Explicit Context); omit if the provider needs no context
+const tool = toolFactory<{ propertyID: string }>();
+
+export const {SLUG}_TOOLS = [
+  tool({
+    name: 'mcp_{slug}_get_thing',
+    description: '…',
+    input: z.object({ id: z.string() }).strict(),       // single source of truth
+    handler: async (args, ctx) => {                       // args + ctx.metadata are TYPED + validated
+      const res = await requestJson(`${BASE}/thing/${args.id}`, { token: ctx.token /* egress only */ });
+      // Error messages use status/code only — NEVER interpolate res.body (it may carry provider data).
+      return res.ok ? ok(res.data) : err(res.errorCode, `provider error (HTTP ${res.status})`);
+    },
+  }),
+  // list tools: use `definePaginatedList` (merges page/pageSize; returns the uniform PaginatedResult)
+];
+
+export function create{Slug}Provider(): IProvider {
+  return createProvider({
+    manifest: {slug}Manifest,
+    auth: {slug}Auth,
+    metadataSchema: z.object({ propertyID: z.string() }), // → published as contextSchema
+    tools: {SLUG}_TOOLS,
+  });
+}
+export const {slug}Provider = create{Slug}Provider();
 ```
 
-- `ctx.token` is a `SecretString` — call `.reveal()` **only** at the provider egress, never log it.
+- The dispatcher validates `ctx.metadata` and `args` **before** the handler (typed); unknown tool →
+  `UNKNOWN_TOOL`, invalid → `INVALID_INPUT` — you don't write these.
+- `ctx.token` is a `SecretString` — `requestJson` applies it at egress; call `.reveal()` **only** at
+  the provider egress, never log it.
 - `ctx.metadata` carries opaque, provider-scoped routing data (e.g. `accountKey`, `storeId`),
   validated against your `metadataSchema`. **No consumer-domain identity** (no tenant/plan).
 

@@ -1,1 +1,1 @@
-export { echoProvider } from './provider';
+export { createEchoProvider, echoProvider } from './provider';
