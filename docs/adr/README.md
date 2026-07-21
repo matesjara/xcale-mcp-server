@@ -26,5 +26,6 @@ Full rationale, alternatives, and the responsibility split live in `docs/archite
 | [credential-forwarding-and-token-model](credential-forwarding-and-token-model.md) | Accepted (scope-bounded) | Token model; ephemeral references before financial providers |
 | [credential-delivery-strategies](credential-delivery-strategies.md) | Accepted | `forwarded`\|`reference` strategies; credential-resolution phase; Hop-B reference resolution; `credential_exchange` descriptor variant |
 | [typescript-strictness-config](typescript-strictness-config.md) | Accepted | Full strict minus exactOptionalPropertyTypes (MCP SDK type incompatibility); revisit trigger |
+| [deployment-runtime-and-hosting](deployment-runtime-and-hosting.md) | Accepted | DO App Platform + Dockerfile; `tsx` as the production runtime (no build step); Doppler-rendered spec |
 | [canonical-provider-pattern](canonical-provider-pattern.md) | Accepted | Reference adapter pattern: single-source schemas + typed handlers, explicit pagination, explicit context, fidelity-over-unification, share-policies-not-assumptions, DI+fixtures+conformance |
 | [tool-derived-oauth-scopes](tool-derived-oauth-scopes.md) | Accepted | An oauth2 provider's `scopes` is the union of its tools' `requiredScopes` — never hand-written; guard vs the app registration |
