@@ -1,0 +1,25 @@
+# Keep the build context to what the runtime actually needs.
+node_modules
+.git
+.github
+.claude
+.do
+docs
+coverage
+.vitest
+*.tsbuildinfo
+dist
+build
+
+# Never let a local env file reach an image layer.
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+*.swp
+*.log

@@ -1,0 +1,52 @@
+# xcale-mcp-server — DigitalOcean App Platform spec (source of truth, versioned).
+#
+# Secrets are NEVER committed: `${MCP_SERVER_SECRET}` is a placeholder rendered from Doppler
+# (project `xcale-mcp-server`, config `prd`) at apply time. See docs/deploy.md.
+
+name: xcale-mcp-server
+region: nyc
+
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DEPLOYMENT_LIVE
+
+services:
+  - name: mcp
+    dockerfile_path: Dockerfile
+    github:
+      repo: matesjara/xcale-mcp-server
+      branch: main
+      deploy_on_push: true
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 20
+      period_seconds: 30
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    envs:
+      - key: NODE_ENV
+        scope: RUN_AND_BUILD_TIME
+        value: production
+      - key: PORT
+        scope: RUN_TIME
+        value: "8080"
+      - key: LOG_LEVEL
+        scope: RUN_TIME
+        value: info
+      # Hop B — the shared secret consumers authenticate with. Rendered from Doppler.
+      - key: MCP_SERVER_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: ${MCP_SERVER_SECRET}
+
+ingress:
+  rules:
+    - component:
+        name: mcp
+      match:
+        path:
+          prefix: /
