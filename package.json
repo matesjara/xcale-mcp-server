@@ -32,6 +32,7 @@
     "vitest": "^3.2.6"
   },
   "overrides": {
-    "esbuild": "^0.25.0"
+    "esbuild": "^0.25.0",
+    "find-my-way": "^9.7.0"
   }
 }
