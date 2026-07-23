@@ -1,6 +1,8 @@
 import type { z } from 'zod';
 
+import { materialize } from './auth/authentication-materializer';
 import { ProviderErrorCode } from './errors';
+import { type FetchLike, sendRequest } from './http';
 import { toJsonSchema } from './json-schema';
 import type { IProvider, ProviderAuthDescriptor, ProviderManifest } from './provider-port';
 import type { ToolDefinition } from './tool';
@@ -15,6 +17,8 @@ export interface ProviderSpec<M = unknown> {
   // zod input differs); the per-tool types stay sound at each defineTool/toolFactory call site.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly tools: ReadonlyArray<ToolDefinition<any, M>>;
+  /** Injectable HTTP transport for deterministic tests (default: global fetch via `sendRequest`). */
+  readonly fetchImpl?: FetchLike;
 }
 
 function formatZodError(error: z.ZodError): string {
@@ -52,8 +56,12 @@ export function createProvider<M = unknown>(spec: ProviderSpec<M>): IProvider {
         });
       }
 
+      // The context-discovery tool resolves the required context, so by definition it cannot require
+      // it — exempt it from metadata validation (see manifest.contextDiscovery). Every other tool is
+      // still validated against the provider's metadataSchema before its handler runs.
+      const discoveryTool = spec.manifest.contextDiscovery?.tool;
       let metadata: M;
-      if (spec.metadataSchema) {
+      if (spec.metadataSchema && toolName !== discoveryTool) {
         const parsedMeta = spec.metadataSchema.safeParse(ctx.metadata ?? {});
         if (!parsedMeta.success) {
           return toolError({
@@ -65,7 +73,7 @@ export function createProvider<M = unknown>(spec: ProviderSpec<M>): IProvider {
         }
         metadata = parsedMeta.data;
       } else {
-        metadata = undefined as M;
+        metadata = (ctx.metadata ?? {}) as M;
       }
 
       const parsedArgs = tool.input.safeParse(args);
@@ -78,7 +86,17 @@ export function createProvider<M = unknown>(spec: ProviderSpec<M>): IProvider {
         });
       }
 
-      const outcome = await tool.handler(parsedArgs.data, { token: ctx.token, metadata });
+      const outcome = await tool.handler(parsedArgs.data, {
+        // The authenticated-request executor: the core materializes auth (reveals + applies the
+        // declared placement) and transports it, so the handler never touches the secret. The plain
+        // materialized request stays inside this core span — it never passes through provider code.
+        request: (reqSpec) =>
+          sendRequest(
+            materialize(spec.auth, ctx.credential, reqSpec),
+            spec.fetchImpl ? { fetchImpl: spec.fetchImpl } : {},
+          ),
+        metadata,
+      });
       return outcome.ok
         ? toolSuccess({
             toolName,

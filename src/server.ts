@@ -7,6 +7,8 @@ import { verifyHopB } from './auth/hop-b';
 import { extractProviderMetadata, extractProviderToken } from './auth/token';
 import { type Config, loadConfig } from './config';
 import { buildCatalog } from './core/catalog';
+import type { CredentialResolverDeps } from './core/credential/credential-resolver';
+import { createReferenceCredentialResolver } from './core/credential/reference-resolver';
 import { createRegistry } from './core/registry';
 import { loggerOptions } from './logger';
 import { handleMcpRequest } from './protocol/http-mcp';
@@ -43,6 +45,16 @@ async function serveAsset(reply: import('fastify').FastifyReply, filename: strin
 
 export function buildApp(config: Config = loadConfig()): FastifyInstance {
   const registry = createRegistry(PROVIDERS);
+  // Wire the `reference` resolver only when a Credential Authority endpoint is configured. Empty =
+  // this server serves only `forwarded` providers (the reference dispatch throws if ever hit).
+  const resolverDeps: CredentialResolverDeps = config.credentialResolveUrl
+    ? {
+        reference: createReferenceCredentialResolver({
+          resolveUrl: config.credentialResolveUrl,
+          hopBSecret: config.serverSecret,
+        }),
+      }
+    : {};
   const app = Fastify({ logger: loggerOptions(config.logLevel) });
 
   // Public health/readiness — no auth.
@@ -82,6 +94,7 @@ export function buildApp(config: Config = loadConfig()): FastifyInstance {
     try {
       await handleMcpRequest({
         registry,
+        resolverDeps,
         ctx: { token, metadata },
         req: request.raw,
         res: reply.raw,

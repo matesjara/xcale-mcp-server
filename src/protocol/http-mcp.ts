@@ -2,8 +2,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 
+import type { CredentialResolverDeps } from '../core/credential/credential-resolver';
 import type { ProviderRegistry } from '../core/registry';
-import type { ProviderCallContext } from '../core/types';
+import type { InboundCallContext } from '../core/types';
 import { createMcpServer } from './mcp-server';
 
 /**
@@ -13,13 +14,14 @@ import { createMcpServer } from './mcp-server';
  */
 export async function handleMcpRequest(opts: {
   registry: ProviderRegistry;
-  ctx: ProviderCallContext;
+  ctx: InboundCallContext;
+  resolverDeps?: CredentialResolverDeps;
   req: IncomingMessage;
   res: ServerResponse;
   body: unknown;
 }): Promise<void> {
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-  const server = createMcpServer(opts.registry, opts.ctx);
+  const server = createMcpServer(opts.registry, opts.ctx, opts.resolverDeps);
 
   opts.res.on('close', () => {
     void transport.close();

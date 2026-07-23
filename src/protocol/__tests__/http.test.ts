@@ -7,7 +7,13 @@ const SECRET = 'test-secret';
 let app: FastifyInstance;
 
 beforeAll(async () => {
-  app = buildApp({ port: 0, nodeEnv: 'test', logLevel: 'silent', serverSecret: SECRET });
+  app = buildApp({
+    port: 0,
+    nodeEnv: 'test',
+    logLevel: 'silent',
+    serverSecret: SECRET,
+    credentialResolveUrl: '',
+  });
   await app.ready();
 });
 

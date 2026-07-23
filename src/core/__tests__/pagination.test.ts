@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 
-import { SecretString } from '../secret-string';
 import {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
@@ -63,7 +62,10 @@ describe('definePaginatedList', () => {
   it('wraps the handler page into a uniform PaginatedResult', async () => {
     const out = await listTool.handler(
       { status: 'a', page: 1, pageSize: 2 },
-      { token: new SecretString(''), metadata: undefined },
+      {
+        request: () => Promise.resolve({ ok: true, status: 200, data: {} }),
+        metadata: undefined,
+      },
     );
     expect(out).toMatchObject({
       ok: true,

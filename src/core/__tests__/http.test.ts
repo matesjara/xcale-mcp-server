@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ProviderErrorCode } from '../errors';
-import { mapHttpStatusToErrorCode, requestJson } from '../http';
-import { SecretString } from '../secret-string';
+import { mapHttpStatusToErrorCode, sendRequest } from '../http';
 
 describe('mapHttpStatusToErrorCode', () => {
   it('maps HTTP statuses to the closed ProviderErrorCode set', () => {
@@ -15,27 +14,34 @@ describe('mapHttpStatusToErrorCode', () => {
   });
 });
 
-describe('requestJson', () => {
-  it('returns parsed JSON and applies the token at egress (Bearer) — token never leaks', async () => {
-    let seenAuth: string | undefined;
+describe('sendRequest (auth-blind transport)', () => {
+  it('returns parsed JSON and forwards the pre-built headers verbatim (no auth knowledge)', async () => {
+    let seenHeaders: Record<string, string> | undefined;
     const fetchImpl = (async (_url: string, init?: RequestInit) => {
-      seenAuth = (init?.headers as Record<string, string> | undefined)?.authorization;
+      seenHeaders = init?.headers as Record<string, string> | undefined;
       return new Response(JSON.stringify({ hello: 'world' }), { status: 200 });
     }) as typeof fetch;
 
-    const res = await requestJson('https://x', { token: new SecretString('s3cret'), fetchImpl });
+    const res = await sendRequest(
+      {
+        method: 'GET',
+        url: 'https://x',
+        headers: { authorization: 'Bearer already-materialized' },
+      },
+      { fetchImpl },
+    );
 
     expect(res).toEqual({ ok: true, status: 200, data: { hello: 'world' } });
-    expect(seenAuth).toBe('Bearer s3cret');
+    // The transport forwards whatever headers the materializer built — it never constructs auth itself.
+    expect(seenHeaders?.authorization).toBe('Bearer already-materialized');
   });
 
-  it('maps a non-2xx to a typed error result without leaking the token', async () => {
+  it('maps a non-2xx to a typed error result', async () => {
     const fetchImpl = (async () => new Response('unauthorized', { status: 401 })) as typeof fetch;
-    const res = await requestJson('https://x', { token: new SecretString('s3cret'), fetchImpl });
+    const res = await sendRequest({ method: 'GET', url: 'https://x', headers: {} }, { fetchImpl });
     expect(res.ok).toBe(false);
     if (!res.ok) {
       expect(res.errorCode).toBe(ProviderErrorCode.AUTH_EXPIRED);
-      expect(res.body).not.toContain('s3cret');
     }
   });
 
@@ -43,7 +49,7 @@ describe('requestJson', () => {
     const fetchImpl = (async () => {
       throw new Error('ECONNREFUSED');
     }) as typeof fetch;
-    const res = await requestJson('https://x', { fetchImpl });
+    const res = await sendRequest({ method: 'GET', url: 'https://x', headers: {} }, { fetchImpl });
     expect(res).toMatchObject({
       ok: false,
       status: 0,
