@@ -20,8 +20,8 @@ describe('cloudbeds scopes — derived from tools, bounded by the app registrati
   });
 
   it('every tool declares requiredScopes — silence must not read as "needs nothing"', () => {
-    // `[]` is a real answer (authenticates, no scope — the webhook methods). Omitting the field is not:
-    // it would silently drop that tool's scope from the derived union and the call would 403 in prod.
+    // `[]` is a real answer (authenticates, needs no scope). Omitting the field is not: it would
+    // silently drop that tool's scope from the derived union and the call would 403 in prod.
     const undeclared = tools.filter((t) => t.requiredScopes === undefined).map((t) => t.name);
     expect(undeclared).toEqual([]);
   });
@@ -72,11 +72,5 @@ describe('cloudbeds scopes — derived from tools, bounded by the app registrati
     expect(auth.tokenUrl).toBe('https://hotels.cloudbeds.com/api/v1.3/access_token');
     expect(auth.supportsRefresh).toBe(true);
     expect(auth.tokenPlacement).toBe('bearer_header');
-  });
-
-  it('the webhook tools authenticate but need no scope (spec: `OAuth2: []`)', () => {
-    const webhookTools = tools.filter((t) => t.name.includes('webhook_subscription'));
-    expect(webhookTools.length).toBeGreaterThan(0);
-    for (const t of webhookTools) expect(t.requiredScopes).toEqual([]);
   });
 });

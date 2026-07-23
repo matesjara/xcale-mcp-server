@@ -71,8 +71,10 @@ describe('cloudbeds administrative tools', () => {
       expect(res.message).toContain('taxesAndFees');
     });
 
-    it('fails when nothing at all could be read', async () => {
+    it('fails when nothing at all could be read — as a reconnect signal when all fail on scope', async () => {
       // Everything absent is a real failure, not a partial one — it must surface, not return `{}`.
+      // And when every read failed on an ungranted scope (a token predating a scope bump), the
+      // failure is a reconnect signal (AUTH_EXPIRED), not an opaque PROVIDER_ERROR (soul.md #2).
       const provider = createCloudbedsProvider({
         fetchImpl: fakeFetch({
           getAppPropertySettings: scopeDenied,
@@ -84,7 +86,7 @@ describe('cloudbeds administrative tools', () => {
       const res = await provider.callTool('mcp_cloudbeds_get_property_configuration', {}, ctx());
       expect(res.kind).toBe('error');
       if (res.kind !== 'error') return;
-      expect(res.code).toBe(ProviderErrorCode.PROVIDER_ERROR);
+      expect(res.code).toBe(ProviderErrorCode.AUTH_EXPIRED);
       expect(res.message).toContain('Scope');
     });
   });

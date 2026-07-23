@@ -13,6 +13,30 @@ type Unwrapped =
   | { readonly ok: false; readonly code: ProviderErrorCode; readonly message: string };
 
 /**
+ * Classify a Cloudbeds `success:false` envelope into a typed error code by its `message`.
+ *
+ * Cloudbeds signals a **scope/permission denial as HTTP 200 + `success:false`**, never 401/403
+ * (e.g. `"Scope required for this call was not granted by property."`). `mapHttpStatusToErrorCode`
+ * therefore never fires for the dominant auth failure, so the classification has to happen on the
+ * envelope here — otherwise a denied scope reaches the consumer as an opaque `PROVIDER_ERROR` and
+ * the "reconnect required" signal (`AUTH_EXPIRED`) is never raised (soul.md priority #2). Matching
+ * is on the message because that is the only discriminator Cloudbeds gives us; it is deliberately
+ * conservative — anything unrecognized stays `PROVIDER_ERROR` rather than being mislabeled.
+ */
+function classifyEnvelopeFailure(message: string | undefined): ProviderErrorCode {
+  const m = (message ?? '').toLowerCase();
+  // Scope/permission/token → the connection must be re-authorized. This is the reconnect path.
+  if (/\bscope\b|permission|not granted|unauthor|forbidden|\btoken\b/.test(m)) {
+    return ProviderErrorCode.AUTH_EXPIRED;
+  }
+  // Caller-fixable input problems → the agent can correct and retry.
+  if (/required|invalid|missing|must be|not valid|malformed/.test(m)) {
+    return ProviderErrorCode.INVALID_INPUT;
+  }
+  return ProviderErrorCode.PROVIDER_ERROR;
+}
+
+/**
  * Cloudbeds wraps payloads as `{ success, data, total?, message? }`. Provider-specific shaping stays
  * here. Fidelity over unification: we return the provider's `data` verbatim (no entity remodeling).
  *
@@ -38,7 +62,7 @@ function unwrap(res: RequestResult, method: string): Unwrapped {
   if (body && body.success === false) {
     return {
       ok: false,
-      code: ProviderErrorCode.PROVIDER_ERROR,
+      code: classifyEnvelopeFailure(body.message),
       message: body.message ?? `Cloudbeds ${method} returned success=false`,
     };
   }
@@ -583,10 +607,14 @@ export function buildCloudbedsTools(
 
         const data: Record<string, unknown> = {};
         const unavailable: Record<string, string> = {};
+        const failureCodes: ProviderErrorCode[] = [];
         for (const part of parts) {
           const u = unwrap(await client.get(part.method, ctx.request, { propertyID }), part.method);
           if (u.ok) data[part.key] = u.data;
-          else unavailable[part.key] = u.message;
+          else {
+            unavailable[part.key] = u.message;
+            failureCodes.push(u.code);
+          }
         }
 
         // Partial results are reported, never silently dropped: a property's PLAN can legitimately
@@ -594,8 +622,13 @@ export function buildCloudbedsTools(
         // and failing all four because one is absent would make the tool useless for that hotel.
         // Everything failing is a real failure, not a partial one.
         if (Object.keys(data).length === 0) {
+          // If every read failed on auth (an ungranted scope on a token that predates a scope bump),
+          // surface the reconnect signal — not an opaque PROVIDER_ERROR (soul.md priority #2).
+          const code = failureCodes.every((c) => c === ProviderErrorCode.AUTH_EXPIRED)
+            ? ProviderErrorCode.AUTH_EXPIRED
+            : ProviderErrorCode.PROVIDER_ERROR;
           return err(
-            ProviderErrorCode.PROVIDER_ERROR,
+            code,
             `No property configuration could be read: ${Object.values(unavailable).join(' | ')}`,
           );
         }
@@ -1107,70 +1140,22 @@ export function buildCloudbedsTools(
     // NOT built: `deleteAllotmentBlock`. Deleting held inventory for a group is not a conversational
     // move — it is an operations decision with real money behind it, and it deserves its own call.
 
-    tool({
-      name: `mcp_${SLUG}_list_webhook_subscriptions`,
-      requiredScopes: [], // spec: getWebhooks
-      description:
-        'List this property’s webhook subscriptions: per subscription its id, endpointUrl, object and ' +
-        'action. Use it to check what is actually subscribed before changing anything.',
-      input: z.object({}).strict(),
-      handler: async (_args, ctx) => {
-        const res = await client.get('getWebhooks', ctx.request, {
-          propertyID: ctx.metadata.propertyID,
-        });
-        const u = unwrap(res, 'getWebhooks');
-        return u.ok ? ok(u.data) : err(u.code, u.message);
-      },
-    }),
-
-    tool({
-      name: `mcp_${SLUG}_ensure_webhook_subscription`,
-      requiredScopes: [], // spec: postWebhook
-      description:
-        'Subscribe an endpoint URL to a property event. Idempotent: re-running with the same url, ' +
-        'object and action returns the same subscription rather than adding a duplicate. ' +
-        'IMPORTANT: Cloudbeds does NOT validate `action` — it accepts an unknown one and creates a ' +
-        'subscription that never fires, so a success here does NOT prove the event exists. Only these ' +
-        'have been observed to deliver: reservation/created, reservation/status_changed, ' +
-        'guest/created, guest/assigned. Anything else must be confirmed by observing a real delivery.',
-      input: z
-        .object({
-          endpointUrl: z.string().url().describe('Public HTTPS URL that will receive deliveries.'),
-          object: z.string().min(1).describe('Event object, e.g. "reservation" or "guest".'),
-          action: z.string().min(1).describe('Event action, e.g. "created" or "status_changed".'),
-        })
-        .strict(),
-      handler: async (args, ctx) => {
-        // `ensure`, not `create`: the subscriptionID is a deterministic hash of
-        // (property, endpointUrl, object, action) — observed by deleting all subscriptions and
-        // re-creating them, which returned byte-identical ids. So Cloudbeds itself dedupes, and the
-        // honest verb is the idempotent one. Naming this `create` would invite callers to guard
-        // against duplicates that cannot happen.
-        const res = await client.post('postWebhook', ctx.request, {
-          propertyID: ctx.metadata.propertyID,
-          ...args,
-        });
-        const u = unwrap(res, 'postWebhook');
-        return u.ok ? ok(u.data) : err(u.code, u.message);
-      },
-    }),
-
-    tool({
-      name: `mcp_${SLUG}_delete_webhook_subscription`,
-      requiredScopes: [], // spec: deleteWebhook
-      description:
-        'Delete a webhook subscription by its id. The id is the `id` field returned by the list tool ' +
-        '(the same value the subscribe tool returns as `subscriptionID`).',
-      input: z.object({ subscriptionID: z.string().min(1) }).strict(),
-      handler: async (args, ctx) => {
-        // DELETE with query-string params — a DELETE body is not parsed (see `client.del`).
-        const res = await client.del('deleteWebhook', ctx.request, {
-          propertyID: ctx.metadata.propertyID,
-          subscriptionID: args.subscriptionID,
-        });
-        const u = unwrap(res, 'deleteWebhook');
-        return u.ok ? ok(u.data) : err(u.code, u.message);
-      },
-    }),
+    // NOT published as agent tools: webhook subscription management (getWebhooks / postWebhook /
+    // deleteWebhook). The scope-coverage design classifies these as *infrastructure, not agent
+    // surface* — and until that boundary is actually enforced they are unsafe to expose:
+    //
+    //   1. The endpointUrl is a bearer credential. Cloudbeds deliveries carry no signature (see
+    //      cloudbeds-provider/functional-design.md §7), so the per-subscription secret lives in the
+    //      URL. `list_webhook_subscriptions` would return it verbatim into the agent's context and
+    //      the conversation transcript — a credential in the clear.
+    //   2. `ensure_webhook_subscription` accepted `endpointUrl: z.string().url()` (any scheme, any
+    //      host). A guest-authored note surfaced by a read tool could steer the agent into pointing
+    //      the property's event stream — guest names, emails, stay dates — at an attacker's http host.
+    //   3. `delete_webhook_subscription` lets the agent unhook the consumer's own receiver, silently
+    //      killing reconciliation.
+    //
+    // Webhook wiring belongs to the consumer's control plane, not to a per-call agent tool. Re-expose
+    // these only behind: an https-allowlist for endpointUrl sourced from deployment config, redaction
+    // of the secret path in list results, and a real consent gate. Tracked in docs/design/roadmap.md.
   ];
 }

@@ -174,7 +174,11 @@ describe('cloudbeds provider', () => {
   // Observed against the live sandbox: Cloudbeds answers a *bad* request with HTTP 200 and
   // `success:false` (missing param, or an ungranted scope) — the envelope, not the status code, is
   // what fails. A tool that trusted the 200 would hand the agent a phantom empty result.
-  it('surfaces an HTTP 200 + success:false envelope as an error, never as success', async () => {
+  //
+  // Cloudbeds signals a scope denial THIS way (200 + success:false), never 401/403, so the envelope
+  // must be classified into the typed error the contract requires — a denied scope is a reconnect
+  // signal (AUTH_EXPIRED), not an opaque PROVIDER_ERROR (soul.md priority #2).
+  it('maps a 200 + success:false scope denial to AUTH_EXPIRED (the reconnect signal)', async () => {
     const provider = createCloudbedsProvider({
       fetchImpl: fakeFetch({
         getRatePlans: {
@@ -193,9 +197,50 @@ describe('cloudbeds provider', () => {
     );
     expect(r).toMatchObject({
       kind: 'error',
-      code: ProviderErrorCode.PROVIDER_ERROR,
+      code: ProviderErrorCode.AUTH_EXPIRED,
       message: 'Scope required for this call was not granted by property.',
     });
+  });
+
+  // A caller-fixable envelope failure (missing/invalid param) must classify as INVALID_INPUT so the
+  // agent can correct and retry — distinct from the reconnect path above.
+  it('maps a 200 + success:false required-param failure to INVALID_INPUT', async () => {
+    const provider = createCloudbedsProvider({
+      fetchImpl: fakeFetch({
+        getRatePlans: {
+          status: 200,
+          body: { success: false, message: 'startDate is required.' },
+        },
+      }),
+    });
+    const r = await provider.callTool(
+      'mcp_cloudbeds_get_rate_plans',
+      { startDate: '2026-08-10', endDate: '2026-08-12' },
+      ctx({ propertyID: 'PROP1' }),
+    );
+    expect(r).toMatchObject({
+      kind: 'error',
+      code: ProviderErrorCode.INVALID_INPUT,
+      message: 'startDate is required.',
+    });
+  });
+
+  // Anything the classifier does not recognize stays PROVIDER_ERROR — no over-eager relabeling.
+  it('leaves an unrecognized success:false message as PROVIDER_ERROR', async () => {
+    const provider = createCloudbedsProvider({
+      fetchImpl: fakeFetch({
+        getRatePlans: {
+          status: 200,
+          body: { success: false, message: 'Temporary glitch, try later.' },
+        },
+      }),
+    });
+    const r = await provider.callTool(
+      'mcp_cloudbeds_get_rate_plans',
+      { startDate: '2026-08-10', endDate: '2026-08-12' },
+      ctx({ propertyID: 'PROP1' }),
+    );
+    expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
   });
 
   // --- create_reservation (E-08 write path) -------------------------------------------------
@@ -380,68 +425,8 @@ describe('cloudbeds provider', () => {
   });
 });
 
-describe('cloudbeds webhook tools (W4)', () => {
-  /** Capture the exact wire call a tool makes — verb, url, and body. */
-  function capturing(body: unknown = { success: true, data: {} }) {
-    const seen: { method?: string; url?: string; body?: string } = {};
-    const fetchImpl = (async (url: string | URL, init?: RequestInit) => {
-      seen.url = url.toString();
-      seen.method = init?.method;
-      seen.body = init?.body ? String(init.body) : undefined;
-      return new Response(JSON.stringify(body), { status: 200 });
-    }) as FetchLike;
-    return { seen, fetchImpl };
-  }
-
-  const call = async (fetchImpl: FetchLike, tool: string, args: Record<string, unknown>) =>
-    createCloudbedsProvider({ fetchImpl }).callTool(tool, args, ctx({ propertyID: '320754' }));
-
-  it('subscribes with propertyID + endpointUrl/object/action', async () => {
-    const { seen, fetchImpl } = capturing({ success: true, data: { subscriptionID: 'abc123' } });
-    const res = await call(fetchImpl, 'mcp_cloudbeds_ensure_webhook_subscription', {
-      endpointUrl: 'https://example.test/api/webhooks/cloudbeds/s3cr3t',
-      object: 'reservation',
-      action: 'status_changed',
-    });
-
-    expect(seen.method).toBe('POST');
-    expect(seen.url).toContain('postWebhook');
-    expect(seen.body).toContain('propertyID=320754');
-    expect(seen.body).toContain('object=reservation');
-    expect(seen.body).toContain('action=status_changed');
-    expect(res).toMatchObject({ kind: 'success' });
-  });
-
-  it('deletes with params on the QUERY STRING — a DELETE body is not parsed by Cloudbeds', async () => {
-    // The wire fact this tool exists to encode. Sending these as a form body silently drops them and
-    // the call fails the required-param check.
-    const { seen, fetchImpl } = capturing({ success: true, data: {} });
-    await call(fetchImpl, 'mcp_cloudbeds_delete_webhook_subscription', {
-      subscriptionID: 'abc123',
-    });
-
-    expect(seen.method).toBe('DELETE');
-    expect(seen.url).toContain('subscriptionID=abc123');
-    expect(seen.url).toContain('propertyID=320754');
-    expect(seen.body).toBeUndefined();
-  });
-
-  it('lists subscriptions scoped to the property', async () => {
-    const { seen, fetchImpl } = capturing({ success: true, data: [] });
-    await call(fetchImpl, 'mcp_cloudbeds_list_webhook_subscriptions', {});
-
-    expect(seen.method).toBe('GET');
-    expect(seen.url).toContain('getWebhooks');
-    expect(seen.url).toContain('propertyID=320754');
-  });
-
-  it('surfaces the HTTP-200 + success:false envelope as an error, not a phantom success', async () => {
-    const { fetchImpl } = capturing({ success: false, message: 'endpointUrl is required' });
-    const res = await call(fetchImpl, 'mcp_cloudbeds_ensure_webhook_subscription', {
-      endpointUrl: 'https://example.test/x',
-      object: 'reservation',
-      action: 'created',
-    });
-    expect(res).toMatchObject({ kind: 'error' });
-  });
-});
+// Webhook subscription tools (W4) were REMOVED from the published toolset (see tools.ts): the
+// endpointUrl is a bearer credential, the URL schema was unconstrained, and the delete tool could
+// unhook the consumer's own receiver — all unsafe as agent surface. Their wire-shaping tests went
+// with them. Webhook wiring is the consumer's control-plane concern; re-exposure is tracked in
+// docs/design/roadmap.md behind an https-allowlist + secret redaction + a consent gate.
