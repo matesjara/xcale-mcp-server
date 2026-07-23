@@ -40,7 +40,10 @@ const provider = createProvider<DemoMeta>({
   ],
 });
 
-const ctx = (metadata?: Record<string, unknown>) => ({ token: new SecretString('t'), metadata });
+const ctx = (metadata?: Record<string, unknown>) => ({
+  credential: { secret: new SecretString('t') },
+  metadata,
+});
 
 describe('createProvider dispatcher', () => {
   it('generates inputSchema (JSON Schema) for tools/list from the zod input', () => {

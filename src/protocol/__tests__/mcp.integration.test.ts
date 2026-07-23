@@ -11,7 +11,13 @@ let app: FastifyInstance;
 let baseUrl: string;
 
 beforeAll(async () => {
-  app = buildApp({ port: 0, nodeEnv: 'test', logLevel: 'silent', serverSecret: SECRET });
+  app = buildApp({
+    port: 0,
+    nodeEnv: 'test',
+    logLevel: 'silent',
+    serverSecret: SECRET,
+    credentialResolveUrl: '',
+  });
   await app.listen({ port: 0, host: '127.0.0.1' });
   const addr = app.server.address() as AddressInfo;
   baseUrl = `http://127.0.0.1:${addr.port}`;
@@ -70,9 +76,9 @@ describe('MCP protocol (e2e over Streamable HTTP, stateless)', () => {
     await client.close();
   });
 
-  it('maps a provider auth failure to a typed PROVIDER_AUTH_EXPIRED result', async () => {
-    const client = await connect(''); // no provider credential forwarded
-    const res = await client.callTool({ name: 'mcp_echo_auth_check', arguments: {} });
+  it('maps a provider auth failure to a typed PROVIDER_AUTH_EXPIRED result over the wire', async () => {
+    const client = await connect();
+    const res = await client.callTool({ name: 'mcp_echo_reconnect_required', arguments: {} });
     expect(res.isError).toBe(true);
     expect(res.structuredContent).toMatchObject({ ok: false, code: 'PROVIDER_AUTH_EXPIRED' });
     await client.close();

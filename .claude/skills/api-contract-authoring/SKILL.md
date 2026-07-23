@@ -62,6 +62,40 @@ Run through the [checklist.md](checklist.md) before finalizing.
 
 ## Golden Rules for Contract Authoring
 
+### 🔬 Evidence Before Contract (foundational)
+
+> **An API contract describes only observed behavior of the real target system.** Documentation, SDKs,
+> and examples prepare the verification but never substitute for evidence obtained by executing against
+> the target environment.
+
+When integrating an external provider whose surface is uncertain (multiple API "flavors", docs that lag
+the live API), verify each concrete value — URLs, field names, headers, response shapes, provider error
+codes — against a real sandbox/test call **before** it enters the contract. This is the contract-level
+twin of the feature-design's "no new architecture" guardrail: **the contract introduces no assumptions.**
+
+#### Evidence Before Contract (extended) — deferral over provisional
+
+> **When primary provider wire semantics are unavailable, the API Contract is *deferred*, not written
+> provisionally.** No wire contract is frozen from recollection or secondary sources. An un-inspectable
+> vendor docs SPA is itself *evidence of an evidence-availability constraint*, not a reason to guess.
+
+The Feature Design may carry controlled uncertainty (an open question like "confirm field names against
+official docs"); the API Contract **cannot freeze unverified provider wire semantics** — it is the
+two-sided source of truth. (It *may* enumerate provider-defined uncertainty — "MAY return one of these
+values"; it may **not** say "confirmed later".) A contract with internal `TODO`/`pending` wire markers
+fails at its one job and becomes documentation debt.
+
+**Conditional artifact — `api-contract-preflight.md`.** *Only* when architectural decisions are already
+closed (Feature Design approved) but primary provider evidence is *temporarily* unavailable, author a
+short `docs/design/<slug>/api-contract-preflight.md` that separates **verified wire facts** from
+**pending wire evidence** and names the exact evidence that lifts the deferral (a live sandbox or the
+rendered official reference). It does **not** re-justify architecture (that is the Feature Design's job —
+reference it, don't restate it). When the evidence arrives: verify each pending item → write
+`api-contract.md` with only observed values (**authored only after primary evidence is complete**) →
+retire the preflight. **Create the preflight only when the wait for primary evidence is expected to
+outlive the current design cycle** — not for a transient docs outage. It is not a mandatory pipeline step
+and does not appear for features whose provider surface is already observable.
+
 ### 🏗️ Architecture Alignment
 
 | Rule | Why |

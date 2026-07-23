@@ -7,7 +7,7 @@ import { echoProvider } from '../provider';
 import { TOOL_AUTH_CHECK, TOOL_SAY } from '../tools';
 
 describe('echo provider', () => {
-  const withToken = { token: new SecretString('a-token') };
+  const withToken = { credential: { secret: new SecretString('a-token') } };
 
   it('passes the generic provider conformance suite', async () => {
     await runProviderConformance(echoProvider);
@@ -29,23 +29,11 @@ describe('echo provider', () => {
     }
   });
 
-  it('auth_check succeeds when a credential is forwarded', async () => {
+  it('auth_check proves the pipeline is wired (dispatch + resolution succeeded)', async () => {
     const result = await echoProvider.callTool(TOOL_AUTH_CHECK, {}, withToken);
     expect(result.kind).toBe('success');
     if (result.kind === 'success') {
       expect(result.data).toEqual({ authenticated: true });
-    }
-  });
-
-  it('auth_check maps a missing credential to AUTH_EXPIRED (reconnect signal)', async () => {
-    const result = await echoProvider.callTool(
-      TOOL_AUTH_CHECK,
-      {},
-      { token: new SecretString('') },
-    );
-    expect(result.kind).toBe('error');
-    if (result.kind === 'error') {
-      expect(result.code).toBe(ProviderErrorCode.AUTH_EXPIRED);
     }
   });
 });

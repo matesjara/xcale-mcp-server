@@ -71,6 +71,8 @@ export function definePaginatedList<I extends z.ZodObject<z.ZodRawShape>, T, M =
   name: string;
   description: string;
   input: I;
+  /** Forwarded verbatim — a list tool declares its scopes exactly like any other (see `ToolDefinition`). */
+  requiredScopes?: readonly string[];
   handler: (
     args: z.infer<I> & PaginationInput,
     ctx: ToolHandlerContext<M>,
@@ -82,6 +84,7 @@ export function definePaginatedList<I extends z.ZodObject<z.ZodRawShape>, T, M =
     name: def.name,
     description: def.description,
     input: mergedInput,
+    ...(def.requiredScopes ? { requiredScopes: def.requiredScopes } : {}),
     handler: async (args, ctx) => {
       const result = await def.handler(args as z.infer<I> & PaginationInput, ctx);
       if (!result.ok) {

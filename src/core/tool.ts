@@ -1,7 +1,8 @@
 import type { z } from 'zod';
 
+import type { RequestSpec } from './auth/http-request';
 import type { ProviderErrorCode } from './errors';
-import type { SecretString } from './secret-string';
+import type { RequestResult } from './http';
 
 /**
  * The light result a handler returns. The provider dispatcher (createProvider) wraps it into the
@@ -19,9 +20,14 @@ export function err(code: ProviderErrorCode, message: string): ToolOutcome {
   return { ok: false, code, message };
 }
 
-/** Context handed to a tool handler: the credential + the already-validated, typed metadata. */
+/**
+ * Context handed to a tool handler: an authenticated-request executor + the already-validated, typed
+ * metadata. The handler builds a `RequestSpec` and calls `request(spec)`; the core materializes auth
+ * (reveals + applies placement) and transports it, so the handler never touches the secret.
+ */
 export interface ToolHandlerContext<M = unknown> {
-  readonly token: SecretString;
+  /** Execute an authenticated request; the core reveals + applies auth and sends it. */
+  readonly request: (spec: RequestSpec) => Promise<RequestResult>;
   readonly metadata: M;
 }
 
@@ -34,6 +40,19 @@ export interface ToolDefinition<I extends z.ZodTypeAny = z.ZodTypeAny, M = unkno
   readonly name: string;
   readonly description: string;
   readonly input: I;
+  /**
+   * The provider scopes this tool needs to run — provider knowledge, so it lives with the tool.
+   *
+   * It is the SINGLE SOURCE of an oauth2 provider's scope surface: the `authDescriptor`'s `scopes` is
+   * the UNION of its tools' `requiredScopes` (`deriveOAuthScopes`), never a hand-written list. Adding a
+   * tool therefore requests its scope automatically, and no list can drift from the provider's app
+   * registration.
+   *
+   * `[]` is meaningful and NOT the same as omitted: it means "authenticates, but needs no specific
+   * scope" (e.g. Cloudbeds' webhook methods, which the OpenAPI spec declares as `OAuth2: []`).
+   * Omitted means the provider has no scope model at all (api_key providers).
+   */
+  readonly requiredScopes?: readonly string[];
   readonly handler: (args: z.infer<I>, ctx: ToolHandlerContext<M>) => Promise<ToolOutcome>;
 }
 

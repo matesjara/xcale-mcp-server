@@ -63,14 +63,19 @@ request or an object holding the token. Discipline ("we won't log it") is **not*
 control. **Required control — a mechanical "credential firewall":**
 
 - Wrap the token in a **branded `SecretString` type** whose `toJSON()`, `toString()`, and
-  `util.inspect.custom` all return `"[REDACTED]"`. Adapters call `.reveal()` only at the exact
-  point of the outbound provider call. This makes accidental serialization into logs, JSON error
+  `util.inspect.custom` all return `"[REDACTED]"`. `.reveal()` is called at exactly ONE point — the
+  core **Authentication Materialization** step (`src/core/auth/authentication-materializer.ts`), which
+  turns the resolved credential into a plain `HttpRequest`; adapters never see the secret (ADR:
+  credential-delivery-strategies). This makes accidental serialization into logs, JSON error
   bodies, APM object captures, and `console`/`pino` output **return redaction by construction** —
   turning a discipline problem into a type-level guarantee.
 - Plus the per-surface controls in §0 (pino `redact`, Sentry `beforeSend`, no header capture in
   OTel, no request-body logging).
 - **Verification (later code scan):** a test asserting `JSON.stringify(ctx)` and the logger output
-  never contain a known token value; grep CI gate forbidding `.reveal()` outside `src/providers/**`.
+  never contain a known token value; grep CI gate forbidding `.reveal()` outside **two** greppable
+  sites (tests excluded): `src/core/auth/authentication-materializer.ts` (reveals the **credential**
+  at egress) and `src/core/credential/reference-resolver.ts` (reveals the non-secret **reference
+  nonce** to resolve it — a single-use pointer, not a credential).
 
 **Not a blocker** — the design supports these controls; they are implementation obligations.
 
@@ -135,8 +140,10 @@ verified later by the code-level review against the diff.
 
 ## 4. Binding acceptance conditions (verified later against the implementation)
 
-1. **`SecretString` credential firewall** implemented; `.reveal()` only inside `src/providers/**`
-   (CI-greppable); serialization tests prove redaction.
+1. **`SecretString` credential firewall** implemented; `.reveal()` only inside the two greppable
+   sites — `src/core/auth/authentication-materializer.ts` (the credential egress point) and
+   `src/core/credential/reference-resolver.ts` (unwraps the non-secret reference nonce); tests
+   excluded; serialization tests prove redaction.
 2. **`pino` `redact`** covers `x-provider-token`, `authorization`, `cookie`; **no `tools/call`
    request-body logging.**
 3. **Error reporting `beforeSend`** scrubber strips the credential; token never in `Error`
