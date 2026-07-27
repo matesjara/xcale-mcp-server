@@ -668,6 +668,101 @@ export function buildCloudbedsTools(
       },
     }),
 
+    /*
+     * ─── Cloudbeds Pay-by-Link (Payments v2) ──────────────────────────────────────────────────────
+     *
+     * A DIFFERENT API surface from every tool above: base `api.cloudbeds.com/payments/v2`, JSON, and a
+     * mandatory `X-Property-Id` header (see `client.postPayments`/`getPayments`). The guest pays on
+     * Cloudbeds' own hosted page — xcale never sees the card (the hard constraint, research §0).
+     *
+     * SCOPE (resolved — was open question #1). Pay-by-link v2 authenticates by **Bearer JWT + the app's
+     * "API and Integration" role**, NOT a nominal v1.3 OAuth scope. There is no registered `write:payment`
+     * scope, and declaring one would fail `scopes.test.ts` AND inject an unrequestable scope into the
+     * authorize URL — breaking connect for every consumer and forcing a costly reconnect. So these tools
+     * declare `requiredScopes: []` ("authenticates, needs no specific scope"), exactly the Cloudbeds
+     * `OAuth2: []` precedent. The consent screen does not move.
+     *
+     * The v2 response is JSON DIRECTLY (`{ url, id, … }`), not the v1.3 `{ success, data }` envelope, so
+     * `unwrap()` is NOT used here — failures arrive as HTTP status (401/403 already mapped to
+     * AUTH_EXPIRED by the transport), which makes `res.ok` the whole story.
+     */
+    tool({
+      name: `mcp_${SLUG}_create_payment_link`,
+      requiredScopes: [], // Bearer + role, not a nominal scope — see the block comment above.
+      description:
+        'Create a Cloudbeds hosted pay-by-link for a reservation so the guest can pay online (the ' +
+        'guest enters the card on Cloudbeds’ page — xcale never handles it). Only usable when the ' +
+        'property has Cloudbeds Payments with pay-by-link enabled (check get_payment_options first).',
+      input: z
+        .object({
+          reservationID: z
+            .string()
+            .min(1)
+            .describe('The reservation (confirmation number) to charge.'),
+          amount: z
+            .number()
+            .positive()
+            .describe('Amount to collect, > 0, in the property currency.'),
+          description: z
+            .string()
+            .max(255)
+            .optional()
+            .describe('Shown to the guest on the payment page.'),
+          expiresAfterDays: z
+            .number()
+            .int()
+            .min(0)
+            .max(30)
+            .optional()
+            .describe('Days until the link expires (0-30, default 7).'),
+          authOnly: z
+            .boolean()
+            .optional()
+            .describe('true = place an authorization hold instead of charging (default false).'),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const { propertyID } = ctx.metadata;
+        const res = await client.postPayments(
+          'pay-by-link',
+          ctx.request,
+          {
+            paid: args.amount,
+            inventoryObject: { type: 'confirmation_number', id: args.reservationID },
+            propertyId: propertyID,
+            description: args.description,
+            auth_payment: args.authOnly ?? false,
+            expires_after: args.expiresAfterDays ?? 7,
+          },
+          { 'X-Property-Id': propertyID },
+        );
+        if (!res.ok)
+          return err(res.errorCode, `Cloudbeds create pay-by-link failed (HTTP ${res.status})`);
+        // Verbatim, like every other tool (fidelity over remodeling): { url, id, expires_at }.
+        return ok(res.data);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_get_payment_link_status`,
+      requiredScopes: [], // Bearer + role, not a nominal scope — see the block comment above.
+      description:
+        'Get the current status of a pay-by-link (SENT | VIEWED | PAID | EXPIRED | CANCELLED | ' +
+        '3DSPROCESSING) and whether it has been paid. Use it to confirm a guest completed payment.',
+      input: z
+        .object({ linkId: z.string().min(1).describe('The pay-by-link id returned at creation.') })
+        .strict(),
+      handler: async (args, ctx) => {
+        const { propertyID } = ctx.metadata;
+        const res = await client.getPayments(`pay-by-link/${args.linkId}`, ctx.request, {
+          'X-Property-Id': propertyID,
+        });
+        if (!res.ok)
+          return err(res.errorCode, `Cloudbeds get pay-by-link status failed (HTTP ${res.status})`);
+        return ok(res.data);
+      },
+    }),
+
     tool({
       name: `mcp_${SLUG}_list_items`,
       requiredScopes: ['read:item'], // spec: getItems, getItemCategories
