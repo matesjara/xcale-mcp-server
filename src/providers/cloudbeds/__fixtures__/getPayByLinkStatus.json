@@ -1,0 +1,11 @@
+{
+  "id": "8f3c2a10-9b4d-4e6f-a1b2-c3d4e5f60718",
+  "payByLinkStatus": "PAID",
+  "paid": true,
+  "readyForPayment": false,
+  "expired": false,
+  "completedAt": "2026-07-27T15:12:44Z",
+  "expiresAt": "2026-08-03T10:00:00Z",
+  "cost": { "value": 120, "currency": "USD" },
+  "captureMethod": { "paymentMethod": "card", "captureMethod": "charge" }
+}

@@ -71,6 +71,47 @@ function unwrap(res: RequestResult, method: string): Unwrapped {
 }
 
 /**
+ * Trust guard for **Payments v2** 2xx responses (pay-by-link). v2 is documented to answer JSON
+ * directly with failures as HTTP status — but that shape is NOT yet confirmed against a live call
+ * (the payments sandbox is blocked), and this same vendor's v1.3 API reports failures as HTTP 200 +
+ * `success:false`. On a money-moving path a mislabeled failure is the worst outcome, so a 2xx only
+ * becomes `ok` when the body (a) is not a `success:false` envelope and (b) carries the fields the
+ * tool contract promises. Anything else surfaces as a typed error, never a silent false success
+ * (soul.md priority #2). Once the happy path is confirmed live, relax to the observed shape.
+ */
+function unwrapPayments(
+  res: RequestResult,
+  what: string,
+  requiredFields: readonly string[],
+): Unwrapped {
+  if (!res.ok) {
+    return {
+      ok: false,
+      code: res.errorCode,
+      message: `Cloudbeds ${what} failed (HTTP ${res.status})`,
+    };
+  }
+  const body = res.data as Record<string, unknown> | null;
+  if (body && body['success'] === false) {
+    const message = typeof body['message'] === 'string' ? body['message'] : undefined;
+    return {
+      ok: false,
+      code: classifyEnvelopeFailure(message),
+      message: message ?? `Cloudbeds ${what} returned success=false`,
+    };
+  }
+  const missing = requiredFields.filter((field) => body?.[field] === undefined);
+  if (!body || missing.length > 0) {
+    return {
+      ok: false,
+      code: ProviderErrorCode.PROVIDER_ERROR,
+      message: `Cloudbeds ${what} returned an unexpected response shape (missing: ${missing.join(', ') || 'body'})`,
+    };
+  }
+  return { ok: true, data: body };
+}
+
+/**
  * The curated, read-first toolset. `propertyID` comes from the validated `ctx.metadata`
  * (Explicit Context); the consumer (Rail A) forwards it. The uniform `page`/`pageSize` contract is
  * translated to Cloudbeds' own param names (`pageNumber`/`resultsPerPage`) here — that translation
@@ -665,6 +706,117 @@ export function buildCloudbedsTools(
             ? { methods: methods.data, capabilities: caps.data }
             : { methods: methods.data, capabilities: null, capabilitiesError: caps.message },
         );
+      },
+    }),
+
+    /*
+     * ─── Cloudbeds Pay-by-Link (Payments v2) ──────────────────────────────────────────────────────
+     *
+     * A DIFFERENT API surface from every tool above: base `api.cloudbeds.com/payments/v2`, JSON, and a
+     * mandatory `X-Property-Id` header (see `client.postPayments`/`getPayments`). The guest pays on
+     * Cloudbeds' own hosted page — xcale never sees the card (the hard constraint, research §0).
+     *
+     * SCOPE (resolved — was open question #1). Pay-by-link v2 authenticates by **Bearer JWT + the app's
+     * "API and Integration" role**, NOT a nominal v1.3 OAuth scope. There is no registered `write:payment`
+     * scope, and declaring one would fail `scopes.test.ts` AND inject an unrequestable scope into the
+     * authorize URL — breaking connect for every consumer and forcing a costly reconnect. So these tools
+     * declare `requiredScopes: []` ("authenticates, needs no specific scope"), exactly the Cloudbeds
+     * `OAuth2: []` precedent. The consent screen does not move.
+     *
+     * The v2 response is JSON DIRECTLY (`{ url, id, … }`), not the v1.3 `{ success, data }` envelope, so
+     * `unwrap()` is NOT used here — failures are expected as HTTP status (401/403 already mapped to
+     * AUTH_EXPIRED by the transport). BUT that expectation is unconfirmed against a live call (the
+     * payments sandbox is blocked), and this same vendor's v1.3 API reports failures as HTTP 200 +
+     * `success:false`. Money moves through these tools, so a 2xx is trusted only through
+     * `unwrapPayments` — see its doc comment.
+     */
+    tool({
+      name: `mcp_${SLUG}_create_payment_link`,
+      requiredScopes: [], // Bearer + role, not a nominal scope — see the block comment above.
+      description:
+        // Consumer-agnostic wording — this string is published verbatim via tools/list to ANY
+        // MCP client, so no consumer name may appear here (soul.md litmus test).
+        'Create a Cloudbeds hosted pay-by-link for a reservation so the guest can pay online (the ' +
+        'guest enters the card on Cloudbeds’ own page — the card never passes through this server ' +
+        'or its consumers). Only usable when the property has Cloudbeds Payments with pay-by-link ' +
+        'enabled (check get_payment_options first).',
+      input: z
+        .object({
+          reservationID: z
+            .string()
+            .min(1)
+            .describe('The reservation (confirmation number) to charge.'),
+          amount: z
+            .number()
+            .positive()
+            .describe('Amount to collect, > 0, in the property currency.'),
+          description: z
+            .string()
+            .max(255)
+            .optional()
+            .describe('Shown to the guest on the payment page.'),
+          expiresAfterDays: z
+            .number()
+            .int()
+            .min(0)
+            .max(30)
+            .optional()
+            .describe('Days until the link expires (0-30, default 7).'),
+          authOnly: z
+            .boolean()
+            .optional()
+            .describe('true = place an authorization hold instead of charging (default false).'),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const { propertyID } = ctx.metadata;
+        const res = await client.postPayments(
+          ['pay-by-link'],
+          ctx.request,
+          {
+            paid: args.amount,
+            inventoryObject: { type: 'confirmation_number', id: args.reservationID },
+            propertyId: propertyID,
+            description: args.description,
+            auth_payment: args.authOnly ?? false,
+            expires_after: args.expiresAfterDays ?? 7,
+          },
+          { 'X-Property-Id': propertyID },
+        );
+        // The link's url + id are the whole point of the call — a 2xx without them is a failure.
+        const u = unwrapPayments(res, 'create pay-by-link', ['url', 'id']);
+        if (!u.ok) return err(u.code, u.message);
+        // Verbatim, like every other tool (fidelity over remodeling): { url, id, expires_at }.
+        return ok(u.data);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_get_payment_link_status`,
+      requiredScopes: [], // Bearer + role, not a nominal scope — see the block comment above.
+      description:
+        'Get the current status of a pay-by-link (SENT | VIEWED | PAID | EXPIRED | CANCELLED | ' +
+        '3DSPROCESSING) and whether it has been paid. Use it to confirm a guest completed payment.',
+      input: z
+        .object({
+          linkId: z
+            .string()
+            // The id becomes ONE URL path segment. Alnum + dashes covers the observed UUID shape and
+            // excludes every path/query metacharacter (`/ ? # . %`), so a crafted id cannot select a
+            // sibling Payments endpoint (on top of the client's per-segment encoding).
+            .regex(/^[A-Za-z0-9-]+$/, 'linkId must contain only letters, digits, and dashes')
+            .describe('The pay-by-link id returned at creation.'),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const { propertyID } = ctx.metadata;
+        const res = await client.getPayments(['pay-by-link', args.linkId], ctx.request, {
+          'X-Property-Id': propertyID,
+        });
+        // `payByLinkStatus` is what the consumer's guardrail reads — a 2xx without it is a failure.
+        const u = unwrapPayments(res, 'get pay-by-link status', ['payByLinkStatus']);
+        if (!u.ok) return err(u.code, u.message);
+        return ok(u.data);
       },
     }),
 

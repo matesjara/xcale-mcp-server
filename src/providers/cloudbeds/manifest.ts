@@ -6,11 +6,11 @@ export const cloudbedsManifest: ProviderManifest = {
   slug: SLUG,
   displayName: 'Cloudbeds',
   category: 'hospitality',
-  // Bumped: write-path + scope-driven toolset; `success:false` scope denials now map to
-  // AUTH_EXPIRED (reconnect) instead of PROVIDER_ERROR; webhook subscription tools withdrawn from
-  // the published toolset (unsafe as agent surface — see tools.ts). tools/list changed, so bump.
-  schemaVersion: '2026-07-22',
-  providerVersion: '0.3.0',
+  // Bumped: pay-by-link tools (Payments v2) added — create_payment_link + get_payment_link_status.
+  // Additive, but the consumer caches tools/list keyed on schemaVersion, so without a bump a warm
+  // cache would never surface the new tools. tools/list changed, so bump (same precedent as 0.3.0).
+  schemaVersion: '2026-07-28',
+  providerVersion: '0.4.0',
   logoUrl: '/assets/cloudbeds.svg',
   capabilities: { pagination: true },
   // A Cloudbeds token is scoped to its property; discover the propertyID via getHotels instead of
