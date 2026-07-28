@@ -3,6 +3,22 @@ import type { RequestResult } from '../../core/http';
 
 const DEFAULT_BASE_URL = 'https://hotels.cloudbeds.com/api/v1.3';
 
+/**
+ * Cloudbeds **Payments v2** — a DIFFERENT API surface from the v1.3 host every other method uses:
+ * JSON (not form-encoding) and a mandatory `X-Property-Id` header (api-contract §1). It is a fixed
+ * constant, deliberately independent of the v1.3 `baseUrl` override, so a staging redirect of the
+ * PMS host can never accidentally re-point the payments call.
+ */
+const PAYMENTS_BASE_URL = 'https://api.cloudbeds.com/payments/v2';
+
+/**
+ * Percent-encode each Payments v2 path segment. Every id that reaches a payments URL goes through
+ * here, so a caller-supplied value (`../refund`, `abc?x=1`) selects a resource NAME, never a
+ * different endpoint or extra query params — regardless of what the tool's input schema allows.
+ */
+const paymentsPath = (segments: readonly string[]): string =>
+  segments.map(encodeURIComponent).join('/');
+
 export interface CloudbedsClientDeps {
   readonly baseUrl?: string;
 }
@@ -34,6 +50,28 @@ export interface CloudbedsClient {
    * required-param check. This is why `del` takes `QueryParams` and not a body like `post`/`put` do.
    */
   del(method: string, request: AuthedRequest, params: QueryParams): Promise<RequestResult>;
+  /**
+   * POST to the **Cloudbeds Payments v2** API (`api.cloudbeds.com/payments/v2`) as JSON. Distinct
+   * from `post` (v1.3, form-encoded): `segments` are percent-encoded and joined onto the payments
+   * base (each element is ONE path segment — a caller-supplied id can never escape into a sibling
+   * endpoint or smuggle query params), `body` is `JSON.stringify`'d, and `headers` (the caller
+   * passes `X-Property-Id`) ride alongside the JSON content-type. Auth (the Bearer) is added by the
+   * core materializer, as with every other method. The response is JSON **directly**
+   * (`{ url, id, … }`), NOT the v1.3 `{ success, data }` envelope — callers read `res.ok`/`res.data`,
+   * never `unwrap()`.
+   */
+  postPayments(
+    segments: readonly string[],
+    request: AuthedRequest,
+    body: Record<string, unknown>,
+    headers: Record<string, string>,
+  ): Promise<RequestResult>;
+  /** GET from the Payments v2 API (e.g. `['pay-by-link', uuid]`). Same base, encoding, and `X-Property-Id` as `postPayments`. */
+  getPayments(
+    segments: readonly string[],
+    request: AuthedRequest,
+    headers: Record<string, string>,
+  ): Promise<RequestResult>;
 }
 
 /**
@@ -112,6 +150,21 @@ export function createCloudbedsClient(deps: CloudbedsClientDeps = {}): Cloudbeds
       return request({
         method: 'DELETE',
         url: query ? `${baseUrl}/${method}?${query}` : `${baseUrl}/${method}`,
+      });
+    },
+    postPayments(segments, request, body, headers) {
+      return request({
+        method: 'POST',
+        url: `${PAYMENTS_BASE_URL}/${paymentsPath(segments)}`,
+        headers: { 'content-type': 'application/json', ...headers },
+        body: JSON.stringify(body),
+      });
+    },
+    getPayments(segments, request, headers) {
+      return request({
+        method: 'GET',
+        url: `${PAYMENTS_BASE_URL}/${paymentsPath(segments)}`,
+        headers: { ...headers },
       });
     },
   };
