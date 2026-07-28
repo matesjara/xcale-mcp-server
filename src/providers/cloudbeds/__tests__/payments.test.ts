@@ -38,6 +38,15 @@ describe('cloudbeds pay-by-link tools', () => {
     expect(auth.scopes).not.toContain('create:payment');
   });
 
+  it('publishes NO consumer name on the wire — tools/list stays consumer-agnostic', () => {
+    // Tool names + descriptions are published verbatim to ANY MCP client (soul.md litmus test:
+    // a third party must be able to consume this server without knowing its first consumer exists).
+    for (const t of createCloudbedsProvider().listTools()) {
+      expect(t.name, t.name).not.toMatch(/xcale/i);
+      expect(t.description ?? '', t.name).not.toMatch(/xcale/i);
+    }
+  });
+
   describe('create_payment_link', () => {
     it('POSTs to Payments v2 with JSON body, X-Property-Id, and the contract inventoryObject', async () => {
       const { seen, fetchImpl } = capture();
@@ -115,6 +124,33 @@ describe('cloudbeds pay-by-link tools', () => {
       );
       expect(res).toMatchObject({ kind: 'error', code: ProviderErrorCode.AUTH_EXPIRED });
     });
+
+    it('rejects an HTTP 200 that smuggles a v1.3-style success:false envelope — never a silent success', async () => {
+      // The v2 "failures are HTTP status" assumption is unconfirmed (sandbox blocked); v1.3 answers
+      // failures as 200 + success:false. Money moves here, so that shape must surface as an error.
+      const { fetchImpl } = capture(200, {
+        success: false,
+        message: 'Pay by link is not enabled for this property.',
+      });
+      const provider = createCloudbedsProvider({ fetchImpl });
+      const res = await provider.callTool(
+        'mcp_cloudbeds_create_payment_link',
+        { reservationID: 'RES-1', amount: 10 },
+        ctx(),
+      );
+      expect(res).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
+    });
+
+    it('rejects a 2xx whose body lacks the contract fields (url, id) — unexpected shape is an error', async () => {
+      const { fetchImpl } = capture(200, { something: 'else' });
+      const provider = createCloudbedsProvider({ fetchImpl });
+      const res = await provider.callTool(
+        'mcp_cloudbeds_create_payment_link',
+        { reservationID: 'RES-1', amount: 10 },
+        ctx(),
+      );
+      expect(res).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
+    });
   });
 
   describe('get_payment_link_status', () => {
@@ -159,6 +195,33 @@ describe('cloudbeds pay-by-link tools', () => {
         ctx(),
       );
       expect(res).toMatchObject({ kind: 'error', code: ProviderErrorCode.AUTH_EXPIRED });
+    });
+
+    it('rejects a linkId with path/query metacharacters at the schema — nothing reaches the wire', async () => {
+      // "../refund/123" would otherwise redirect the GET to a sibling Payments v2 endpoint carrying
+      // the live Bearer + X-Property-Id. The schema (alnum + dashes) kills it before any request.
+      const { seen, fetchImpl } = capture(200, getPayByLinkStatus);
+      const provider = createCloudbedsProvider({ fetchImpl });
+      for (const linkId of ['../refund/123', 'abc?x=1', 'a#b', 'a/b', '%2e%2e']) {
+        const res = await provider.callTool(
+          'mcp_cloudbeds_get_payment_link_status',
+          { linkId },
+          ctx(),
+        );
+        expect(res.kind, linkId).toBe('error');
+      }
+      expect(seen.length).toBe(0);
+    });
+
+    it('rejects a 2xx whose body lacks payByLinkStatus — unexpected shape is an error, not a silent success', async () => {
+      const { fetchImpl } = capture(200, { success: true });
+      const provider = createCloudbedsProvider({ fetchImpl });
+      const res = await provider.callTool(
+        'mcp_cloudbeds_get_payment_link_status',
+        { linkId: 'abc-123' },
+        ctx(),
+      );
+      expect(res).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
     });
   });
 });
