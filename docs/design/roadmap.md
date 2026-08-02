@@ -59,3 +59,13 @@ Webhook subscription tools (`list`/`ensure`/`delete_webhook_subscription`) were 
 published toolset. Re-expose **only** behind: an https-allowlist for `endpointUrl` sourced from
 deployment config, redaction of the secret-bearing URL in list results, and a real consent gate.
 Webhook wiring is the consumer's control-plane concern, not per-call agent surface.
+
+> **CLOSED (2026-08-02) — answered by a boundary, not by a consent gate.** The last sentence above
+> turned out to be the whole fix: `ToolDefinition.controlPlane` withdraws a tool from `tools/list`
+> while keeping it callable, so subscription management and app state are reachable by the consumer
+> and invisible to every agent. Each condition is met or made moot — `endpointUrl` must be https
+> (schema-enforced), there is **no** `list` tool so no secret is ever returned, and the consent gate
+> is unnecessary once the agent cannot choose the tool. Withdrawing the three tools also broke the
+> backend's already-shipped subscribe call, which had been failing silently since this PR merged:
+> that regression is what surfaced the gap. See `providers/cloudbeds/tools.ts` (control plane
+> section) and `core/tool.ts`.

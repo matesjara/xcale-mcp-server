@@ -112,6 +112,20 @@ function unwrapPayments(
 }
 
 /**
+ * An https URL, enforced by the schema rather than by a handler.
+ *
+ * A webhook `endpointUrl` is where a property's guest names, emails and stay dates get delivered, and
+ * the per-connection secret rides in its path. `z.string().url()` alone accepts `http://` and
+ * `javascript:` — so the scheme is checked here, at the one place a caller cannot skip.
+ */
+const httpsUrl = z
+  .string()
+  .url()
+  .refine((value) => value.startsWith('https://'), {
+    message: 'must be an https URL — a webhook endpoint carries guest data and a path secret',
+  });
+
+/**
  * The curated, read-first toolset. `propertyID` comes from the validated `ctx.metadata`
  * (Explicit Context); the consumer (Rail A) forwards it. The uniform `page`/`pageSize` contract is
  * translated to Cloudbeds' own param names (`pageNumber`/`resultsPerPage`) here — that translation
@@ -1292,22 +1306,166 @@ export function buildCloudbedsTools(
     // NOT built: `deleteAllotmentBlock`. Deleting held inventory for a group is not a conversational
     // move — it is an operations decision with real money behind it, and it deserves its own call.
 
-    // NOT published as agent tools: webhook subscription management (getWebhooks / postWebhook /
-    // deleteWebhook). The scope-coverage design classifies these as *infrastructure, not agent
-    // surface* — and until that boundary is actually enforced they are unsafe to expose:
+    // ── Control plane ────────────────────────────────────────────────────────────────────────────
     //
-    //   1. The endpointUrl is a bearer credential. Cloudbeds deliveries carry no signature (see
-    //      cloudbeds-provider/functional-design.md §7), so the per-subscription secret lives in the
-    //      URL. `list_webhook_subscriptions` would return it verbatim into the agent's context and
-    //      the conversation transcript — a credential in the clear.
-    //   2. `ensure_webhook_subscription` accepted `endpointUrl: z.string().url()` (any scheme, any
-    //      host). A guest-authored note surfaced by a read tool could steer the agent into pointing
-    //      the property's event stream — guest names, emails, stay dates — at an attacker's http host.
-    //   3. `delete_webhook_subscription` lets the agent unhook the consumer's own receiver, silently
-    //      killing reconciliation.
+    // Everything below is `controlPlane: true`: callable by the consumer over the same authenticated
+    // transport, WITHDRAWN from tools/list. They are infrastructure the consumer performs on its own
+    // behalf (subscribe my receiver, disable my app), never a move an agent makes for a guest.
     //
-    // Webhook wiring belongs to the consumer's control plane, not to a per-call agent tool. Re-expose
-    // these only behind: an https-allowlist for endpointUrl sourced from deployment config, redaction
-    // of the secret path in list results, and a real consent gate. Tracked in docs/design/roadmap.md.
+    // This is the boundary the earlier withdrawal asked for. Those three webhook tools were published
+    // as agent surface, and the review that pulled them named the reasons: the `endpointUrl` is a
+    // bearer credential (Cloudbeds deliveries carry no signature — cloudbeds-provider/
+    // functional-design.md §7), a `list` tool returned it verbatim into agent context, `endpointUrl`
+    // accepted any scheme or host so guest-authored text could re-point the property's event stream,
+    // and a `delete` tool let the agent unhook the consumer's own receiver. Each of those is a
+    // sentence about the AGENT. Taking the agent out of the reach is a stronger answer than a consent
+    // gate on an agent tool, so:
+    //
+    //   - No `list` tool at all. Nothing returns an `endpointUrl` to any caller; `remove` takes the
+    //     url the consumer already holds and answers with a count.
+    //   - `endpointUrl` must be https (a plaintext event stream carries guest names, emails and stay
+    //     dates), and only the consumer can supply one, because only the consumer can call these.
+    //   - `requiredScopes: []` throughout — the spec declares these methods `OAuth2: []`, so the
+    //     authorize URL and every hotel's consent screen are unchanged by this file.
+
+    tool({
+      name: `mcp_${SLUG}_get_app_state`,
+      controlPlane: true,
+      requiredScopes: [], // spec: getAppState
+      description:
+        'CONTROL PLANE — read whether this app is still enabled for the property. An error (or a ' +
+        'token/permission failure) means the property has disconnected the app on Cloudbeds’ side. ' +
+        'This is the poll half of Cloudbeds’ connect/disconnect contract; the push half is the ' +
+        '`appstate_changed` webhook.',
+      input: z.object({}).strict(),
+      handler: async (_args, ctx) => {
+        const res = await client.get('getAppState', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+        });
+        const u = unwrap(res, 'getAppState');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_set_app_state`,
+      controlPlane: true,
+      requiredScopes: [], // spec: postAppState
+      description:
+        'CONTROL PLANE — tell Cloudbeds this app is enabled or disabled for the property. Sending ' +
+        '`disabled` is what a disconnect performed in OUR UI must do: Cloudbeds then removes the app ' +
+        'from the property’s Manage Apps page and terminates every session. ' +
+        'ORDER MATTERS: this call is one-way. Once it returns, no further call on this token ' +
+        'succeeds, so any other teardown (removing webhook subscriptions) must happen BEFORE it.',
+      input: z
+        .object({
+          appState: z
+            .enum(['enabled', 'disabled'])
+            .describe('Cloudbeds spells the wire field `app_state`; this is that value.'),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const res = await client.post('postAppState', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          app_state: args.appState,
+        });
+        const u = unwrap(res, 'postAppState');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_ensure_webhook_subscription`,
+      controlPlane: true,
+      requiredScopes: [], // spec: postWebhook
+      description:
+        'CONTROL PLANE — subscribe the consumer’s own receiver to a property event. Idempotent: ' +
+        'Cloudbeds derives the subscription id from (property, endpointUrl, object, action), so ' +
+        're-running with the same four returns the same subscription rather than adding a duplicate. ' +
+        'IMPORTANT: Cloudbeds does NOT validate `action` — it accepts an unknown one and creates a ' +
+        'subscription that never fires, so a success here does NOT prove the event exists. Only these ' +
+        'have been observed to deliver: reservation/created, reservation/status_changed, ' +
+        'guest/created, guest/assigned. Anything else must be confirmed by observing a real delivery.',
+      input: z
+        .object({
+          endpointUrl: httpsUrl.describe('Public HTTPS URL that will receive deliveries.'),
+          object: z.string().min(1).describe('Event object, e.g. "reservation" or "integration".'),
+          action: z
+            .string()
+            .min(1)
+            .describe('Event action, e.g. "status_changed" or "appstate_changed".'),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const res = await client.post('postWebhook', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          ...args,
+        });
+        const u = unwrap(res, 'postWebhook');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_remove_webhook_subscriptions`,
+      controlPlane: true,
+      requiredScopes: [], // spec: getWebhooks + deleteWebhook
+      description:
+        'CONTROL PLANE — delete every subscription on this property that points at the given ' +
+        'endpoint URL, and answer with how many. Used on disconnect: a subscription left behind ' +
+        'outlives the connection and keeps delivering to a receiver that can no longer authenticate ' +
+        'it. Takes the url rather than an id because the caller knows its own url, and no id can be ' +
+        'learned without listing subscriptions — which would hand the caller everyone else’s.',
+      input: z
+        .object({
+          endpointUrl: httpsUrl.describe('The receiver URL whose subscriptions should be removed.'),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const { propertyID } = ctx.metadata;
+        const listed = unwrap(
+          await client.get('getWebhooks', ctx.request, { propertyID }),
+          'getWebhooks',
+        );
+        if (!listed.ok) return err(listed.code, listed.message);
+
+        const subscriptions = Array.isArray(listed.data)
+          ? (listed.data as ReadonlyArray<Record<string, unknown>>)
+          : [];
+        // Exact match, never a prefix: the secret lives in the path, and a prefix match on
+        // `…/webhooks/cloudbeds/` would delete every OTHER connection's subscription too.
+        const mine = subscriptions.filter((s) => s['endpointUrl'] === args.endpointUrl);
+
+        let deleted = 0;
+        const failures: string[] = [];
+        for (const subscription of mine) {
+          const id = subscription['subscriptionID'] ?? subscription['id'];
+          if (typeof id !== 'string' && typeof id !== 'number') {
+            failures.push('a subscription came back with no id');
+            continue;
+          }
+          // DELETE with query-string params — a DELETE body is not parsed (see `client.del`).
+          const removed = unwrap(
+            await client.del('deleteWebhook', ctx.request, {
+              propertyID,
+              subscriptionID: String(id),
+            }),
+            'deleteWebhook',
+          );
+          if (removed.ok) deleted++;
+          else failures.push(removed.message);
+        }
+
+        // A partial delete is a failure, not a smaller success: the caller is tearing down and has to
+        // know something survived. The count still rides along so it can tell partial from none.
+        // Messages never carry the url — it is the delivery credential.
+        return failures.length > 0
+          ? err(
+              ProviderErrorCode.PROVIDER_ERROR,
+              `deleted ${deleted} of ${mine.length} subscriptions; ${failures.length} failed (first: ${failures[0]})`,
+            )
+          : ok({ deleted, matched: mine.length });
+      },
+    }),
   ];
 }

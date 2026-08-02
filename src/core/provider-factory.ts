@@ -33,11 +33,17 @@ function formatZodError(error: z.ZodError): string {
 export function createProvider<M = unknown>(spec: ProviderSpec<M>): IProvider {
   const slug = spec.manifest.slug;
   const byName = new Map(spec.tools.map((t) => [t.name, t]));
-  const toolDefs: McpToolDefinition[] = spec.tools.map((t) => ({
-    name: t.name,
-    description: t.description,
-    inputSchema: toJsonSchema(t.input),
-  }));
+  // `byName` holds EVERY tool (control-plane ones are callable); the published list holds only the
+  // agent surface. The asymmetry is the point — see `ToolDefinition.controlPlane`. Scope derivation
+  // still unions all of them: a control-plane tool that needed a scope would have to request it, and
+  // hiding that from the consent screen would be the dishonest half of this trade.
+  const toolDefs: McpToolDefinition[] = spec.tools
+    .filter((t) => t.controlPlane !== true)
+    .map((t) => ({
+      name: t.name,
+      description: t.description,
+      inputSchema: toJsonSchema(t.input),
+    }));
   const contextSchema = spec.metadataSchema ? toJsonSchema(spec.metadataSchema) : undefined;
 
   return {
