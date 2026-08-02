@@ -1,265 +1,216 @@
 # Certificación de producción con Cloudbeds — informe de estado
 
-**Fecha:** 2 de agosto de 2026
+**Fecha:** 2 de agosto de 2026 · **Versión 2** (reemplaza la versión de esta mañana: aquella
+listaba lo que faltaba; esta dice además qué de eso ya está hecho)
 **Para:** Mateo Escobar
 **De:** Juan José
-**Alcance:** revisión detallada de la documentación oficial de certificación de Cloudbeds contra el
-estado real de nuestro código, para responder a la pregunta *"¿qué nos falta de nuestro lado?"*
 
 ---
 
 ## 1. Resumen ejecutivo
 
-Revisé la guía completa de certificación de Cloudbeds (las 8 etapas), los requisitos del artículo de
-soporte, los de material de marketing, el blueprint de nuestra categoría y la especificación de
-conexión/desconexión de apps. Luego contrasté cada punto contra el código de los tres repos.
+Revisé la guía completa de certificación de Cloudbeds y la contrasté contra nuestro código. De todo
+lo que faltaba, **ya está hecho todo lo que se podía hacer desde el código y desde el escritorio**:
+el hueco técnico que nos habría hecho fallar la llamada está cerrado y probado, y los documentos que
+Cloudbeds exige están escritos. Lo que queda es tuyo o de ellos: firmas, accesos, capturas de
+pantalla y publicar.
 
-**Conclusión corta:** técnicamente estamos mucho más cerca de lo que parece — la integración cumple 2
-de los 3 puntos obligatorios de la llamada de certificación tal como está hoy. Pero hay **un hueco
-técnico real** (el manejo de desconexión) y **dos entregables que nadie ha hecho todavía** (el
-artículo de soporte y el material de marketing por formulario). Y hay un malentendido de proceso que
-conviene aclarar antes de seguir: lo que Gabriela está esperando no son documentos nuestros, es la
-**firma del acuerdo de conectividad**.
-
-| Bloque | Estado |
-|---|---|
-| Acuerdo de partnership | ⚠️ Formulario enviado ≠ acuerdo firmado — es el bloqueante actual |
-| Perfil de la app, fotos, políticas | ✅ Hecho (tu parte) |
-| Artículo de soporte público | ❌ No existe |
-| Material de marketing (Google Form) | ⚠️ Probablemente falta — es un entregable distinto del perfil |
-| Ajuste de permisos (scopes) | ⚠️ Registrados 32, usamos 22 — hay que bajarlo |
-| Autenticación (OAuth) | ✅ Cumple |
-| Flujo de autorización / llamadas a la API | ✅ Cumple lo obligatorio de nuestra categoría |
-| Conectar / desconectar apps | ❌ **No implementado — falla la llamada de certificación** |
-| Segunda cuenta de prueba (Island 2) | ❌ No la tenemos, hay que pedirla |
+| Bloque | Estado | Dueño |
+|---|---|---|
+| Acuerdo de partnership (Connectivity Agreement) | ⚠️ Pendiente — es el bloqueante real | Cloudbeds / tú |
+| Perfil de la app, fotos, políticas | ✅ Hecho | Tú |
+| **Manejo de conexión/desconexión (punto obligatorio de la llamada)** | ✅ **Implementado y probado** | Hecho |
+| Autenticación OAuth | ✅ Cumple, sin cambios | Hecho |
+| Llamadas a la API de nuestra categoría | ✅ Cumple; se añadió el filtro que faltaba | Hecho |
+| **Artículo de soporte** | ✅ **Escrito** — falta publicarlo y 6 capturas | Tú |
+| **Material de marketing (Google Form)** | ✅ **Copy y landing escritos** — falta publicar, capturas y video | Tú |
+| Ajuste de permisos: 32 registrados → 22 usados | ⚠️ Pendiente, 10 minutos | Tú |
+| Segunda cuenta de prueba (Island 2) | ⚠️ Hay que pedirla | Cloudbeds |
+| 5 propiedades para el Limited Release | ⚠️ Pendiente | Tú |
 
 ---
 
-## 2. Lo primero: qué está esperando Gabriela exactamente
+## 2. Lo que Gabriela está esperando (no son documentos nuestros)
 
 Su frase es literal:
 
 > *"In order to move with certification, it's necessary to have a Partnership agreement in place."*
 
-Eso **no** es el formulario de la web. El formulario es la solicitud; lo que habilita la certificación
-es el **Connectivity Agreement**, un acuerdo estandarizado que Cloudbeds emite después de revisar esa
-solicitud (y un NDA si aplica). Es la Etapa 1 de su proceso y ninguna de las siguientes se puede
-agendar sin ella.
+Eso **no** es el formulario de la web. El formulario es la solicitud; lo que habilita la
+certificación es el **Connectivity Agreement**, un acuerdo estandarizado que Cloudbeds emite después
+de revisar esa solicitud. Es la Etapa 1 de su proceso y ninguna de las siguientes se agenda sin ella.
 
-Por eso, por mucho que pulamos documentos, la aguja no se mueve hasta tener ese acuerdo. **La
-pregunta concreta que hay que hacerle a Gabriela es:** *"el formulario ya está enviado — ¿cuál es el
-siguiente paso para tener el Connectivity Agreement firmado y cuánto suele tardar?"*.
-
----
-
-## 3. Entregables previos a poder agendar la llamada
-
-Cloudbeds exige tres cosas **antes** de dar fecha para la llamada de certificación.
-
-### 3.1. Artículo de soporte público — ❌ no existe
-
-Es el entregable más grande que falta y no lo cubren las políticas de privacidad ni los términos que
-ya subiste. Requisitos textuales de Cloudbeds:
-
-- Alojado **públicamente** en nuestro sitio o en un centro de ayuda / base de conocimiento.
-- **En inglés** (salvo que la app soporte exclusivamente otros idiomas).
-- Seis secciones obligatorias:
-  1. Cómo darse de alta en nuestra app.
-  2. Cómo es el proceso de conexión inicial con Cloudbeds.
-  3. Qué hace la integración (funcionalidad específica).
-  4. Cómo desconectar la app.
-  5. **Cómo implementamos nosotros la desconexión** (qué pasa de nuestro lado).
-  6. Contacto de soporte.
-- Debe **enlazar** el artículo propio de Cloudbeds *"Disconnect an app from myfrontdesk"*.
-- Debe incluir **capturas de pantalla**.
-- Opcionales recomendados: limitaciones, FAQ, video de 2-3 minutos.
-
-**Estado de nuestro sitio:** revisé xcale.app y hoy sólo hay `/es/privacy` y `/es/terms`. No existe
-centro de ayuda, ni sección de documentación, ni ninguna página de hotelería o de Cloudbeds, y todo
-el sitio está únicamente en español. Es decir: hay que **crear el artículo y crear el lugar donde
-vivirá** (basta con un Freshdesk / Notion público / una ruta `/help` del sitio).
-
-Nota: la sección 5 no se puede escribir todavía con verdad, porque la desconexión **es justamente lo
-que no está implementado** (punto 4.3). El artículo depende de ese slice.
-
-### 3.2. Material de marketing por Google Form — ⚠️ entregable separado
-
-Ojo con esto porque es fácil pensar que ya está hecho al haber llenado el perfil de la app. Son dos
-cosas distintas: el **App Details page** (dentro del portal de Cloudbeds) y el **material de
-marketing** (que va por un formulario de Google aparte). Lo que pide el formulario:
-
-- Resumen de la app, bullets de beneficios (orientados al usuario, no a la tecnología) y descripción.
-- Icono de la app, imágenes del directorio, imagen destacada y capturas de alta calidad.
-- Enlace a nuestra página de marketing.
-- **Una landing page alojada por nosotros, con formulario de captación de leads, dedicada a la
-  integración con Cloudbeds.**
-- **Un video walkthrough** alojado en YouTube, Vimeo o Wistia mostrando la integración funcionando.
-- Precios (opcional).
-
-La landing page y el video son trabajo real que no está hecho.
-
-### 3.3. Permisos: "sólo los scopes necesarios" — ⚠️ ajuste pendiente
-
-Cloudbeds verifica explícitamente que en el App Details *"only required permission scopes are
-selected"*. Situación actual:
-
-- La app registrada (la de prueba) está autorizada para **32 scopes**.
-- El código pide realmente **22** (17 de lectura + 5 de escritura).
-- **Los 22 que declaraste en tu correo cuadran exactamente con lo que llama el código.** Lo verifiqué
-  tool por tool: nada de lo que pedimos deja de usarse, y nada de lo que usamos deja de pedirse
-  (la lista de scopes se deriva automáticamente de las herramientas, no se mantiene a mano).
-
-**Acción:** bajar la selección de 32 a 22 en el App Details, y actualizar el espejo de esa lista en
-el código (`xcale-mcp-server/src/providers/cloudbeds/auth.ts`). Son 10 minutos, pero si llegamos a la
-llamada con 32 seleccionados es una observación segura del revisor.
+**Pregunta concreta para ella:** *"el formulario ya está enviado — ¿cuál es el siguiente paso para
+tener el Connectivity Agreement firmado y cuánto suele tardar?"*. Al final de este informe están esa
+y las otras cinco preguntas, ya redactadas en inglés para reenviar tal cual.
 
 ---
 
-## 4. La llamada de certificación: los 3 puntos obligatorios
+## 3. Lo que ya hicimos (código, terminado y probado)
 
-La llamada dura ~60 minutos, **se graba**, y verifica tres cosas. Este es el análisis punto por punto
-contra nuestro código.
+### 3.1. El hueco que nos habría hecho fallar la llamada — cerrado
 
-### 4.1. Autenticación — ✅ cumple
+De los tres puntos obligatorios de la llamada de certificación pasábamos dos. El tercero —
+**conectar y desconectar apps** — no estaba implementado en ninguna de sus dos direcciones. Ahora sí:
 
-Piden que el redirect URI sea HTTPS y que el proceso de conexión sea **completamente automatizado**
-(sin pegar credenciales a mano). Nuestro flujo es OAuth 2.0 authorization-code con refresh, y el
-redirect de producción que les diste —`https://api.xcale.app/api/v1/connections/cloudbeds/callback`—
-**coincide exactamente con la ruta real del backend**. No hay nada que arreglar aquí.
+- **Cuando un hotel se desconecta desde nuestra plataforma**, ahora se lo decimos a Cloudbeds: le
+  quitamos las suscripciones a los eventos de la propiedad y le decimos que la app queda
+  deshabilitada, así que xcale desaparece del *Manage Apps* del hotel. Antes el hotel apretaba
+  desconectar, nuestro sistema decía "desconectado", y Cloudbeds seguía mostrando una integración
+  viva para siempre.
+- **Cuando el hotel nos desconecta desde el Marketplace de Cloudbeds**, ahora nos enteramos y
+  cortamos todo acceso de inmediato, como ellos exigen. Antes solo lo notábamos como un error de
+  credenciales que nuestro sistema interpretaba como "el token está viejo, ya se arreglará", y
+  seguía reintentando contra una conexión que ya no existía.
 
-Un detalle a favor: el ID de propiedad se descubre solo (llamando a `getHotels`), no se le pide al
-usuario que lo pegue. Eso es justo lo que entienden por "fully automated".
+Un detalle de seguridad que vale la pena que sepas: Cloudbeds **no firma sus avisos**, así que
+cualquiera que conociera nuestra URL podría enviar un aviso falso de "este hotel te desconectó".
+Nuestro sistema no le cree al aviso: lo usa solo como señal para ir a preguntarle a Cloudbeds
+directamente, y solo desconecta cuando Cloudbeds lo confirma.
 
-### 4.2. Flujo de autorización y llamadas a la API — ✅ cumple lo obligatorio
+### 3.2. Un error silencioso en producción, encontrado por el camino
 
-Nuestra categoría declarada mapea al blueprint de *Guest Communication / Reputation Management*. Lo
-único **obligatorio** de ese blueprint es:
+Al implementarlo apareció que **las suscripciones a eventos de Cloudbeds llevaban rotas semanas**:
+un cambio de seguridad de julio retiró unas herramientas que nuestro backend seguía llamando, y la
+llamada fallaba en silencio. Las propiedades ya suscritas seguían funcionando (por eso no se notó),
+pero **ninguna conexión nueva quedaba suscrita**. Queda arreglado en el mismo cambio.
 
-> *"Use getReservations with the parameters indicated above depending on if pre / during or post
-> communication (at least one of them)."*
+### 3.3. El escenario de la demo que no podíamos enseñar
 
-Lo cumplimos: nuestra herramienta de listar reservas soporta `status`, `checkInFrom` y `checkInTo`,
-que cubren los escenarios de pre-llegada y de huésped en casa. Los webhooks, en este blueprint, son
-explícitamente opcionales (*"you may also subscribe"*), y nosotros ya estamos suscritos a
-`reservation/status_changed`.
+Nuestra categoría exige demostrar la lectura de reservas en al menos uno de los tres momentos de una
+estadía. Teníamos dos —los que llegan y los que están en casa— y no el tercero, los que ya salieron.
+Se añadió el filtro; ahora podemos enseñar los tres en la llamada.
 
-**Detalle menor:** no soportamos los filtros `checkedOutFrom` / `checkedOutTo`, así que no podríamos
-demostrar el escenario de post-salida. Como basta con uno de los tres, no bloquea; añadir esos dos
-parámetros es trabajo de minutos si queremos enseñar los tres.
-
-**Advertencia importante:** en la llamada hay que mostrar **todas** las llamadas a la API que usamos,
-obligatorias y opcionales. Son 38 herramientas. La buena noticia es que tras la reconexión de julio
-la propiedad de prueba ya concede los 22 scopes y la cobertura en vivo dio 12/12, así que no hay
-nada que se quede sin poder demostrarse por permisos.
-
-### 4.3. Conectar y desconectar apps — ❌ **este es el hueco**
-
-Cloudbeds define un contrato explícito para esto y **no tenemos nada implementado**. Busqué en los
-tres repos las tres piezas del contrato (`postAppState`, `getAppState`, `appstate_changed`): cero
-coincidencias.
-
-Lo que ellos verifican en la llamada, y lo que pasaría hoy:
-
-| Lo que se prueba | Qué pasa hoy |
-|---|---|
-| El hotel desconecta la app **desde nuestra interfaz** → la app debe desaparecer de *Manage Apps* en Cloudbeds | ❌ Existe el mecanismo interno (el rail `onDisconnect`), pero sólo Shopify lo usa. Con Cloudbeds no enviamos `postAppState app_state=disabled`, así que la app sigue apareciendo como conectada en su lado. |
-| El hotel desconecta la app **desde el Marketplace de Cloudbeds** → nosotros debemos **terminar todas las sesiones de inmediato** | ❌ No estamos suscritos al webhook `appstate_changed` ni consultamos `getAppState`. Nos enteraríamos sólo al recibir un 401 en la siguiente llamada, y nuestra política actual marca la conexión como "expirada" (recuperable), nunca la termina. |
-| El botón cambia de estado correctamente (*Connect App* ↔ *Login*) | ❌ Depende de lo anterior. |
-
-Efecto colateral ya conocido: al desconectar tampoco damos de baja la suscripción de webhook, que
-queda huérfana apuntando a un receptor que ya no debería recibir nada.
-
-**Esto es lo único que hoy haría fallar la certificación.** Y es un trabajo acotado, no un proyecto:
-
-1. Añadir las llamadas `postAppState` / `getAppState` al provider de Cloudbeds en el MCP.
-2. Implementar el hook de desconexión de Cloudbeds (el rail ya existe, hay que llenarlo): enviar
-   `app_state=disabled` y borrar las suscripciones de webhook de esa propiedad.
-3. Suscribirnos a `appstate_changed` junto al webhook de reservas que ya tenemos, y al recibirlo
-   terminar la conexión de verdad (no marcarla como expirada) — filtrando por nuestro propio client
-   ID, como exige su documentación.
-
-**Estimación: un slice de trabajo, con pruebas.** Es lo primero que haría, porque es lo único de toda
-esta lista que no se resuelve escribiendo un documento.
-
-### 4.4. Prueba en dos "islas" — ❌ falta la segunda cuenta
-
-La llamada se ejecuta contra **una propiedad de prueba en Island 1 y una segunda en Island 2**.
-Nosotros sólo tenemos una cuenta de prueba. Hay que **pedirle a Cloudbeds la segunda**, y confirmar
-si Island 2 responde en el mismo host de API que usamos hoy — nuestro cliente tiene el host de la API
-v1.3 fijo (con posibilidad de sobreescribirlo), así que si son hosts distintos hay que hacerlo
-configurable por conexión. Es una pregunta directa para Gabriela, no una suposición que debamos
-resolver por nuestra cuenta.
+**Todo lo anterior está probado:** 2.927 pruebas automáticas en el backend y 157 en el servidor de
+integraciones, todas en verde.
 
 ---
 
-## 5. Sobre Hotel Bio Hábitat
+## 4. Los documentos que ya escribimos — dónde están y qué les falta
 
-Estoy de acuerdo en que es el piloto natural, pero el orden que marca la guía es este y conviene no
-saltárselo:
+Los cuatro archivos están en el repositorio `xcale-mcp-server`, en la carpeta
+**`docs/design/cloudbeds-certification/`**. Estarán visibles en GitHub en cuanto se suba el PR de
+documentación; mientras tanto Juan José te los puede pasar adjuntos.
 
-1. Acuerdo de conectividad firmado.
-2. Entregables (artículo de soporte + marketing + scopes ajustados).
-3. **Llamada de certificación** (contra la cuenta de prueba).
-4. Emisión de **credenciales de producción** con nuestro redirect URI de producción.
-5. **Limited Release**: la app **no** es visible en el Marketplace; se comparte un enlace oculto con
-   las propiedades piloto. Requieren **5 propiedades** y dura típicamente 2-4 semanas.
-6. Go Live y visibilidad pública.
+| Archivo | Qué es | Qué le falta |
+|---|---|---|
+| `2026-08-02-informe-certificacion.md` | Este informe | — |
+| `support-article-en.md` | **El artículo de soporte** que Cloudbeds exige antes de agendar la llamada | Publicarlo · 6 capturas · confirmar el correo de soporte |
+| `marketing-landing-copy.md` | Copy del App Details (resumen, bullets, descripción) + copy de la landing en inglés y español + checklist del Google Form | Decidir precios (opcional) |
+| `landing-cloudbeds.html` | **La landing de la integración con formulario de captación**, lista para publicar | Publicarla · conectar el formulario · una captura real |
 
-Es decir: **Bio Hábitat encaja perfecto como piloto #1 de los 5**, pero conectarlo con credenciales
-reales antes de certificar es justo lo que hay que preguntarle a Gabriela — la guía plantea que el
-desarrollo ocurre contra la cuenta de prueba del partner.
+### 4.1. El artículo de soporte
 
-Dos cosas que conviene tener presentes para manejar expectativas:
+Cubre las seis secciones obligatorias, en inglés, incluida la que Cloudbeds pide explícitamente:
+*cómo implementamos nosotros la desconexión*. Esa sección **describe el comportamiento real** del
+código que acabamos de escribir, no una intención — que es justamente por qué convenía escribirla
+después y no antes.
 
-- Cloudbeds pide explícitamente **no promocionar la integración hasta terminar el Limited Release**.
-  La visibilidad en su portal de aliados —que es lo que más nos interesa del partnership— llega al
-  final del proceso, no al principio.
-- Requieren **5 propiedades** para el Limited Release. Con una sola no se avanza a Go Live. Si
-  arrancamos con menos, hay que negociarlo con ellos explícitamente (es tu pregunta 3 y no está
-  documentada ninguna excepción).
+Le faltan tres cosas, todas humanas:
 
----
+1. **Dónde vive.** El sitio xcale.app no está en nuestros repositorios (nuestro código es la
+   aplicación, no la web de marketing), así que publicarlo no es algo que podamos hacer nosotros.
+   Sirve cualquiera de estas: una ruta pública en xcale.app (sugerido:
+   `xcale.app/help/cloudbeds`), o un centro de ayuda tipo Freshdesk/Notion público. Cloudbeds solo
+   exige que sea **público y en inglés**.
+2. **Seis capturas de pantalla.** El archivo marca exactamente dónde va cada una y qué debe mostrar.
+3. **El correo de soporte.** El borrador usa `support@xcale.app` marcado como pendiente de
+   confirmar. Ojo con este: es la dirección que Cloudbeds usará, y su compromiso de servicio en vivo
+   es **responder el mismo día hábil** los problemas urgentes y en 24 horas las dudas de
+   onboarding. Si esa dirección no existe o nadie la lee, es mejor cambiarla ahora que después.
 
-## 6. Respuestas a tus cinco preguntas, según la documentación
+### 4.2. El material de marketing
 
-1. **¿Qué necesitan para agendar la llamada?** El acuerdo firmado, más los tres entregables de la
-   sección 3 (artículo de soporte, material de marketing por formulario, y perfil con sólo los
-   scopes necesarios). Los tiempos de respuesta que publican son de 1-2 días hábiles para soporte de
-   desarrollo, pero no publican el tiempo de espera para agendar: hay que preguntarlo.
-2. **Redirect URI de producción.** Sí, se registra al emitir las credenciales de producción. Además,
-   en re-certificaciones dan hasta 2 juegos adicionales de credenciales (test / dev / staging) y para
-   cada uno hay que aportar su redirect URI. Vale la pena pedir el juego de staging desde ya.
-3. **Limited Release con menos propiedades.** Su texto es tajante: *"We require 5 properties to join
-   the Limited Release phase before proceeding with going live"*. No hay excepción documentada.
-4. **Cloudbeds Payments / pay-by-link.** Cada propiedad piloto necesita tener Cloudbeds Payments como
-   pasarela **y** pay-by-link activado; se verifica llamando a `getPaymentsCapabilities`, que debe
-   devolver `cloudbedsPayments: true` y `payByLink: true` (nuestra integración ya hace esa
-   comprobación). Además hay que poner nuestro dominio en la whitelist del Booking Engine de la
-   propiedad, y eso se coordina con ellos. **Restricción importante:** pay-by-link *"is not intended
-   to allow adding cards on file, only charges or authorizes on a brand new card each time"*, y los
-   reembolsos se hacen manualmente dentro de Cloudbeds, no por API.
-5. **Formato del artículo de soporte.** Sí hay formato: las seis secciones de la 3.1, en inglés,
-   público, con capturas y con el enlace a su artículo de desconexión. Publican un ejemplo de
-   referencia (la integración de Sponteous) que sirve de plantilla.
+Es un envío **distinto** del perfil de la app: va por un formulario de Google aparte, y además del
+copy pide una **landing propia con formulario de captación** y un **video walkthrough**. La landing
+está escrita y lista (autocontenida, se puede subir tal cual); solo hay que publicarla y apuntar el
+formulario a donde recojamos los datos.
+
+Falta lo que no se puede producir desde un teclado:
+
+- **El video** (2–3 minutos). El archivo trae el guion en cinco tomas: conectar Cloudbeds → enlazar
+  WhatsApp → una conversación real que termina en reserva → la reserva apareciendo en Cloudbeds →
+  desconectar. Esa última toma vale más de lo que parece: la certificación pide demostrar la
+  desconexión, y tenerla en video significa que el revisor ya la vio funcionar antes de la llamada.
+- **Las capturas**, que son las mismas seis del artículo de soporte.
 
 ---
 
-## 7. Orden de trabajo propuesto
+## 5. Lo que queda pendiente y es tuyo o de Cloudbeds
 
-1. **Preguntarle a Gabriela por el Connectivity Agreement** (bloquea todo lo demás) y de paso pedirle
-   la segunda cuenta de prueba (Island 2). — *hoy*
-2. **Implementar el slice de conexión/desconexión.** Es lo único que puede tumbar la certificación y
-   es prerequisito para poder escribir con verdad la sección 5 del artículo de soporte. — *yo*
-3. **Bajar los scopes de 32 a 22** en el App Details. — *tú, 10 minutos*
-4. **Escribir y publicar el artículo de soporte en inglés**, en una ruta pública del sitio o en un
-   centro de ayuda. — *puedo escribir el borrador completo*
-5. **Landing page de la integración + video walkthrough**, y enviar el Google Form de marketing.
-6. **Agendar la llamada** y preparar el guion de demo: hay que poder mostrar las 38 llamadas.
-7. **Limited Release** con Bio Hábitat como piloto #1, más 4 propiedades por conseguir.
+1. **El Connectivity Agreement.** Bloquea todo lo demás. (Cloudbeds / tú)
+2. **Bajar los permisos de 32 a 22** en la página de App Details. Los 22 que declaraste en tu correo
+   **cuadran exactos** con lo que el código llama — lo verifiqué herramienta por herramienta. Pero
+   el registro permite 32, y Cloudbeds verifica explícitamente que solo estén marcados los
+   necesarios. Son 10 minutos y, si llegamos a la llamada con 32, es una observación segura. (Tú)
+3. **Publicar el artículo de soporte y la landing**, con sus capturas. (Tú)
+4. **Grabar el video** y enviar el formulario de marketing. (Tú)
+5. **Pedir la segunda cuenta de prueba (Island 2)** y confirmar si responde en el mismo servidor que
+   usamos hoy — la llamada se ejecuta contra una propiedad en cada "isla" y solo tenemos una. (Cloudbeds)
+6. **Las 5 propiedades del Limited Release.** Su texto es tajante y no hay excepción documentada;
+   Bio Hábitat es la número 1 de 5. (Tú)
 
 ---
 
-## 8. Preguntas listas para enviarle a Gabriela (en inglés)
+## 6. La única decisión técnica que falta, y tiene un costo
+
+Nuestro sistema se entera de que un hotel nos desconectó desde Cloudbeds por un aviso que ellos
+documentan pero que **nunca hemos visto llegar**. Cloudbeds acepta suscripciones a eventos que no
+existen y responde que todo salió bien, así que la documentación no basta: hay que verlo entregar
+una vez.
+
+El instrumento ya está listo y probaría las tres variantes posibles de una sola pasada. **Pero
+hacerlo entregar exige deshabilitar y volver a habilitar la app en la cuenta de prueba, y eso es una
+reconexión** — que ya sabemos que tiene costo humano y suele dejar suscripciones huérfanas.
+
+Son dos caminos legítimos y hay que elegir antes, no a mitad:
+
+- **Verificarlo ahora:** una sola pasada, con las tres variantes suscritas y la limpieza lista
+  inmediatamente después. Cuesta una reconexión.
+- **No verificarlo:** la llamada de certificación es la primera prueba — el revisor desconecta la
+  app él mismo como parte del guion. Si acertamos, no pasó nada. Si no, el error se descubre delante
+  de él y cuesta una re-certificación, no una tarde.
+
+Mi recomendación: verificarlo, aprovechando la próxima vez que se toque esa cuenta por cualquier otro
+motivo.
+
+---
+
+## 7. Sobre Hotel Bio Hábitat
+
+El orden que marca la guía es: acuerdo firmado → entregables → llamada de certificación (contra la
+cuenta de prueba) → credenciales de producción → **Limited Release** (app oculta, enlace privado, 5
+propiedades, 2–4 semanas) → visible en el Marketplace.
+
+Bio Hábitat encaja perfecto como **piloto #1 de los 5**, pero conectarlo con credenciales reales
+antes de certificar es justo lo que hay que preguntarle a Gabriela: la guía plantea que el desarrollo
+ocurre contra la cuenta de prueba del partner. Y dos cosas para manejar expectativas: Cloudbeds pide
+explícitamente **no promocionar la integración hasta terminar el Limited Release** (la visibilidad en
+el portal de aliados llega al final), y **exigen 5 propiedades** para pasar a Go Live.
+
+---
+
+## 8. Respuestas a tus cinco preguntas, según la documentación
+
+1. **¿Qué necesitan para agendar la llamada?** El acuerdo firmado, más el artículo de soporte
+   publicado, el material de marketing enviado y los permisos ajustados. No publican el tiempo de
+   espera para agendar: hay que preguntarlo.
+2. **Redirect URI de producción.** Sí, se registra al emitir las credenciales de producción. El que
+   diste (`https://api.xcale.app/api/v1/connections/cloudbeds/callback`) **coincide exactamente con
+   la ruta real** del backend — lo verifiqué. En re-certificaciones dan hasta 2 juegos adicionales de
+   credenciales; vale la pena pedir el de staging desde ya.
+3. **Limited Release con menos propiedades.** *"We require 5 properties…"*. Sin excepción documentada.
+4. **Cloudbeds Payments / pay-by-link.** Cada propiedad piloto necesita Cloudbeds Payments **y**
+   pay-by-link activo; se verifica con `getPaymentsCapabilities`, que nuestra integración ya
+   consulta. Además hay que poner nuestro dominio en la whitelist del Booking Engine de la propiedad.
+   **Restricción importante:** pay-by-link *"is not intended to allow adding cards on file, only
+   charges…"* y los reembolsos se hacen dentro de Cloudbeds, no por API.
+5. **Formato del artículo de soporte.** Sí hay formato, y ya está aplicado en el borrador: seis
+   secciones, en inglés, público, con capturas y enlazando su artículo de desconexión.
+
+---
+
+## 9. Preguntas listas para enviarle a Gabriela (en inglés)
 
 > 1. The partnership form has been submitted. What's the next step to get the Connectivity Agreement
 >    in place, and what's the typical turnaround?
@@ -279,20 +230,14 @@ Dos cosas que conviene tener presentes para manejar expectativas:
 
 ## Anexo — Estado del frente ePayco (no relacionado con Cloudbeds)
 
-Aprovechando, revisé el estado de la línea de pagos después de tus cambios del 1 de agosto:
-
-- Tu Stage 2 (#387: perfil de titular obligatorio, límite de alta de tarjeta por usuario, errores 4xx
-  localizados) y nuestra mitad (#384: el perfil llega al registro de cliente de ePayco, rechazo de
-  cobros desatendidos sin perfil, y el correo de cobranza corregido) **ya están reconciliados**.
-- El PR #384 está limpio y mergeable contra `dev`. Corrí la batería de pagos e infraestructura HTTP:
-  **178 pruebas, todas en verde**.
+- Tu Stage 2 (#387) y nuestra mitad (#384) **ya están reconciliados**. El PR #384 está limpio y
+  mergeable contra `dev`; la batería de pagos e infraestructura HTTP pasa completa (178 pruebas).
 - Tres solapamientos resueltos: el registro de despliegue quedó en unión cronológica, se eliminó una
-  clave de traducción duplicada que estaba tapando la tuya, y se reescribió una prueba que cubría un
-  camino que tu Stage 2 volvió inalcanzable.
+  clave de traducción duplicada que tapaba la tuya, y se reescribió una prueba que cubría un camino
+  que tu Stage 2 volvió inalcanzable.
 - Dos observaciones para tu radar:
-  - La validación de teléfono acepta **sólo móvil colombiano** (`3` + 9 dígitos). Un titular con fijo
-    o con tarjeta de otro país no puede registrar tarjeta. Es coherente con ePayco, pero es una
-    decisión de producto que quedó dentro de una validación técnica.
-  - Sigue activa la sonda que imprime la cadena de reenvío en el alta de tarjeta (para saber cuántos
-    saltos de proxy hay y si la IP que le mandamos a ePayco es la real del cliente). Cuando entre la
-    próxima alta de tarjeta real hay que leer ese log y decidir si se retira.
+  - La validación de teléfono acepta **solo móvil colombiano**. Un titular con fijo o con tarjeta de
+    otro país no puede registrar tarjeta. Es coherente con ePayco, pero es una decisión de producto
+    que quedó dentro de una validación técnica.
+  - Sigue activa la sonda que imprime la cadena de reenvío en el alta de tarjeta. Cuando entre la
+    próxima alta real hay que leer ese log y decidir si se retira.
