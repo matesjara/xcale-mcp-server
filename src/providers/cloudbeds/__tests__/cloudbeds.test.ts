@@ -349,6 +349,34 @@ describe('cloudbeds provider', () => {
     expect(new URL(calledUrl).searchParams.get('sourceReservationId')).toBe('xtest-abc');
   });
 
+  it('list_reservations can ask for the three moments of a stay — arriving, in-house, departed', async () => {
+    // Cloudbeds' guest-communication blueprint names exactly these filters, and certification asks
+    // for at least one of the three. `status=checked_out` alone is not the departed window: it
+    // returns every guest who ever left, so without the checkedOut pair the post-stay moment is
+    // reachable only by paging the property's whole history.
+    let calledUrl = '';
+    const capturingFetch = (async (url: string | URL) => {
+      calledUrl = url.toString();
+      return new Response(JSON.stringify({ success: true, data: [], total: 0 }), { status: 200 });
+    }) as FetchLike;
+    const provider = createCloudbedsProvider({ fetchImpl: capturingFetch });
+    await provider.callTool(
+      'mcp_cloudbeds_list_reservations',
+      {
+        page: 1,
+        pageSize: 10,
+        status: 'checked_out',
+        checkedOutFrom: '2026-08-01',
+        checkedOutTo: '2026-08-02',
+      },
+      ctx({ propertyID: 'PROP1' }),
+    );
+    const qs = new URL(calledUrl).searchParams;
+    expect(qs.get('status')).toBe('checked_out');
+    expect(qs.get('checkedOutFrom')).toBe('2026-08-01');
+    expect(qs.get('checkedOutTo')).toBe('2026-08-02');
+  });
+
   // --- modify_reservation (W3) -----------------------------------------------------------------
 
   // Observed: Cloudbeds maps the method-name prefix to the HTTP verb. `putReservation` sent as POST is

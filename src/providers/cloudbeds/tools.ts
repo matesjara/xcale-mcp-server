@@ -141,11 +141,22 @@ export function buildCloudbedsTools(
     definePaginatedList({
       name: `mcp_${SLUG}_list_reservations`,
       requiredScopes: ['read:reservation'], // spec: getReservations
-      description: 'List reservations for the property, filtered by status and/or check-in dates.',
+      description:
+        'List reservations for the property, filtered by status and/or by check-in or check-out ' +
+        'dates. The three date/status combinations cover the three moments of a stay: arriving ' +
+        '(checkInFrom/checkInTo), in-house (status=checked_in), and departed ' +
+        '(checkedOutFrom/checkedOutTo with status=checked_out).',
       input: z.object({
         status: z.string().optional(),
         checkInFrom: z.string().optional(),
         checkInTo: z.string().optional(),
+        // The departed window. Same shape as the check-in pair and it costs two lines, but without
+        // it the post-stay moment is unreachable: filtering `status=checked_out` alone returns every
+        // guest who ever left, and a consumer would have to page the whole history to find
+        // yesterday's departures. Cloudbeds' own guest-communication blueprint names these two as
+        // the post-departure filter.
+        checkedOutFrom: z.string().optional(),
+        checkedOutTo: z.string().optional(),
         // External-reference filters — how a consumer reconciles a booking it created. Each
         // reservation in the response also carries `thirdPartyIdentifier` verbatim, so a consumer can
         // reconcile either server-side (this filter) or client-side over a bounded window.
@@ -168,6 +179,8 @@ export function buildCloudbedsTools(
           status: args.status,
           checkInFrom: args.checkInFrom,
           checkInTo: args.checkInTo,
+          checkedOutFrom: args.checkedOutFrom,
+          checkedOutTo: args.checkedOutTo,
           sourceReservationId: args.sourceReservationId,
           sourceId: args.sourceId,
         });
