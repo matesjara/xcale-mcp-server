@@ -34,6 +34,8 @@ const CONTROL_PLANE_TOOLS = [
   'mcp_cloudbeds_set_app_state',
   'mcp_cloudbeds_ensure_webhook_subscription',
   'mcp_cloudbeds_remove_webhook_subscriptions',
+  'mcp_cloudbeds_create_email_template',
+  'mcp_cloudbeds_schedule_email',
 ] as const;
 
 describe('cloudbeds control plane — the boundary itself', () => {
@@ -73,9 +75,10 @@ describe('cloudbeds control plane — the boundary itself', () => {
     expect(auth.scopes).not.toContain('write:app');
     expect(auth.scopes).not.toContain('read:app');
     expect(auth.scopes).not.toContain('write:webhook');
-    // 23 = the 22 declared to Cloudbeds + `read:addon`, whose endpoint was proven to exist (a 403
-    // "you do not have correct scope", not a 404) and which `list_addons` now covers.
-    expect(auth.scopes).toHaveLength(23);
+    // 24 = the 22 originally declared to Cloudbeds + `read:addon` (proven to exist by a 403, not a
+    // 404) + `write:communication` (the two email tools below). The app-state and webhook tools are
+    // still the point of this assertion: they add nothing, because their spec declares `OAuth2: []`.
+    expect(auth.scopes).toHaveLength(24);
   });
 });
 
@@ -147,6 +150,155 @@ describe('ensure_webhook_subscription', () => {
     expect(result.kind).toBe('error');
     if (result.kind !== 'error') throw new Error('unreachable');
     expect(result.code).toBe(ProviderErrorCode.INVALID_INPUT);
+    expect(seen).toHaveLength(0);
+  });
+});
+
+describe('create_email_template', () => {
+  const valid = {
+    name: 'xcale — pre-arrival',
+    from: 'reservas@hotel.test',
+    subject: { en: 'See you tomorrow', es: 'Te esperamos mañana' },
+    body: { en: 'Your room is ready.', es: 'Tu habitación está lista.' },
+  };
+
+  it('sends the per-language text as PHP-style brackets, the way Cloudbeds reads it', async () => {
+    const { seen, fetchImpl } = capture([{ success: true, emailTemplateID: 'tpl-1' }]);
+    const result = await createCloudbedsProvider({ fetchImpl }).callTool(
+      'mcp_cloudbeds_create_email_template',
+      valid,
+      ctx(),
+    );
+
+    expect(result.kind).toBe('success');
+    const req = seen[0]!;
+    expect(req.url).toBe('https://hotels.cloudbeds.com/api/v1.3/postEmailTemplate');
+    // `subject[en]=…`, not `subject=%7B%22en%22…%7D`. A JSON-stringified object is accepted by the
+    // form encoder and silently means nothing to Cloudbeds — the template would be created empty.
+    // Form encoding writes spaces as `+`, which decodeURIComponent leaves alone — decode both or the
+    // assertion fails on a payload that is perfectly correct.
+    const body = decodeURIComponent(req.body).replace(/\+/g, ' ');
+    expect(body).toContain('subject[en]=See you tomorrow');
+    expect(body).toContain('body[es]=Tu habitación está lista.');
+  });
+
+  it('returns the id where Cloudbeds actually puts it — top level, not inside data', async () => {
+    const { fetchImpl } = capture([{ success: true, emailTemplateID: 'tpl-1' }]);
+    const result = await createCloudbedsProvider({ fetchImpl }).callTool(
+      'mcp_cloudbeds_create_email_template',
+      valid,
+      ctx(),
+    );
+
+    if (result.kind !== 'success') throw new Error('unreachable');
+    // `schedule_email` cannot be called without this id, so reaching for `data.emailTemplateID` (the
+    // habit every other endpoint teaches) would break the only path that uses it.
+    expect(result.data).toMatchObject({ emailTemplateID: 'tpl-1' });
+  });
+
+  it('refuses a template with no text in any language', async () => {
+    const { seen, fetchImpl } = capture([{ success: true }]);
+    const result = await createCloudbedsProvider({ fetchImpl }).callTool(
+      'mcp_cloudbeds_create_email_template',
+      { ...valid, subject: {} },
+      ctx(),
+    );
+
+    // There is no delete: an empty template would be permanent furniture in the property's account.
+    expect(result.kind).toBe('error');
+    expect(seen).toHaveLength(0);
+  });
+
+  it('refuses a sender address that is not an address', async () => {
+    const { seen, fetchImpl } = capture([{ success: true }]);
+    const result = await createCloudbedsProvider({ fetchImpl }).callTool(
+      'mcp_cloudbeds_create_email_template',
+      { ...valid, from: 'reservas at hotel' },
+      ctx(),
+    );
+
+    expect(result.kind).toBe('error');
+    expect(seen).toHaveLength(0);
+  });
+});
+
+describe('schedule_email — the one that actually mails guests', () => {
+  const base = { emailTemplateID: 'tpl-1', scheduleName: 'xcale — pre-arrival' };
+
+  it('shapes an event trigger as schedule[reservationEvent][…] and pads the time', async () => {
+    const { seen, fetchImpl } = capture([{ success: true, emailScheduleID: 'sch-1' }]);
+    const result = await createCloudbedsProvider({ fetchImpl }).callTool(
+      'mcp_cloudbeds_schedule_email',
+      {
+        ...base,
+        trigger: { type: 'reservation_event', event: 'before_check_in', days: 1, time: '10:00' },
+      },
+      ctx(),
+    );
+
+    expect(result.kind).toBe('success');
+    const body = decodeURIComponent(seen[0]!.body).replace(/\+/g, ' ');
+    expect(body).toContain('schedule[reservationEvent][event]=before_check_in');
+    expect(body).toContain('schedule[reservationEvent][days]=1');
+    // Cloudbeds' own example carries seconds; the caller should not have to know that.
+    expect(body).toContain('schedule[reservationEvent][time]=10:00:00');
+  });
+
+  it('shapes a status trigger as schedule[reservationStatusChange][status]', async () => {
+    const { seen, fetchImpl } = capture([{ success: true, emailScheduleID: 'sch-2' }]);
+    await createCloudbedsProvider({ fetchImpl }).callTool(
+      'mcp_cloudbeds_schedule_email',
+      { ...base, trigger: { type: 'reservation_status', status: 'checked_out' } },
+      ctx(),
+    );
+
+    const body = decodeURIComponent(seen[0]!.body).replace(/\+/g, ' ');
+    expect(body).toContain('schedule[reservationStatusChange][status]=checked_out');
+    // The two triggers are mutually exclusive at Cloudbeds. The union makes sending both impossible,
+    // which is worth asserting: a payload carrying each would be accepted by the encoder.
+    expect(body).not.toContain('reservationEvent');
+  });
+
+  it('refuses a trigger that is neither shape, and one that mixes them', async () => {
+    const { seen, fetchImpl } = capture([{ success: true }]);
+
+    const neither = await createCloudbedsProvider({ fetchImpl }).callTool(
+      'mcp_cloudbeds_schedule_email',
+      { ...base, trigger: { type: 'whenever' } },
+      ctx(),
+    );
+    const mixed = await createCloudbedsProvider({ fetchImpl }).callTool(
+      'mcp_cloudbeds_schedule_email',
+      { ...base, trigger: { type: 'reservation_status', status: 'confirmed', days: 3 } },
+      ctx(),
+    );
+
+    expect(neither.kind).toBe('error');
+    expect(mixed.kind).toBe('error'); // `.strict()` — an ignored extra field is a schedule that fires wrong
+    expect(seen).toHaveLength(0);
+  });
+
+  it('refuses a status Cloudbeds does not define, and an impossible time', async () => {
+    const { seen, fetchImpl } = capture([{ success: true }]);
+
+    const badStatus = await createCloudbedsProvider({ fetchImpl }).callTool(
+      'mcp_cloudbeds_schedule_email',
+      { ...base, trigger: { type: 'reservation_status', status: 'cancelled' } }, // two l's — ours, not theirs
+      ctx(),
+    );
+    const badTime = await createCloudbedsProvider({ fetchImpl }).callTool(
+      'mcp_cloudbeds_schedule_email',
+      {
+        ...base,
+        trigger: { type: 'reservation_event', event: 'after_check_out', days: 2, time: '25:00' },
+      },
+      ctx(),
+    );
+
+    // Both would be accepted by the encoder and create a schedule that never fires — with no delete
+    // to clean it up afterwards.
+    expect(badStatus.kind).toBe('error');
+    expect(badTime.kind).toBe('error');
     expect(seen).toHaveLength(0);
   });
 });

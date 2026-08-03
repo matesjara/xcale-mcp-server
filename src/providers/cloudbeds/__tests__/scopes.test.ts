@@ -38,6 +38,12 @@ describe('cloudbeds scopes — derived from tools, bounded by the app registrati
     // pin exists to force: the app registration already authorized the scope, but until a tool needed
     // it we did not ask for it. Asking has a price — every property connected before this ships holds
     // a token without it, so `list_addons` answers "reconnect required" for them until they re-consent.
+    //
+    // 2026-08-02 — `write:communication` added with `create_email_template` + `schedule_email`. This
+    // one is a WRITE scope, so it is also the line that decides whether Cloudbeds asks for a
+    // re-certification later: adding it after the certification call would cost one, adding it now
+    // costs nothing beyond demonstrating it. Both tools are control-plane — a property configures its
+    // own automatic email, no agent ever chooses to.
     expect(auth.scopes).toEqual([
       'read:addon',
       'read:allotmentBlock',
@@ -58,6 +64,7 @@ describe('cloudbeds scopes — derived from tools, bounded by the app registrati
       'read:taxesAndFees',
       'read:user',
       'write:allotmentBlock',
+      'write:communication',
       'write:group',
       'write:guest',
       'write:reservation',
