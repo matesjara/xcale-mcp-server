@@ -33,7 +33,13 @@ describe('cloudbeds scopes — derived from tools, bounded by the app registrati
     // Pinned deliberately. This list is what every hotel is asked to consent to, so it must never move
     // by accident — a diff here means the consent screen changed for real users. Updating it is a
     // decision, not a chore: consent is binary, so a hotel cannot decline one line of it.
+    //
+    // 2026-08-02 — `read:addon` added with the `list_addons` tool, and it is the kind of decision this
+    // pin exists to force: the app registration already authorized the scope, but until a tool needed
+    // it we did not ask for it. Asking has a price — every property connected before this ships holds
+    // a token without it, so `list_addons` answers "reconnect required" for them until they re-consent.
     expect(auth.scopes).toEqual([
+      'read:addon',
       'read:allotmentBlock',
       'read:appPropertySettings',
       'read:communication',

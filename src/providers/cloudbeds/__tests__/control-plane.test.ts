@@ -73,7 +73,9 @@ describe('cloudbeds control plane — the boundary itself', () => {
     expect(auth.scopes).not.toContain('write:app');
     expect(auth.scopes).not.toContain('read:app');
     expect(auth.scopes).not.toContain('write:webhook');
-    expect(auth.scopes).toHaveLength(22); // 17 read + 5 write — the set declared to Cloudbeds
+    // 23 = the 22 declared to Cloudbeds + `read:addon`, whose endpoint was proven to exist (a 403
+    // "you do not have correct scope", not a 404) and which `list_addons` now covers.
+    expect(auth.scopes).toHaveLength(23);
   });
 });
 

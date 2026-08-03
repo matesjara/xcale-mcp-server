@@ -889,6 +889,33 @@ export function buildCloudbedsTools(
     }),
 
     tool({
+      name: `mcp_${SLUG}_list_addons`,
+      requiredScopes: ['read:addon'], // spec: GET /addons/v1/addons — PMS **v2.0**, not v1.3
+      description:
+        'List the add-ons the property sells alongside a stay — breakfast, transfers, late checkout ' +
+        'and the like — with their prices. Use it to answer "what else can I add?" and to quote an ' +
+        'extra before it is promised.',
+      input: z.object({}).strict(),
+      handler: async (_args, ctx) => {
+        const { propertyID } = ctx.metadata;
+        const res = await client.getV2(['addons', 'v1', 'addons'], ctx.request, {
+          'X-Property-Id': propertyID,
+        });
+        // v2 answers JSON directly and reports failure as an HTTP status — there is no
+        // `{success:false}` envelope to unwrap. The one failure we HAVE observed is the important
+        // one: `403 {"message":"You do not have correct scope…"}` on a token minted before this tool
+        // existed. The core maps 401/403 to AUTH_EXPIRED, so that surfaces as "reconnect required",
+        // which is exactly right — the property has to re-consent for `read:addon` to be granted.
+        //
+        // The SUCCESS shape has never been seen (the scope was not requested until this tool added
+        // it), so nothing here reads a field: the payload is returned verbatim, as everywhere else.
+        return res.ok
+          ? ok(res.data)
+          : err(res.errorCode, `Cloudbeds addons failed (HTTP ${res.status})`);
+      },
+    }),
+
+    tool({
       name: `mcp_${SLUG}_list_email_templates`,
       // Read-only on purpose. `write:communication` (creating templates/schedules) is deliberately NOT
       // built: an agent authoring a hotel's outbound email is real risk with no demonstrated use case.
