@@ -139,16 +139,58 @@ Falta lo que no se puede producir desde un teclado:
 ## 5. Lo que queda pendiente y es tuyo o de Cloudbeds
 
 1. **El Connectivity Agreement.** Bloquea todo lo demás. (Cloudbeds / tú)
-2. **Bajar los permisos de 32 a 22** en la página de App Details. Los 22 que declaraste en tu correo
-   **cuadran exactos** con lo que el código llama — lo verifiqué herramienta por herramienta. Pero
-   el registro permite 32, y Cloudbeds verifica explícitamente que solo estén marcados los
-   necesarios. Son 10 minutos y, si llegamos a la llamada con 32, es una observación segura. (Tú)
+2. **Ajustar los permisos en App Details.** Cambió respecto a la versión anterior de este informe:
+   ya no es "bajar de 32 a 22". Ver §5-bis. (Tú, con la lista ya resuelta)
 3. **Publicar el artículo de soporte y la landing**, con sus capturas. (Tú)
 4. **Grabar el video** y enviar el formulario de marketing. (Tú)
 5. **Pedir la segunda cuenta de prueba (Island 2)** y confirmar si responde en el mismo servidor que
    usamos hoy — la llamada se ejecuta contra una propiedad en cada "isla" y solo tenemos una. (Cloudbeds)
 6. **Las 5 propiedades del Limited Release.** Su texto es tajante y no hay excepción documentada;
    Bio Hábitat es la número 1 de 5. (Tú)
+
+---
+
+## 5-bis. Los permisos: qué pasó cuando fuimos a mirar de verdad
+
+En la versión anterior recomendé bajar de 32 a 22 marcados. Juan José objetó con razón: **esos 32
+los marcaste tú a propósito**, porque son los que el sistema debe llegar a manejar. Desmarcarlos no
+es higiene, es renunciar a alcance. Así que en vez de decidirlo por criterio, lo probamos contra la
+propiedad real. Los 10 sin cubrir resultaron ser **cuatro problemas distintos**, no uno.
+
+| Grupo | Scopes | Qué encontramos | Qué hacer |
+|---|---|---|---|
+| **Sin endpoint** | `read:adjustment`, `read:resourceTypes`, `read:resourceReservations` | Probamos **siete** nombres de método plausibles: los siete respondieron *"no such method"*. En la misma pasada, los 12 scopes con endpoint publicado respondieron OK — o sea que el instrumento estaba sano y el 404 es real | **Desmarcar.** No se puede construir una tool para algo que no se puede llamar, y en la llamada hay que demostrar cada llamada que usamos |
+| **Ya cubierto** | `read:addon` | Parecía del grupo anterior y resultó lo contrario: respondió **403 "no tienes el scope correcto"**. Un 403 dice *el endpoint está ahí y te falta permiso* | **Dejar marcado — ya está cubierto.** Construí `list_addons` (extras: desayuno, traslados, late checkout). Es nuestra primera tool contra la API v2.0 de Cloudbeds |
+| **Otro producto** | los 4 `read:dataInsights*` | No es una API de recursos: es un constructor de informes con ~130 endpoints, otra autenticación, y su spec **no declara scopes por endpoint**. Cubrirlo significa algo cualitativamente distinto (ejecutar reportes) | **Desmarcar por ahora.** Merece su propio proyecto después de certificar. Volver a añadir scopes de **lectura** después es barato — Cloudbeds dice que ampliar solo-lectura puede no exigir re-certificación |
+| **Decisión tuya** | `write:communication`, `write:adjustment` | Ambos tienen endpoint y son construibles. Los excluimos en su momento por riesgo, no por imposibilidad | **Tú decides — y decide ahora.** Ver abajo |
+
+### Los dos de escritura: por qué hay que decidirlos antes de la llamada
+
+Cloudbeds dispara **re-certificación** cuando se añaden funciones que requieren **nuevos scopes de
+escritura**. Los de lectura son baratos de añadir después; los de escritura cuestan otra llamada. Así
+que estos dos no son "después vemos":
+
+- **`write:communication`** (crear y programar las plantillas de correo del hotel). Encaja con nuestra
+  categoría —*Guest Communication*— y son 2 endpoints: se construye rápido. Lo dejamos fuera porque
+  un agente redactando el correo del hotel es riesgo sin caso de uso claro. **Si lo quieres, se
+  construye esta semana y entra a la certificación.**
+- **`write:adjustment`** (registrar ajustes financieros). Aquí sí te recomiendo no hacerlo, y no por
+  esfuerzo: **es ciego e irreversible**. `read:adjustment` no tiene endpoint —acabamos de probarlo—
+  así que no podríamos ni leer lo que escribimos, y no hay scope de borrado registrado. Un ajuste mal
+  puesto no se ve y no se deshace. Si algún día se hace, debería ser con confirmación humana
+  explícita y con un lector que exista.
+
+### Cómo queda el registro
+
+**23 marcados** = los 22 que ya usábamos + `read:addon`. **Desmarcar 9** (los 3 sin endpoint, los 4
+de Data Insights, y los 2 de escritura si decides no construirlos).
+
+**Un detalle que importa para la agenda:** pedir `read:addon` cambia la pantalla de consentimiento,
+así que las propiedades ya conectadas necesitan **reconectar** para que la tool funcione. La app se
+comporta bien —dice "reconexión necesaria" en vez de fingir que no hay extras— pero significa que
+`list_addons` solo se puede demostrar en la llamada **si hay una reconexión antes**. Es la misma
+reconexión que ya hacía falta para la toma del video y para verificar el aviso de app-state: **una
+sola sesión resuelve las tres**.
 
 ---
 

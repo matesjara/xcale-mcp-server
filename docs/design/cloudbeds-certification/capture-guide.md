@@ -64,8 +64,8 @@ referencias del artículo.
   permisos solicitados.
 - **Cómo llegar sin arriesgar nada:** iniciar el flujo *Connect* y capturar **antes** de pulsar
   *Allow*. No hace falta completar la conexión ni desconectar nada.
-- **Ojo:** esta captura muestra los permisos que pedimos. **Tomarla después de bajar el registro de
-  32 a 22**, o la imagen contradice lo que le declaramos a Cloudbeds.
+- **Ojo:** esta captura muestra los permisos que pedimos. **Tomarla después de ajustar el registro a
+  los 23 definitivos** (§5-bis del informe), o la imagen contradice lo que le declaramos a Cloudbeds.
 
 ### 3 · `03-cloudbeds-connected.png` — conectado
 - **Dónde:** artículo de soporte (§3).
