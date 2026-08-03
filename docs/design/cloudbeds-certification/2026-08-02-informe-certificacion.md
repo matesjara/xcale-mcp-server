@@ -162,31 +162,44 @@ propiedad real. Los 10 sin cubrir resultaron ser **cuatro problemas distintos**,
 | **Sin endpoint** | `read:adjustment`, `read:resourceTypes`, `read:resourceReservations` | Probamos **siete** nombres de método plausibles: los siete respondieron *"no such method"*. En la misma pasada, los 12 scopes con endpoint publicado respondieron OK — o sea que el instrumento estaba sano y el 404 es real | **Desmarcar.** No se puede construir una tool para algo que no se puede llamar, y en la llamada hay que demostrar cada llamada que usamos |
 | **Ya cubierto** | `read:addon` | Parecía del grupo anterior y resultó lo contrario: respondió **403 "no tienes el scope correcto"**. Un 403 dice *el endpoint está ahí y te falta permiso* | **Dejar marcado — ya está cubierto.** Construí `list_addons` (extras: desayuno, traslados, late checkout). Es nuestra primera tool contra la API v2.0 de Cloudbeds |
 | **Otro producto** | los 4 `read:dataInsights*` | No es una API de recursos: es un constructor de informes con ~130 endpoints, otra autenticación, y su spec **no declara scopes por endpoint**. Cubrirlo significa algo cualitativamente distinto (ejecutar reportes) | **Desmarcar por ahora.** Merece su propio proyecto después de certificar. Volver a añadir scopes de **lectura** después es barato — Cloudbeds dice que ampliar solo-lectura puede no exigir re-certificación |
-| **Decisión tuya** | `write:communication`, `write:adjustment` | Ambos tienen endpoint y son construibles. Los excluimos en su momento por riesgo, no por imposibilidad | **Tú decides — y decide ahora.** Ver abajo |
+| **Ya cubierto** | `write:communication` | Tiene endpoint y lo construimos. Lo habíamos excluido por riesgo, no por imposibilidad — y el riesgo estaba mal leído (ver abajo) | **Dejar marcado — ya está cubierto.** Los correos automáticos del hotel |
+| **No** | `write:adjustment` | Tiene endpoint, pero **escribe a ciegas**: su lector no existe (probado) y no hay borrado | **Desmarcar** |
 
-### Los dos de escritura: por qué hay que decidirlos antes de la llamada
+### Los dos de escritura: por qué había que decidirlos antes de la llamada, y qué se decidió
 
 Cloudbeds dispara **re-certificación** cuando se añaden funciones que requieren **nuevos scopes de
-escritura**. Los de lectura son baratos de añadir después; los de escritura cuestan otra llamada. Así
-que estos dos no son "después vemos":
+escritura**. Los de lectura son baratos de añadir después; los de escritura cuestan otra llamada. Por
+eso no podían quedar para "después vemos".
 
-- **`write:communication`** (crear y programar las plantillas de correo del hotel). Encaja con nuestra
-  categoría —*Guest Communication*— y son 2 endpoints: se construye rápido. Lo dejamos fuera porque
-  un agente redactando el correo del hotel es riesgo sin caso de uso claro. **Si lo quieres, se
-  construye esta semana y entra a la certificación.**
-- **`write:adjustment`** (registrar ajustes financieros). Aquí sí te recomiendo no hacerlo, y no por
-  esfuerzo: **es ciego e irreversible**. `read:adjustment` no tiene endpoint —acabamos de probarlo—
-  así que no podríamos ni leer lo que escribimos, y no hay scope de borrado registrado. Un ajuste mal
-  puesto no se ve y no se deshace. Si algún día se hace, debería ser con confirmación humana
-  explícita y con un lector que exista.
+**`write:communication` — construido.** Son los **correos automáticos del hotel**: una plantilla
+(asunto y cuerpo por idioma) y un disparador que la envía sola — X días antes del check-in, al hacer
+check-out, cuando la reserva se confirma. Cloudbeds ofrece estos endpoints *exclusivamente a
+integraciones como la nuestra*; un hotel no puede llamarlos por su cuenta.
+
+Lo habíamos excluido con una línea: *"un agente redactando el correo del hotel es riesgo"*. Al leerlo
+con calma, esa objeción hablaba del **agente** — y configurar los correos automáticos no es algo que
+un modelo improvise en mitad de una conversación, es algo que el hotel decide una vez. Así que las
+dos herramientas quedaron en el **plano de control**: las llama nuestro panel, el agente ni las ve.
+
+Lo que sí es real, y probado: **se crea y no se deshace por API.** No existe borrar ni editar, ni la
+plantilla ni el disparador. Un correo automático mal configurado sigue enviándose hasta que el hotel
+entre a su Cloudbeds a quitarlo. De ahí salieron las barandas: se rechaza una plantilla sin texto, se
+rechaza un disparador con campos de más (un campo ignorado en silencio es un correo que sale el día
+equivocado, para siempre), y siempre se puede leer lo que existe antes de crear otro.
+
+**`write:adjustment` — no, y esta recomendación no cambia.** Registrar ajustes financieros **escribe
+a ciegas**: `read:adjustment` no tiene endpoint —lo probamos— así que no podríamos leer lo que
+escribimos, y tampoco hay borrado. Un ajuste mal puesto no se ve y no se deshace. Escribir sin
+deshacer ya es delicado; escribir sin poder mirar es otra cosa.
 
 ### Cómo queda el registro
 
-**23 marcados** = los 22 que ya usábamos + `read:addon`. **Desmarcar 9** (los 3 sin endpoint, los 4
-de Data Insights, y los 2 de escritura si decides no construirlos).
+**24 marcados** = los 22 que ya usábamos + `read:addon` + `write:communication`. **Desmarcar 8**: los
+3 sin endpoint, los 4 de Data Insights y `write:adjustment`.
 
-**Un detalle que importa para la agenda:** pedir `read:addon` cambia la pantalla de consentimiento,
-así que las propiedades ya conectadas necesitan **reconectar** para que la tool funcione. La app se
+**Un detalle que importa para la agenda:** pedir `read:addon` y `write:communication` cambia la
+pantalla de consentimiento, así que las propiedades ya conectadas necesitan **reconectar** para que
+las tools nuevas funcionen. La app se
 comporta bien —dice "reconexión necesaria" en vez de fingir que no hay extras— pero significa que
 `list_addons` solo se puede demostrar en la llamada **si hay una reconexión antes**. Es la misma
 reconexión que ya hacía falta para la toma del video y para verificar el aviso de app-state: **una
