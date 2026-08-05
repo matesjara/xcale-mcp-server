@@ -217,7 +217,11 @@ describe('cloudbeds provider', () => {
       }),
     });
 
-    const r = await provider.callTool('mcp_cloudbeds_get_app_state', {}, ctx({ propertyID: 'PROP1' }));
+    const r = await provider.callTool(
+      'mcp_cloudbeds_get_app_state',
+      {},
+      ctx({ propertyID: 'PROP1' }),
+    );
 
     expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.AUTH_EXPIRED });
   });
