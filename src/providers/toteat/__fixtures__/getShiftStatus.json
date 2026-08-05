@@ -1,0 +1,13 @@
+{
+  "data": {
+    "date": "2026-08-05T18:47:57",
+    "localNumber": 1,
+    "restaurantId": 1234567890123456,
+    "status": "open"
+  },
+  "msg": {
+    "texto": "SHIFT STATUS SENT",
+    "tipo": 0
+  },
+  "ok": true
+}
