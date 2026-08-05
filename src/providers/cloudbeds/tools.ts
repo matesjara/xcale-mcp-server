@@ -1457,9 +1457,17 @@ export function buildCloudbedsTools(
         const subscriptions = Array.isArray(listed.data)
           ? (listed.data as ReadonlyArray<Record<string, unknown>>)
           : [];
+        // **The read shape is not the write shape.** `postWebhook` TAKES `endpointUrl`; `getWebhooks`
+        // RETURNS it nested as `subscriptionData.url` — observed 2026-08-05, and reading only the
+        // written name matched nothing, so a real disconnect removed 0 of 2 subscriptions and
+        // reported success. Same trap as `subscriptionID` vs `id` below, which was already handled.
+        //
         // Exact match, never a prefix: the secret lives in the path, and a prefix match on
         // `…/webhooks/cloudbeds/` would delete every OTHER connection's subscription too.
-        const mine = subscriptions.filter((s) => s['endpointUrl'] === args.endpointUrl);
+        const urlOf = (s: Record<string, unknown>): unknown =>
+          s['endpointUrl'] ??
+          (s['subscriptionData'] as Record<string, unknown> | undefined)?.['url'];
+        const mine = subscriptions.filter((s) => urlOf(s) === args.endpointUrl);
 
         let deleted = 0;
         const failures: string[] = [];

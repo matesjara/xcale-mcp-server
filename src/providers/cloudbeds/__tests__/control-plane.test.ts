@@ -151,26 +151,34 @@ describe('ensure_webhook_subscription', () => {
 
 describe('remove_webhook_subscriptions', () => {
   const url = 'https://api.xcale.app/api/webhooks/cloudbeds/mine';
+
+  /**
+   * The shape `getWebhooks` ACTUALLY returns — copied from a live response on 2026-08-05, not from
+   * the write contract. That distinction is the whole reason this test exists: the fixture used to
+   * carry `endpointUrl` (the name `postWebhook` TAKES), the filter read the same invented name, and
+   * both agreed with each other while disagreeing with Cloudbeds. A real disconnect removed 0 of 2
+   * subscriptions and reported success.
+   *
+   * The last row keeps the written spelling on purpose: if Cloudbeds ever returns it that way too,
+   * the tool must still match rather than silently skip.
+   */
   const listing = {
     success: true,
     data: [
       {
-        subscriptionID: 'sub-1',
-        endpointUrl: url,
-        object: 'reservation',
-        action: 'status_changed',
+        id: '0a2fd65c8ecf1d46d0f1576192acf66b',
+        subscriptionData: { url },
+        event: { entity: 'reservation', action: 'status_changed' },
       },
       {
-        subscriptionID: 'sub-2',
-        endpointUrl: url,
-        object: 'integration',
-        action: 'appstate_changed',
+        id: 'b3410e5ea394d67141e6017d7b6b686b',
+        subscriptionData: { url },
+        event: { entity: 'integration', action: 'appstate_changed' },
       },
       {
-        subscriptionID: 'sub-other',
-        endpointUrl: 'https://api.xcale.app/api/webhooks/cloudbeds/someone-else',
-        object: 'reservation',
-        action: 'status_changed',
+        id: 'sub-other',
+        subscriptionData: { url: 'https://api.xcale.app/api/webhooks/cloudbeds/someone-else' },
+        event: { entity: 'reservation', action: 'status_changed' },
       },
     ],
   };
@@ -194,7 +202,8 @@ describe('remove_webhook_subscriptions', () => {
     expect(deletes.some((r) => r.url.includes('sub-other'))).toBe(false);
     expect(deletes.every((r) => r.method === 'DELETE')).toBe(true);
     // DELETE params ride the query string: Cloudbeds does not parse a DELETE body.
-    expect(deletes[0]!.url).toContain('subscriptionID=sub-1');
+    // The id also comes back under `id`, not the `subscriptionID` that `postWebhook` returns.
+    expect(deletes[0]!.url).toContain('subscriptionID=0a2fd65c8ecf1d46d0f1576192acf66b');
     expect(deletes[0]!.url).toContain('propertyID=PROP1');
   });
 
