@@ -1,7 +1,11 @@
 # Certificación de producción con Cloudbeds — informe de estado
 
-**Fecha:** 2 de agosto de 2026 · **Versión 2** (reemplaza la versión de esta mañana: aquella
-listaba lo que faltaba; esta dice además qué de eso ya está hecho)
+**Fecha:** actualizado el 5 de agosto de 2026 · **Versión 5** (reemplaza las anteriores)
+
+**Qué cambió desde la primera versión:** aquella listaba lo que faltaba. Desde entonces se cerró el
+hueco técnico de la certificación **y se verificó contra la propiedad real** (ver §3.4), se cubrieron
+dos permisos más con herramientas nuevas, y **el ajuste de permisos ya está hecho** — no queda
+pendiente de nadie.
 **Para:** Mateo Escobar
 **De:** Juan José
 
@@ -24,7 +28,7 @@ pantalla y publicar.
 | Llamadas a la API de nuestra categoría | ✅ Cumple; se añadió el filtro que faltaba | Hecho |
 | **Artículo de soporte** | ✅ **Escrito** — falta publicarlo y 6 capturas | Tú |
 | **Material de marketing (Google Form)** | ✅ **Copy y landing escritos** — falta publicar, capturas y video | Tú |
-| Ajuste de permisos: 32 registrados → 22 usados | ⚠️ Pendiente, 10 minutos | Tú |
+| Ajuste de permisos: 32 registrados → 24 usados | ✅ **Hecho y verificado** (05-08) | Hecho |
 | Segunda cuenta de prueba (Island 2) | ⚠️ Hay que pedirla | Cloudbeds |
 | 5 propiedades para el Limited Release | ⚠️ Pendiente | Tú |
 
@@ -81,8 +85,27 @@ Nuestra categoría exige demostrar la lectura de reservas en al menos uno de los
 estadía. Teníamos dos —los que llegan y los que están en casa— y no el tercero, los que ya salieron.
 Se añadió el filtro; ahora podemos enseñar los tres en la llamada.
 
-**Todo lo anterior está probado:** 2.927 pruebas automáticas en el backend y 157 en el servidor de
+**Todo lo anterior está probado:** 2.927 pruebas automáticas en el backend y 171 en el servidor de
 integraciones, todas en verde.
+
+### 3.4. Y lo probamos de verdad, contra la propiedad real
+
+Las pruebas automáticas no bastaban para el punto que Cloudbeds verifica en vivo, así que el 5 de
+agosto **deshabilitamos la app desde la propia página de Cloudbeds** de la propiedad de prueba y
+miramos qué pasaba. Valió la pena: **encontró dos fallos que ninguna prueba automática podía ver.**
+
+1. **Ninguna de las herramientas nuevas se podía invocar.** Al ocultarlas del catálogo del agente —una
+   decisión de seguridad correcta— quedaron ocultas también para el enrutador interno. Es lo que hizo
+   fallar las suscripciones en la reconexión: no fue Cloudbeds, éramos nosotros.
+2. **Una app revocada no se leía como revocada.** Cloudbeds responde con un mensaje que no menciona
+   permisos ni credenciales, así que nuestro sistema lo tomaba como un error genérico y no cortaba
+   nada. **Eso es exactamente el tercer punto de la certificación fallando en la práctica**: el
+   revisor desconecta la app y nosotros seguiríamos como si nada.
+
+Los dos quedaron arreglados y re-verificados con la misma entrega y el mismo token ya revocado: la
+conexión pasó a "revocada" con el motivo correcto. También quedó confirmado que el aviso que Cloudbeds
+manda al desconectar **existe y llega** — hasta ese día era lo único del diseño que descansaba en su
+documentación y no en evidencia.
 
 ---
 
@@ -139,8 +162,8 @@ Falta lo que no se puede producir desde un teclado:
 ## 5. Lo que queda pendiente y es tuyo o de Cloudbeds
 
 1. **El Connectivity Agreement.** Bloquea todo lo demás. (Cloudbeds / tú)
-2. **Ajustar los permisos en App Details.** Cambió respecto a la versión anterior de este informe:
-   ya no es "bajar de 32 a 22". Ver §5-bis. (Tú, con la lista ya resuelta)
+2. ~~**Ajustar los permisos en App Details.**~~ ✅ **Hecho el 2026-08-05** — el registro quedó en 24 y
+   está verificado. Ver §5-bis. (Ya no requiere nada de tu parte)
 3. **Publicar el artículo de soporte y la landing**, con sus capturas. (Tú)
 4. **Grabar el video** y enviar el formulario de marketing. (Tú)
 5. **Pedir la segunda cuenta de prueba (Island 2)** y confirmar si responde en el mismo servidor que
@@ -192,10 +215,21 @@ a ciegas**: `read:adjustment` no tiene endpoint —lo probamos— así que no po
 escribimos, y tampoco hay borrado. Un ajuste mal puesto no se ve y no se deshace. Escribir sin
 deshacer ya es delicado; escribir sin poder mirar es otra cosa.
 
-### Cómo queda el registro
+### Cómo quedó el registro — ✅ HECHO el 2026-08-05, no hace falta que lo toques
 
-**24 marcados** = los 22 que ya usábamos + `read:addon` + `write:communication`. **Desmarcar 8**: los
-3 sin endpoint, los 4 de Data Insights y `write:adjustment`.
+Quedó en **24 permisos** = los 22 que ya usábamos + `read:addon` + `write:communication`. Se
+desmarcaron 8: los 3 que no tienen endpoint, los 4 de Data Insights y `write:adjustment`.
+
+Verificado después de guardar: los checkboxes de App Details y la URL de autorización que Cloudbeds
+genera llevan exactamente esos 24, sin sobrantes ni faltantes. El espejo en código quedó actualizado y
+hay un test que falla si el registro vuelve a cargar un permiso que ninguna herramienta usa.
+
+**Y esto resultó importar más de lo que yo creía.** Al mirarlo en vivo descubrimos que la página que
+el hotel lee —*Manage Apps*, en su propia cuenta— muestra **los permisos del registro**, no la lista
+más corta que nuestra integración pide. Mientras el registro tuvo 32, a cada hotel se le estaba
+pidiendo permiso para ajustes financieros y Data Insights que nunca hemos usado. Eso ya no pasa. Es
+también la razón por la que Cloudbeds lo verifica justo ahí en la certificación: es donde el cliente
+lo lee.
 
 **Un detalle que importa para la agenda:** pedir `read:addon` y `write:communication` cambia la
 pantalla de consentimiento, así que las propiedades ya conectadas necesitan **reconectar** para que

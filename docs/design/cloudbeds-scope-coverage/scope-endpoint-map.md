@@ -26,6 +26,27 @@ El índice para agentes está en `developers.cloudbeds.com/llms.txt` — es la v
 **Consecuencia de diseño:** la composición por cliente vive en la capa 2 y siempre fue nuestra. Diseñar
 contra la capa 2 nos hace inmunes a la incógnita de si un cliente ve o no la página de App Details.
 
+### 2-bis. CORRECCIÓN 2026-08-05 — la capa que el hotel lee es la 1, no la 2
+
+Lo anterior es cierto sobre lo que se **pide**, y llevó a una conclusión equivocada sobre lo que el
+hotel **ve**. Observado en la propiedad 320754, en *Manage Apps* → la tarjeta de la app conectada:
+Cloudbeds lista ahí **los 32 scopes del registro**, incluidos los siete que nuestra URL de authorize
+nunca pidió (`read:adjustment`, `write:adjustment`, los cuatro `read:dataInsights*`,
+`read:resourceReservations`, `read:resourceTypes`).
+
+O sea: **el hotel lee y aprueba la capa 1 (App Details), no la 2.** Mientras el registro tuvo 32, a
+cada hotel se le pidió permiso para ajustes financieros y Data Insights que ninguna tool ha llamado
+jamás. Diseñar solo contra la capa 2 nos dejó ciegos a eso.
+
+**Corregido el mismo día:** el registro quedó en **24** — exactamente la unión que derivan las tools.
+Verificado tras guardar: los checkboxes de App Details y la URL de authorize que Cloudbeds genera
+llevan los mismos 24, sin sobrantes ni faltantes. El espejo en `providers/cloudbeds/auth.ts` se
+actualizó, y un test nuevo (`THE OTHER HALF`) falla si el registro vuelve a cargar un scope que
+ninguna tool usa.
+
+Es también, por fin, la razón concreta por la que Cloudbeds verifica *"only required permission scopes
+are selected"* en la certificación: lo mira ahí porque ahí es donde el hotel lo lee.
+
 ## 3. Los 32 autorizados, repartidos entre APIs distintas
 
 | Grupo | Nº scopes | Dónde vive | Consecuencia |
