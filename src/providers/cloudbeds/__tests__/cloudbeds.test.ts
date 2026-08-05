@@ -202,6 +202,26 @@ describe('cloudbeds provider', () => {
     });
   });
 
+  it('maps the REVOKED-APP message to AUTH_EXPIRED — it names neither scope nor token', async () => {
+    // OBSERVED 2026-08-05 against property 320754, minutes after disconnecting the app from its
+    // Manage Apps page: every call answered `success:false` with this exact sentence. It matched none
+    // of the patterns — no 401, no "scope", no "token" — so a revoked app produced an opaque
+    // PROVIDER_ERROR on every tool, and the app-state handler could not tell a disconnection from a
+    // provider hiccup. This is the string that broke the certification's third point in practice.
+    const provider = createCloudbedsProvider({
+      fetchImpl: fakeFetch({
+        getAppState: {
+          status: 200,
+          body: { success: false, message: "You don't have access to property ID" },
+        },
+      }),
+    });
+
+    const r = await provider.callTool('mcp_cloudbeds_get_app_state', {}, ctx({ propertyID: 'PROP1' }));
+
+    expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.AUTH_EXPIRED });
+  });
+
   // A caller-fixable envelope failure (missing/invalid param) must classify as INVALID_INPUT so the
   // agent can correct and retry — distinct from the reconnect path above.
   it('maps a 200 + success:false required-param failure to INVALID_INPUT', async () => {

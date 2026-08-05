@@ -26,7 +26,19 @@ type Unwrapped =
 function classifyEnvelopeFailure(message: string | undefined): ProviderErrorCode {
   const m = (message ?? '').toLowerCase();
   // Scope/permission/token → the connection must be re-authorized. This is the reconnect path.
-  if (/\bscope\b|permission|not granted|unauthor|forbidden|\btoken\b/.test(m)) {
+  //
+  // `access to property` is the REVOKED-APP case, and it earns its own mention because it looks like
+  // none of the others. OBSERVED 2026-08-05: the property disconnected the app from its Manage Apps
+  // page, and every call then answered `success:false` with **"You don't have access to property ID"**
+  // — no 401, no "scope", no "token". It fell through to PROVIDER_ERROR, so a revoked app produced an
+  // opaque failure on every tool instead of "reconnect required", and the app-state handler could not
+  // tell a disconnection from a provider hiccup (it read `unknown` and correctly did nothing).
+  //
+  // The known ambiguity, stated rather than hidden: a token whose metadata carries the WRONG
+  // propertyID answers the same way, and that is a consumer bug, not a revocation. AUTH_EXPIRED is
+  // still the better of the two — it surfaces as an actionable reconnect instead of an opaque error,
+  // and a wrong propertyID fails at connect time, not mid-life.
+  if (/\bscope\b|permission|not granted|unauthor|forbidden|\btoken\b|access to property/.test(m)) {
     return ProviderErrorCode.AUTH_EXPIRED;
   }
   // Caller-fixable input problems → the agent can correct and retry.
