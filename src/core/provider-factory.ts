@@ -51,6 +51,9 @@ export function createProvider<M = unknown>(spec: ProviderSpec<M>): IProvider {
     auth: spec.auth,
     ...(contextSchema ? { contextSchema } : {}),
     listTools: () => toolDefs,
+    // Every tool, including the control-plane ones `toolDefs` filters out — this is what the registry
+    // routes on. `byName` is the same set, and it is the one that decides what `callTool` can run.
+    routableToolNames: () => [...byName.keys()],
     callTool: async (toolName, args, ctx): Promise<ToolResult> => {
       const tool = byName.get(toolName);
       if (!tool) {
