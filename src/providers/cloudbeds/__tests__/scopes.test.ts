@@ -19,6 +19,23 @@ describe('cloudbeds scopes — derived from tools, bounded by the app registrati
     ).toEqual([]);
   });
 
+  it('THE OTHER HALF: the registration carries no scope no tool uses', () => {
+    // The guard above stops us REQUESTING more than we registered. This stops the opposite drift, and
+    // it took a live look to notice: the property's *Manage Apps* page lists the app's REGISTERED
+    // scopes, so a hotel reads and approves this list — not the shorter one we put in the authorize
+    // URL. While the registration held 32, every hotel was shown a request for financial adjustments
+    // and Data Insights that no tool has ever called. Narrowed to 24 in Cloudbeds on 2026-08-05.
+    //
+    // If you are registering a scope AHEAD of building its tool, this test is the pushback: build the
+    // tool first. Not building it is what keeps the scope off every hotel's consent screen.
+    const used = new Set(unionToolScopes(tools));
+    const dead = REGISTERED_SCOPES.filter((s) => !used.has(s));
+    expect(
+      dead,
+      `registered but unused — a hotel is asked for these for nothing: ${dead.join(', ')}`,
+    ).toEqual([]);
+  });
+
   it('every tool declares requiredScopes — silence must not read as "needs nothing"', () => {
     // `[]` is a real answer (authenticates, needs no scope). Omitting the field is not: it would
     // silently drop that tool's scope from the derived union and the call would 403 in prod.
