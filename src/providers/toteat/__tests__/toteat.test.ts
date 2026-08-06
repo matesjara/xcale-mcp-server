@@ -9,7 +9,10 @@ import getMenu from '../__fixtures__/getMenu.json';
 import getShiftStatus from '../__fixtures__/getShiftStatus.json';
 import getTables from '../__fixtures__/getTables.json';
 import listOpenOrders from '../__fixtures__/listOpenOrders.json';
+import invalidDateFormat from '../__fixtures__/errors/invalidDateFormat.json';
+import invalidOrderNumber from '../__fixtures__/errors/invalidOrderNumber.json';
 import notAuthorized from '../__fixtures__/errors/notAuthorized.json';
+import rateLimited from '../__fixtures__/errors/rateLimited.json';
 
 const TOKEN = 'super-secret-api-token';
 
@@ -332,6 +335,190 @@ describe('toteat provider — order creation', () => {
     );
 
     expect(result.kind).toBe('error');
+    expect(errorCode(result)).toBe(ProviderErrorCode.INVALID_INPUT);
+  });
+});
+
+describe('toteat provider — order tracking', () => {
+  it('asks orderstatus for ONE order by `ic`, defaulting the detail level, never the listing', async () => {
+    const { provider: p, calls } = provider({ ok: true, data: [] });
+
+    await p.callTool('mcp_toteat_get_order_status', { orderId: '1785875733117687' }, CTX);
+
+    const url = new URL(calls[0]!);
+    expect(url.pathname).toBe('/mw/or/1.0/orderstatus');
+    expect(url.searchParams.get('ic')).toBe('1785875733117687');
+    expect(url.searchParams.get('body_detail_type')).toBe('ONLY_STATUS');
+    // `listing` is what turns this endpoint into the venue-wide read — it must never appear here.
+    expect(url.searchParams.get('listing')).toBeNull();
+  });
+
+  it('maps an INVALID ORDER NUMBER envelope to INVALID_INPUT', async () => {
+    const { provider: p } = provider(invalidOrderNumber);
+
+    const result = await p.callTool('mcp_toteat_get_order_status', { orderId: 'no-such' }, CTX);
+
+    expect(errorCode(result)).toBe(ProviderErrorCode.INVALID_INPUT);
+  });
+});
+
+describe('toteat provider — dispatch', () => {
+  it('POSTs the courier to orders/dispatch exactly as declared', async () => {
+    const { impl } = fakeFetch({ ok: true, msg: { texto: 'OK' } });
+    const p = createToteatProvider({ fetchImpl: impl });
+    const mock = impl as unknown as { mock: { calls: [string, RequestInit][] } };
+
+    await p.callTool(
+      'mcp_toteat_dispatch_order',
+      {
+        orderId: '1785875733117687',
+        dispatcher: {
+          name: 'Ana Rider',
+          phoneNumber: '+56911112222',
+          vehicle: { type: 'motorbike', licensePlate: 'AB1234' },
+        },
+      },
+      CTX,
+    );
+
+    const [url, init] = mock.mock.calls[0]!;
+    expect(new URL(url).pathname).toBe('/mw/or/1.0/orders/dispatch');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({
+      orderId: '1785875733117687',
+      dispatcher: {
+        name: 'Ana Rider',
+        phoneNumber: '+56911112222',
+        vehicle: { type: 'motorbike', licensePlate: 'AB1234' },
+      },
+    });
+  });
+
+  it("surfaces a migrated venue's refusal as PROVIDER_ERROR", async () => {
+    // Legacy-only endpoint: a migrated environment answers with a provider error, not a success.
+    const { provider: p } = provider(notAuthorized);
+
+    const result = await p.callTool(
+      'mcp_toteat_dispatch_order',
+      { orderId: '1', dispatcher: { name: 'Ana Rider' } },
+      CTX,
+    );
+
+    expect(errorCode(result)).toBe(ProviderErrorCode.PROVIDER_ERROR);
+  });
+});
+
+describe('toteat provider — owner reporting', () => {
+  it("asks collection for one day's takings in the compact wire format", async () => {
+    const { provider: p, calls } = provider({ ok: true, data: [] });
+
+    await p.callTool('mcp_toteat_get_collection', { date: '2026-08-05' }, CTX);
+
+    const url = new URL(calls[0]!);
+    expect(url.pathname).toBe('/mw/or/1.0/collection');
+    expect(url.searchParams.get('date')).toBe('20260805');
+  });
+
+  it('surfaces a rate-limit envelope on collection as RATE_LIMITED', async () => {
+    const { provider: p } = provider(rateLimited);
+
+    const result = await p.callTool('mcp_toteat_get_collection', { date: '2026-08-05' }, CTX);
+
+    expect(errorCode(result)).toBe(ProviderErrorCode.RATE_LIMITED);
+  });
+
+  it('threads doc_type through fiscaldocuments along with the compact window', async () => {
+    const { provider: p, calls } = provider({ ok: true, data: [] });
+
+    await p.callTool(
+      'mcp_toteat_get_fiscal_documents',
+      { startDate: '2026-08-01', endDate: '2026-08-05', docType: 'BOLETA' },
+      CTX,
+    );
+
+    const url = new URL(calls[0]!);
+    expect(url.pathname).toBe('/mw/or/1.0/fiscaldocuments');
+    expect(url.searchParams.get('ini')).toBe('20260801');
+    expect(url.searchParams.get('end')).toBe('20260805');
+    expect(url.searchParams.get('doc_type')).toBe('BOLETA');
+  });
+
+  it('keeps the disabled-route refusal on fiscaldocuments away from AUTH_EXPIRED', async () => {
+    // The live case behind the whole "Not Authorized" policy: this exact route refused with a
+    // VALID token because the venue's POS security tab has not enabled it.
+    const { provider: p } = provider(notAuthorized);
+
+    const result = await p.callTool(
+      'mcp_toteat_get_fiscal_documents',
+      { startDate: '2026-08-01', endDate: '2026-08-05' },
+      CTX,
+    );
+
+    expect(errorCode(result)).toBe(ProviderErrorCode.PROVIDER_ERROR);
+    expect(errorCode(result)).not.toBe(ProviderErrorCode.AUTH_EXPIRED);
+  });
+
+  it('reads inventorystate with its own parameter names and the compact format', async () => {
+    const { provider: p, calls } = provider({ ok: true, data: [] });
+
+    await p.callTool(
+      'mcp_toteat_get_inventory_state',
+      { startDate: '2026-08-01', endDate: '2026-08-05' },
+      CTX,
+    );
+
+    const url = new URL(calls[0]!);
+    expect(url.pathname).toBe('/mw/or/1.0/inventorystate');
+    expect(url.searchParams.get('initial_date')).toBe('20260801');
+    expect(url.searchParams.get('final_date')).toBe('20260805');
+  });
+});
+
+describe('toteat provider — purchase movements', () => {
+  it('POSTs the invoice with the venue identity and the compact date', async () => {
+    const { impl } = fakeFetch({ ok: true, msg: { texto: 'OK' } });
+    const p = createToteatProvider({ fetchImpl: impl });
+    const mock = impl as unknown as { mock: { calls: [string, RequestInit][] } };
+
+    await p.callTool(
+      'mcp_toteat_create_purchase_movement',
+      {
+        documentNumber: 'F-000123',
+        date: '2026-08-05',
+        supplier: { name: 'Proveedor Sur', fiscalId: '76123456-7' },
+        lines: [{ productCode: 'ING001', quantity: 12.5, unitCost: 990 }],
+      },
+      CTX,
+    );
+
+    const [url, init] = mock.mock.calls[0]!;
+    expect(new URL(url).pathname).toBe('/mw/or/1.0/purchasemovements');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({
+      // The venue identity travels in the body too — numeric, straight from the call context.
+      restaurantId: 1234567890123456,
+      localNumber: 1,
+      documentNumber: 'F-000123',
+      date: '20260805',
+      supplier: { name: 'Proveedor Sur', fiscalId: '76123456-7' },
+      lines: [{ productCode: 'ING001', quantity: 12.5, unitCost: 990 }],
+    });
+  });
+
+  it('maps a date rejection on purchasemovements to INVALID_INPUT', async () => {
+    const { provider: p } = provider(invalidDateFormat);
+
+    const result = await p.callTool(
+      'mcp_toteat_create_purchase_movement',
+      {
+        documentNumber: 'F-000124',
+        date: '2026-08-05',
+        supplier: { name: 'Proveedor Sur' },
+        lines: [{ productCode: 'ING001', quantity: 1, unitCost: 500 }],
+      },
+      CTX,
+    );
+
     expect(errorCode(result)).toBe(ProviderErrorCode.INVALID_INPUT);
   });
 });

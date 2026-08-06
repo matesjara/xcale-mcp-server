@@ -3,7 +3,7 @@
 > **Feature design**: [`feature-design.md`](./feature-design.md)
 > **Pinned vendor spec**: `xcale-backend/docs/vendors/toteat/spec/`
 > **Consumer notes**: `xcale-backend/docs/design/toteat-integration/api-contract.md`
-> **Last updated**: 2026-08-01
+> **Last updated**: 2026-08-05
 >
 > Every input schema below is the **zod source of truth**; the JSON Schema published on `tools/list`
 > is generated from it and is never hand-written. All schemas are `.strict()` — an undeclared key

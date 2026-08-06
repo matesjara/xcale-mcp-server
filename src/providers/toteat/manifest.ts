@@ -23,6 +23,8 @@ export const toteatManifest: ProviderManifest = {
   providerVersion: '0.1.0',
   logoUrl: '/assets/toteat.svg',
   capabilities: { webhooks: true },
+  // The probe's endpoint sits in a different rate bucket than /products, so probe retries never
+  // compete with catalog reads.
   connectionProbe: { tool: `mcp_${SLUG}_get_shift_status` },
   // The account is the VENUE, not the API entry. `xiu` is required on every call but names the
   // integration user; folding it into the identity would make rotating the API entry look like a

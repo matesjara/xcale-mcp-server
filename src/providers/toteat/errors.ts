@@ -103,9 +103,13 @@ export function classifyToteatFailure(body: unknown): ProviderErrorCode {
  */
 export function unwrapToteat(res: RequestResult, operation: string): Unwrapped {
   if (!res.ok) {
-    // 429 arrives here as a real status; everything else that lands here is transport or 5xx.
-    const code = res.status === 429 ? ProviderErrorCode.RATE_LIMITED : res.errorCode;
-    return { ok: false, code, message: `Toteat ${operation} failed (HTTP ${res.status})` };
+    // The core status map has already classified this (429 → RATE_LIMITED, 5xx/transport →
+    // PROVIDER_UNAVAILABLE); nothing Toteat-specific to re-derive here.
+    return {
+      ok: false,
+      code: res.errorCode,
+      message: `Toteat ${operation} failed (HTTP ${res.status})`,
+    };
   }
 
   const body = res.data as ToteatEnvelope | null;
