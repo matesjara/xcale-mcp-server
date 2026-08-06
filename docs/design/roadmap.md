@@ -91,3 +91,30 @@ accepted no-discovery trade-off). These Minors were **accepted and parked**:
   an actionable reconnect instead of an opaque error, and a wrong `propertyID` fails at connect
   time, not mid-life. Recorded for visibility. *Trigger:* a reconnect loop observed on a
   connection whose token is actually live.
+
+---
+
+## Cloudbeds — deferred from the scope-coverage review (PR #20, 2026-08-06)
+
+The read:addon + write:communication PR merged with its one Blocker fixed (schemaVersion/
+providerVersion bump for `list_addons`). These Minors were **accepted and parked**:
+
+### Minors
+
+- **`paymentsPath()` name is now misleading.** `client.getV2` reuses the payments-specific
+  percent-encoder for the unrelated PMS v2.0 addons surface. Works correctly; the name lies.
+  *Fix:* rename to a surface-neutral `v2Path`. *Trigger:* next Cloudbeds client touch.
+- **`create_email_template` `cc`/`bcc` are single `z.string().email()`, not arrays.** If the
+  Cloudbeds spec allows multiple recipients, the schema under-serves it (additive widening later
+  is contract-safe, but certification reviewers may notice). *Fix:* confirm against the Cloudbeds
+  communication spec; widen to arrays if supported. *Trigger:* before submitting the
+  certification bundle to Cloudbeds.
+
+---
+
+## Cloudbeds certification bundle — accepted as-is (PR #18, 2026-08-06)
+
+- The certification report (`2026-08-02-informe-certificacion.md`) carries an unrelated
+  ePayco/card-payment status annex. Accepted rather than split during the merge push; move it to
+  its own note if the report is ever exported outside the repo. *Trigger:* preparing the report
+  for external submission.
