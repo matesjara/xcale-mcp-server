@@ -202,6 +202,30 @@ describe('cloudbeds provider', () => {
     });
   });
 
+  it('maps the REVOKED-APP message to AUTH_EXPIRED — it names neither scope nor token', async () => {
+    // OBSERVED 2026-08-05 against property 320754, minutes after disconnecting the app from its
+    // Manage Apps page: every call answered `success:false` with this exact sentence. It matched none
+    // of the patterns — no 401, no "scope", no "token" — so a revoked app produced an opaque
+    // PROVIDER_ERROR on every tool, and the app-state handler could not tell a disconnection from a
+    // provider hiccup. This is the string that broke the certification's third point in practice.
+    const provider = createCloudbedsProvider({
+      fetchImpl: fakeFetch({
+        getAppState: {
+          status: 200,
+          body: { success: false, message: "You don't have access to property ID" },
+        },
+      }),
+    });
+
+    const r = await provider.callTool(
+      'mcp_cloudbeds_get_app_state',
+      {},
+      ctx({ propertyID: 'PROP1' }),
+    );
+
+    expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.AUTH_EXPIRED });
+  });
+
   // A caller-fixable envelope failure (missing/invalid param) must classify as INVALID_INPUT so the
   // agent can correct and retry — distinct from the reconnect path above.
   it('maps a 200 + success:false required-param failure to INVALID_INPUT', async () => {
@@ -349,6 +373,34 @@ describe('cloudbeds provider', () => {
     expect(new URL(calledUrl).searchParams.get('sourceReservationId')).toBe('xtest-abc');
   });
 
+  it('list_reservations can ask for the three moments of a stay — arriving, in-house, departed', async () => {
+    // Cloudbeds' guest-communication blueprint names exactly these filters, and certification asks
+    // for at least one of the three. `status=checked_out` alone is not the departed window: it
+    // returns every guest who ever left, so without the checkedOut pair the post-stay moment is
+    // reachable only by paging the property's whole history.
+    let calledUrl = '';
+    const capturingFetch = (async (url: string | URL) => {
+      calledUrl = url.toString();
+      return new Response(JSON.stringify({ success: true, data: [], total: 0 }), { status: 200 });
+    }) as FetchLike;
+    const provider = createCloudbedsProvider({ fetchImpl: capturingFetch });
+    await provider.callTool(
+      'mcp_cloudbeds_list_reservations',
+      {
+        page: 1,
+        pageSize: 10,
+        status: 'checked_out',
+        checkedOutFrom: '2026-08-01',
+        checkedOutTo: '2026-08-02',
+      },
+      ctx({ propertyID: 'PROP1' }),
+    );
+    const qs = new URL(calledUrl).searchParams;
+    expect(qs.get('status')).toBe('checked_out');
+    expect(qs.get('checkedOutFrom')).toBe('2026-08-01');
+    expect(qs.get('checkedOutTo')).toBe('2026-08-02');
+  });
+
   // --- modify_reservation (W3) -----------------------------------------------------------------
 
   // Observed: Cloudbeds maps the method-name prefix to the HTTP verb. `putReservation` sent as POST is
@@ -430,3 +482,51 @@ describe('cloudbeds provider', () => {
 // unhook the consumer's own receiver — all unsafe as agent surface. Their wire-shaping tests went
 // with them. Webhook wiring is the consumer's control-plane concern; re-exposure is tracked in
 // docs/design/roadmap.md behind an https-allowlist + secret redaction + a consent gate.
+
+describe('list_addons — the one v2.0 surface (PMS v2 is not v1.3)', () => {
+  it('GETs the v2 addons service with X-Property-Id as a HEADER, not a param', async () => {
+    let calledUrl = '';
+    let headers: Record<string, string> = {};
+    const capturingFetch = (async (url: string | URL, init?: RequestInit) => {
+      calledUrl = url.toString();
+      headers = (init?.headers ?? {}) as Record<string, string>;
+      return new Response(JSON.stringify([{ id: 'addon-1', name: 'Breakfast' }]), { status: 200 });
+    }) as FetchLike;
+
+    const r = await createCloudbedsProvider({ fetchImpl: capturingFetch }).callTool(
+      'mcp_cloudbeds_list_addons',
+      {},
+      ctx({ propertyID: 'PROP1' }),
+    );
+
+    expect(r.kind).toBe('success');
+    // A different host AND a different shape: no /api/v1.3 prefix, and the property rides in a header.
+    // Sending it as a `propertyID` query param — the v1.3 habit — returns another property's addons or
+    // none, with a perfectly healthy 200.
+    expect(calledUrl).toBe('https://api.cloudbeds.com/addons/v1/addons');
+    expect(headers['X-Property-Id']).toBe('PROP1');
+  });
+
+  it('surfaces a scope refusal as AUTH_EXPIRED — "reconnect", not "no addons"', async () => {
+    // OBSERVED against the live sandbox (2026-08-02), and the reason this tool can exist at all: the
+    // endpoint answered `403 {"message":"You do not have correct scope to perform this action"}`
+    // rather than a 404, which is what proved `read:addon` has an endpoint behind it. Every property
+    // connected before this tool shipped holds a token without the scope, so this IS their path — and
+    // it has to read as "re-consent", never as an empty catalogue.
+    const denying = (async () =>
+      new Response(
+        JSON.stringify({ message: 'You do not have correct scope to perform this action' }),
+        {
+          status: 403,
+        },
+      )) as FetchLike;
+
+    const r = await createCloudbedsProvider({ fetchImpl: denying }).callTool(
+      'mcp_cloudbeds_list_addons',
+      {},
+      ctx({ propertyID: 'PROP1' }),
+    );
+
+    expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.AUTH_EXPIRED });
+  });
+});

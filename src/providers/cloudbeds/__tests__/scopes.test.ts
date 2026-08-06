@@ -19,6 +19,23 @@ describe('cloudbeds scopes — derived from tools, bounded by the app registrati
     ).toEqual([]);
   });
 
+  it('THE OTHER HALF: the registration carries no scope no tool uses', () => {
+    // The guard above stops us REQUESTING more than we registered. This stops the opposite drift, and
+    // it took a live look to notice: the property's *Manage Apps* page lists the app's REGISTERED
+    // scopes, so a hotel reads and approves this list — not the shorter one we put in the authorize
+    // URL. While the registration held 32, every hotel was shown a request for financial adjustments
+    // and Data Insights that no tool has ever called. Narrowed to 24 in Cloudbeds on 2026-08-05.
+    //
+    // If you are registering a scope AHEAD of building its tool, this test is the pushback: build the
+    // tool first. Not building it is what keeps the scope off every hotel's consent screen.
+    const used = new Set(unionToolScopes(tools));
+    const dead = REGISTERED_SCOPES.filter((s) => !used.has(s));
+    expect(
+      dead,
+      `registered but unused — a hotel is asked for these for nothing: ${dead.join(', ')}`,
+    ).toEqual([]);
+  });
+
   it('every tool declares requiredScopes — silence must not read as "needs nothing"', () => {
     // `[]` is a real answer (authenticates, needs no scope). Omitting the field is not: it would
     // silently drop that tool's scope from the derived union and the call would 403 in prod.
@@ -33,7 +50,19 @@ describe('cloudbeds scopes — derived from tools, bounded by the app registrati
     // Pinned deliberately. This list is what every hotel is asked to consent to, so it must never move
     // by accident — a diff here means the consent screen changed for real users. Updating it is a
     // decision, not a chore: consent is binary, so a hotel cannot decline one line of it.
+    //
+    // 2026-08-02 — `read:addon` added with the `list_addons` tool, and it is the kind of decision this
+    // pin exists to force: the app registration already authorized the scope, but until a tool needed
+    // it we did not ask for it. Asking has a price — every property connected before this ships holds
+    // a token without it, so `list_addons` answers "reconnect required" for them until they re-consent.
+    //
+    // 2026-08-02 — `write:communication` added with `create_email_template` + `schedule_email`. This
+    // one is a WRITE scope, so it is also the line that decides whether Cloudbeds asks for a
+    // re-certification later: adding it after the certification call would cost one, adding it now
+    // costs nothing beyond demonstrating it. Both tools are control-plane — a property configures its
+    // own automatic email, no agent ever chooses to.
     expect(auth.scopes).toEqual([
+      'read:addon',
       'read:allotmentBlock',
       'read:appPropertySettings',
       'read:communication',
@@ -52,6 +81,7 @@ describe('cloudbeds scopes — derived from tools, bounded by the app registrati
       'read:taxesAndFees',
       'read:user',
       'write:allotmentBlock',
+      'write:communication',
       'write:group',
       'write:guest',
       'write:reservation',

@@ -119,7 +119,20 @@ export interface IProvider {
    * Absent when the provider needs no context (Explicit Context principle).
    */
   readonly contextSchema?: JsonSchema;
+  /**
+   * The tools this provider PUBLISHES — the agent's menu, served verbatim by `tools/list`.
+   * Control-plane tools are absent here on purpose (see `ToolDefinition.controlPlane`).
+   */
   listTools(): readonly McpToolDefinition[];
+  /**
+   * Every tool name this provider can EXECUTE, published or not.
+   *
+   * Separate from `listTools()` because the router and the menu are different questions, and
+   * answering both from one list is how a control-plane tool became unreachable: the registry indexed
+   * `listTools()`, so a tool withdrawn from the menu was withdrawn from dispatch too and every call
+   * came back `UNKNOWN_TOOL`. Routing asks "can you run this?"; the menu asks "what may be chosen?".
+   */
+  routableToolNames(): readonly string[];
   callTool(
     toolName: string,
     args: Record<string, unknown>,

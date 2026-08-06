@@ -26,7 +26,19 @@ type Unwrapped =
 function classifyEnvelopeFailure(message: string | undefined): ProviderErrorCode {
   const m = (message ?? '').toLowerCase();
   // Scope/permission/token → the connection must be re-authorized. This is the reconnect path.
-  if (/\bscope\b|permission|not granted|unauthor|forbidden|\btoken\b/.test(m)) {
+  //
+  // `access to property` is the REVOKED-APP case, and it earns its own mention because it looks like
+  // none of the others. OBSERVED 2026-08-05: the property disconnected the app from its Manage Apps
+  // page, and every call then answered `success:false` with **"You don't have access to property ID"**
+  // — no 401, no "scope", no "token". It fell through to PROVIDER_ERROR, so a revoked app produced an
+  // opaque failure on every tool instead of "reconnect required", and the app-state handler could not
+  // tell a disconnection from a provider hiccup (it read `unknown` and correctly did nothing).
+  //
+  // The known ambiguity, stated rather than hidden: a token whose metadata carries the WRONG
+  // propertyID answers the same way, and that is a consumer bug, not a revocation. AUTH_EXPIRED is
+  // still the better of the two — it surfaces as an actionable reconnect instead of an opaque error,
+  // and a wrong propertyID fails at connect time, not mid-life.
+  if (/\bscope\b|permission|not granted|unauthor|forbidden|\btoken\b|access to property/.test(m)) {
     return ProviderErrorCode.AUTH_EXPIRED;
   }
   // Caller-fixable input problems → the agent can correct and retry.
@@ -112,6 +124,35 @@ function unwrapPayments(
 }
 
 /**
+ * An https URL, enforced by the schema rather than by a handler.
+ *
+ * A webhook `endpointUrl` is where a property's guest names, emails and stay dates get delivered, and
+ * the per-connection secret rides in its path. `z.string().url()` alone accepts `http://` and
+ * `javascript:` — so the scheme is checked here, at the one place a caller cannot skip.
+ */
+const httpsUrl = z
+  .string()
+  .url()
+  .refine((value) => value.startsWith('https://'), {
+    message: 'must be an https URL — a webhook endpoint carries guest data and a path secret',
+  });
+
+/**
+ * Text per language code, as Cloudbeds models an email's subject and body (`{"en": "…", "es": "…"}`,
+ * on the wire as `subject[en]=…`).
+ *
+ * The keys are NOT enumerated against a list of our own: Cloudbeds documents `en`, `es`, `ru`,
+ * `pt-br` and others, and a hardcoded set here would refuse a language they support tomorrow. The
+ * shape is checked instead — a BCP-47-ish tag — and an empty map is rejected, because a template with
+ * no text in any language is a template that sends an empty email.
+ */
+const languageMap = z
+  .record(z.string().regex(/^[a-z]{2}(-[a-z]{2,4})?$/i), z.string().min(1))
+  .refine((map) => Object.keys(map).length > 0, {
+    message: 'needs text in at least one language',
+  });
+
+/**
  * The curated, read-first toolset. `propertyID` comes from the validated `ctx.metadata`
  * (Explicit Context); the consumer (Rail A) forwards it. The uniform `page`/`pageSize` contract is
  * translated to Cloudbeds' own param names (`pageNumber`/`resultsPerPage`) here — that translation
@@ -127,11 +168,22 @@ export function buildCloudbedsTools(
     definePaginatedList({
       name: `mcp_${SLUG}_list_reservations`,
       requiredScopes: ['read:reservation'], // spec: getReservations
-      description: 'List reservations for the property, filtered by status and/or check-in dates.',
+      description:
+        'List reservations for the property, filtered by status and/or by check-in or check-out ' +
+        'dates. The three date/status combinations cover the three moments of a stay: arriving ' +
+        '(checkInFrom/checkInTo), in-house (status=checked_in), and departed ' +
+        '(checkedOutFrom/checkedOutTo with status=checked_out).',
       input: z.object({
         status: z.string().optional(),
         checkInFrom: z.string().optional(),
         checkInTo: z.string().optional(),
+        // The departed window. Same shape as the check-in pair and it costs two lines, but without
+        // it the post-stay moment is unreachable: filtering `status=checked_out` alone returns every
+        // guest who ever left, and a consumer would have to page the whole history to find
+        // yesterday's departures. Cloudbeds' own guest-communication blueprint names these two as
+        // the post-departure filter.
+        checkedOutFrom: z.string().optional(),
+        checkedOutTo: z.string().optional(),
         // External-reference filters — how a consumer reconciles a booking it created. Each
         // reservation in the response also carries `thirdPartyIdentifier` verbatim, so a consumer can
         // reconcile either server-side (this filter) or client-side over a bounded window.
@@ -154,6 +206,8 @@ export function buildCloudbedsTools(
           status: args.status,
           checkInFrom: args.checkInFrom,
           checkInTo: args.checkInTo,
+          checkedOutFrom: args.checkedOutFrom,
+          checkedOutTo: args.checkedOutTo,
           sourceReservationId: args.sourceReservationId,
           sourceId: args.sourceId,
         });
@@ -850,9 +904,37 @@ export function buildCloudbedsTools(
     }),
 
     tool({
+      name: `mcp_${SLUG}_list_addons`,
+      requiredScopes: ['read:addon'], // spec: GET /addons/v1/addons — PMS **v2.0**, not v1.3
+      description:
+        'List the add-ons the property sells alongside a stay — breakfast, transfers, late checkout ' +
+        'and the like — with their prices. Use it to answer "what else can I add?" and to quote an ' +
+        'extra before it is promised.',
+      input: z.object({}).strict(),
+      handler: async (_args, ctx) => {
+        const { propertyID } = ctx.metadata;
+        const res = await client.getV2(['addons', 'v1', 'addons'], ctx.request, {
+          'X-Property-Id': propertyID,
+        });
+        // v2 answers JSON directly and reports failure as an HTTP status — there is no
+        // `{success:false}` envelope to unwrap. The one failure we HAVE observed is the important
+        // one: `403 {"message":"You do not have correct scope…"}` on a token minted before this tool
+        // existed. The core maps 401/403 to AUTH_EXPIRED, so that surfaces as "reconnect required",
+        // which is exactly right — the property has to re-consent for `read:addon` to be granted.
+        //
+        // The SUCCESS shape has never been seen (the scope was not requested until this tool added
+        // it), so nothing here reads a field: the payload is returned verbatim, as everywhere else.
+        return res.ok
+          ? ok(res.data)
+          : err(res.errorCode, `Cloudbeds addons failed (HTTP ${res.status})`);
+      },
+    }),
+
+    tool({
       name: `mcp_${SLUG}_list_email_templates`,
-      // Read-only on purpose. `write:communication` (creating templates/schedules) is deliberately NOT
-      // built: an agent authoring a hotel's outbound email is real risk with no demonstrated use case.
+      // Read-only, and it is the ONLY way to see what was created: the write half of this scope
+      // (`create_email_template` / `schedule_email`, both control-plane) has no delete and no update
+      // in the API, so reading back is the whole safety net. Call this before creating anything.
       requiredScopes: ['read:communication'], // spec: getEmailTemplates, getEmailSchedule
       description:
         'List this property’s email templates and their send schedule. Read-only: use it to see what ' +
@@ -1292,22 +1374,332 @@ export function buildCloudbedsTools(
     // NOT built: `deleteAllotmentBlock`. Deleting held inventory for a group is not a conversational
     // move — it is an operations decision with real money behind it, and it deserves its own call.
 
-    // NOT published as agent tools: webhook subscription management (getWebhooks / postWebhook /
-    // deleteWebhook). The scope-coverage design classifies these as *infrastructure, not agent
-    // surface* — and until that boundary is actually enforced they are unsafe to expose:
+    // ── Control plane ────────────────────────────────────────────────────────────────────────────
     //
-    //   1. The endpointUrl is a bearer credential. Cloudbeds deliveries carry no signature (see
-    //      cloudbeds-provider/functional-design.md §7), so the per-subscription secret lives in the
-    //      URL. `list_webhook_subscriptions` would return it verbatim into the agent's context and
-    //      the conversation transcript — a credential in the clear.
-    //   2. `ensure_webhook_subscription` accepted `endpointUrl: z.string().url()` (any scheme, any
-    //      host). A guest-authored note surfaced by a read tool could steer the agent into pointing
-    //      the property's event stream — guest names, emails, stay dates — at an attacker's http host.
-    //   3. `delete_webhook_subscription` lets the agent unhook the consumer's own receiver, silently
-    //      killing reconciliation.
+    // Everything below is `controlPlane: true`: callable by the consumer over the same authenticated
+    // transport, WITHDRAWN from tools/list. They are infrastructure the consumer performs on its own
+    // behalf (subscribe my receiver, disable my app), never a move an agent makes for a guest.
     //
-    // Webhook wiring belongs to the consumer's control plane, not to a per-call agent tool. Re-expose
-    // these only behind: an https-allowlist for endpointUrl sourced from deployment config, redaction
-    // of the secret path in list results, and a real consent gate. Tracked in docs/design/roadmap.md.
+    // This is the boundary the earlier withdrawal asked for. Those three webhook tools were published
+    // as agent surface, and the review that pulled them named the reasons: the `endpointUrl` is a
+    // bearer credential (Cloudbeds deliveries carry no signature — cloudbeds-provider/
+    // functional-design.md §7), a `list` tool returned it verbatim into agent context, `endpointUrl`
+    // accepted any scheme or host so guest-authored text could re-point the property's event stream,
+    // and a `delete` tool let the agent unhook the consumer's own receiver. Each of those is a
+    // sentence about the AGENT. Taking the agent out of the reach is a stronger answer than a consent
+    // gate on an agent tool, so:
+    //
+    //   - No `list` tool at all. Nothing returns an `endpointUrl` to any caller; `remove` takes the
+    //     url the consumer already holds and answers with a count.
+    //   - `endpointUrl` must be https (a plaintext event stream carries guest names, emails and stay
+    //     dates), and only the consumer can supply one, because only the consumer can call these.
+    //   - `requiredScopes: []` on the app-state and webhook tools — the spec declares those methods
+    //     `OAuth2: []`, so they change no consent screen. The two email tools below are the
+    //     exception: they need `write:communication`, and that scope IS on the consent screen.
+    //
+    // The two email tools are here for a second reason on top of the first. `postEmailSchedule` makes
+    // Cloudbeds send real mail to real guests on a trigger, and neither it nor `postEmailTemplate` can
+    // be edited or deleted through the API — probed 2026-08-02: `deleteEmailSchedule`,
+    // `putEmailSchedule` and `deleteEmailTemplate` all answer "unknown method". A create with no undo
+    // is not a move a model may make from inside a conversation; it is a property configuring itself,
+    // once, on purpose.
+
+    tool({
+      name: `mcp_${SLUG}_get_app_state`,
+      controlPlane: true,
+      requiredScopes: [], // spec: getAppState
+      description:
+        'CONTROL PLANE — read whether this app is still enabled for the property. An error (or a ' +
+        'token/permission failure) means the property has disconnected the app on Cloudbeds’ side. ' +
+        'This is the poll half of Cloudbeds’ connect/disconnect contract; the push half is the ' +
+        '`appstate_changed` webhook.',
+      input: z.object({}).strict(),
+      handler: async (_args, ctx) => {
+        const res = await client.get('getAppState', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+        });
+        const u = unwrap(res, 'getAppState');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_set_app_state`,
+      controlPlane: true,
+      requiredScopes: [], // spec: postAppState
+      description:
+        'CONTROL PLANE — tell Cloudbeds this app is enabled or disabled for the property. Sending ' +
+        '`disabled` is what a disconnect performed in OUR UI must do: Cloudbeds then removes the app ' +
+        'from the property’s Manage Apps page and terminates every session. ' +
+        'ORDER MATTERS: this call is one-way. Once it returns, no further call on this token ' +
+        'succeeds, so any other teardown (removing webhook subscriptions) must happen BEFORE it.',
+      input: z
+        .object({
+          appState: z
+            .enum(['enabled', 'disabled'])
+            .describe('Cloudbeds spells the wire field `app_state`; this is that value.'),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const res = await client.post('postAppState', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          app_state: args.appState,
+        });
+        const u = unwrap(res, 'postAppState');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_ensure_webhook_subscription`,
+      controlPlane: true,
+      requiredScopes: [], // spec: postWebhook
+      description:
+        'CONTROL PLANE — subscribe the consumer’s own receiver to a property event. Idempotent: ' +
+        'Cloudbeds derives the subscription id from (property, endpointUrl, object, action), so ' +
+        're-running with the same four returns the same subscription rather than adding a duplicate. ' +
+        'IMPORTANT: Cloudbeds does NOT validate `action` — it accepts an unknown one and creates a ' +
+        'subscription that never fires, so a success here does NOT prove the event exists. Only these ' +
+        'have been observed to deliver: reservation/created, reservation/status_changed, ' +
+        'guest/created, guest/assigned. Anything else must be confirmed by observing a real delivery.',
+      input: z
+        .object({
+          endpointUrl: httpsUrl.describe('Public HTTPS URL that will receive deliveries.'),
+          object: z.string().min(1).describe('Event object, e.g. "reservation" or "integration".'),
+          action: z
+            .string()
+            .min(1)
+            .describe('Event action, e.g. "status_changed" or "appstate_changed".'),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const res = await client.post('postWebhook', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          ...args,
+        });
+        const u = unwrap(res, 'postWebhook');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_remove_webhook_subscriptions`,
+      controlPlane: true,
+      requiredScopes: [], // spec: getWebhooks + deleteWebhook
+      description:
+        'CONTROL PLANE — delete every subscription on this property that points at the given ' +
+        'endpoint URL, and answer with how many. Used on disconnect: a subscription left behind ' +
+        'outlives the connection and keeps delivering to a receiver that can no longer authenticate ' +
+        'it. Takes the url rather than an id because the caller knows its own url, and no id can be ' +
+        'learned without listing subscriptions — which would hand the caller everyone else’s.',
+      input: z
+        .object({
+          endpointUrl: httpsUrl.describe('The receiver URL whose subscriptions should be removed.'),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const { propertyID } = ctx.metadata;
+        const listed = unwrap(
+          await client.get('getWebhooks', ctx.request, { propertyID }),
+          'getWebhooks',
+        );
+        if (!listed.ok) return err(listed.code, listed.message);
+
+        const subscriptions = Array.isArray(listed.data)
+          ? (listed.data as ReadonlyArray<Record<string, unknown>>)
+          : [];
+        // **The read shape is not the write shape.** `postWebhook` TAKES `endpointUrl`; `getWebhooks`
+        // RETURNS it nested as `subscriptionData.url` — observed 2026-08-05, and reading only the
+        // written name matched nothing, so a real disconnect removed 0 of 2 subscriptions and
+        // reported success. Same trap as `subscriptionID` vs `id` below, which was already handled.
+        //
+        // Exact match, never a prefix: the secret lives in the path, and a prefix match on
+        // `…/webhooks/cloudbeds/` would delete every OTHER connection's subscription too.
+        const urlOf = (s: Record<string, unknown>): unknown =>
+          s['endpointUrl'] ??
+          (s['subscriptionData'] as Record<string, unknown> | undefined)?.['url'];
+        const mine = subscriptions.filter((s) => urlOf(s) === args.endpointUrl);
+
+        let deleted = 0;
+        const failures: string[] = [];
+        for (const subscription of mine) {
+          const id = subscription['subscriptionID'] ?? subscription['id'];
+          if (typeof id !== 'string' && typeof id !== 'number') {
+            failures.push('a subscription came back with no id');
+            continue;
+          }
+          // DELETE with query-string params — a DELETE body is not parsed (see `client.del`).
+          const removed = unwrap(
+            await client.del('deleteWebhook', ctx.request, {
+              propertyID,
+              subscriptionID: String(id),
+            }),
+            'deleteWebhook',
+          );
+          if (removed.ok) deleted++;
+          else failures.push(removed.message);
+        }
+
+        // A partial delete is a failure, not a smaller success: the caller is tearing down and has to
+        // know something survived. The count still rides along so it can tell partial from none.
+        // Messages never carry the url — it is the delivery credential.
+        return failures.length > 0
+          ? err(
+              ProviderErrorCode.PROVIDER_ERROR,
+              `deleted ${deleted} of ${mine.length} subscriptions; ${failures.length} failed (first: ${failures[0]})`,
+            )
+          : ok({ deleted, matched: mine.length });
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_create_email_template`,
+      controlPlane: true,
+      requiredScopes: ['write:communication'], // spec: postEmailTemplate
+      description:
+        'CONTROL PLANE — create a guest email template on the property (subject and body per ' +
+        'language). Creating a template SENDS NOTHING: it is stored until a schedule points at it. ' +
+        'Returns `emailTemplateID`, which `schedule_email` needs. ' +
+        'ONE WAY: the API has no update and no delete for templates, so a property can only remove ' +
+        'one from inside Cloudbeds. Read `list_email_templates` first and do not create a second copy ' +
+        'of something that is already there.',
+      input: z
+        .object({
+          name: z
+            .string()
+            .min(1)
+            .describe('How the template is listed in Cloudbeds. Include your app name in it.'),
+          from: z.string().email().describe('Sender address the guest sees.'),
+          fromName: z
+            .string()
+            .min(1)
+            .optional()
+            .describe('Sender display name (defaults to `from`).'),
+          subject: languageMap.describe('Subject per language code, e.g. {"en": "…", "es": "…"}.'),
+          body: languageMap.describe('Body per language code. Same keys as `subject`.'),
+          replyTo: z.string().email().optional().describe('Defaults to `from`.'),
+          replyToName: z.string().min(1).optional(),
+          cc: z.string().email().optional(),
+          bcc: z.string().email().optional(),
+          // Cloudbeds' own default. `marketing` subjects the send to the property's GDPR consent
+          // rules; getting this wrong is a legal question, not a formatting one, so it is explicit.
+          emailType: z.enum(['nonMarketing', 'marketing']).optional(),
+          autofillAllLanguages: z
+            .boolean()
+            .optional()
+            .describe("Fill untranslated languages with the property's default language."),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        // Nested objects reach the wire as PHP-style brackets (`subject[en]=…`) — the shape Cloudbeds
+        // documents, and what `formEncode` already produces for every other write in this file.
+        const res = await client.post('postEmailTemplate', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          ...args,
+        });
+        const u = unwrap(res, 'postEmailTemplate');
+        // The id rides at the TOP level (`{success, emailTemplateID}`), not inside `data` — so the
+        // envelope is returned whole rather than reaching for a field that is not where it looks.
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_schedule_email`,
+      controlPlane: true,
+      requiredScopes: ['write:communication'], // spec: postEmailSchedule
+      description:
+        'CONTROL PLANE — make Cloudbeds send an existing template to guests automatically, on a ' +
+        'trigger. From the moment this returns, real mail goes to real guests without anyone ' +
+        'approving each one: either when a reservation reaches a status, or a number of days before ' +
+        'or after an event in the stay. ' +
+        'ONE WAY, and this is the one that matters: the API has no update and no delete for ' +
+        'schedules. A schedule created by mistake keeps sending until the property removes it inside ' +
+        'Cloudbeds. Confirm with `list_email_templates` that an equivalent schedule does not already ' +
+        'exist, and only ever create one on a deliberate, explicit instruction from the property.',
+      input: z
+        .object({
+          emailTemplateID: z
+            .string()
+            .min(1)
+            .describe('From `create_email_template` or `list_email_templates`.'),
+          scheduleName: z
+            .string()
+            .min(1)
+            .describe(
+              'How the schedule is listed in Cloudbeds. Cloudbeds asks that it carry the name of ' +
+                'the app that created it, so the property can tell who to ask about it.',
+            ),
+          // A discriminated union rather than two optional objects: Cloudbeds accepts exactly one
+          // trigger, so make "both" and "neither" unrepresentable instead of checking for them.
+          // `.strict()` on each member, not only on the outer object: without it zod STRIPS unknown
+          // keys, so `{type:'reservation_status', status:'confirmed', days:3}` would quietly become a
+          // fire-on-status schedule while the caller believed they had asked for "3 days later". A
+          // silently dropped field is a schedule that fires at the wrong moment — and there is no
+          // delete to undo it with.
+          trigger: z.discriminatedUnion('type', [
+            z
+              .object({
+                type: z.literal('reservation_status'),
+                status: z.enum([
+                  'confirmed',
+                  'not_confirmed',
+                  'canceled',
+                  'checked_in',
+                  'checked_out',
+                  'no_show',
+                ]),
+              })
+              .strict(),
+            z
+              .object({
+                type: z.literal('reservation_event'),
+                event: z.enum([
+                  'after_booking',
+                  'before_check_in',
+                  'after_check_in',
+                  'before_check_out',
+                  'after_check_out',
+                ]),
+                days: z
+                  .number()
+                  .int()
+                  .min(0)
+                  .max(365)
+                  .describe('How many days from the event. 0 = the same day.'),
+                time: z
+                  .string()
+                  .regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/)
+                  .describe("Local time of day, 24h — 'HH:MM' or 'HH:MM:SS'."),
+              })
+              .strict(),
+          ]),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const { trigger } = args;
+        const schedule =
+          trigger.type === 'reservation_status'
+            ? { reservationStatusChange: { status: trigger.status } }
+            : {
+                reservationEvent: {
+                  event: trigger.event,
+                  days: trigger.days,
+                  // Cloudbeds' example carries seconds; accepting 'HH:MM' and padding here is the
+                  // adapter's job — the caller should not have to know the vendor's time format.
+                  time: trigger.time.length === 5 ? `${trigger.time}:00` : trigger.time,
+                },
+              };
+
+        const res = await client.post('postEmailSchedule', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          emailTemplateID: args.emailTemplateID,
+          scheduleName: args.scheduleName,
+          schedule,
+        });
+        const u = unwrap(res, 'postEmailSchedule');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
   ];
 }
