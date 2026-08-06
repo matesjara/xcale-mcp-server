@@ -49,7 +49,9 @@ so they are tracked here rather than lost.
 - `unwrap` can throw on a non-object 200 body (`'data' in body` after only a truthiness guard).
 - `api_key` materializer silently uses `fields[0]` and drops the rest instead of throwing.
 - Sequential fan-out in the composite read tools (`get_property_configuration` etc.) — 4 serial GETs
-  at 15 s each; `Promise.all` is a drop-in since per-part failure is already tolerated.
+  at 15 s each; `Promise.all` is a drop-in since per-part failure is already tolerated. Same
+  anti-pattern in `remove_webhook_subscriptions` (PR #19, control-plane review): the per-subscription
+  DELETEs run in a for-loop with per-item failure already tolerated and counted — fix both in one pass.
 - Version bump granularity: consumers diffing `providerVersion` can't see mid-branch connect-requirement
   changes.
 
@@ -69,3 +71,23 @@ Webhook wiring is the consumer's control-plane concern, not per-call agent surfa
 > backend's already-shipped subscribe call, which had been failing silently since this PR merged:
 > that regression is what surfaced the gap. See `providers/cloudbeds/tools.ts` (control plane
 > section) and `core/tool.ts`.
+
+---
+
+## Cloudbeds — deferred from the control-plane review (PR #19, 2026-08-06)
+
+The control-plane PR merged with its one Major resolved by an ADR
+(`docs/adr/control-plane-tools.md` — the `controlPlane`/`routableToolNames()` mechanism and its
+accepted no-discovery trade-off). These Minors were **accepted and parked**:
+
+### Minors
+
+- Sequential DELETE fan-out in `remove_webhook_subscriptions` — same anti-pattern as the
+  composite-read sequential fan-out already tracked under the PR #11 Minors above; folded into
+  that entry so both sites get fixed in one pass.
+- **`classifyEnvelopeFailure`'s `access to property` match is knowingly coarse.** A token whose
+  metadata carries the WRONG `propertyID` (a consumer bug) answers exactly like a real revocation
+  and gets labeled `AUTH_EXPIRED`. Accepted in-code as the better of the two readings — it surfaces
+  an actionable reconnect instead of an opaque error, and a wrong `propertyID` fails at connect
+  time, not mid-life. Recorded for visibility. *Trigger:* a reconnect loop observed on a
+  connection whose token is actually live.
