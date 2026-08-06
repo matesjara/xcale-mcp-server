@@ -27,6 +27,29 @@ export type RequestResult =
 const DEFAULT_TIMEOUT_MS = 15_000;
 const MAX_ERROR_BODY = 500;
 
+/**
+ * Mask every query-parameter VALUE in a piece of text.
+ *
+ * Some providers place their credential in the query string rather than a header (Toteat sends
+ * `xapitoken` that way; the `api_key` descriptor has always allowed `placement: 'query'`). For those,
+ * **the URL is a credential**, and `fetch` failures routinely carry the request URL in their message
+ * — a `TypeError: fetch failed` or an abort whose text includes the full target. That message
+ * becomes the tool's error text, which reaches the consumer, the agent's prompt and the end user's
+ * chat.
+ *
+ * `credential-boundary-review.md` reasons about a credential in a *header* and lists the surfaces it
+ * can escape through; this closes the one that document did not anticipate. Generic on purpose — it
+ * masks every value, so no provider has to remember to opt in, and a future query-credential
+ * provider inherits the protection instead of re-discovering the leak.
+ *
+ * Parameter NAMES are kept: `?xir=[REDACTED]&xapitoken=[REDACTED]` still says which call failed.
+ */
+export function redactQueryValues(text: string): string {
+  return text.replace(/([?&])([^=&\s]+)=([^&\s]*)/g, (_m, sep: string, key: string) => {
+    return `${sep}${key}=[REDACTED]`;
+  });
+}
+
 export interface TransportOptions {
   readonly timeoutMs?: number;
   /** Injectable for deterministic tests (default: global fetch). */
@@ -62,7 +85,10 @@ export async function sendRequest(
         ok: false,
         status: res.status,
         errorCode: mapHttpStatusToErrorCode(res.status),
-        body: body.slice(0, MAX_ERROR_BODY),
+        // The provider's own error body, redacted: a provider that echoes request context back
+        // (Toteat's order responses echo the caller IP and payload state) would otherwise hand the
+        // credential straight out through the error path.
+        body: redactQueryValues(body.slice(0, MAX_ERROR_BODY)),
       };
     }
     const data = (await res.json()) as unknown;
@@ -72,7 +98,9 @@ export async function sendRequest(
       ok: false,
       status: 0,
       errorCode: ProviderErrorCode.PROVIDER_UNAVAILABLE,
-      body: e instanceof Error ? e.message : 'request failed',
+      // Undici puts the request URL in fetch-failure messages. For a query-credential provider that
+      // URL IS the credential, so this text is redacted before it can reach a tool result.
+      body: redactQueryValues(e instanceof Error ? e.message : 'request failed'),
     };
   } finally {
     clearTimeout(timer);

@@ -49,7 +49,9 @@ so they are tracked here rather than lost.
 - `unwrap` can throw on a non-object 200 body (`'data' in body` after only a truthiness guard).
 - `api_key` materializer silently uses `fields[0]` and drops the rest instead of throwing.
 - Sequential fan-out in the composite read tools (`get_property_configuration` etc.) — 4 serial GETs
-  at 15 s each; `Promise.all` is a drop-in since per-part failure is already tolerated.
+  at 15 s each; `Promise.all` is a drop-in since per-part failure is already tolerated. Same
+  anti-pattern in `remove_webhook_subscriptions` (PR #19, control-plane review): the per-subscription
+  DELETEs run in a for-loop with per-item failure already tolerated and counted — fix both in one pass.
 - Version bump granularity: consumers diffing `providerVersion` can't see mid-branch connect-requirement
   changes.
 
@@ -59,3 +61,60 @@ Webhook subscription tools (`list`/`ensure`/`delete_webhook_subscription`) were 
 published toolset. Re-expose **only** behind: an https-allowlist for `endpointUrl` sourced from
 deployment config, redaction of the secret-bearing URL in list results, and a real consent gate.
 Webhook wiring is the consumer's control-plane concern, not per-call agent surface.
+
+> **CLOSED (2026-08-02) — answered by a boundary, not by a consent gate.** The last sentence above
+> turned out to be the whole fix: `ToolDefinition.controlPlane` withdraws a tool from `tools/list`
+> while keeping it callable, so subscription management and app state are reachable by the consumer
+> and invisible to every agent. Each condition is met or made moot — `endpointUrl` must be https
+> (schema-enforced), there is **no** `list` tool so no secret is ever returned, and the consent gate
+> is unnecessary once the agent cannot choose the tool. Withdrawing the three tools also broke the
+> backend's already-shipped subscribe call, which had been failing silently since this PR merged:
+> that regression is what surfaced the gap. See `providers/cloudbeds/tools.ts` (control plane
+> section) and `core/tool.ts`.
+
+---
+
+## Cloudbeds — deferred from the control-plane review (PR #19, 2026-08-06)
+
+The control-plane PR merged with its one Major resolved by an ADR
+(`docs/adr/control-plane-tools.md` — the `controlPlane`/`routableToolNames()` mechanism and its
+accepted no-discovery trade-off). These Minors were **accepted and parked**:
+
+### Minors
+
+- Sequential DELETE fan-out in `remove_webhook_subscriptions` — same anti-pattern as the
+  composite-read sequential fan-out already tracked under the PR #11 Minors above; folded into
+  that entry so both sites get fixed in one pass.
+- **`classifyEnvelopeFailure`'s `access to property` match is knowingly coarse.** A token whose
+  metadata carries the WRONG `propertyID` (a consumer bug) answers exactly like a real revocation
+  and gets labeled `AUTH_EXPIRED`. Accepted in-code as the better of the two readings — it surfaces
+  an actionable reconnect instead of an opaque error, and a wrong `propertyID` fails at connect
+  time, not mid-life. Recorded for visibility. *Trigger:* a reconnect loop observed on a
+  connection whose token is actually live.
+
+---
+
+## Cloudbeds — deferred from the scope-coverage review (PR #20, 2026-08-06)
+
+The read:addon + write:communication PR merged with its one Blocker fixed (schemaVersion/
+providerVersion bump for `list_addons`). These Minors were **accepted and parked**:
+
+### Minors
+
+- **`paymentsPath()` name is now misleading.** `client.getV2` reuses the payments-specific
+  percent-encoder for the unrelated PMS v2.0 addons surface. Works correctly; the name lies.
+  *Fix:* rename to a surface-neutral `v2Path`. *Trigger:* next Cloudbeds client touch.
+- **`create_email_template` `cc`/`bcc` are single `z.string().email()`, not arrays.** If the
+  Cloudbeds spec allows multiple recipients, the schema under-serves it (additive widening later
+  is contract-safe, but certification reviewers may notice). *Fix:* confirm against the Cloudbeds
+  communication spec; widen to arrays if supported. *Trigger:* before submitting the
+  certification bundle to Cloudbeds.
+
+---
+
+## Cloudbeds certification bundle — accepted as-is (PR #18, 2026-08-06)
+
+- The certification report (`2026-08-02-informe-certificacion.md`) carries an unrelated
+  ePayco/card-payment status annex. Accepted rather than split during the merge push; move it to
+  its own note if the report is ever exported outside the repo. *Trigger:* preparing the report
+  for external submission.

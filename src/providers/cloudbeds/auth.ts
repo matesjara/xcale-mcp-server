@@ -23,31 +23,33 @@ export const cloudbedsAuthBase = {
  * The scopes the **Cloudbeds app registration** is authorized to request — the ceiling.
  *
  * Source of truth is Cloudbeds' App Details page (*Permission Scopes*), which generates the app's
- * canonical OAuth URL; this list was read from that URL verbatim on 2026-07-15. It is a mirror of an
- * external, human-edited setting, so it is NOT what we request — it is what we are ALLOWED to request.
- * What we request is derived from the tools.
+ * canonical OAuth URL. It is a mirror of an external, human-edited setting, so it is NOT what we
+ * request — it is what we are ALLOWED to request. What we request is derived from the tools.
  *
  * Its only job is the guard in `__tests__/scopes.test.ts`: every scope a tool declares must be in here.
  * A tool declaring an unregistered scope would put that scope into the authorize URL and can break the
  * connect flow for EVERY consumer — a whole-provider outage caused by one tool.
  *
- * Cloudbeds' full vocabulary is 61 scopes; these 32 are the subset this app is registered for. If the
- * registration changes, update this list (and only this list).
- * See `docs/design/cloudbeds-scope-coverage/scope-endpoint-map.md`.
+ * **Narrowed 32 → 24 on 2026-08-05, and the reason is not tidiness.** The property's *Manage Apps*
+ * page lists the app's REGISTERED scopes — so what a hotel reads and approves is this registration,
+ * not the derived list we put in the authorize URL. While it held 32, every hotel was being shown a
+ * request for financial adjustments and Data Insights that no tool has ever called. Eight came off:
+ * `read:adjustment`, `write:adjustment`, the four `read:dataInsights*`, `read:resourceReservations`
+ * and `read:resourceTypes` — the last three having no reachable endpoint at all (probed 2026-08-02).
+ * Verified after saving: the App Details checkboxes and the generated OAuth URL both carry exactly
+ * these 24, which is also exactly the union the tools derive.
+ *
+ * Cloudbeds' full vocabulary is 61 scopes. If the registration changes, update this list (and only
+ * this list). See `docs/design/cloudbeds-scope-coverage/scope-endpoint-map.md`.
  */
 export const REGISTERED_SCOPES: readonly string[] = [
   'read:addon',
-  'read:adjustment',
   'read:allotmentBlock',
   'read:appPropertySettings',
   'read:communication',
   'read:currency',
   'read:customFields',
   'read:dashboard',
-  'read:dataInsightsGuests',
-  'read:dataInsightsOccupancy',
-  'read:dataInsightsPayments',
-  'read:dataInsightsReservations',
   'read:group',
   'read:guest',
   'read:hotel',
@@ -55,13 +57,10 @@ export const REGISTERED_SCOPES: readonly string[] = [
   'read:payment',
   'read:rate',
   'read:reservation',
-  'read:resourceReservations',
-  'read:resourceTypes',
   'read:room',
   'read:roomblock',
   'read:taxesAndFees',
   'read:user',
-  'write:adjustment',
   'write:allotmentBlock',
   'write:communication',
   'write:group',

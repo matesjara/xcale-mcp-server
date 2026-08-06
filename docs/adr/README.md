@@ -29,3 +29,4 @@ Full rationale, alternatives, and the responsibility split live in `docs/archite
 | [deployment-runtime-and-hosting](deployment-runtime-and-hosting.md) | Accepted | DO App Platform + Dockerfile; `tsx` as the production runtime (no build step); Doppler-rendered spec |
 | [canonical-provider-pattern](canonical-provider-pattern.md) | Accepted | Reference adapter pattern: single-source schemas + typed handlers, explicit pagination, explicit context, fidelity-over-unification, share-policies-not-assumptions, DI+fixtures+conformance |
 | [tool-derived-oauth-scopes](tool-derived-oauth-scopes.md) | Accepted | An oauth2 provider's `scopes` is the union of its tools' `requiredScopes` — never hand-written; guard vs the app registration |
+| [control-plane-tools](control-plane-tools.md) | Accepted | `controlPlane` flag + `routableToolNames()`: menu ≠ router; control-plane tools callable but undiscoverable (documented exception; additive discovery later) |

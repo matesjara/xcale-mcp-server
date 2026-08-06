@@ -27,6 +27,17 @@ export interface CatalogEntry {
     readonly tool: string;
     readonly resultPath: string;
   };
+  /**
+   * A no-argument tool a consumer can call to PROVE a credential before persisting a connection.
+   * Published for credential-authenticated providers: an OAuth callback is its own proof, a pasted
+   * key is not, so without this a consumer would have to hardcode per-provider validation.
+   */
+  readonly connectionProbe?: { readonly tool: string };
+  /**
+   * Which context keys form the ACCOUNT identity, in order. A consumer keys its connection on this
+   * tuple; absent means "every required context key".
+   */
+  readonly accountContextKeys?: readonly string[];
 }
 
 /** Derive the capability catalog from the registry (the source of truth is the explicit list). */
@@ -48,6 +59,8 @@ export function buildCatalog(registry: ProviderRegistry): CatalogEntry[] {
       ...(m.deprecated !== undefined ? { deprecated: m.deprecated } : {}),
       ...(m.sunsetDate !== undefined ? { sunsetDate: m.sunsetDate } : {}),
       ...(m.contextDiscovery !== undefined ? { contextDiscovery: m.contextDiscovery } : {}),
+      ...(m.connectionProbe !== undefined ? { connectionProbe: m.connectionProbe } : {}),
+      ...(m.accountContextKeys !== undefined ? { accountContextKeys: m.accountContextKeys } : {}),
     };
   });
 }

@@ -26,6 +26,27 @@ El índice para agentes está en `developers.cloudbeds.com/llms.txt` — es la v
 **Consecuencia de diseño:** la composición por cliente vive en la capa 2 y siempre fue nuestra. Diseñar
 contra la capa 2 nos hace inmunes a la incógnita de si un cliente ve o no la página de App Details.
 
+### 2-bis. CORRECCIÓN 2026-08-05 — la capa que el hotel lee es la 1, no la 2
+
+Lo anterior es cierto sobre lo que se **pide**, y llevó a una conclusión equivocada sobre lo que el
+hotel **ve**. Observado en la propiedad 320754, en *Manage Apps* → la tarjeta de la app conectada:
+Cloudbeds lista ahí **los 32 scopes del registro**, incluidos los siete que nuestra URL de authorize
+nunca pidió (`read:adjustment`, `write:adjustment`, los cuatro `read:dataInsights*`,
+`read:resourceReservations`, `read:resourceTypes`).
+
+O sea: **el hotel lee y aprueba la capa 1 (App Details), no la 2.** Mientras el registro tuvo 32, a
+cada hotel se le pidió permiso para ajustes financieros y Data Insights que ninguna tool ha llamado
+jamás. Diseñar solo contra la capa 2 nos dejó ciegos a eso.
+
+**Corregido el mismo día:** el registro quedó en **24** — exactamente la unión que derivan las tools.
+Verificado tras guardar: los checkboxes de App Details y la URL de authorize que Cloudbeds genera
+llevan los mismos 24, sin sobrantes ni faltantes. El espejo en `providers/cloudbeds/auth.ts` se
+actualizó, y un test nuevo (`THE OTHER HALF`) falla si el registro vuelve a cargar un scope que
+ninguna tool usa.
+
+Es también, por fin, la razón concreta por la que Cloudbeds verifica *"only required permission scopes
+are selected"* en la certificación: lo mira ahí porque ahí es donde el hotel lo lee.
+
 ## 3. Los 32 autorizados, repartidos entre APIs distintas
 
 | Grupo | Nº scopes | Dónde vive | Consecuencia |
@@ -90,6 +111,75 @@ No aparecen en **ningún** spec publicado (v1.3, v2.0, insights, ni los demás d
 
 **Esto es una hipótesis, no un hecho:** *"no están en el spec"* ≠ *"no existen"*. Es exactamente la
 lectura que este proyecto castiga. Se resuelve probando contra la propiedad, no leyendo.
+
+### 6-bis. PROBADO 2026-08-02 — y el resultado separa dos casos que parecían uno
+
+`probe coverage` contra la propiedad 320754, con **siete** deletreos plausibles para no confundir
+*"adivinamos mal el nombre"* con *"no existe"*:
+
+| Scope | Métodos probados | Resultado |
+|---|---|---|
+| `read:adjustment` | `getAdjustments` · `getAdjustment` · `getAdjustmentTypes` | **404 HTML — no such method** (×3) |
+| `read:resourceTypes` | `getResourceTypes` · `getResources` | **404 HTML — no such method** (×2) |
+| `read:resourceReservations` | `getResourceReservations` · `getResourcesReservations` | **404 HTML — no such method** (×2) |
+
+Los 12 scopes con endpoint publicado respondieron `OK` en la misma pasada, así que el instrumento
+estaba sano: el 404 no es del token ni de la propiedad, es del método.
+
+**Veredicto:** en PMS v1.3 estos tres no tienen endpoint alcanzable. No se puede construir una tool
+para ellos, y por tanto **no se pueden demostrar en la llamada de certificación**. Sigue sin poder
+afirmarse que no existan *en ninguna parte* — solo se probó v1.3 — pero para decidir el registro de
+scopes eso da igual: lo que no se puede llamar no se puede enseñar.
+
+**El contraste que lo prueba, en la misma sesión:** `GET api.cloudbeds.com/addons/v1/addons`
+(PMS **v2.0**, `read:addon`) respondió **`403 {"message":"You do not have correct scope to perform
+this action"}`**. Un 403 por scope es exactamente lo contrario de un 404: dice *el endpoint está ahí
+y te falta el permiso*. Es lo que convirtió `read:addon` de "sin cubrir" a **cubierto** —
+`list_addons`, la primera tool de este provider contra v2.0.
+
+**Lección de método:** un 404 y un 403 responden preguntas distintas. Probar un scope y leer solo
+"falló" habría metido `read:addon` en el mismo saco que los tres muertos.
+
+### 6-ter. `write:communication` es **create-only** (probado 2026-08-02)
+
+Los dos endpoints del scope hacen cosas muy distintas y conviene no tratarlos como uno:
+
+- `postEmailTemplate` — **crea una plantilla y no envía nada.** Es configuración: asunto y cuerpo
+  multi-idioma, remitente, reply-to. Cloudbeds la declara *"exclusively available to third-party
+  integration partners, not property client IDs"* — o sea, existe **para apps como la nuestra**.
+- `postEmailSchedule` — **ata esa plantilla a un disparador y ahí sí se envía solo**: cambio de
+  estado de la reserva (`confirmed`, `canceled`, `checked_in`, `checked_out`, `no_show`) o relativo
+  al evento (`after_booking`, `before/after_check_in`, `before/after_check_out`) con desfase en días
+  y hora del día. Piden que `scheduleName` lleve el nombre de la app.
+
+**Lo que no está en el spec, y probamos:**
+
+| Método | Verbo | Resultado |
+|---|---|---|
+| `deleteEmailSchedule` | DELETE | **no such method** |
+| `putEmailSchedule` | PUT | **no such method** |
+| `deleteEmailTemplate` | DELETE | **no such method** |
+| `getEmailSchedule` | GET | **OK** — `data: []` (la propiedad hoy no tiene ninguno) |
+
+(Probado con ids imposibles — `999999999` — precisamente para llegar al router sin tocar nada real.)
+
+**Consecuencia de diseño:** se crea y **no se deshace por API**. Un schedule mal creado es una campaña
+de correos automáticos a todos los huéspedes futuros de esa propiedad, y la única forma de pararlo es
+que el hotel entre a su propio Cloudbeds. Pero **sí se puede leer de vuelta** (`getEmailSchedule`,
+que ya cubrimos con `read:communication`) — y esa es la diferencia con `write:adjustment`, cuyo lector
+directamente no existe. Escribir a ciegas y escribir sin borrado son riesgos distintos.
+
+**Lo que esto habilita:** no es "que el agente escriba correos". Es que el hotel configure, **una vez
+y a propósito**, sus correos automáticos de pre-llegada y post-estadía. Eso es plano de control, no
+superficie de agente — la distinción que el flag `controlPlane` hizo posible.
+
+**CONSTRUIDO 2026-08-02** — `create_email_template` + `schedule_email`, ambas `controlPlane: true`.
+La baranda que costó descubrir: cada miembro de la unión de disparadores lleva `.strict()`, no solo
+el objeto externo. Zod **descarta** claves desconocidas por defecto, así que
+`{type:'reservation_status', status:'confirmed', days:3}` se habría convertido en silencio en un
+envío al confirmar, mientras quien lo pidió creía haber programado tres días después — y sin borrado
+para arreglarlo. **Un campo descartado en silencio es un correo que sale el día equivocado, para
+siempre.**
 
 ## 7. Inconsistencias del proveedor que nos van a morder
 

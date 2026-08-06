@@ -53,6 +53,25 @@ export interface ToolDefinition<I extends z.ZodTypeAny = z.ZodTypeAny, M = unkno
    * Omitted means the provider has no scope model at all (api_key providers).
    */
   readonly requiredScopes?: readonly string[];
+  /**
+   * Control-plane tool: dispatched by `tools/call`, **withdrawn from `tools/list`**.
+   *
+   * Some provider operations are infrastructure the CONSUMER performs (subscribe a webhook receiver,
+   * disable an app) and are not moves an agent may make on a guest's behalf. Publishing them made
+   * them agent surface, which is how the webhook tools were withdrawn wholesale in the first place:
+   * their `endpointUrl` is a bearer credential and any read tool can surface guest-authored text that
+   * steers an agent.
+   *
+   * A flag on the definition is the honest place for that distinction, because the tool list IS the
+   * agent's menu: the consumer builds its catalog from `tools/list`, so a tool that never appears
+   * there can never be chosen by a model, hallucinated into a plan, or reached through prompt
+   * injection. It stays callable by name over the same authenticated transport, which is exactly what
+   * a control plane needs — it knows the name, the agent does not.
+   *
+   * This is NOT an authorization boundary: anything holding the Hop-B secret and a live token can
+   * still call it. It removes the agent as an attack surface, not the caller.
+   */
+  readonly controlPlane?: boolean;
   readonly handler: (args: z.infer<I>, ctx: ToolHandlerContext<M>) => Promise<ToolOutcome>;
 }
 
