@@ -24,4 +24,8 @@ export const toteatManifest: ProviderManifest = {
   logoUrl: '/assets/toteat.svg',
   capabilities: { webhooks: true },
   connectionProbe: { tool: `mcp_${SLUG}_get_shift_status` },
+  // The account is the VENUE, not the API entry. `xiu` is required on every call but names the
+  // integration user; folding it into the identity would make rotating the API entry look like a
+  // second venue and silently duplicate the connection.
+  accountContextKeys: ['xir', 'xil'],
 };

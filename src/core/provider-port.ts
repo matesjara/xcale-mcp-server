@@ -123,6 +123,20 @@ export interface ProviderManifest {
     /** A tool taking no arguments, e.g. `mcp_toteat_get_shift_status`. */
     readonly tool: string;
   };
+  /**
+   * Which `contextSchema` keys identify the ACCOUNT, in order — the tuple a consumer should key a
+   * connection on when the same credential can address several of them.
+   *
+   * Not every required context key is part of that identity. Toteat needs `xir`, `xil` and `xiu` on
+   * every call, but the account is the venue `(xir, xil)`: `xiu` names the API entry, so folding it
+   * in would make a rotated API entry look like a second, different venue and quietly duplicate the
+   * connection. Only the provider knows which of its keys are identity and which are credentials'
+   * companions — guessing "all of them" is how that duplication happens.
+   *
+   * Absent ⇒ the consumer falls back to every required context key, which is the right default for
+   * a provider whose context IS its identity (Cloudbeds' `propertyID`).
+   */
+  readonly accountContextKeys?: readonly string[];
 }
 
 /**
