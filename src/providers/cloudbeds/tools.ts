@@ -138,6 +138,21 @@ const httpsUrl = z
   });
 
 /**
+ * Text per language code, as Cloudbeds models an email's subject and body (`{"en": "…", "es": "…"}`,
+ * on the wire as `subject[en]=…`).
+ *
+ * The keys are NOT enumerated against a list of our own: Cloudbeds documents `en`, `es`, `ru`,
+ * `pt-br` and others, and a hardcoded set here would refuse a language they support tomorrow. The
+ * shape is checked instead — a BCP-47-ish tag — and an empty map is rejected, because a template with
+ * no text in any language is a template that sends an empty email.
+ */
+const languageMap = z
+  .record(z.string().regex(/^[a-z]{2}(-[a-z]{2,4})?$/i), z.string().min(1))
+  .refine((map) => Object.keys(map).length > 0, {
+    message: 'needs text in at least one language',
+  });
+
+/**
  * The curated, read-first toolset. `propertyID` comes from the validated `ctx.metadata`
  * (Explicit Context); the consumer (Rail A) forwards it. The uniform `page`/`pageSize` contract is
  * translated to Cloudbeds' own param names (`pageNumber`/`resultsPerPage`) here — that translation
@@ -889,9 +904,37 @@ export function buildCloudbedsTools(
     }),
 
     tool({
+      name: `mcp_${SLUG}_list_addons`,
+      requiredScopes: ['read:addon'], // spec: GET /addons/v1/addons — PMS **v2.0**, not v1.3
+      description:
+        'List the add-ons the property sells alongside a stay — breakfast, transfers, late checkout ' +
+        'and the like — with their prices. Use it to answer "what else can I add?" and to quote an ' +
+        'extra before it is promised.',
+      input: z.object({}).strict(),
+      handler: async (_args, ctx) => {
+        const { propertyID } = ctx.metadata;
+        const res = await client.getV2(['addons', 'v1', 'addons'], ctx.request, {
+          'X-Property-Id': propertyID,
+        });
+        // v2 answers JSON directly and reports failure as an HTTP status — there is no
+        // `{success:false}` envelope to unwrap. The one failure we HAVE observed is the important
+        // one: `403 {"message":"You do not have correct scope…"}` on a token minted before this tool
+        // existed. The core maps 401/403 to AUTH_EXPIRED, so that surfaces as "reconnect required",
+        // which is exactly right — the property has to re-consent for `read:addon` to be granted.
+        //
+        // The SUCCESS shape has never been seen (the scope was not requested until this tool added
+        // it), so nothing here reads a field: the payload is returned verbatim, as everywhere else.
+        return res.ok
+          ? ok(res.data)
+          : err(res.errorCode, `Cloudbeds addons failed (HTTP ${res.status})`);
+      },
+    }),
+
+    tool({
       name: `mcp_${SLUG}_list_email_templates`,
-      // Read-only on purpose. `write:communication` (creating templates/schedules) is deliberately NOT
-      // built: an agent authoring a hotel's outbound email is real risk with no demonstrated use case.
+      // Read-only, and it is the ONLY way to see what was created: the write half of this scope
+      // (`create_email_template` / `schedule_email`, both control-plane) has no delete and no update
+      // in the API, so reading back is the whole safety net. Call this before creating anything.
       requiredScopes: ['read:communication'], // spec: getEmailTemplates, getEmailSchedule
       description:
         'List this property’s email templates and their send schedule. Read-only: use it to see what ' +
@@ -1350,8 +1393,16 @@ export function buildCloudbedsTools(
     //     url the consumer already holds and answers with a count.
     //   - `endpointUrl` must be https (a plaintext event stream carries guest names, emails and stay
     //     dates), and only the consumer can supply one, because only the consumer can call these.
-    //   - `requiredScopes: []` throughout — the spec declares these methods `OAuth2: []`, so the
-    //     authorize URL and every hotel's consent screen are unchanged by this file.
+    //   - `requiredScopes: []` on the app-state and webhook tools — the spec declares those methods
+    //     `OAuth2: []`, so they change no consent screen. The two email tools below are the
+    //     exception: they need `write:communication`, and that scope IS on the consent screen.
+    //
+    // The two email tools are here for a second reason on top of the first. `postEmailSchedule` makes
+    // Cloudbeds send real mail to real guests on a trigger, and neither it nor `postEmailTemplate` can
+    // be edited or deleted through the API — probed 2026-08-02: `deleteEmailSchedule`,
+    // `putEmailSchedule` and `deleteEmailTemplate` all answer "unknown method". A create with no undo
+    // is not a move a model may make from inside a conversation; it is a property configuring itself,
+    // once, on purpose.
 
     tool({
       name: `mcp_${SLUG}_get_app_state`,
@@ -1498,6 +1549,156 @@ export function buildCloudbedsTools(
               `deleted ${deleted} of ${mine.length} subscriptions; ${failures.length} failed (first: ${failures[0]})`,
             )
           : ok({ deleted, matched: mine.length });
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_create_email_template`,
+      controlPlane: true,
+      requiredScopes: ['write:communication'], // spec: postEmailTemplate
+      description:
+        'CONTROL PLANE — create a guest email template on the property (subject and body per ' +
+        'language). Creating a template SENDS NOTHING: it is stored until a schedule points at it. ' +
+        'Returns `emailTemplateID`, which `schedule_email` needs. ' +
+        'ONE WAY: the API has no update and no delete for templates, so a property can only remove ' +
+        'one from inside Cloudbeds. Read `list_email_templates` first and do not create a second copy ' +
+        'of something that is already there.',
+      input: z
+        .object({
+          name: z
+            .string()
+            .min(1)
+            .describe('How the template is listed in Cloudbeds. Include your app name in it.'),
+          from: z.string().email().describe('Sender address the guest sees.'),
+          fromName: z
+            .string()
+            .min(1)
+            .optional()
+            .describe('Sender display name (defaults to `from`).'),
+          subject: languageMap.describe('Subject per language code, e.g. {"en": "…", "es": "…"}.'),
+          body: languageMap.describe('Body per language code. Same keys as `subject`.'),
+          replyTo: z.string().email().optional().describe('Defaults to `from`.'),
+          replyToName: z.string().min(1).optional(),
+          cc: z.string().email().optional(),
+          bcc: z.string().email().optional(),
+          // Cloudbeds' own default. `marketing` subjects the send to the property's GDPR consent
+          // rules; getting this wrong is a legal question, not a formatting one, so it is explicit.
+          emailType: z.enum(['nonMarketing', 'marketing']).optional(),
+          autofillAllLanguages: z
+            .boolean()
+            .optional()
+            .describe("Fill untranslated languages with the property's default language."),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        // Nested objects reach the wire as PHP-style brackets (`subject[en]=…`) — the shape Cloudbeds
+        // documents, and what `formEncode` already produces for every other write in this file.
+        const res = await client.post('postEmailTemplate', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          ...args,
+        });
+        const u = unwrap(res, 'postEmailTemplate');
+        // The id rides at the TOP level (`{success, emailTemplateID}`), not inside `data` — so the
+        // envelope is returned whole rather than reaching for a field that is not where it looks.
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_schedule_email`,
+      controlPlane: true,
+      requiredScopes: ['write:communication'], // spec: postEmailSchedule
+      description:
+        'CONTROL PLANE — make Cloudbeds send an existing template to guests automatically, on a ' +
+        'trigger. From the moment this returns, real mail goes to real guests without anyone ' +
+        'approving each one: either when a reservation reaches a status, or a number of days before ' +
+        'or after an event in the stay. ' +
+        'ONE WAY, and this is the one that matters: the API has no update and no delete for ' +
+        'schedules. A schedule created by mistake keeps sending until the property removes it inside ' +
+        'Cloudbeds. Confirm with `list_email_templates` that an equivalent schedule does not already ' +
+        'exist, and only ever create one on a deliberate, explicit instruction from the property.',
+      input: z
+        .object({
+          emailTemplateID: z
+            .string()
+            .min(1)
+            .describe('From `create_email_template` or `list_email_templates`.'),
+          scheduleName: z
+            .string()
+            .min(1)
+            .describe(
+              'How the schedule is listed in Cloudbeds. Cloudbeds asks that it carry the name of ' +
+                'the app that created it, so the property can tell who to ask about it.',
+            ),
+          // A discriminated union rather than two optional objects: Cloudbeds accepts exactly one
+          // trigger, so make "both" and "neither" unrepresentable instead of checking for them.
+          // `.strict()` on each member, not only on the outer object: without it zod STRIPS unknown
+          // keys, so `{type:'reservation_status', status:'confirmed', days:3}` would quietly become a
+          // fire-on-status schedule while the caller believed they had asked for "3 days later". A
+          // silently dropped field is a schedule that fires at the wrong moment — and there is no
+          // delete to undo it with.
+          trigger: z.discriminatedUnion('type', [
+            z
+              .object({
+                type: z.literal('reservation_status'),
+                status: z.enum([
+                  'confirmed',
+                  'not_confirmed',
+                  'canceled',
+                  'checked_in',
+                  'checked_out',
+                  'no_show',
+                ]),
+              })
+              .strict(),
+            z
+              .object({
+                type: z.literal('reservation_event'),
+                event: z.enum([
+                  'after_booking',
+                  'before_check_in',
+                  'after_check_in',
+                  'before_check_out',
+                  'after_check_out',
+                ]),
+                days: z
+                  .number()
+                  .int()
+                  .min(0)
+                  .max(365)
+                  .describe('How many days from the event. 0 = the same day.'),
+                time: z
+                  .string()
+                  .regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/)
+                  .describe("Local time of day, 24h — 'HH:MM' or 'HH:MM:SS'."),
+              })
+              .strict(),
+          ]),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const { trigger } = args;
+        const schedule =
+          trigger.type === 'reservation_status'
+            ? { reservationStatusChange: { status: trigger.status } }
+            : {
+                reservationEvent: {
+                  event: trigger.event,
+                  days: trigger.days,
+                  // Cloudbeds' example carries seconds; accepting 'HH:MM' and padding here is the
+                  // adapter's job — the caller should not have to know the vendor's time format.
+                  time: trigger.time.length === 5 ? `${trigger.time}:00` : trigger.time,
+                },
+              };
+
+        const res = await client.post('postEmailSchedule', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          emailTemplateID: args.emailTemplateID,
+          scheduleName: args.scheduleName,
+          schedule,
+        });
+        const u = unwrap(res, 'postEmailSchedule');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
       },
     }),
   ];

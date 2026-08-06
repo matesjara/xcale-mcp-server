@@ -482,3 +482,51 @@ describe('cloudbeds provider', () => {
 // unhook the consumer's own receiver — all unsafe as agent surface. Their wire-shaping tests went
 // with them. Webhook wiring is the consumer's control-plane concern; re-exposure is tracked in
 // docs/design/roadmap.md behind an https-allowlist + secret redaction + a consent gate.
+
+describe('list_addons — the one v2.0 surface (PMS v2 is not v1.3)', () => {
+  it('GETs the v2 addons service with X-Property-Id as a HEADER, not a param', async () => {
+    let calledUrl = '';
+    let headers: Record<string, string> = {};
+    const capturingFetch = (async (url: string | URL, init?: RequestInit) => {
+      calledUrl = url.toString();
+      headers = (init?.headers ?? {}) as Record<string, string>;
+      return new Response(JSON.stringify([{ id: 'addon-1', name: 'Breakfast' }]), { status: 200 });
+    }) as FetchLike;
+
+    const r = await createCloudbedsProvider({ fetchImpl: capturingFetch }).callTool(
+      'mcp_cloudbeds_list_addons',
+      {},
+      ctx({ propertyID: 'PROP1' }),
+    );
+
+    expect(r.kind).toBe('success');
+    // A different host AND a different shape: no /api/v1.3 prefix, and the property rides in a header.
+    // Sending it as a `propertyID` query param — the v1.3 habit — returns another property's addons or
+    // none, with a perfectly healthy 200.
+    expect(calledUrl).toBe('https://api.cloudbeds.com/addons/v1/addons');
+    expect(headers['X-Property-Id']).toBe('PROP1');
+  });
+
+  it('surfaces a scope refusal as AUTH_EXPIRED — "reconnect", not "no addons"', async () => {
+    // OBSERVED against the live sandbox (2026-08-02), and the reason this tool can exist at all: the
+    // endpoint answered `403 {"message":"You do not have correct scope to perform this action"}`
+    // rather than a 404, which is what proved `read:addon` has an endpoint behind it. Every property
+    // connected before this tool shipped holds a token without the scope, so this IS their path — and
+    // it has to read as "re-consent", never as an empty catalogue.
+    const denying = (async () =>
+      new Response(
+        JSON.stringify({ message: 'You do not have correct scope to perform this action' }),
+        {
+          status: 403,
+        },
+      )) as FetchLike;
+
+    const r = await createCloudbedsProvider({ fetchImpl: denying }).callTool(
+      'mcp_cloudbeds_list_addons',
+      {},
+      ctx({ propertyID: 'PROP1' }),
+    );
+
+    expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.AUTH_EXPIRED });
+  });
+});
