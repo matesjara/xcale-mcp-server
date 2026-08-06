@@ -83,6 +83,8 @@ Once connected, your assistant can do the following on your property, on your be
 - Check availability for a date range and party size.
 - Read your rate plans and quote real prices, including taxes and fees as your property has them
   configured.
+- Tell guests about the add-ons your property sells — breakfast, transfers, late checkout — with
+  their prices.
 
 **Reservations**
 - Create a reservation from the conversation.
@@ -103,6 +105,12 @@ Once connected, your assistant can do the following on your property, on your be
   link has been paid.
   *Requires Cloudbeds Payments with pay-by-link enabled on the property.*
 
+**Guest email automation**
+- Set up Cloudbeds' automated guest emails from your xcale dashboard: create an email template and
+  schedule when Cloudbeds sends it — a number of days before check-in, at check-out, when a
+  reservation is confirmed. You configure these once, deliberately, from the dashboard; the
+  assistant cannot create or send them.
+
 **Staying in sync**
 - xcale subscribes to your property's reservation events. When a booking changes outside the
   conversation — a cancellation at the front desk, for example — your guest is told, without anyone
@@ -110,8 +118,9 @@ Once connected, your assistant can do the following on your property, on your be
 
 [SCREENSHOT: a WhatsApp conversation where the assistant quotes availability and confirms a booking.]
 
-**What xcale never does:** it does not read or write your financial adjustments, and it does not send
-email on your property's behalf. We only ask Cloudbeds for the permissions the features above
+**What xcale never does:** it does not read or write your financial adjustments, and your assistant
+never composes or sends email on its own — the automated emails above are sent by Cloudbeds, on
+schedules you configure yourself. We only ask Cloudbeds for the permissions the features above
 actually use.
 
 ---
@@ -164,6 +173,8 @@ the address below.
   properties, connect each one — the assistant works with the property it is linked to.
 - **Payments.** Pay-by-link requires Cloudbeds Payments with pay-by-link enabled on the property.
   Refunds are handled in Cloudbeds, not through xcale.
+- **Automated guest emails.** Cloudbeds' API lets integrations create email templates and schedules,
+  but not edit or delete them. To change or remove one created through xcale, do it inside Cloudbeds.
 - **Permissions.** If your property later restricts a permission, the features that depend on it stop
   working and xcale will ask you to reconnect.
 

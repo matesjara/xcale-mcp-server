@@ -29,21 +29,23 @@ la sección "Dos límites" antes de mandarlas a Cloudbeds.
 
 ### El bloqueo de las dos de WhatsApp
 
-El número conectado en `xcale_dev` es **+1 555-044-3159 "Test Number"**, `phoneNumberId`
-`906109335917720`, WABA `1210818044236046`. Se verificó contra la API de Meta: el token vive, el id es
-correcto y es el único número de ese WABA.
+El número conectado en `xcale_dev` es **el número de prueba del WABA de desarrollo** (los valores
+concretos — número, `phoneNumberId`, WABA — están en la configuración del entorno; no se copian
+aquí). Se verificó contra la API de Meta: el token vive, el id es correcto y es el único número de
+ese WABA.
 
-Pero las entregas que llegan al túnel de desarrollo vienen de `818670374672398` — **otro número, de
-otra app de Meta**, cuyo webhook también apunta al mismo dominio de ngrok. Nuestro receptor las
-rechaza con 403, que es el comportamiento correcto: un receptor no debe procesar tráfico de números
-que no le pertenecen.
+Pero las entregas que llegan al túnel de desarrollo vienen de **otro `phoneNumberId`, de otra app de
+Meta**, cuyo webhook también apunta al mismo dominio de ngrok. Nuestro receptor las rechaza con 403,
+que es el comportamiento correcto: un receptor no debe procesar tráfico de números que no le
+pertenecen.
 
 Para desbloquear hace falta **una de dos**, y las dos exigen acceso al panel de Meta:
 
-1. Conectar `818670374672398` en este entorno (hace falta un token de acceso con permisos sobre su
+1. Conectar ese otro número en este entorno (hace falta un token de acceso con permisos sobre su
    WABA), **o**
-2. Escribirle al número que sí está conectado (+1 555-044-3159) desde un WhatsApp cualquiera — esto
-   **no** requiere Meta, solo tener el número a mano y que un agente lo tenga seleccionado.
+2. Escribirle al número que sí está conectado (el número de prueba del WABA de desarrollo) desde un
+   WhatsApp cualquiera — esto **no** requiere Meta, solo tener el número a mano y que un agente lo
+   tenga seleccionado.
 
 La opción 2 es la barata. Nota: al revisar la vinculación, la consulta devolvió **0 agentes
 asociados** a ese número, así que conviene confirmar en el panel que el agente de reservas lo tiene
