@@ -1,0 +1,36 @@
+{
+  "data": [
+    {
+      "deliveryStatus": "created",
+      "deliveryStatusId": 40,
+      "detailedOrderStatus": 201,
+      "modificationDate": "2026-08-04T16:12:48",
+      "orderId": 1785859968488847,
+      "orderReference": "",
+      "orderStatus": "OPEN"
+    },
+    {
+      "detailedOrderStatus": 201,
+      "modificationDate": "2026-08-04T20:36:03",
+      "orderId": 1785875733117687,
+      "orderReference": "",
+      "orderStatus": "OPEN",
+      "seats": 4,
+      "tableId": [2]
+    },
+    {
+      "detailedOrderStatus": 201,
+      "modificationDate": "2026-08-05T13:59:36",
+      "orderId": 1785938376050374,
+      "orderReference": "",
+      "orderStatus": "OPEN",
+      "seats": 4,
+      "tableId": [4]
+    }
+  ],
+  "msg": {
+    "texto": "ORDER LISTING SENT",
+    "tipo": 0
+  },
+  "ok": true
+}

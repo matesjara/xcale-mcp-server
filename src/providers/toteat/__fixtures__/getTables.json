@@ -1,0 +1,161 @@
+{
+  "data": [
+    {
+      "available": true,
+      "bookable": true,
+      "capacity": 4,
+      "sectorId": "ZB.010",
+      "sectorName": "Salón Principal",
+      "tableId": 1,
+      "tableName": "M1"
+    },
+    {
+      "available": false,
+      "bookable": true,
+      "capacity": 4,
+      "sectorId": "ZB.010",
+      "sectorName": "Salón Principal",
+      "tableId": 2,
+      "tableName": "M2"
+    },
+    {
+      "available": true,
+      "bookable": true,
+      "capacity": 4,
+      "sectorId": "ZB.010",
+      "sectorName": "Salón Principal",
+      "tableId": 3,
+      "tableName": "M3"
+    },
+    {
+      "available": false,
+      "bookable": true,
+      "capacity": 4,
+      "sectorId": "ZB.010",
+      "sectorName": "Salón Principal",
+      "tableId": 4,
+      "tableName": "M4"
+    },
+    {
+      "available": true,
+      "bookable": true,
+      "capacity": 4,
+      "sectorId": "ZB.010",
+      "sectorName": "Salón Principal",
+      "tableId": 5,
+      "tableName": "M5"
+    },
+    {
+      "available": true,
+      "bookable": true,
+      "capacity": 4,
+      "sectorId": "ZB.010",
+      "sectorName": "Salón Principal",
+      "tableId": 6,
+      "tableName": "M6"
+    },
+    {
+      "available": true,
+      "bookable": true,
+      "capacity": 4,
+      "sectorId": "ZB.010",
+      "sectorName": "Salón Principal",
+      "tableId": 7,
+      "tableName": "M7"
+    },
+    {
+      "available": true,
+      "bookable": true,
+      "capacity": 4,
+      "sectorId": "ZB.010",
+      "sectorName": "Salón Principal",
+      "tableId": 8,
+      "tableName": "M8"
+    },
+    {
+      "available": true,
+      "bookable": true,
+      "capacity": 4,
+      "sectorId": "ZB.010",
+      "sectorName": "Salón Principal",
+      "tableId": 9,
+      "tableName": "M9"
+    },
+    {
+      "available": true,
+      "bookable": true,
+      "capacity": 4,
+      "sectorId": "ZB.010",
+      "sectorName": "Salón Principal",
+      "tableId": 10,
+      "tableName": "M10"
+    },
+    {
+      "available": true,
+      "bookable": true,
+      "capacity": 4,
+      "sectorId": "ZB.020",
+      "sectorName": "TERRAZA",
+      "tableId": 11,
+      "tableName": "TRZ1"
+    },
+    {
+      "available": true,
+      "bookable": true,
+      "capacity": 4,
+      "sectorId": "ZB.020",
+      "sectorName": "TERRAZA",
+      "tableId": 12,
+      "tableName": "TRZ2"
+    },
+    {
+      "available": true,
+      "bookable": true,
+      "capacity": 4,
+      "sectorId": "ZB.020",
+      "sectorName": "TERRAZA",
+      "tableId": 13,
+      "tableName": "TRZ3"
+    },
+    {
+      "available": true,
+      "bookable": true,
+      "capacity": 4,
+      "sectorId": "ZB.020",
+      "sectorName": "TERRAZA",
+      "tableId": 14,
+      "tableName": "TRZ4"
+    },
+    {
+      "available": true,
+      "bookable": true,
+      "capacity": 4,
+      "sectorId": "ZB.020",
+      "sectorName": "TERRAZA",
+      "tableId": 15,
+      "tableName": "TRZ5"
+    },
+    {
+      "available": true,
+      "bookable": true,
+      "capacity": 4,
+      "sectorId": "ZB.030",
+      "sectorName": "JARDIN",
+      "tableId": 16,
+      "tableName": "JAR1"
+    },
+    {
+      "available": true,
+      "bookable": true,
+      "capacity": 4,
+      "sectorId": "ZB.030",
+      "sectorName": "JARDIN",
+      "tableId": 17,
+      "tableName": "JAR2"
+    }
+  ],
+  "msg": {
+    "texto": "RESTAURANT: Test Venue, TABLES SENT"
+  },
+  "ok": true
+}

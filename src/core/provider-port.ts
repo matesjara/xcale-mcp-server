@@ -104,6 +104,39 @@ export interface ProviderManifest {
     /** Dot-path into the tool's success `data` where the value lives (e.g. `0.propertyID`). */
     readonly resultPath: string;
   };
+  /**
+   * How a consumer can PROVE a credential before persisting a connection, without knowing anything
+   * about this provider: the name of a cheap tool that needs no arguments beyond the call context.
+   * A success means the credential is real *and* the provider is reachable with it.
+   *
+   * Declared by providers whose auth has no redirect flow to prove itself — an OAuth callback is its
+   * own proof, a pasted API key is not. It is what makes a generic "connect with a credential" flow
+   * possible on the consumer side (xcale-backend ADR
+   * `credential-connections-for-mcp-backed-providers`): without it, a consumer would have to
+   * hardcode a per-provider validation call, which is the provider knowledge this server exists to
+   * hold.
+   *
+   * STRICTLY DECLARATIVE (a tool name, nothing else) — never a hook, template, or expression.
+   * Additive: absent means the provider offers no such proof, and a consumer must not invent one.
+   */
+  readonly connectionProbe?: {
+    /** A tool taking no arguments, e.g. `mcp_toteat_get_shift_status`. */
+    readonly tool: string;
+  };
+  /**
+   * Which `contextSchema` keys identify the ACCOUNT, in order — the tuple a consumer should key a
+   * connection on when the same credential can address several of them.
+   *
+   * Not every required context key is part of that identity. Toteat needs `xir`, `xil` and `xiu` on
+   * every call, but the account is the venue `(xir, xil)`: `xiu` names the API entry, so folding it
+   * in would make a rotated API entry look like a second, different venue and quietly duplicate the
+   * connection. Only the provider knows which of its keys are identity and which are credentials'
+   * companions — guessing "all of them" is how that duplication happens.
+   *
+   * Absent ⇒ the consumer falls back to every required context key, which is the right default for
+   * a provider whose context IS its identity (Cloudbeds' `propertyID`).
+   */
+  readonly accountContextKeys?: readonly string[];
 }
 
 /**
