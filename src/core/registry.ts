@@ -25,11 +25,15 @@ export function createRegistry(providers: readonly IProvider[]): ProviderRegistr
     }
     bySlug.set(slug, provider);
 
-    for (const tool of provider.listTools()) {
-      if (byTool.has(tool.name)) {
-        throw new Error(`Duplicate tool name across providers: "${tool.name}"`);
+    // Routing indexes what a provider can RUN, not what it publishes. Indexing `listTools()` here is
+    // what made every control-plane tool answer `UNKNOWN_TOOL` — withdrawn from the agent's menu and,
+    // by the same line, withdrawn from dispatch. The duplicate guard still applies across the full
+    // set: two providers cannot share a name even if neither publishes it.
+    for (const toolName of provider.routableToolNames()) {
+      if (byTool.has(toolName)) {
+        throw new Error(`Duplicate tool name across providers: "${toolName}"`);
       }
-      byTool.set(tool.name, provider);
+      byTool.set(toolName, provider);
     }
   }
 
