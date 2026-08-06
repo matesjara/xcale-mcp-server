@@ -104,6 +104,25 @@ export interface ProviderManifest {
     /** Dot-path into the tool's success `data` where the value lives (e.g. `0.propertyID`). */
     readonly resultPath: string;
   };
+  /**
+   * How a consumer can PROVE a credential before persisting a connection, without knowing anything
+   * about this provider: the name of a cheap tool that needs no arguments beyond the call context.
+   * A success means the credential is real *and* the provider is reachable with it.
+   *
+   * Declared by providers whose auth has no redirect flow to prove itself — an OAuth callback is its
+   * own proof, a pasted API key is not. It is what makes a generic "connect with a credential" flow
+   * possible on the consumer side (xcale-backend ADR
+   * `credential-connections-for-mcp-backed-providers`): without it, a consumer would have to
+   * hardcode a per-provider validation call, which is the provider knowledge this server exists to
+   * hold.
+   *
+   * STRICTLY DECLARATIVE (a tool name, nothing else) — never a hook, template, or expression.
+   * Additive: absent means the provider offers no such proof, and a consumer must not invent one.
+   */
+  readonly connectionProbe?: {
+    /** A tool taking no arguments, e.g. `mcp_toteat_get_shift_status`. */
+    readonly tool: string;
+  };
 }
 
 /**

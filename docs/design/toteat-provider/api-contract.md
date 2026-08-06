@@ -364,6 +364,13 @@ Ingest design: `xcale-backend/docs/design/toteat-integration/api-contract.md` §
 - **Positional modifiers**: `buildOrderLines` output order. Displacing one modifier must turn a test
   red.
 - **Date windows**: 16 days is rejected before any HTTP call is made.
-- **Credential redaction**: a transport failure whose message contains the full URL must not leave
-  `xapitoken` anywhere in the `ToolResult`.
+- **Credential redaction**: the guard lives in `core/__tests__/http.test.ts`, on
+  `redactQueryValues` and on both `sendRequest` paths that produce `body`.
+
+  > **Lesson from the mutation run.** The first version asserted only that a *tool result* was clean.
+  > That test passed with the redaction deleted, because the adapter happens not to interpolate
+  > `res.body` into its error message — so it proved the adapter's message construction, not the
+  > control. `RequestResult.body` is a shared shape any provider or log sink may surface, so the test
+  > belongs at that layer. Both tests are kept; only the core one goes red when the redaction is
+  > removed.
 - **Base URL**: no `appspot` anywhere in the built request.
