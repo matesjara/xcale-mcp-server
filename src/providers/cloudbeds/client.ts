@@ -12,6 +12,19 @@ const DEFAULT_BASE_URL = 'https://hotels.cloudbeds.com/api/v1.3';
 const PAYMENTS_BASE_URL = 'https://api.cloudbeds.com/payments/v2';
 
 /**
+ * **PMS v2.0** — a third surface, and not "v1.3 improved": a set of newer microservices (`addons`,
+ * `amenities`, `events`, `doorlock`, …) that live on the same host as Payments but under their own
+ * roots, each with its own version segment. They take `X-Property-Id` as a header rather than a
+ * `propertyID` param, and they answer JSON directly (no `{success, data}` envelope) with failures as
+ * real HTTP status codes — observed: a request without the scope is a plain `403 {"message": "You do
+ * not have correct scope to perform this action"}`, not the v1.3 `200 + success:false`.
+ *
+ * Note v2 also inverts the scope spelling (`hotel:read` where v1.3 says `read:hotel`), which is why
+ * scope strings are treated as opaque everywhere in this codebase.
+ */
+const V2_BASE_URL = 'https://api.cloudbeds.com';
+
+/**
  * Percent-encode each Payments v2 path segment. Every id that reaches a payments URL goes through
  * here, so a caller-supplied value (`../refund`, `abc?x=1`) selects a resource NAME, never a
  * different endpoint or extra query params — regardless of what the tool's input schema allows.
@@ -68,6 +81,17 @@ export interface CloudbedsClient {
   ): Promise<RequestResult>;
   /** GET from the Payments v2 API (e.g. `['pay-by-link', uuid]`). Same base, encoding, and `X-Property-Id` as `postPayments`. */
   getPayments(
+    segments: readonly string[],
+    request: AuthedRequest,
+    headers: Record<string, string>,
+  ): Promise<RequestResult>;
+  /**
+   * GET from a **PMS v2.0** microservice (e.g. `['addons', 'v1', 'addons']`). Segments are
+   * percent-encoded and joined onto `api.cloudbeds.com`; the caller passes `X-Property-Id`. Like
+   * Payments v2 and unlike v1.3, the response is JSON directly — read `res.ok`/`res.data`, never
+   * `unwrap()`.
+   */
+  getV2(
     segments: readonly string[],
     request: AuthedRequest,
     headers: Record<string, string>,
@@ -164,6 +188,13 @@ export function createCloudbedsClient(deps: CloudbedsClientDeps = {}): Cloudbeds
       return request({
         method: 'GET',
         url: `${PAYMENTS_BASE_URL}/${paymentsPath(segments)}`,
+        headers: { ...headers },
+      });
+    },
+    getV2(segments, request, headers) {
+      return request({
+        method: 'GET',
+        url: `${V2_BASE_URL}/${paymentsPath(segments)}`,
         headers: { ...headers },
       });
     },

@@ -91,6 +91,34 @@ No aparecen en **ningún** spec publicado (v1.3, v2.0, insights, ni los demás d
 **Esto es una hipótesis, no un hecho:** *"no están en el spec"* ≠ *"no existen"*. Es exactamente la
 lectura que este proyecto castiga. Se resuelve probando contra la propiedad, no leyendo.
 
+### 6-bis. PROBADO 2026-08-02 — y el resultado separa dos casos que parecían uno
+
+`probe coverage` contra la propiedad 320754, con **siete** deletreos plausibles para no confundir
+*"adivinamos mal el nombre"* con *"no existe"*:
+
+| Scope | Métodos probados | Resultado |
+|---|---|---|
+| `read:adjustment` | `getAdjustments` · `getAdjustment` · `getAdjustmentTypes` | **404 HTML — no such method** (×3) |
+| `read:resourceTypes` | `getResourceTypes` · `getResources` | **404 HTML — no such method** (×2) |
+| `read:resourceReservations` | `getResourceReservations` · `getResourcesReservations` | **404 HTML — no such method** (×2) |
+
+Los 12 scopes con endpoint publicado respondieron `OK` en la misma pasada, así que el instrumento
+estaba sano: el 404 no es del token ni de la propiedad, es del método.
+
+**Veredicto:** en PMS v1.3 estos tres no tienen endpoint alcanzable. No se puede construir una tool
+para ellos, y por tanto **no se pueden demostrar en la llamada de certificación**. Sigue sin poder
+afirmarse que no existan *en ninguna parte* — solo se probó v1.3 — pero para decidir el registro de
+scopes eso da igual: lo que no se puede llamar no se puede enseñar.
+
+**El contraste que lo prueba, en la misma sesión:** `GET api.cloudbeds.com/addons/v1/addons`
+(PMS **v2.0**, `read:addon`) respondió **`403 {"message":"You do not have correct scope to perform
+this action"}`**. Un 403 por scope es exactamente lo contrario de un 404: dice *el endpoint está ahí
+y te falta el permiso*. Es lo que convirtió `read:addon` de "sin cubrir" a **cubierto** —
+`list_addons`, la primera tool de este provider contra v2.0.
+
+**Lección de método:** un 404 y un 403 responden preguntas distintas. Probar un scope y leer solo
+"falló" habría metido `read:addon` en el mismo saco que los tres muertos.
+
 ## 7. Inconsistencias del proveedor que nos van a morder
 
 - **Dos convenciones de nombres.** v1.3 usa `read:hotel`; v2.0 usa `hotel:read`. Invertido. Cualquier
