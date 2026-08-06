@@ -116,6 +116,11 @@ export function buildToteatTools(
         'list discriminated by `isModifier`; a product references modifier CATEGORIES, so the ' +
         'options for a group are the modifiers whose `categoryId` equals the group `id`.',
       input: z.object({ activeProducts: z.boolean().optional() }).strict(),
+      // Withdrawn from tools/list. 3 requests per minute is the whole VENUE's budget, shared by
+      // every conversation it is handling — an agent that can reach this tool will spend it on one
+      // diner and mute the venue for everyone else. The consumer mirrors the menu and reads from
+      // that; this stays callable BY NAME for the ingest, which is exactly what a control plane is.
+      controlPlane: true,
       handler: async (args, ctx) => {
         const params: QueryParams =
           args.activeProducts === undefined ? {} : { activeProducts: args.activeProducts };
@@ -164,6 +169,10 @@ export function buildToteatTools(
             .default('ONLY_STATUS'),
         })
         .strict(),
+      // Withdrawn from tools/list: this returns EVERY open order in the venue, including other
+      // diners' — not a move an agent may make on one customer's behalf. It exists so a caller can
+      // reconcile its own `orderReference` after a create it never got an answer for.
+      controlPlane: true,
       handler: async (args, ctx) =>
         toOutcome(
           unwrapToteat(

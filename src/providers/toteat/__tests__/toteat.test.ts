@@ -80,6 +80,25 @@ describe('toteat provider — catalog surface', () => {
     expect(names.length).toBeGreaterThan(0);
     for (const name of names) expect(name.startsWith('mcp_toteat_')).toBe(true);
   });
+
+  it('withdraws the venue-wide tools from the agent surface but keeps them callable', async () => {
+    const p = createToteatProvider();
+    const published = p.listTools().map((t) => t.name);
+
+    // `get_menu` spends the venue's entire 3-per-minute budget on one diner if a model can reach
+    // it; `list_open_orders` returns every other diner's order. Neither is a move an agent may
+    // make, and a tool absent from tools/list can never be chosen, hallucinated into a plan, or
+    // reached through prompt injection — the consumer builds its basket from this list.
+    expect(published).not.toContain('mcp_toteat_get_menu');
+    expect(published).not.toContain('mcp_toteat_list_open_orders');
+    expect(published).toContain('mcp_toteat_get_shift_status');
+    expect(published).toContain('mcp_toteat_create_order');
+
+    // Still dispatchable by name — that is what makes it a control plane rather than a deletion.
+    const { provider: withFixture } = provider(getMenu);
+    const result = await withFixture.callTool('mcp_toteat_get_menu', {}, CTX);
+    expect(result.kind).toBe('success');
+  });
 });
 
 describe('toteat provider — request shaping', () => {
