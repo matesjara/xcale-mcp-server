@@ -140,6 +140,18 @@ implementation detail, not part of the boundary — see the invariants below.
 - **`ResolvedCredential` is the convergence boundary.** The Credential Resolution phase always produces exactly one `ResolvedCredential`, and Provider Execution is defined **exclusively** in terms of it — never in terms of a delivery strategy, a token shape, or a transport. This is the single seam a future third strategy would have to satisfy.
 - **The resolution transport is not part of the abstraction.** The abstraction is `CredentialResolver → Credential Authority`. The `POST /internal/credentials/resolve` Hop-B callback is the **first consumer's implementation** of that resolution; it can later become an RFC 8693 STS exchange, a SPIFFE/SVID handshake, a unix socket, or a sidecar **without** changing the `CredentialResolver` boundary or the wire contract. Do not treat the HTTP callback as the architecture.
 - **Error-ownership boundary (invariant):** a `ProviderErrorCode`/`ToolResult` is emitted **iff the failure belongs to the provider domain** — determined by *who owns the cause*, not by phase or timing. A resolve-time **mint** failure because the durable credential was revoked is **provider-owned** → `PROVIDER_AUTH_EXPIRED` (even though no JWT ever existed and no data call ran). An **expired / consumed reference** or Hop-B failure is **transport-owned** → one transparent retry with a fresh reference, then a transport error; never a `ProviderErrorCode`, no `ToolResult`. This is an **additive clarification** to [typed-tool-result-error-contract](typed-tool-result-error-contract.md); it does **not** change the `ProviderErrorCode` set.
+
+  > **Correction 2026-08-12 (drift grill) — where the single retry lives.** The "one transparent retry"
+  > above is a **transport-owned** action that lives at the **emitter** (the backend MCP client /
+  > `mcp-tool-executor`), which mints a **fresh** reference and re-issues `tools/call` exactly once. It is
+  > **not** in the `ReferenceCredentialResolver`: the merged resolver (`reference-resolver.ts:44-88`)
+  > **throws typed and never retries** — `ReferenceResolutionError` (transport: 410/401/5xx) and
+  > `ReferenceAuthExpiredError` → `PROVIDER_AUTH_EXPIRED` (422, terminal → reconnect). **Caveat for the
+  > emitter:** the resolver today collapses reference-invalid (410) / Hop-B-auth (401) / resolve-down
+  > (5xx) into one `ReferenceResolutionError`, so the emitter must key its single retry on a **typed
+  > `reference_invalid` signal** that survives the `tools/call` envelope — otherwise "retry once" becomes
+  > an indiscriminate retry on any transport error. (Documentation-level clarification; does not change the
+  > invariant or the `ProviderErrorCode` set.)
 - **One resolution per `tools/call` (invariant):** one `ResolvedCredential`, request-scoped, reused across every provider egress in that call — a call never resolves multiple references.
 - `credential_exchange` is **strictly declarative** (`tokenEndpoint`, `method`, `bodyFields`, `responseFields`, `staticHeaders`, `placement`) — no hooks/templates/expressions/signing. A provider needing *imperative* auth (HMAC/signing) does not extend this variant: it reopens *where the mint runs* and requires its own variant + a new ADR.
 - **`Partner-Id`** is a non-secret institutional identifier (`source: deployment`), never in the published catalog — not custody.

@@ -296,3 +296,34 @@ No shared HTTP framework until ≥2 providers prove it (ADR required). _Avoid_: 
 **`createXProvider(deps?)`** — provider factory with the HTTP transport (and future clock/ids/retry/
 logger) injectable; default instance registered in `src/providers/index.ts`. Enables deterministic
 unit tests against recorded `__fixtures__/` + the mandatory `runProviderConformance` suite.
+
+**Reconciliation reference tag** — a caller-supplied marker (e.g. `xpi-<orderId>`) embedded in a fiscal
+document's `observations` so the consumer can recognize *its own* document later. Because the gateway is
+at-most-once (no client idempotency key at Siigo), for `create_invoice` this is the **primary recovery
+key**, not a secondary audit trail. _Avoid_: treating it as mere audit metadata; content-hash keys.
+
+**Pending reconciliation** — resolving an idempotency-ledger entry stuck in `pending` (external POST
+committed but its response was lost) via a *targeted* Siigo read keyed on the reference tag, to learn
+whether the fiscal document actually exists before backfilling or retrying. _Avoid_: blind retry (mints a
+duplicate DIAN doc) or blind reject (orphans a committed one).
+
+**Confirm signal** — the out-of-band, backend-verified authorization to dispatch an irreversible fiscal
+write, bound to a preview id that doubles as the idempotency key; re-presenting it is a no-op returning
+the original result. _Avoid_: a model-emitted confirm tool (forgeable by prompt injection); a `dry_run`
+flag; treating the preview id as an auth nonce separate from idempotency.
+
+**Fiscal payload validation line** — structural validation (presence, types, id format, and the provider's
+documented cardinality/non-negativity minimums like `≥1` line item) is the gateway/adapter's job (zod);
+business validation (tax-id existence, total/tax reconciliation, authorization) is the consumer's.
+_Avoid_: reading "structural" as presence+type only; trusting Siigo to 400 a malformed-but-typed payload;
+tax math or id-existence checks in the gateway.
+
+**Compensation (compensating write)** — a fiscal correction (Siigo credit note / nota crédito) offsetting
+a prior fiscal write; gated identically (propose→confirm→idempotency), never agent-autonomous, never a
+delete, carrying its own reference tag keyed to the target document. _Avoid_: assuming a human confirm
+makes it internally safe (it inherits the same at-most-once retry hazard and needs its own
+detect-before-retry check + the target's reconciled DIAN identifier).
+
+**Non-fiscal write** — a provider mutation not reported to a tax authority and correctable in place
+without a credit note (e.g. `create_customer`); may still be a prerequisite of a fiscal write. _Avoid_:
+equating "non-fiscal" with "safe to ship ungated" — its dedup may depend on a read that must itself soak.
