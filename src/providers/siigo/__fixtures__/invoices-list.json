@@ -1,0 +1,35 @@
+{
+  "pagination": { "page": 1, "page_size": 25, "total_results": 110128 },
+  "results": [
+    {
+      "id": "078ac9d1-6cda-4136-b540-651474a62127",
+      "document": { "id": 41616 },
+      "number": 7,
+      "name": "FV-305-7",
+      "date": "2026-08-12",
+      "customer": { "id": "33c17f10-1cd6-4dc9-8cf6-fbc05773c0d4", "identification": "900123456", "branch_office": 0 },
+      "seller": 916,
+      "total": 350000,
+      "balance": 0,
+      "observations": "Pedido demo #1",
+      "items": [
+        {
+          "id": "1a9430d9-9899-49b8-9c31-1ccadaa4fe50",
+          "code": "ISO13",
+          "quantity": 2,
+          "price": 147058.823529,
+          "description": "Producto demo",
+          "taxes": [{ "id": 1270, "name": "IVA 19%", "type": "IVA", "percentage": 19, "value": 55882.35 }],
+          "total": 350000
+        }
+      ],
+      "payments": [{ "id": 8163, "name": "Efectivo", "value": 350000 }],
+      "mail": { "status": "not_sent", "observations": "The invoice has not been sent by mail" },
+      "metadata": { "created": "0001-01-01T00:00:00" }
+    }
+  ],
+  "_links": {
+    "self": { "href": "https://api.siigo.com/v1/invoices?page=1&page_size=25" },
+    "next": { "href": "https://api.siigo.com/v1/invoices?page=2&page_size=25" }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "Status": 400,
+  "Errors": [
+    {
+      "Code": "header_required",
+      "Message": "The header Partner-Id is required",
+      "Params": ["Partner-Id"],
+      "Detail": "Check the API documentation: https://developer.siigo.com/introduction/codigos-de-error/header_required"
+    }
+  ]
+}

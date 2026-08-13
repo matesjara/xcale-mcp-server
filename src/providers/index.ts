@@ -1,6 +1,7 @@
 import type { IProvider } from '../core/provider-port';
 import { cloudbedsProvider } from './cloudbeds';
 import { echoProvider } from './echo';
+import { siigoProvider } from './siigo';
 import { toteatProvider } from './toteat';
 
 /**
@@ -10,4 +11,9 @@ import { toteatProvider } from './toteat';
  * registration touchpoint, and it lives under `src/providers/**` — so onboarding never edits the
  * core, the protocol, or any consumer (Provider Self-Containment).
  */
-export const PROVIDERS: readonly IProvider[] = [echoProvider, cloudbedsProvider, toteatProvider];
+export const PROVIDERS: readonly IProvider[] = [
+  echoProvider,
+  cloudbedsProvider,
+  toteatProvider,
+  siigoProvider,
+];
