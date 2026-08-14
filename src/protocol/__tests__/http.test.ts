@@ -13,6 +13,7 @@ beforeAll(async () => {
     logLevel: 'silent',
     serverSecret: SECRET,
     credentialResolveUrl: '',
+    credentialResolveSecret: '',
   });
   await app.ready();
 });

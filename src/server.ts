@@ -51,7 +51,9 @@ export function buildApp(config: Config = loadConfig()): FastifyInstance {
     ? {
         reference: createReferenceCredentialResolver({
           resolveUrl: config.credentialResolveUrl,
-          hopBSecret: config.serverSecret,
+          // Prefer the dedicated outbound secret; fall back to the inbound one until the backend
+          // and this server have both been given it (see Config.credentialResolveSecret).
+          hopBSecret: config.credentialResolveSecret || config.serverSecret,
         }),
       }
     : {};
