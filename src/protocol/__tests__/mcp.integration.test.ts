@@ -17,6 +17,7 @@ beforeAll(async () => {
     logLevel: 'silent',
     serverSecret: SECRET,
     credentialResolveUrl: '',
+    credentialResolveSecret: '',
   });
   await app.listen({ port: 0, host: '127.0.0.1' });
   const addr = app.server.address() as AddressInfo;

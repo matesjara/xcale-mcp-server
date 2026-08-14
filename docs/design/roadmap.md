@@ -19,12 +19,20 @@ so they are tracked here rather than lost.
   makes the server attempt an unauthenticated outbound call instead of returning a reconnect signal.
   *Fix:* reject empty at `resolveCredential`; restore the guard test. *Trigger:* before any provider
   whose API treats an empty credential as anonymous access (vs a clean 401).
-- **`CREDENTIAL_RESOLVE_URL` unvalidated + reuses the Hop-B secret outbound.** No scheme/allowlist
-  check at `loadConfig`, and the outbound bearer is `MCP_SERVER_SECRET` itself. A typo'd/plaintext
-  host would exfiltrate the inbound master secret. Fails *closed* while unset (today), so this is
-  latent. *Fix:* require `https:` at startup or refuse to boot; use a distinct outbound secret.
-  *Trigger:* before the first `reference`-delivery provider ships (Siigo) — do NOT set the env var
-  in `prd` until this lands.
+- **`CREDENTIAL_RESOLVE_URL` is unvalidated at `loadConfig`.** No scheme or allowlist check —
+  `env.CREDENTIAL_RESOLVE_URL ?? ''`, taken as given. A typo'd or plaintext host receives the
+  outbound bearer on every resolve call. Fails *closed* while unset (today), so this is latent.
+  *Fix:* require `https:` at startup or refuse to boot. *Trigger:* before the first
+  `reference`-delivery provider ships (Siigo) — do NOT set the env var in `prd` until this lands.
+
+  > **Half CLOSED (2026-08-14, PR #27).** This entry originally paired the unvalidated URL with a
+  > second defect: "the outbound bearer is `MCP_SERVER_SECRET` itself". That half is fixed —
+  > `CREDENTIAL_RESOLVE_SECRET` is now a distinct outbound secret (`src/config.ts`, `src/server.ts`),
+  > falling back to `MCP_SERVER_SECRET` only until both this server and the backend carry it. So a
+  > bad URL no longer exfiltrates the inbound master secret; it exfiltrates the callback secret,
+  > which still buys an attacker provider credentials from the Credential Authority. The trigger
+  > above stands unchanged, and the fallback makes it sharper: setting the URL in `prd` *without*
+  > also setting `CREDENTIAL_RESOLVE_SECRET` silently restores the coupling #27 removed.
 - **`create_reservation` double-book window.** 15 s transport abort can fire *after* Cloudbeds wrote
   the row; `thirdPartyIdentifier` (the only reconciliation handle) is optional. *Fix:* make
   `thirdPartyIdentifier` required; document the abort-after-write window. *Trigger:* before the

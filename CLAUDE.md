@@ -9,6 +9,31 @@ consumers (xcale-backend first) consume capabilities over stable, consumer-agnos
 - **Decisions** — `docs/adr/` (index + policy: `docs/adr/README.md`).
 - **Onboarding / add a provider** — `docs/onboarding.md` + the `add-provider` skill.
 
+## Communication — how to answer in chat
+
+**Language: chat in Spanish, artifacts in English.** Every response you write to me is in Spanish.
+Everything that lands in the repo or on GitHub stays in English — code, comments, docs, ADRs,
+commit messages, PR titles and bodies, branch names. Quoting an artifact inside a Spanish answer
+keeps its English wording; don't translate identifiers, paths, commands, or error strings.
+
+Top-down. **Ceiling: ~12 lines; a release or PR briefing ~18.** Past that you are explaining, not
+reporting — move the detail into the PR body, an ADR, or a doc and link it.
+
+Order, always:
+
+1. **Verdict first.** Line one is the outcome or what I have to do — never the setup.
+2. **⚠️ Then what I must decide or watch.** Decisions, risks, blockers, things that break. Marked.
+3. **Then facts, only if they'd change my decision.** Consolidated into one or two lines.
+
+Rules:
+
+- **No walkthroughs.** Never one section per PR / file / commit / step — group them into a claim.
+- **Numbers, not adjectives.** "227 tests green, 0 vulns" beats "everything passes cleanly".
+- **Say it once.** No restating my request, no narrating what you just did, no closing recap.
+- **Cut what I can infer.** "Gates green" — not a list of every gate that was green.
+- **Rationale lives in artifacts** (ADR, PR body, docs), not in chat. Link, don't paste.
+- If the honest answer is one line, it's one line. Length is never a proxy for rigor.
+
 ## Stack
 
 - TypeScript (strict; `exactOptionalPropertyTypes` off — see `docs/adr/typescript-strictness-config.md`),

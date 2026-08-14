@@ -102,7 +102,12 @@ contributor PR is pending). The gate has **two levels**:
 1. **CI green** (differential lint, type-check, tests, build). Never review a red PR — send it back first.
 2. **`code-reviewer` agent over the PR diff** (`gh pr diff <n>` as input) — **zero open Blockers**.
    Majors/Minors are judgment calls: request changes or accept-and-roadmap them, explicitly.
-3. **The human reads the diff.** The agent advises; the release owner owns the verdict.
+3. **Brief the release owner in plain terms — always, before any verdict.** Mateo reads the
+   briefing, not the diff. Lead with *what changes and why*, in concrete language, no jargon dump:
+   what the code did before, what it does now, what breaks if we merge it, and what is left open
+   (ops, follow-ups, half-closed roadmap items). Short and specific — a screen, not an essay.
+   Details go in the review notes below the fold; if he wants the diff he'll ask.
+4. **The human owns the verdict.** The agent and the briefing advise; the release owner decides.
 
 **Level 2 — feature PRs** (design folder in `docs/design/<slug>/`, or new/changed API surface), additionally:
 4. **Ship-log exists** (`docs/design/<slug>/ship-log.md`) with dev-side ops recorded (Ship Gate 1).
