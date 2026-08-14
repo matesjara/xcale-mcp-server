@@ -69,6 +69,13 @@ Rules:
 
 - `main` (default, protected: PR + 1 review) · `dev` (protected: PR). Implementation: feature
   branch → PR → `dev`; release: `dev` → `main` PR. Repo: https://github.com/JuanJo0775/xcale-mcp-server
+- **Release-owner override.** Mateo (`matesjara`, CEO) is the release owner and a repo admin;
+  `enforce_admins` is `false` on `main`, so he can merge past the 1-review requirement. This is
+  routine, not an incident: he authors most PRs and GitHub forbids self-approval, so a solo release
+  would otherwise deadlock. Once he has authorized the release, merge with
+  `gh pr merge <n> --merge --admin` — do not stop to ask who can approve. What still holds: CI must
+  be green, the release gates must pass, and the authorization must be his and explicit for *that*
+  release. Never use `--admin` to bypass a red build or an unreviewed contributor PR.
 
 ## Deploy
 
