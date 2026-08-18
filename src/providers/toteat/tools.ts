@@ -23,7 +23,7 @@ const tool = toolFactory<ToteatContext>();
 const NO_ARGS = z.object({}).strict();
 
 /**
- * A refused order, in full, where a human can actually find it.
+ * An order's full round trip, where a human can actually find it.
  *
  * Toteat's envelope says only `Invalid Parameters` — no field, no reason — so the exact body we sent
  * next to its raw answer is the only thing that turns "it does not work" into a diagnosis. Two
@@ -35,9 +35,9 @@ const NO_ARGS = z.object({}).strict();
  * The file is skipped in production: there the console goes to the platform's log aggregator, and a
  * gateway writing to its own container's disk is a leak nobody is watching.
  */
-function reportRefusedOrder(message: string, sent: unknown, received: unknown): void {
+function reportOrderOutcome(message: string, sent: unknown, received: unknown): void {
   const block =
-    `[toteat] create_order refused: ${message}
+    `[toteat] create_order ${message}
 ` +
     `  sent    : ${JSON.stringify(sent)}
 ` +
@@ -382,9 +382,14 @@ export function buildToteatTools(
         // only `Invalid Parameters` — no field, no reason. Its RAW answer, next to the exact body we
         // sent, is the only thing that turns "it does not work" into a diagnosis. Logged on failure
         // only, and never on the read paths, so this stays a rare line and not a firehose of orders.
-        if (!unwrapped.ok) {
-          reportRefusedOrder(unwrapped.message, body, res.ok ? res.data : res.body);
-        }
+        // Both outcomes, because the accepted one is the harder to learn from: the venue's answer to
+        // a create is the only place its own handling of our fields is visible, and an order that
+        // worked is exactly when nobody thinks to look.
+        reportOrderOutcome(
+          unwrapped.ok ? 'accepted' : `refused: ${unwrapped.message}`,
+          body,
+          res.ok ? res.data : res.body,
+        );
 
         return toOutcome(unwrapped);
       },
