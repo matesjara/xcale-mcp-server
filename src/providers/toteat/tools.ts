@@ -191,8 +191,11 @@ export function buildToteatTools(
         'Create an order, or append products to an existing table order. `orderReference` is the ' +
         "CALLER's own id and is required: it is the only handle by which a failed call can later be " +
         'reconciled against `list_open_orders`. Extras are declared nested inside their product — ' +
-        'this tool flattens them into the positional format Toteat expects. Payment is create-time ' +
-        'only; an open order cannot be paid through the API. A shift must be open.',
+        'this tool flattens them into the positional format Toteat expects. Send each ' +
+        "line's `amountAfterTax` (unit price × quantity, tax included) with its `productName` " +
+        'and `category`: a venue rejects an order that names dishes without pricing them. ' +
+        'Payment is create-time only; an open order cannot be paid through the API. ' +
+        'A shift must be open.',
       input: z
         .object({
           orderReference: z.string().min(1),
@@ -200,6 +203,8 @@ export function buildToteatTools(
           channel: z
             .enum(['webstore', 'crm', 'erp', 'pos', 'marketplace', 'app'])
             .default('webstore'),
+          /** Who is sending the order. Printed by the venue to tell integrations apart. */
+          vendorName: z.string().min(1).optional(),
           status: z
             .enum(['new', 'created', 'preparing', 'ready', 'ondelivery', 'delivered'])
             .optional(),
@@ -215,12 +220,19 @@ export function buildToteatTools(
                   productCode: z.string().min(1),
                   quantity: z.number().int().positive(),
                   comment: z.string().optional(),
+                  /** Line total, tax included — unit price × quantity, not a unit price. */
+                  amountAfterTax: z.number().nonnegative().optional(),
+                  productName: z.string().min(1).optional(),
+                  category: z.string().min(1).optional(),
                   modifiers: z
                     .array(
                       z
                         .object({
                           productCode: z.string().min(1),
                           quantity: z.number().int().positive(),
+                          amountAfterTax: z.number().nonnegative().optional(),
+                          productName: z.string().min(1).optional(),
+                          category: z.string().min(1).optional(),
                         })
                         .strict(),
                     )
@@ -278,6 +290,7 @@ export function buildToteatTools(
           orderReference: args.orderReference,
           type: args.type,
           channel: args.channel,
+          ...(args.vendorName !== undefined ? { vendorName: args.vendorName } : {}),
           // Toteat wants 0 for "create"; a real id means "append to this table order".
           orderId: args.orderId ?? 0,
           ...(args.tableId !== undefined ? { tableId: args.tableId } : {}),
