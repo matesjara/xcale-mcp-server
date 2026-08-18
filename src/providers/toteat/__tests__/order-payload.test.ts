@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildOrderLines } from '../order-payload';
+import { buildOrderLines, toteatTimestamp } from '../order-payload';
 
 /**
  * The mutation set for positional modifiers. Toteat binds each extra to the most recent
@@ -164,5 +164,51 @@ describe('buildOrderLines — the money', () => {
     // The association is still the only thing carrying meaning; adding fields must not reorder.
     expect(lines.map((l) => l.productCode)).toEqual(['burger-A', 'tomate', 'burger-B']);
     expect(lines.map((l) => l.lineNumber)).toEqual([1, 2, 3]);
+  });
+});
+
+/**
+ * The fields Toteat refuses an order without.
+ *
+ * Learned the expensive way: four rejections in a row saying only "Invalid Parameters" before its
+ * undocumented `errors` array gave up the list (2026-08-18) — `status`, `operationDate`,
+ * `document.payments`, and `tax` on EVERY line. None of them are marked required in the vendor spec.
+ */
+describe('the wire requirements Toteat does not document', () => {
+  it('puts a tax key on every line, empty when unknown', () => {
+    const lines = buildOrderLines([
+      { productCode: 'SB020', quantity: 1, amountAfterTax: 800 },
+      {
+        productCode: 'SB011',
+        quantity: 1,
+        modifiers: [{ productCode: 'SB129', quantity: 1 }],
+      },
+    ]);
+
+    // Toteat refuses the WHOLE order over one missing `tax`, extras included. Empty says "we itemize
+    // no taxes"; it is not an invented 19%, which would land in a real venue's accounting.
+    expect(lines.every((l) => Array.isArray(l.tax))).toBe(true);
+    expect(lines).toHaveLength(3);
+  });
+
+  it('keeps a tax breakdown the caller does know', () => {
+    const [line] = buildOrderLines([
+      {
+        productCode: 'SB020',
+        quantity: 1,
+        amountAfterTax: 800,
+        tax: [{ name: 'IVA', value: 128 }],
+      },
+    ]);
+
+    expect(line!.tax).toEqual([{ name: 'IVA', value: 128 }]);
+  });
+
+  it('formats the timestamp as naked local time, never with a Z', () => {
+    const stamped = toteatTimestamp(new Date(2026, 7, 18, 9, 5, 3));
+
+    // A `Z` would tell a Bogotá kitchen its order was placed five hours from now.
+    expect(stamped).toBe('2026-08-18T09:05:03');
+    expect(stamped).not.toContain('Z');
   });
 });
