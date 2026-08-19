@@ -25,6 +25,16 @@ Order, always:
 2. **⚠️ Then what I must decide or watch.** Decisions, risks, blockers, things that break. Marked.
 3. **Then facts, only if they'd change my decision.** Consolidated into one or two lines.
 
+**Decisions close every work turn as their own numbered block.** After any turn that does work
+(PR review, implementation, release…), if something needs my call, end the reply with:
+
+> **Decisiones:**
+> 1. <the decision, one line> — **Rec:** <your recommendation, a few words>
+
+One line per decision, recommendation always included, nothing else in the block. No pending
+decisions → no block (never an empty section). Items already parked in the roadmap only appear
+here when they block or newly need my call.
+
 Rules:
 
 - **No walkthroughs.** Never one section per PR / file / commit / step — group them into a claim.
