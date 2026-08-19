@@ -31,14 +31,17 @@ aunque no se tope antes con un cliente.
 
 ## El diseño, si la respuesta es "sí, hay otro host"
 
-Encaja en maquinaria que ya existe y no necesita inventar nada:
+Encaja mayormente en maquinaria que ya existe:
 
-1. **Descubrir** el host tras el OAuth, igual que ya hacemos con `propertyID` — el
-   `contextDiscovery` del manifest, extendido a una segunda clave (`apiBaseUrl`). Es un cambio
-   **aditivo** del catálogo (ADR `additive-contract-versioning`).
+1. **Descubrir** el host tras el OAuth, análogo a lo que ya hacemos con `propertyID` — pero con dos
+   piezas reales de trabajo: `contextDiscovery` hoy es un objeto único `{ key, tool, resultPath }`
+   (`src/core/provider-port.ts`), así que una segunda clave (`apiBaseUrl`) exige reformarlo a
+   multi-entrada; y su fuente sería `GET /oauth/metadata`, que hoy no está expuesto como tool de
+   descubrimiento. Sigue siendo un cambio **aditivo** del catálogo (ADR
+   `additive-contract-versioning`), pero toca el port — no es solo declarar una clave más.
 2. **Guardarlo** en el `metadata` de la conexión: eso ya lo hace el consumidor en `onConnected`.
-3. **Reenviarlo** por `X-Provider-Metadata`, que ya viaja en cada `tools/call` y ya se proyecta por
-   `contextKeys`.
+3. **Reenviarlo** por `X-Provider-Metadata`, que ya viaja en cada `tools/call` y ya se valida contra
+   el `metadataSchema` del proveedor (`src/core/provider-factory.ts`).
 4. **Usarlo** como `baseUrl` por llamada en el cliente de Cloudbeds.
 
 **La parte que no es mecánica, y es la razón de no improvisarla:** el paso 4 hace que el servidor
