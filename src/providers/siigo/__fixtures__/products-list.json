@@ -1,0 +1,25 @@
+{
+  "pagination": { "page": 1, "page_size": 25, "total_results": 27080 },
+  "results": [
+    {
+      "id": "9bfbedac-fad6-4579-a196-fec86051c6ec",
+      "code": "6974683970452",
+      "name": "Producto demo",
+      "account_group": { "id": 1543, "name": "Productos gravados 19%" },
+      "type": "Product",
+      "stock_control": false,
+      "active": true,
+      "tax_classification": "Excluded",
+      "tax_included": false,
+      "unit": { "code": "94", "name": "unidad" },
+      "additional_fields": {},
+      "available_quantity": 0,
+      "warehouses": [],
+      "metadata": { "created": "2026-08-12T16:57:56.257Z" }
+    }
+  ],
+  "_links": {
+    "self": { "href": "https://api.siigo.com/v1/products?page=1&page_size=25" },
+    "next": { "href": "https://api.siigo.com/v1/products?page=2&page_size=25" }
+  }
+}
