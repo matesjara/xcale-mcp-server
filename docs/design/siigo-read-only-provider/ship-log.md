@@ -86,6 +86,18 @@ so a paginated `list_*` is the record (no `get_*` companion). `manifest.schemaVe
 `2026-08-13.1`→`2026-08-13.2`, `providerVersion` `0.2.0`→`0.3.0`. **Gate:** `tsc` + prettier clean; **full
 suite 250/250 green.** Ships with PR 2 / PR 2b.
 
+### PR 2 addendum — review fix (2026-08-18): uniform pagination envelope
+
+The PR #33 review found the 9 paginated `list_*` tools returning Siigo's raw
+`{ pagination, results, _links }` envelope verbatim — a deviation from ADR
+`canonical-provider-pattern` §2 (uniform `PaginatedResult` envelope for every list tool; deviations
+require an ADR) that this feature's own traceability matrix had ruled out. Fixed in-branch: the 9
+wrap via `definePaginatedList` (each item verbatim; `_links` dropped — paging is
+consumer-controlled), the orphaned logo is wired (`logoUrl: '/assets/siigo.svg'`), and
+`schemaVersion` `2026-08-13.2`→`2026-08-18`, `providerVersion` `0.3.0`→`0.4.0` for the result-shape
+change. `api-contract.md` §C updated to match. Flat-array reference reads stay verbatim (no upstream
+pagination to represent). **Gate:** `tsc` + prettier clean; **full suite 250/250 green.**
+
 > **Live-discovery note (dev):** when the mcp-server's tool set changes, the backend must re-discover
 > (its `tools-cache` persists) — bump `manifest.schemaVersion` AND restart the mcp-server then the backend
 > (in that order) so the new tools flow through. The integration page's ↻ refresh only re-checks the

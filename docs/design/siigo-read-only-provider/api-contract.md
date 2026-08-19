@@ -180,40 +180,46 @@ Fills the Feature Design §7 descriptor with Observed values. Strictly declarati
 
 ## C. MCP Tool Contract (the provider's published surface)
 
-Curated read-only set (locked in B0-internal). **Fidelity over Unification** — each tool returns the
-Siigo response **verbatim** as `data` (no mapper, no canonical DTO, no hand-written output schema). The
-only provider-specific logic is the request (path + params) and error mapping.
+Curated read-only set (locked in B0-internal). **Fidelity over Unification governs the records, never
+the envelope** (ADR `canonical-provider-pattern` §2/§4): each paginated list tool returns the uniform
+`PaginatedResult` envelope (`items`, `page`, `pageSize`, `totalResults`, `hasMore`) with every item —
+and every get result — the Siigo record **verbatim** (no mapper, no canonical DTO, no hand-written
+output schema). Siigo's `_links` is dropped: paging is consumer-controlled via `page`/`pageSize`. The
+only provider-specific logic is the request (path + params), the A.4→`PaginatedResult` unwrap, and
+error mapping.
 
 Uniform input for list tools is `page`/`pageSize` (mapped to the wire `page`/`page_size`); `id` for get tools.
 
 | Tool | Input | Wire call | Output `data` |
 |:--|:--|:--|:--|
-| `mcp_siigo_list_customers` | `{ page?: number = 1, pageSize?: number = 25 }` | `GET /v1/customers?page&page_size` | Verbatim list envelope (A.4) |
+| `mcp_siigo_list_customers` | `{ page?: number = 1, pageSize?: number = 25 }` | `GET /v1/customers?page&page_size` | `PaginatedResult` (items = A.4 `results`, verbatim) |
 | `mcp_siigo_get_customer` | `{ id: string /* UUID */ }` | `GET /v1/customers/{id}` | Verbatim customer object |
-| `mcp_siigo_list_invoices` | `{ page?: number = 1, pageSize?: number = 25 }` | `GET /v1/invoices?page&page_size` | Verbatim list envelope |
+| `mcp_siigo_list_invoices` | `{ page?: number = 1, pageSize?: number = 25 }` | `GET /v1/invoices?page&page_size` | `PaginatedResult` (items verbatim) |
 | `mcp_siigo_get_invoice` | `{ id: string /* UUID */ }` | `GET /v1/invoices/{id}` | Verbatim invoice object *(Inferred path)* |
-| `mcp_siigo_list_products` | `{ page?: number = 1, pageSize?: number = 25 }` | `GET /v1/products?page&page_size` | Verbatim list envelope |
+| `mcp_siigo_list_products` | `{ page?: number = 1, pageSize?: number = 25 }` | `GET /v1/products?page&page_size` | `PaginatedResult` (items verbatim) |
 | `mcp_siigo_get_product` | `{ id: string /* UUID */ }` | `GET /v1/products/{id}` | Verbatim product object *(Inferred path)* |
 
 ### C.1 Input schema rules (zod, single-source per canonical-provider-pattern)
 
 ```ts
-// list tools
-{ page: z.number().int().min(1).default(1),
-  pageSize: z.number().int().min(10).max(50).default(25) }  // min 10 mirrors Observed clamp; default 25
+// list tools — the core's shared paginationInput (ADR canonical-provider-pattern §2)
+{ page: z.number().int().positive().default(1),
+  pageSize: z.number().int().positive().max(100).default(25) }
 // get tools
 { id: z.string().min(1) }  // Siigo resource id is a UUID
 ```
 
-- `pageSize` maps to wire `page_size`. Values <10 are clamped by Siigo to 10 — the schema's `min(10)`
-  makes that explicit rather than silently surprising the caller.
+- `pageSize` maps to wire `page_size`. Values <10 are clamped UP to 10 by Siigo (Observed) — the
+  envelope echoes the caller's requested `pageSize`, so a sub-10 request may carry more items than it
+  asked for (documented per tool, not second-guessed here).
 - **No `contextSchema`** (Observed: one credential = one company/NIT; no `companyId` selector on any endpoint).
 
 ### C.2 Output
 
-No output schema is declared (Fidelity over Unification). The tool result is
-`ok(<siigo response body>)`. List tools return the full `{ pagination, results, _links }` envelope so the
-agent can page; get tools return the resource object.
+No output schema is declared (Fidelity over Unification). Paginated list tools return the uniform
+`PaginatedResult` envelope — `items` (each Siigo record verbatim), `page`, `pageSize`,
+`totalResults` (from A.4 `pagination.total_results`), `hasMore` — so the agent can page; get tools
+return the resource object verbatim.
 
 ---
 
@@ -267,10 +273,11 @@ Store under `src/providers/siigo/__fixtures__/`. Minimum set (≥3 scenarios per
 
 ## C.3 Reference-data reads (Phase 1a — added 2026-08-13, Observed)
 
-The lookups an accounting agent needs (and the future write path consumes). Passthrough-verbatim, same
-error map. **Observed distinction: most return a FLAT ARRAY, not the list envelope** — `list_users` is
-the only paginated one; `list_document_types`/`list_payment_types` require a filter. Evidence:
-[`b1-sandbox-evidence.md`](b1-sandbox-evidence.md) §8.
+The lookups an accounting agent needs (and the future write path consumes). Same error map.
+**Observed distinction: most return a FLAT ARRAY, not the list envelope** — returned verbatim (no
+upstream pagination to represent) — while `list_users`, the only paginated one, wraps into
+`PaginatedResult` like every paginated list; `list_document_types`/`list_payment_types` require a
+filter. Evidence: [`b1-sandbox-evidence.md`](b1-sandbox-evidence.md) §8.
 
 | Tool | Input | Wire call | Output `data` |
 |:--|:--|:--|:--|
@@ -279,15 +286,16 @@ the only paginated one; `list_document_types`/`list_payment_types` require a fil
 | `mcp_siigo_list_price_lists` | `{}` | `GET /v1/price-lists` | flat array |
 | `mcp_siigo_list_cost_centers` | `{}` | `GET /v1/cost-centers` | flat array |
 | `mcp_siigo_list_warehouses` | `{}` | `GET /v1/warehouses` | flat array |
-| `mcp_siigo_list_users` | `{ page?, pageSize? }` | `GET /v1/users?page&page_size` | list envelope (paginated) |
+| `mcp_siigo_list_users` | `{ page?, pageSize? }` | `GET /v1/users?page&page_size` | `PaginatedResult` (items verbatim) |
 | `mcp_siigo_list_document_types` | `{ type: string }` (required) | `GET /v1/document-types?type=` | flat array |
 | `mcp_siigo_list_payment_types` | `{ documentType: string }` (required) | `GET /v1/payment-types?document_type=` | flat array |
 
 ## C.4 Additional read resources (Phase 1b — added 2026-08-13, Observed)
 
-Broader accounting context. Passthrough-verbatim, same error map. **Observed: all 5 return the standard
+Broader accounting context. Same error map. **Observed: all 5 return the standard
 `{ pagination, results, _links }` envelope with full records** — so a paginated `list_*` is the record
-(no `get_*` companion). Evidence: [`b1-sandbox-evidence.md`](b1-sandbox-evidence.md) §9.
+(no `get_*` companion). Each wraps into the uniform `PaginatedResult` envelope, items verbatim.
+Evidence: [`b1-sandbox-evidence.md`](b1-sandbox-evidence.md) §9.
 
 | Tool | Input | Wire call |
 |:--|:--|:--|
