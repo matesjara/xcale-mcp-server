@@ -126,3 +126,51 @@ providerVersion bump for `list_addons`). These Minors were **accepted and parked
   ePayco/card-payment status annex. Accepted rather than split during the merge push; move it to
   its own note if the report is ever exported outside the repo. *Trigger:* preparing the report
   for external submission.
+
+---
+
+## Siigo provider & docs wave — deferred from the PR #33/#34/#35 reviews (2026-08-18)
+
+The wave merged with its Blockers fixed in-branch (uniform `PaginatedResult` envelope on the 9
+paginated Siigo list tools + `api-contract.md` §C alignment; ship-log brought to the actual shipped
+state; two factual corrections in the Cloudbeds islands note). These items were **accepted and
+parked**, not fixed.
+
+### Majors
+
+- **Traceability matrix covers 6 of 19 Siigo tools.** `traceability-matrix.md`'s per-tool
+  Observed→Code→Test table was never extended with the 8 Phase-1a reference-data tools or the 5
+  Phase-1b resources. *Fix:* add the 13 rows from `b1-sandbox-evidence.md` §8–9. *Trigger:* the
+  Slice-2 write path reopens the matrix — do not start B-write with a matrix that under-reports
+  the read surface.
+- **Internal certification journals are written in Spanish while CLAUDE.md mandates English-only
+  artifacts.** `2026-08-14-islands-y-el-host-por-propiedad.md` (PR #35) repeats the pattern of
+  `2026-08-02-informe-certificacion.md`: internal Cloudbeds-certification notes in Spanish,
+  external-facing docs in English. Looks like a deliberate but undocumented convention. *Fix
+  (decision, release owner):* either write the exception down (CLAUDE.md addendum) or translate
+  the journals — today every review flags it again. *Trigger:* next Cloudbeds-certification doc,
+  or the next repo-rules edit.
+
+### Minors
+
+- **`api-contract.md` §B cites xcale-backend internals** (`credential-resolve.service.ts`,
+  `credential-exchange.ts`) inside the published-descriptor section. Consumer-agnostic litmus:
+  trim §B to the abstract descriptor + a pointer to the implementation docs. *Trigger:* next
+  contract-doc touch.
+- **Empty `SIIGO_PARTNER_ID` has no boot-time check** — it surfaces as a 400 on the first live
+  Siigo call, unlike `MCP_SERVER_SECRET` which fail-fasts at startup. *Fix:* boot warning (not a
+  hard exit — the var is Siigo-only). *Trigger:* before the release that puts Siigo in `prd`.
+- **`siigoProvider` reads `loadConfig()` at module scope** — the first provider needing deployment
+  config; the injected `Config` in `buildApp` has no effect on the already-built singleton. Works
+  (Doppler populates env pre-boot) but is a second, independent config read. *Fix:* a comment or a
+  factory-at-registration pattern. *Trigger:* the second provider needing deployment config.
+- **ADR numbering machinery is documented but absent.** `docs/adr/README.md` and
+  `.claude/skills/adr/SKILL.md` describe minting numbers at merge via `npm run adr:number`; the
+  script does not exist here and all ADRs are unnumbered slugs. *Fix:* port the script from
+  xcale-backend or amend both docs to the slug-only house style. *Trigger:* next ADR merge.
+- **`assets/siigo.svg` is a placeholder monogram** (now served via `logoUrl`). *Fix:* swap for the
+  traced brand mark like cloudbeds/toteat. *Trigger:* before any consumer surfaces provider logos
+  to end users.
+- **"Tercero" (Siigo's counterparty noun) is unglossed.** Used across `fiscal-write-path` and
+  `write-path-grill-prep.md` without a CONTEXT.md entry mapping it to the read contract's
+  "customer". *Fix:* one glossary line. *Trigger:* Slice-2 write-path work.
