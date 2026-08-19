@@ -281,7 +281,7 @@ JWT ──wrapped as──▶ ResolvedCredential ──used by──▶ Provider
 | AD-4 | Mint ownership | Rail A (Credential Authority) mints/reuses/refreshes, caches 24h JWT | Durable credential never leaves Rail A |
 | AD-5 | Auth descriptor | `credential_exchange`, strictly declarative | Knowledge in server, additive contract; no DSL (ADR) |
 | AD-6 | `Partner-Id` | Non-secret institutional identity, `source: deployment`, out of catalog | Not custody; consumer-agnostic contract |
-| AD-7 | Context | No `contextSchema` (1 connection → 1 company) — **HYPOTHESIS-PENDING (see note ↓)** | Cardinality rule; multi-company = multiple connections — **not yet Observed; blocks on sandbox Q-9** |
+| AD-7 | Context | No `contextSchema` (1 connection → 1 company) — **Observed (B1 resolved Q-9; see note ↓)** | Cardinality rule; multi-company = multiple connections — falsifier did not trigger (`b1-sandbox-evidence.md` §7) |
 | AD-8 | Tool scope | Read-only, curated | First-slice minimizes domain irreversibility |
 | AD-9 | Error model | Error-ownership boundary; reuse `mapHttpStatusToErrorCode` | No change to `ProviderErrorCode` set |
 
@@ -296,6 +296,10 @@ JWT ──wrapped as──▶ ResolvedCredential ──used by──▶ Provider
 > (like `propertyID`), **not** the current no-`contextSchema` shape. If the sandbox proves multi-company,
 > the fix stays inside `src/providers/siigo/` + its backend toolbox entry (self-containment intact) — **no
 > core change**; keeping Siigo thin (no `contextSchema`) remains the **default** until falsified.
+>
+> **Resolved 2026-08-13 (B1):** the falsifier did **not** trigger — no company list in the token, no
+> `companyId`/NIT selector on any data endpoint. AD-7 is now **Observed**; see
+> `b1-sandbox-evidence.md` §7 and the cardinality row in `traceability-matrix.md`.
 
 ---
 

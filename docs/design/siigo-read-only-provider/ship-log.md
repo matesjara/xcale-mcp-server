@@ -3,9 +3,11 @@
 > **Purpose.** A PR-ready handoff of everything built for the Siigo integration in this wave. Phase A
 > (provider-agnostic credential-delivery machinery) is already in `dev`; this log covers **Phase B**
 > (B2 contract → B3 provider+registration → B4 reference emission → B5 e2e).
-> **Date:** 2026-08-13. **Status:** built, tested, and **verified end-to-end against the live Siigo
-> sandbox** (agent returned real customers in the xcale chat). **Nothing committed/pushed yet.**
-> **Repos / base branch:** `xcale-mcp-server` + `xcale-backend`, both on `integration/all-20260812`.
+> **Date:** 2026-08-13 (status updated 2026-08-18). **Status:** built, tested, and **verified
+> end-to-end against the live Siigo sandbox** (agent returned real customers in the xcale chat).
+> In flight as PRs: this docs wave is **PR #34** and the adapter is **PR #33**, both into `dev` of
+> `xcale-mcp-server`; the backend halves ship as their own PRs in `xcale-backend`.
+> **Repos / base branch:** `xcale-mcp-server` + `xcale-backend`, both targeting `dev`.
 
 ## Summary
 
@@ -148,7 +150,7 @@ in `mcp-server.ts:69-77`). **No mcp-server change needed for B4.**
 
 **Verified e2e (2026-08-13):** connected Siigo in the UI (`POST /connect-credential` 200) → created a
 Siigo test agent with the 6 tools → agent ran `mcp_siigo_list_customers` → **real sandbox customers
-returned** (FRIMAC/NIT 800197456-2, etc.; ~82,199 total). Backend log confirms
+returned** (~82,199 total). Backend log confirms
 `/internal/credentials/resolve` was hit → full reference path (emit → resolve → mint → Siigo) exercised.
 
 **Deferred (follow-ups, NOT in these PRs):**
