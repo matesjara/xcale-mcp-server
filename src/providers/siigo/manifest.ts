@@ -21,7 +21,8 @@ export const siigoManifest: ProviderManifest = {
   slug: SLUG,
   displayName: 'Siigo',
   category: 'accounting',
-  schemaVersion: '2026-08-13.2',
-  providerVersion: '0.3.0',
+  logoUrl: '/assets/siigo.svg',
+  schemaVersion: '2026-08-18',
+  providerVersion: '0.4.0',
   capabilities: { pagination: true },
 };

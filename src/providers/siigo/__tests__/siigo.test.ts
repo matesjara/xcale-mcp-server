@@ -116,14 +116,14 @@ describe('siigo provider — catalog surface', () => {
   });
 });
 
-describe('siigo provider — additional read resources (Phase 1b, Observed envelope)', () => {
+describe('siigo provider — additional read resources (Phase 1b, uniform envelope)', () => {
   const envelope = {
     pagination: { page: 1, page_size: 25, total_results: 7957 },
     results: [{ id: 'p-1', document: { id: 1 }, number: 5, total: 100000 }],
     _links: { self: { href: '...' } },
   };
 
-  it('lists each Phase-1b resource on the right path with pagination, envelope verbatim', async () => {
+  it('lists each Phase-1b resource on the right path, wrapping into PaginatedResult', async () => {
     const cases: Array<[string, string]> = [
       ['mcp_siigo_list_purchases', '/v1/purchases'],
       ['mcp_siigo_list_credit_notes', '/v1/credit-notes'],
@@ -138,7 +138,14 @@ describe('siigo provider — additional read resources (Phase 1b, Observed envel
       expect(parsed.pathname, tool).toBe(path);
       expect(parsed.searchParams.get('page')).toBe('2');
       expect(parsed.searchParams.get('page_size')).toBe('10');
-      expect(successData(result)).toEqual(envelope);
+      // Uniform envelope (ADR canonical-provider-pattern §2); items are Siigo's records verbatim.
+      expect(successData(result)).toEqual({
+        items: envelope.results,
+        page: 2,
+        pageSize: 10,
+        totalResults: 7957,
+        hasMore: true,
+      });
     }
   });
 });
@@ -174,7 +181,7 @@ describe('siigo provider — reference data (Phase 1a, Observed shapes)', () => 
     }
   });
 
-  it('lists users with pagination (the one reference read that is a paginated envelope)', async () => {
+  it('lists users with pagination (the one reference read that is paginated upstream)', async () => {
     const usersEnvelope = {
       pagination: { page: 1, page_size: 25, total_results: 42 },
       results: [{ id: 916, username: 'seller1', email: 'seller1@example.com', active: true }],
@@ -187,7 +194,13 @@ describe('siigo provider — reference data (Phase 1a, Observed shapes)', () => 
     expect(parsed.pathname).toBe('/v1/users');
     expect(parsed.searchParams.get('page')).toBe('2');
     expect(parsed.searchParams.get('page_size')).toBe('50');
-    expect(successData(result)).toEqual(usersEnvelope);
+    expect(successData(result)).toEqual({
+      items: usersEnvelope.results,
+      page: 2,
+      pageSize: 50,
+      totalResults: 42,
+      hasMore: false,
+    });
   });
 
   it('requires and forwards the `type` filter for document types (Siigo 400s without it)', async () => {
@@ -262,22 +275,35 @@ describe('siigo provider — request shaping', () => {
   });
 });
 
-describe('siigo provider — reads (verbatim passthrough)', () => {
-  it('returns the customers list envelope verbatim', async () => {
+describe('siigo provider — reads (uniform envelope, items verbatim)', () => {
+  it('wraps the customers list into PaginatedResult, items untouched', async () => {
     const { provider: p } = provider(customersList);
 
     const result = await p.callTool('mcp_siigo_list_customers', {}, CTX);
 
-    const data = successData(result) as { pagination: unknown; results: unknown[] };
-    expect(data).toEqual(customersList); // no reshaping, no mapper
-    expect(data.pagination).toEqual({ page: 1, page_size: 25, total_results: 82167 });
-    expect(Array.isArray(data.results)).toBe(true);
+    const data = successData(result) as { items: unknown[]; totalResults: number };
+    expect(data).toEqual({
+      items: customersList.results, // each item verbatim — no reshaping, no mapper
+      page: 1,
+      pageSize: 25,
+      totalResults: 82167,
+      hasMore: true,
+    });
   });
 
-  it('returns a single invoice/product object verbatim on get and list', async () => {
+  it('wraps the invoices list and returns a get object verbatim', async () => {
     const { provider: p } = provider(invoicesList);
     const result = await p.callTool('mcp_siigo_list_invoices', {}, CTX);
-    expect(successData(result)).toEqual(invoicesList);
+    const data = successData(result) as { items: unknown[] };
+    expect(data.items).toEqual(invoicesList.results);
+
+    const { provider: p2 } = provider(customerGet);
+    const got = await p2.callTool(
+      'mcp_siigo_get_customer',
+      { id: '556cad10-9ca3-4718-8791-e8b718a3f8ba' },
+      CTX,
+    );
+    expect(successData(got)).toEqual(customerGet); // get stays fully verbatim
   });
 });
 

@@ -1,22 +1,10 @@
 import { z } from 'zod';
 
+import { definePaginatedList, type PaginatedHandlerResult } from '../../core/pagination';
 import { defineTool, ok, type ToolDefinition, type ToolOutcome } from '../../core/tool';
 import type { SiigoClient } from './client';
 import { unwrapSiigo } from './errors';
 import { SLUG } from './manifest';
-
-/**
- * Uniform list input. `page` is 1-based; `pageSize` maps to Siigo's wire `page_size`. Observed B1:
- * Siigo's default page_size is 25 and it CLAMPS any value below 10 up to 10 — we accept the caller's
- * value verbatim and let Siigo apply its own floor (Fidelity over Unification), rather than second-
- * guessing it here. The upper bound is a sane guard, not a wire claim.
- */
-const listInput = z
-  .object({
-    page: z.number().int().min(1).default(1),
-    pageSize: z.number().int().min(1).max(100).default(25),
-  })
-  .strict();
 
 /** Get-by-id input. Siigo resource ids are UUIDs. */
 const getInput = z.object({ id: z.string().min(1) }).strict();
@@ -26,6 +14,31 @@ const noArgs = z.object({}).strict();
 
 function toOutcome(result: ReturnType<typeof unwrapSiigo>): ToolOutcome {
   return result.ok ? ok(result.data) : { ok: false, code: result.code, message: result.message };
+}
+
+/**
+ * Unwrap a Siigo `{ pagination, results, _links }` list response into the page the uniform
+ * `PaginatedResult` envelope is built from (ADR canonical-provider-pattern §2 — the ENVELOPE is
+ * standardized; Fidelity over Unification governs the records, so each item stays verbatim).
+ * Siigo's `_links` is dropped: paging is consumer-controlled via `page`/`pageSize`. Observed B1:
+ * Siigo's wire `page_size` CLAMPS any value below 10 up to 10 — the envelope echoes the caller's
+ * requested `pageSize`, so a sub-10 request may carry more items than it asked for.
+ */
+function toPage(result: ReturnType<typeof unwrapSiigo>): PaginatedHandlerResult<unknown> {
+  if (!result.ok) {
+    return { ok: false, code: result.code, message: result.message };
+  }
+  const env = result.data as {
+    readonly pagination?: { readonly total_results?: number };
+    readonly results?: readonly unknown[];
+  };
+  return {
+    ok: true,
+    items: Array.isArray(env.results) ? env.results : [],
+    ...(env.pagination?.total_results !== undefined
+      ? { totalResults: env.pagination.total_results }
+      : {}),
+  };
 }
 
 /**
@@ -52,7 +65,8 @@ function refArrayTool(
 /**
  * A paginated `list_*` for a resource whose list already carries the full records (Observed: purchases,
  * credit-notes, vouchers, journals, quotations all return the standard `{ pagination, results, _links }`
- * envelope with complete objects). No `get_*` companion — the list is the record. Passthrough-verbatim.
+ * envelope with complete objects). No `get_*` companion — the list is the record. Uniform
+ * `PaginatedResult` envelope; each item verbatim.
  */
 function listResourceTool(
   client: SiigoClient,
@@ -61,12 +75,12 @@ function listResourceTool(
   description: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- erased input type (heterogeneous tool collection)
 ): ToolDefinition<any> {
-  return defineTool({
+  return definePaginatedList({
     name: `mcp_${SLUG}_${verb}`,
     description,
-    input: listInput,
+    input: z.object({}),
     handler: async (args, ctx) =>
-      toOutcome(
+      toPage(
         unwrapSiigo(
           await client.get(`v1/${path}`, ctx.request, {
             page: args.page,
@@ -78,7 +92,10 @@ function listResourceTool(
   });
 }
 
-/** One resource family: a paginated `list_*` and a by-id `get_*`, both passthrough-verbatim. */
+/**
+ * One resource family: a paginated `list_*` (uniform `PaginatedResult` envelope, items verbatim)
+ * and a by-id `get_*` (resource object verbatim).
+ */
 function resourceTools(resource: {
   readonly listVerb: string; // e.g. 'list_customers'
   readonly getVerb: string; // e.g. 'get_customer'
@@ -90,16 +107,16 @@ function resourceTools(resource: {
 }): ReadonlyArray<ToolDefinition<any>> {
   const { client, path } = resource;
   return [
-    defineTool({
+    definePaginatedList({
       name: `mcp_${SLUG}_${resource.listVerb}`,
       description: resource.listDescription,
-      input: listInput,
+      input: z.object({}),
       handler: async (args, ctx) => {
         const res = await client.get(`v1/${path}`, ctx.request, {
           page: args.page,
           page_size: args.pageSize,
         });
-        return toOutcome(unwrapSiigo(res, resource.listVerb.replace('_', ' ')));
+        return toPage(unwrapSiigo(res, resource.listVerb.replace(/_/g, ' ')));
       },
     }),
     defineTool({
@@ -108,16 +125,19 @@ function resourceTools(resource: {
       input: getInput,
       handler: async (args, ctx) => {
         const res = await client.get(`v1/${path}/${encodeURIComponent(args.id)}`, ctx.request);
-        return toOutcome(unwrapSiigo(res, resource.getVerb.replace('_', ' ')));
+        return toOutcome(unwrapSiigo(res, resource.getVerb.replace(/_/g, ' ')));
       },
     }),
   ];
 }
 
 /**
- * The curated read-only tool set (locked in B0-internal). Each tool returns Siigo's response VERBATIM
- * — list tools return the full `{ pagination, results, _links }` envelope so the agent can page; get
- * tools return the resource object. No mapper, no canonical DTO (Fidelity over Unification).
+ * The curated read-only tool set (locked in B0-internal). Paginated list tools return the uniform
+ * `PaginatedResult` envelope (`items`, `page`, `pageSize`, `totalResults`, `hasMore` — ADR
+ * canonical-provider-pattern §2); each ITEM is Siigo's record verbatim, and get tools return the
+ * resource object verbatim. No mapper, no canonical DTO (Fidelity over Unification governs the
+ * records, never the envelope). Unpaginated reference-data reads return Siigo's flat array verbatim —
+ * there is no upstream pagination to represent (absent fields are documented, never inferred).
  */
 export function buildSiigoTools(
   client: SiigoClient,
@@ -131,9 +151,9 @@ export function buildSiigoTools(
       getVerb: 'get_customer',
       listDescription:
         'List the accounting customers (third parties) on the connected Siigo company, paginated. ' +
-        'Returns the Siigo response verbatim: `{ pagination, results, _links }`. Each customer carries ' +
-        'its `id` (UUID), `identification` (NIT/cédula), `name`, `person_type`, contacts and fiscal ' +
-        'responsibilities.',
+        'Returns the uniform paginated envelope (`items`, `page`, `pageSize`, `totalResults`, ' +
+        '`hasMore`); each item is the Siigo customer verbatim — `id` (UUID), `identification` ' +
+        '(NIT/cédula), `name`, `person_type`, contacts and fiscal responsibilities.',
       getDescription:
         'Get one Siigo customer by its `id` (UUID, as returned by list_customers). Returns the full ' +
         'customer object verbatim.',
@@ -144,9 +164,10 @@ export function buildSiigoTools(
       listVerb: 'list_invoices',
       getVerb: 'get_invoice',
       listDescription:
-        'List the sales invoices on the connected Siigo company, paginated. Returns the Siigo ' +
-        'response verbatim: `{ pagination, results, _links }`. Each invoice carries its `id` (UUID), ' +
-        '`number`/`name`, `date`, `customer`, `total`, `balance`, line `items` and `payments`.',
+        'List the sales invoices on the connected Siigo company, paginated. Returns the uniform ' +
+        'paginated envelope (`items`, `page`, `pageSize`, `totalResults`, `hasMore`); each item is ' +
+        'the Siigo invoice verbatim — `id` (UUID), `number`/`name`, `date`, `customer`, `total`, ' +
+        '`balance`, line `items` and `payments`.',
       getDescription:
         'Get one Siigo sales invoice by its `id` (UUID, as returned by list_invoices). Returns the ' +
         'full invoice object verbatim.',
@@ -157,9 +178,10 @@ export function buildSiigoTools(
       listVerb: 'list_products',
       getVerb: 'get_product',
       listDescription:
-        'List the products/services on the connected Siigo company, paginated. Returns the Siigo ' +
-        'response verbatim: `{ pagination, results, _links }`. Each product carries its `id` (UUID), ' +
-        '`code`, `name`, `account_group`, taxes, `prices` and stock/warehouse info.',
+        'List the products/services on the connected Siigo company, paginated. Returns the uniform ' +
+        'paginated envelope (`items`, `page`, `pageSize`, `totalResults`, `hasMore`); each item is ' +
+        'the Siigo product verbatim — `id` (UUID), `code`, `name`, `account_group`, taxes, `prices` ' +
+        'and stock/warehouse info.',
       getDescription:
         'Get one Siigo product by its `id` (UUID, as returned by list_products). Returns the full ' +
         'product object verbatim.',
@@ -207,15 +229,16 @@ export function buildSiigoTools(
       'List the warehouses (bodegas) on the connected Siigo company. Returns a flat array verbatim; ' +
         'each carries `id`, `name`, `active`, `has_movements`.',
     ),
-    defineTool({
+    definePaginatedList({
       name: `mcp_${SLUG}_list_users`,
       description:
-        'List the users (vendedores/usuarios) on the connected Siigo company, paginated. Unlike the ' +
-        'other reference-data reads this returns the `{ pagination, results }` envelope verbatim; each ' +
-        'user carries `id`, `username`, `first_name`, `last_name`, `email`, `identification`, `active`.',
-      input: listInput,
+        'List the users (vendedores/usuarios) on the connected Siigo company, paginated — the one ' +
+        'reference-data read that is paginated upstream. Returns the uniform paginated envelope ' +
+        '(`items`, `page`, `pageSize`, `totalResults`, `hasMore`); each item carries `id`, ' +
+        '`username`, `first_name`, `last_name`, `email`, `identification`, `active`.',
+      input: z.object({}),
       handler: async (args, ctx) =>
-        toOutcome(
+        toPage(
           unwrapSiigo(
             await client.get('v1/users', ctx.request, {
               page: args.page,
@@ -268,8 +291,8 @@ export function buildSiigoTools(
       'list_purchases',
       'purchases',
       'List the purchase invoices (facturas de compra / bills from suppliers) on the connected Siigo ' +
-        'company, paginated. Returns the `{ pagination, results, _links }` envelope verbatim; each ' +
-        'purchase carries `id`, `document`, `number`, `date`, `supplier`, `total`, `balance`, `items`, ' +
+        'company, paginated. Returns the uniform paginated envelope; each item is the Siigo purchase ' +
+        'verbatim — `id`, `document`, `number`, `date`, `supplier`, `total`, `balance`, `items`, ' +
         '`retentions`, `payments`.',
     ),
     listResourceTool(
@@ -277,32 +300,32 @@ export function buildSiigoTools(
       'list_credit_notes',
       'credit-notes',
       'List the credit notes (notas crédito de venta) on the connected Siigo company, paginated. ' +
-        'Returns the envelope verbatim; each carries `id`, `document`, `number`, `date`, the related ' +
-        '`invoice`, `customer`, `seller`, `total`, `items`, `payments`.',
+        'Returns the uniform paginated envelope; each item carries `id`, `document`, `number`, ' +
+        '`date`, the related `invoice`, `customer`, `seller`, `total`, `items`, `payments`.',
     ),
     listResourceTool(
       client,
       'list_vouchers',
       'vouchers',
       'List the cash receipts (recibos de caja / vouchers) on the connected Siigo company, paginated. ' +
-        'Returns the envelope verbatim; each carries `id`, `document`, `number`, `date`, `type`, ' +
-        '`customer`, `items`, `payment`.',
+        'Returns the uniform paginated envelope; each item carries `id`, `document`, `number`, ' +
+        '`date`, `type`, `customer`, `items`, `payment`.',
     ),
     listResourceTool(
       client,
       'list_journals',
       'journals',
       'List the accounting journal entries (comprobantes contables) on the connected Siigo company, ' +
-        'paginated. Returns the envelope verbatim; each carries `id`, `document`, `number`, `date`, ' +
-        '`items`, `observations`.',
+        'paginated. Returns the uniform paginated envelope; each item carries `id`, `document`, ' +
+        '`number`, `date`, `items`, `observations`.',
     ),
     listResourceTool(
       client,
       'list_quotations',
       'quotations',
-      'List the sales quotations (cotizaciones) on the connected Siigo company, paginated. Returns the ' +
-        'envelope verbatim; each carries `id`, `document`, `number`, `date`, `customer`, `seller`, ' +
-        '`total`, `items`, `public_url`.',
+      'List the sales quotations (cotizaciones) on the connected Siigo company, paginated. Returns ' +
+        'the uniform paginated envelope; each item carries `id`, `document`, `number`, `date`, ' +
+        '`customer`, `seller`, `total`, `items`, `public_url`.',
     ),
   ];
 }
