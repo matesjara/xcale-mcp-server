@@ -111,6 +111,7 @@ contract until B1.**
 | Q-6 | Exact **error envelope** shape (a "Manejo de errores" section + a `Detail` field are documented; the JSON structure — `Errors[]`? `code`/`message`/`detail`? — is unconfirmed). | Inferred |
 | Q-7 | The **GET-by-id path** for customers/invoices/products (does `get_*` exist as a dedicated endpoint, and what shape). | Inferred |
 | Q-8 | Whether the **list response** is uniform across customers/invoices/products (same `pagination`/`results` envelope). | Officially documented (assumed uniform) |
+| Q-9 | **Company/NIT cardinality (blocks the `contextSchema` decision — Feature Design AD-7).** Does one Siigo access key authenticate to **exactly one** company/NIT, or does `/auth` **enumerate** companies, or does any data endpoint **accept or require** a `companyId`/NIT selector? **Falsifier:** if a single key reaches multiple NITs or any endpoint takes a company selector, Siigo is **Cloudbeds-shaped** and needs a company-key `contextSchema` + `accountContextKeys` (like `propertyID`), **not** the current no-`contextSchema` shape. On a fiscal provider a cross-company answer is a real leak, so this must be **Observed**, not assumed. | Hypothesis (assumed 1→1, **unverified**) |
 
 ---
 
@@ -127,6 +128,15 @@ Run in this order; fill the **Observed** column and only then feed `api-contract
 | 5 | Page through customers (>1 page) | **exact pagination param names** + response page/size/total fields | ⬜ |
 | 6 | `GET` a single customer/invoice/product by id | the by-id path shape | ⬜ |
 | 7 | Trigger/observe error paths (bad token; if feasible, burst for 429) | provider error body shape + status codes + any rate-limit headers | ⬜ |
+| 8 | **Company/NIT cardinality (Q-9):** check the `/auth` response for a single vs list company context; make one data call and check for a `companyId`/NIT param; if possible, test whether one key returns records spanning **>1 NIT** | single-vs-multi-company evidence (live capture — same bar as Q-1..Q-4) | ⬜ |
+
+> **Correction 2026-08-12 (drift grill):** added the company/NIT cardinality question + checklist step 8
+> to stop `contextSchema` being asserted-settled while every sibling fact is still B1-pending (Feature
+> Design **AD-7** downgraded to hypothesis; traceability-matrix gains a cardinality row). Numbered **Q-9**
+> — the drift-grill instruction named it "Q-6", but `Q-6`/`Q-7`/`Q-8` were already assigned here (error
+> envelope / GET-by-id / list uniformity) and are referenced from `handoff-2026-07-09.md`, so the new
+> question takes the next free number to avoid a collision. Evidence bar = **Observed** (live capture),
+> identical to Q-1..Q-4.
 
 **Exit criterion:** every datum Observed **and** each Observed value citing its exact evidence
 (request/response capture or test-run log) → the four questions are frozen → `api-contract.md` may be

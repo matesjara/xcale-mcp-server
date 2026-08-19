@@ -72,11 +72,22 @@ src/
 | `CredentialDelivery` | `type = 'forwarded' \| 'reference'` | Closed union; the strategy discriminator | published in catalog | NEW |
 | `ProviderAuthDescriptor` | add `readonly credentialDelivery?: CredentialDelivery` (default `'forwarded'` at read) | Opt-in per provider; drives resolver + backend emission | catalog + resolver dispatch | MODIFIED |
 | `ProviderAuthDescriptor` | add variant `{ type: 'credential_exchange'; tokenEndpoint; method: 'POST'; bodyFields: Record<string,string>; responseFields: { token: string; expiry?: string }; staticHeaders?: ReadonlyArray<{name: string; source: 'deployment'}>; tokenPlacement: 'bearer_header' }` | Strictly declarative mint blueprint (Rail A executes it) | catalog + backend executor | NEW |
-| `TokenPlacement` | `type = 'bearer_header' \| 'api_key_header' \| 'api_key_query' \| 'basic_header'` | Closed placement vocabulary for the materializer's exhaustive switch (enforcement #4) | materializer | NEW |
+| `TokenPlacement` | `type = 'bearer_header' \| 'api_key_header' \| 'api_key_query' \| 'basic_header'` | Closed placement vocabulary (`credential_exchange` pins `'bearer_header'`); see the Correction note re: where `assertNever` actually lives | materializer | NEW |
 
 > **Enforcement note**: the descriptor is validated by a `.strict()` zod schema at registration
-> (enforcement #1). The TS types above are the closed vocabulary; the materializer switch over
-> `TokenPlacement` uses `assertNever` (`errors.ts:18`) so a new placement is a compile error (#4).
+> (enforcement #1). The TS types above are the closed vocabulary; a new `auth.type` is a compile error
+> via the exhaustive `assertNever` on the **outer `auth.type` switch** (`authentication-materializer.ts:57`,
+> `errors.ts:18`).
+>
+> **Correction 2026-08-12 (drift grill):** the earlier wording that `tokenPlacement` is "a closed union
+> with an exhaustive `assertNever` switch in the materializer" is inaccurate against code. The
+> `credential_exchange` `tokenPlacement` is the **single literal `'bearer_header'`** (the intended final
+> shape, `provider-port.ts:61`), applied in `authentication-materializer.ts:46-54` by an **`if`/throw**
+> inside a branch **shared with `oauth2`** (whose union adds a modeled-but-unimplemented `'custom_header'`).
+> The exhaustive `assertNever` lives on the **outer `auth.type` switch** (`:57`), **not** at the
+> `tokenPlacement` level. *Optional hardening only (not required):* an explicit switch over
+> `tokenPlacement` with `assertNever` in that shared branch — but only once `oauth2`'s `custom_header`
+> gets real handling.
 
 ### `src/core/credential/resolved-credential.ts` — NEW
 | Symbol | Signature | Intent |
@@ -93,7 +104,15 @@ src/
 ### `src/core/credential/reference-resolver.ts` — NEW
 | Symbol | Signature | Intent |
 |:--|:--|:--|
-| `ReferenceCredentialResolver` | `(deps: { resolveUrl; hopBSecret; fetchImpl? }): CredentialResolver` | Hop-B `POST {resolveUrl}` with the reference (from `inbound`) → returns `{ secret: SecretString(jwt) }`; **one transparent retry** on reference-expired; maps a durable-credential failure to a resolve error the dispatcher turns into `PROVIDER_AUTH_EXPIRED` (error-ownership boundary) |
+| `ReferenceCredentialResolver` | `(deps: { resolveUrl; hopBSecret; fetchImpl? }): CredentialResolver` | Hop-B `POST {resolveUrl}` with the reference (from `inbound`) → returns `{ secret: SecretString(jwt) }`; **throws typed, never retries** (`reference-resolver.ts:44-88`): `ReferenceResolutionError` (transport — 410/401/5xx) and `ReferenceAuthExpiredError` → `PROVIDER_AUTH_EXPIRED` (422, terminal → reconnect; error-ownership boundary). The single retry lives at the **emitter** (B4), not here — see the Correction note |
+
+> **Correction 2026-08-12 (drift grill):** "one transparent retry on reference-expired" is **wrong**
+> against merged code. `reference-resolver.ts:44-88` **throws typed and never retries**:
+> `ReferenceResolutionError` (transport — 410/401/5xx) and `ReferenceAuthExpiredError` →
+> `PROVIDER_AUTH_EXPIRED` (422, terminal, reconnect). The single retry does **not** live in the resolver
+> — it lives at the **emitter** (B4, `mcp-tool-executor`), which mints a **fresh** reference and re-issues
+> `tools/call` **exactly once**. See the B4 design note for the build shape and the typed-`reference_invalid`
+> caveat.
 
 ### `src/core/auth/http-request.ts` — NEW
 | Symbol | Signature | Intent |
@@ -180,6 +199,18 @@ src/modules/mcp/                (MCP client — reference emission)
 > (`connection.service.ts`, `mcp-tool-executor.ts`) get a focused Reality Check at the start of the
 > backend slice — their exact method seams are finalized against the file, not invented here.
 
+> **Correction 2026-08-12 (drift grill) — resolve-time `descriptorFor` MUST be backend-authoritative
+> (security):** the resolve path (`credential-resolve.service.ts`) POSTs the **durable** Siigo credential
+> (`userName`+`accessKey`) to `descriptor.tokenEndpoint`. That descriptor MUST be a **backend-authoritative**
+> `credential_exchange` descriptor for Siigo, **pinned in backend code/config** (a hand-authored **mirror**
+> of the mcp-server's published descriptor) — **never live-fetched** from the discovered mcp-server catalog
+> at resolve time. A network-fetched `tokenEndpoint` would let an mcp-server compromise/MITM redirect the
+> crown-jewel credential (breaks **AD-4** *Credential-Authority-owns-minting* and `soul.md` "no dynamic
+> discovery"). `staticHeaderValues` (`Partner-Id`) come from deployment config, never user input.
+> **To-do for B3.3 (see playbook):** when `descriptorFor` is wired, rewrite the misleading comment at
+> `internal-routes.ts:50-51` ("wired to the discovered catalog in Phase B") to read "backend-authoritative
+> pinned mirror, not live-fetched".
+
 ## A.3 Vertical slices (ordered; foundation first)
 
 | # | Slice | Repo | Band | Depends on | Deliverable |
@@ -193,7 +224,7 @@ src/modules/mcp/                (MCP client — reference emission)
 | **Gate A-Core** | resolver integrated · materializer used by ALL providers · `http.ts` auth-agnostic · zero `.reveal()` outside the materializer · Cloudbeds+echo tests green · `tsc`/`lint`/tests green | mcp | **gate** | A6 | **MCP runtime stable before backend** |
 | A7 | Backend: `reference-store` (Mongo TTL, single-use) + `credential-exchange` executor | be | foundation | Gate A-Core | Credential Authority storage + mint |
 | A8 | Backend: `credential-resolve.service` + `POST /internal/credentials/resolve` (Hop-B) | be | integration | A7 | resolve endpoint |
-| A9 | mcp: `ReferenceCredentialResolver` (Hop-B callback, one retry) + config; backend MCP client emits a reference for `reference` providers | both | integration | A8 | reference path end-to-end (behind echo) |
+| A9 | mcp: `ReferenceCredentialResolver` (Hop-B callback, **throws typed — no retry; the retry is at the B4 emitter**) + config; backend MCP client emits a reference for `reference` providers | both | integration | A8 | reference path end-to-end (behind echo) |
 
 > **Ordering rationale (refactor discipline):** build the new pipeline whole (A4) → migrate every
 > consumer onto it (A5) → **then** delete the old path in one identifiable commit (A6). Transport-first
@@ -211,7 +242,7 @@ src/modules/mcp/                (MCP client — reference emission)
 ## A.5 Test strategy & Definition of Done (Phase A)
 
 - **Materializer** (A3): unit tests per placement (`bearer_header` today; `api_key_header/query`, `basic_header` covered by the switch) — asserts correct header/query, and that `JSON.stringify(materialize output)` never contains the known secret only after reveal at egress; a serialization test proves `SecretString`/`ResolvedCredential` never leak.
-- **Resolver** (A5, A9): forwarded = identity; reference = returns the mocked JWT; reference-expired → one retry then transport error (no `ToolResult`); durable-credential failure → `PROVIDER_AUTH_EXPIRED`.
+- **Resolver** (A5, A9): forwarded = identity; reference = returns the mocked JWT; reference-expired → `ReferenceResolutionError` **thrown** (no retry in the resolver — the single retry lives at the B4 emitter; correction 2026-08-12); no `ToolResult`; durable-credential failure → `PROVIDER_AUTH_EXPIRED`.
 - **Regression** (A6): existing `cloudbeds.test.ts` + `provider-conformance` pass unchanged — Cloudbeds output identical.
 - **Backend** (A7/A8): reference single-use + TTL expiry (negative tests); resolve returns a usable JWT; Hop-B rejects a bad secret; `X-Provider-Token` rejected on non-resolve internal routes.
 - **DoD (real commands):** mcp `npx tsc --noEmit` + `npm test` green; backend `npx tsc --noEmit` + `npm run lint` + module tests green.
@@ -299,12 +330,46 @@ Slice-level (per-file detail authored at Gate B2→B3 against the frozen contrac
 |:--|:--|:--|
 | B3.1 | mcp | `src/providers/siigo/` (manifest, `credential_exchange` auth, client, read tools, errors, `__fixtures__/`, conformance) + one line in `providers/index.ts` |
 | B3.2 | mcp | Read tools: customers/invoices/products (list+get) — input filters + passthrough `data` from the contract (NO mapper/DTO — Fidelity over Unification) |
-| B3.3 | be | Register Siigo `credential_exchange` provider; connect flow (`userName`+`accessKey`, validate by minting once); `Partner-Id` from deployment config; catalog `credentialDelivery: reference` |
+| B3.3 | be | **NET-NEW backend wiring** (not a config-line registration — see correction below): a variant-dispatched `credential_exchange` bootstrap branch + a mint-to-validate credential-config builder (multi-field durable creds) + reuse of the resolve-time mint executor to validate; connect = "mint once, discard JWT, keep durable creds"; `Partner-Id` from deployment `staticHeaders`; catalog `credentialDelivery: reference` |
+
+> **Correction 2026-08-12 (drift grill):** B3.3 was written as if Siigo could be *registered* on the
+> generic rail with a config line. Verified against live xcale-backend code, it is **net-new wiring**:
+> `src/modules/mcp/entities.ts:28` `CREDENTIAL_AUTH_TYPES=['api_key','bearer']` has **no**
+> `credential_exchange`; `mcp-bootstrap.ts:110-117` routes `credential_exchange` to **neither** branch;
+> `buildCredentialConfig` reads `authDescriptor.fields` (the `credential_exchange` descriptor carries
+> `bodyFields`, **not** `fields`), **hard-throws** unless **exactly one** secret (Siigo needs
+> `userName`+`accessKey` = **two**), and "validates" by forwarding the pasted secret **verbatim** as a
+> bearer `token` (**no mint**). B3.3 must therefore build: **(1)** a variant-dispatched bootstrap branch
+> that recognizes `credential_exchange` — add it to `CREDENTIAL_AUTH_TYPES` but **dispatch on the
+> descriptor's discriminated-union variant** (same `assertNever` discipline as `tokenPlacement`), **not**
+> by overloading the single-secret bearer-forward arm; **(2)** a **mint-to-validate** credential-config
+> builder reading `bodyFields` (logical→wire), storing **multi-field** durable creds (`userName`+`accessKey`)
+> **encrypted at rest**, `Partner-Id` from deployment `staticHeaders` (`source:'deployment'`), **never**
+> user input; **(3)** reuse of the **one** resolve-time mint executor
+> (`xcale-backend/src/modules/connections/credential-exchange.ts`) to validate. Note `entities.ts`
+> `McpAuthDescriptor` models only `fields?` + a free-string `type` and **cannot represent a
+> `credential_exchange` entry as-is** (needs `bodyFields`/`tokenEndpoint`/`responseFields`). **Keep
+> intact:** connect validates by **minting once** (Feature Design §6.1), **not** a post-mint data-endpoint
+> probe. **Do not** route Siigo through `buildCredentialConfig`/`connectionProbe`; a **mint-200 is the
+> fail-closed gate**, a 401/403 is "credentials rejected". Siigo publishes **no** `connectionProbe` and
+> needs no separate data-probe.
 
 ## B4 — Integration  *(BLOCKED BY B3)*
 The A9b deferral lands here: `mcp-tool-executor` **reference emission** — for `reference` providers,
 send a single-use reference (via the reference store) instead of the token, + one transparent retry on
 `reference_invalid`; backend catalog reads `credentialDelivery`.
+
+> **Correction 2026-08-12 (drift grill) — B4 build shape (design note, not a code edit):** thread
+> `credentialDelivery` from the catalog through `McpProviderRef → McpToolExecutorConfig → executor`
+> (mirror how `contextKeys` rides mcp-bootstrap's projection at `103-108` — **no** provider-name switch);
+> branch on `ref.credentialDelivery` **before** the `getAccessToken()` decrypt at
+> `mcp-tool-executor.ts:104`; on the reference path call `reference-store.create(connectionId, ttl<=60s)`.
+> The **single retry lives here** (mint a fresh reference, re-issue `tools/call` exactly once) — **not**
+> in the resolver. **Caveat:** the resolver today collapses reference-invalid (410) / Hop-B-auth (401) /
+> resolve-down (5xx) into **one** `ReferenceResolutionError`, and the executor catch (`119-128`) flattens
+> every error — so B4 **must** define a typed `reference_invalid` code that survives the `tools/call`
+> envelope back to the backend, else "retry once" degrades into an **indiscriminate** single retry on any
+> transport error.
 
 ## B5 — E2E  *(BLOCKED BY B4)*
 Validate the full reference path end-to-end with the first real reference provider: resolve endpoint ↔
