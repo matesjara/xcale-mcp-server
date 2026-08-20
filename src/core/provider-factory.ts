@@ -11,6 +11,12 @@ import { type McpToolDefinition, type ToolResult, toolError, toolSuccess } from 
 export interface ProviderSpec<M = unknown> {
   readonly manifest: ProviderManifest;
   readonly auth: ProviderAuthDescriptor;
+  /**
+   * Alternative CONNECT methods, published to the catalog and never used for materialization —
+   * `auth` above stays the only descriptor `materialize()` ever sees. See
+   * `IProvider.additionalAuth` and ADR `multiple-connect-methods-per-provider`.
+   */
+  readonly additionalAuth?: readonly ProviderAuthDescriptor[];
   /** Declares the provider's required call context (e.g. propertyID). The core never assumes names. */
   readonly metadataSchema?: z.ZodType<M>;
   // `any` for the input type is required to hold a heterogeneous tool collection (each tool's
@@ -49,6 +55,7 @@ export function createProvider<M = unknown>(spec: ProviderSpec<M>): IProvider {
   return {
     manifest: spec.manifest,
     auth: spec.auth,
+    ...(spec.additionalAuth !== undefined ? { additionalAuth: spec.additionalAuth } : {}),
     ...(contextSchema ? { contextSchema } : {}),
     listTools: () => toolDefs,
     // Every tool, including the control-plane ones `toolDefs` filters out — this is what the registry

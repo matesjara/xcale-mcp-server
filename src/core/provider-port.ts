@@ -147,6 +147,23 @@ export interface IProvider {
   readonly manifest: ProviderManifest;
   readonly auth: ProviderAuthDescriptor;
   /**
+   * Additional ways to CONNECT this provider — never additional ways to AUTHENTICATE.
+   *
+   * `auth` above stays the single input to materialization; these describe alternative routes by
+   * which a consumer can *obtain* a credential that `auth` then applies unchanged. Cloudbeds is the
+   * case: an OAuth access token and a property-minted `cbat_…` API key are both sent as
+   * `Authorization: Bearer …`, so the wire is identical and only the acquisition differs.
+   *
+   * **Invariant, enforced by `__tests__/auth-materialization-parity.test.ts`:** every descriptor a
+   * provider publishes — this array and `auth` — must materialize a given secret into a
+   * byte-identical request. A second method that genuinely needs a different placement is a test
+   * failure by design: it needs a per-connection descriptor selector, which this field is not.
+   *
+   * Additive (ADR `additive-contract-versioning`): absent means "one way in", which is every
+   * provider but Cloudbeds. See ADR `multiple-connect-methods-per-provider`.
+   */
+  readonly additionalAuth?: readonly ProviderAuthDescriptor[];
+  /**
    * JSON Schema of the provider's required call context (generated from its `metadataSchema`),
    * published via the catalog so a consumer knows what context to forward (e.g. `propertyID`).
    * Absent when the provider needs no context (Explicit Context principle).
