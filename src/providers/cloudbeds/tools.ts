@@ -303,13 +303,44 @@ export function buildCloudbedsTools(
         'Get what can actually be sold for a date range: per room type, its roomTypeID, name, how many ' +
         'rooms are free, the rate, and its official photos in `roomTypePhotos` (each with an `image` ' +
         'URL). Availability and price BOTH depend on the dates, so ask for check-in and check-out ' +
-        'before calling. This is the only truth about what is free — never infer it from anything else.',
-      input: z.object({ startDate: z.string().min(1), endDate: z.string().min(1) }).strict(),
+        'before calling. This is the only truth about what is free — never infer it from anything else. ' +
+        'Pass `adults` (and `children`, if any) when the guest says how many people are coming: ' +
+        'Cloudbeds then returns only the room types that fit the party, instead of every type.',
+      input: z
+        .object({
+          startDate: z.string().min(1),
+          endDate: z.string().min(1),
+          // Occupancy filtering, done by Cloudbeds rather than by the caller. Without these the tool
+          // returned every room type and the consumer had to compare each `maxGuests` itself — which
+          // works for a six-room hotel and stops working for a large one, where the answer to "a room
+          // for four" arrives as forty rows the agent has to sift.
+          //
+          // VERIFIED against a live property (20064, 2026-08-20), because the guess here is not free:
+          //   adults=2            → 6 of 6 types      adults=4 → 1        adults=6 → 0
+          //   adults=2&children=1 → 2 types
+          // So the filter is on TOTAL occupancy against each type's `maxGuests`, `adults` alone counts,
+          // and an impossible party correctly returns an empty list rather than everything.
+          adults: z
+            .number()
+            .int()
+            .min(1)
+            .optional()
+            .describe('Number of adults. Cloudbeds filters to room types that can hold the party.'),
+          children: z
+            .number()
+            .int()
+            .min(0)
+            .optional()
+            .describe('Number of children, counted toward the same occupancy limit as adults.'),
+        })
+        .strict(),
       handler: async (args, ctx) => {
         const res = await client.get('getAvailableRoomTypes', ctx.request, {
           propertyID: ctx.metadata.propertyID,
           startDate: args.startDate,
           endDate: args.endDate,
+          adults: args.adults,
+          children: args.children,
         });
         const u = unwrap(res, 'getAvailableRoomTypes');
         return u.ok ? ok(u.data) : err(u.code, u.message);
