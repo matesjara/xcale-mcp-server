@@ -1,6 +1,6 @@
 # Work Log — PR A: Canonical provider pattern (core helpers)
 
-- **Branch:** `feat/canonical-provider-pattern` · **ADR:** `docs/adr/canonical-provider-pattern.md`
+- **Branch:** `feat/canonical-provider-pattern` · **ADR:** `docs/adr/0009-canonical-provider-pattern.md`
 - **Purpose:** implement the platform helpers that *enforce* the grill's decisions, so PR B
   (Cloudbeds) is a thin adapter touching only `src/providers/cloudbeds/`.
 - **Convention:** this log states the **Plan** up front and the **Outcome / decisions / open items**

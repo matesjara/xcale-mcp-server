@@ -1,7 +1,7 @@
 # Work Log — PR B: Cloudbeds provider (the pilot)
 
 - **Branch:** `feat/cloudbeds-provider` · **Feature design:** `docs/design/cloudbeds-pilot/feature-design.md`
-- **Pattern it follows:** `docs/adr/canonical-provider-pattern.md` (built in PR A).
+- **Pattern it follows:** `docs/adr/0009-canonical-provider-pattern.md` (built in PR A).
 - **The §10 test (live):** this PR must touch **only** `src/providers/cloudbeds/` plus the one
   registry line in `src/providers/index.ts`. No `src/core|protocol|auth` changes, no consumer code.
 

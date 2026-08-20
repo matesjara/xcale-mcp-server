@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import { assign, highestNumber, looksBinary, numberHeading, rewriteLinks } from '../number-adrs';
 
+// Fixtures deliberately use slugs that are NOT real ADRs. A fixture naming a live ADR would be
+// repointed by the very rewrite these tests cover, breaking them the next time numbering runs.
+
 describe('highestNumber', () => {
   it('returns 0 when no ADR carries a number', () => {
     expect(highestNumber(['consumer-agnostic-contract.md', 'README.md'])).toBe(0);
@@ -37,10 +40,10 @@ describe('assign', () => {
   });
 
   it('pads to four digits in the target path', () => {
-    const [item] = assign([{ slug: 'fiscal-write-path', addedAt: 1 }], 3);
+    const [item] = assign([{ slug: 'example-decision', addedAt: 1 }], 3);
 
-    expect(item?.from).toBe('docs/adr/fiscal-write-path.md');
-    expect(item?.to).toBe('docs/adr/0003-fiscal-write-path.md');
+    expect(item?.from).toBe('docs/adr/example-decision.md');
+    expect(item?.to).toBe('docs/adr/0003-example-decision.md');
   });
 
   it('sorts uncommitted ADRs last — they are the newest by definition', () => {
@@ -99,28 +102,28 @@ describe('numberHeading', () => {
 });
 
 describe('rewriteLinks', () => {
-  const renames = new Map([['fiscal-write-path', '0015-fiscal-write-path']]);
+  const renames = new Map([['example-decision', '0015-example-decision']]);
 
   it('repoints repo-root paths', () => {
-    expect(rewriteLinks('See `docs/adr/fiscal-write-path.md`.', renames, false)).toBe(
-      'See `docs/adr/0015-fiscal-write-path.md`.',
+    expect(rewriteLinks('See `docs/adr/example-decision.md`.', renames, false)).toBe(
+      'See `docs/adr/0015-example-decision.md`.',
     );
   });
 
   it('repoints the shorter `adr/<slug>.md` form', () => {
-    expect(rewriteLinks('(adr/fiscal-write-path.md)', renames, false)).toBe(
-      '(adr/0015-fiscal-write-path.md)',
+    expect(rewriteLinks('(adr/example-decision.md)', renames, false)).toBe(
+      '(adr/0015-example-decision.md)',
     );
   });
 
   it('repoints bare sibling links inside docs/adr', () => {
-    expect(rewriteLinks('[fiscal](fiscal-write-path.md)', renames, true)).toBe(
-      '[fiscal](0015-fiscal-write-path.md)',
+    expect(rewriteLinks('[example](example-decision.md)', renames, true)).toBe(
+      '[example](0015-example-decision.md)',
     );
   });
 
   it('leaves bare links alone outside docs/adr, where they mean a different file', () => {
-    const content = '[checklist](fiscal-write-path.md)';
+    const content = '[checklist](example-decision.md)';
 
     expect(rewriteLinks(content, renames, false)).toBe(content);
   });
@@ -141,12 +144,8 @@ describe('rewriteLinks', () => {
 
   it('rewrites every occurrence, not just the first', () => {
     expect(
-      rewriteLinks(
-        'docs/adr/fiscal-write-path.md and docs/adr/fiscal-write-path.md',
-        renames,
-        false,
-      ),
-    ).toBe('docs/adr/0015-fiscal-write-path.md and docs/adr/0015-fiscal-write-path.md');
+      rewriteLinks('docs/adr/example-decision.md and docs/adr/example-decision.md', renames, false),
+    ).toBe('docs/adr/0015-example-decision.md and docs/adr/0015-example-decision.md');
   });
 
   it('applies every rename in the map', () => {

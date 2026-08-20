@@ -57,11 +57,11 @@ The full working agreement (report structure, altitude rules, decision surfacing
 
 ## Stack
 
-- TypeScript (strict; `exactOptionalPropertyTypes` off — see `docs/adr/typescript-strictness-config.md`),
+- TypeScript (strict; `exactOptionalPropertyTypes` off — see `docs/adr/0008-typescript-strictness-config.md`),
   Node ≥20 (CI and the production image run 22), ESM.
 - Fastify 5 · `@modelcontextprotocol/sdk` (MCP, confined to `src/protocol/`) · zod · pino · Vitest.
 - Run via **tsx** (no build step — *complexity on demand*). In production too, so `tsx` is a
-  **runtime** dependency (`dependencies`), not a dev tool — see `docs/adr/deployment-runtime-and-hosting.md`.
+  **runtime** dependency (`dependencies`), not a dev tool — see `docs/adr/0012-deployment-runtime-and-hosting.md`.
 - Quality gates: Prettier (format), `tsc --noEmit`, Vitest, `npm audit` — all enforced in CI
   (`.github/workflows/ci.yml`) on every PR to `dev`/`main`.
 
@@ -108,4 +108,4 @@ The full working agreement (report structure, altitude rules, decision surfacing
 - **DigitalOcean App Platform** (project XCALE, `nyc`), one Docker service tracking **`main`** with
   `deploy_on_push` — merging the release PR *is* the deploy. Health: `GET /health`.
 - Spec is versioned in `.do/app.yaml`; `MCP_SERVER_SECRET` is a placeholder rendered from Doppler
-  (`prd`) at apply time. Runbook: `docs/deploy.md`. Rationale: `docs/adr/deployment-runtime-and-hosting.md`.
+  (`prd`) at apply time. Runbook: `docs/deploy.md`. Rationale: `docs/adr/0012-deployment-runtime-and-hosting.md`.

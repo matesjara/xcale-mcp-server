@@ -11,7 +11,7 @@
 
 > **Architectural guardrail (binding).** This design introduces **no new architectural concept** — it
 > only *instantiates* decisions already fixed in
-> [credential-delivery-strategies](../../adr/credential-delivery-strategies.md) and its sibling ADRs.
+> [credential-delivery-strategies](../../adr/0010-credential-delivery-strategies.md) and its sibling ADRs.
 > If implementation surfaces a need for a third delivery strategy, another resolver, a Siigo-specific
 > exception in the core, or an expansion of `credential_exchange`, **stop and reopen the ADR** — do not
 > absorb architecture into this feature.
@@ -29,7 +29,7 @@
 
 xcale can onboard LATAM providers as MCP tools cheaply *when they are standard-risk* (Nevatal, Cloudbeds
 use the `forwarded` strategy). But **financial providers cannot be onboarded the same way**: the
-[credential-forwarding-and-token-model](../../adr/credential-forwarding-and-token-model.md) ADR set a
+[credential-forwarding-and-token-model](../../adr/0003-credential-forwarding-and-token-model.md) ADR set a
 **hard gate** — ephemeral references / just-in-time resolution must exist before the first financial
 provider (ePayco, Siigo). Siigo is the first financial provider in demand, so onboarding it is blocked
 until the `reference` delivery model exists on both sides of the boundary.
@@ -270,7 +270,7 @@ JWT ──wrapped as──▶ ResolvedCredential ──used by──▶ Provider
 
 ## 8. Architectural Decisions
 
-> All rows **instantiate** [credential-delivery-strategies](../../adr/credential-delivery-strategies.md)
+> All rows **instantiate** [credential-delivery-strategies](../../adr/0010-credential-delivery-strategies.md)
 > — none is a new architectural decision (per the guardrail).
 
 | # | Decision | Choice | Rationale |
@@ -407,7 +407,7 @@ why doc-only is insufficient). A question is not "resolved" until the evidence b
 
 ### Referenced Docs
 
-- ADRs: [credential-delivery-strategies](../../adr/credential-delivery-strategies.md), [credential-forwarding-and-token-model](../../adr/credential-forwarding-and-token-model.md), [provider-knowledge-vs-credential-custody](../../adr/provider-knowledge-vs-credential-custody.md), [canonical-provider-pattern](../../adr/canonical-provider-pattern.md), [typed-tool-result-error-contract](../../adr/typed-tool-result-error-contract.md)
+- ADRs: [credential-delivery-strategies](../../adr/0010-credential-delivery-strategies.md), [credential-forwarding-and-token-model](../../adr/0003-credential-forwarding-and-token-model.md), [provider-knowledge-vs-credential-custody](../../adr/0004-provider-knowledge-vs-credential-custody.md), [canonical-provider-pattern](../../adr/0009-canonical-provider-pattern.md), [typed-tool-result-error-contract](../../adr/0007-typed-tool-result-error-contract.md)
 - Security: `docs/security/credential-boundary-review.md`
 - Glossary: `CONTEXT.md`
 - Provider docs: Siigo API — https://developers.siigo.com/

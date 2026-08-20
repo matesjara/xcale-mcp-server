@@ -1,4 +1,4 @@
-# ADR: Provider knowledge in the server, credential custody in Rail A (adaptive authDescriptor)
+# ADR 0004: Provider knowledge in the server, credential custody in Rail A (adaptive authDescriptor)
 
 - **Status:** Accepted
 - **Date:** 2026-06-19
@@ -89,6 +89,6 @@ self-containment principle explicitly permits.
 ## References
 - Architecture review: `docs/architecture-review.md` §0, §4.3, §5
 - Foundation: `docs/foundation.md` §8, Q-10
-- Related ADRs: [three-pillar-mcp-contract-with-discovery](three-pillar-mcp-contract-with-discovery.md), [credential-forwarding-and-token-model](credential-forwarding-and-token-model.md)
+- Related ADRs: [three-pillar-mcp-contract-with-discovery](0006-three-pillar-mcp-contract-with-discovery.md), [credential-forwarding-and-token-model](0003-credential-forwarding-and-token-model.md)
 - Backend anchor (the per-provider config this replaces): Rail A `registerOAuthProvider(...)` in `xcale-backend` (`docs/architecture-guide.md`, "Native Connection Rail")
 - External: Composio auth-config vs connected-account model

@@ -1,4 +1,4 @@
-# ADR: A provider may publish more than one way to CONNECT, but only one way to AUTHENTICATE
+# ADR 0016: A provider may publish more than one way to CONNECT, but only one way to AUTHENTICATE
 
 - **Status:** Accepted
 - **Date:** 2026-08-20

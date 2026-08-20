@@ -106,7 +106,7 @@ parts above via `server/discover`. `clientId`/`clientSecret` live **only** in ba
 > references / token exchange before go-live)? **Proposed:** treat the **read-first** pilot as
 > standard-risk → MVP direct forwarding **with** the mandatory `SecretString` guardrails; **re-evaluate
 > against the ephemeral-references gate if/when write or payment-touching operations are added.**
-> See `docs/adr/credential-forwarding-and-token-model.md` + `docs/security/credential-boundary-review.md`.
+> See `docs/adr/0003-credential-forwarding-and-token-model.md` + `docs/security/credential-boundary-review.md`.
 
 ---
 

@@ -1,4 +1,4 @@
-# ADR: Canonical provider implementation pattern
+# ADR 0009: Canonical provider implementation pattern
 
 - **Status:** Accepted
 - **Date:** 2026-06-21
@@ -101,9 +101,9 @@ regression until proven otherwise.
 ## References
 - Grill session 2026-06-21 (this ADR consolidates its outcomes).
 - Architecture review: `docs/architecture-review.md` §0, §4.3.
-- Related ADRs: [typed-tool-result-error-contract](typed-tool-result-error-contract.md),
-  [provider-knowledge-vs-credential-custody](provider-knowledge-vs-credential-custody.md),
-  [additive-contract-versioning](additive-contract-versioning.md),
-  [consumer-agnostic-contract](consumer-agnostic-contract.md),
-  [credential-forwarding-and-token-model](credential-forwarding-and-token-model.md)
+- Related ADRs: [typed-tool-result-error-contract](0007-typed-tool-result-error-contract.md),
+  [provider-knowledge-vs-credential-custody](0004-provider-knowledge-vs-credential-custody.md),
+  [additive-contract-versioning](0001-additive-contract-versioning.md),
+  [consumer-agnostic-contract](0002-consumer-agnostic-contract.md),
+  [credential-forwarding-and-token-model](0003-credential-forwarding-and-token-model.md)
 - Pilot applying it: `docs/design/cloudbeds-pilot/feature-design.md`.

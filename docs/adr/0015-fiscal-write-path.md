@@ -1,4 +1,4 @@
-# ADR: Fiscal write-path — thin MCP passthrough, consumer-owned safety
+# ADR 0015: Fiscal write-path — thin MCP passthrough, consumer-owned safety
 
 - **Status:** Proposed
 - **Date:** 2026-08-13
@@ -20,11 +20,11 @@ write the platform has shipped:
    fill these.
 
 Meanwhile the gateway's architecture is deliberately **stateless and thin**
-([stateless-gateway-and-thin-acl](stateless-gateway-and-thin-acl.md),
-[canonical-provider-pattern](canonical-provider-pattern.md)): a provider adapter translates one MCP tool
+([stateless-gateway-and-thin-acl](0005-stateless-gateway-and-thin-acl.md),
+[canonical-provider-pattern](0009-canonical-provider-pattern.md)): a provider adapter translates one MCP tool
 call to one external API call and returns the provider's `data` verbatim. It holds no database, no
 per-tenant state, no orchestration. Credentials arrive per-call and are discarded
-([credential-delivery-strategies](credential-delivery-strategies.md)); Siigo specifically uses the
+([credential-delivery-strategies](0010-credential-delivery-strategies.md)); Siigo specifically uses the
 `reference` strategy, so the gateway never even holds the durable credential.
 
 The forces collide on one question: **a fiscal write needs idempotency, duplicate detection, a
@@ -169,10 +169,10 @@ math, id-existence, or authorization in the gateway — those stay in the consum
 
 ## References
 
-- Related ADRs: [stateless-gateway-and-thin-acl](stateless-gateway-and-thin-acl.md),
-  [canonical-provider-pattern](canonical-provider-pattern.md),
-  [credential-delivery-strategies](credential-delivery-strategies.md),
-  [typed-tool-result-error-contract](typed-tool-result-error-contract.md)
+- Related ADRs: [stateless-gateway-and-thin-acl](0005-stateless-gateway-and-thin-acl.md),
+  [canonical-provider-pattern](0009-canonical-provider-pattern.md),
+  [credential-delivery-strategies](0010-credential-delivery-strategies.md),
+  [typed-tool-result-error-contract](0007-typed-tool-result-error-contract.md)
 - Feature design: `docs/design/siigo-read-only-provider/feature-design.md` (§5 Won't-Have — writes are
   Slice 2; §9 prod-soak gate), `docs/design/siigo-read-only-provider/api-contract.md` (read surface),
   `docs/design/siigo-read-only-provider/ship-log.md`

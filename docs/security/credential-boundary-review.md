@@ -1,7 +1,7 @@
 # Security Review — Credential Boundary (Hop A token forwarding)
 
 > **Type:** Independent design-level security review (threat model). **No runtime code exists
-> yet** — this reviews the *design* in [credential-forwarding-and-token-model](../adr/credential-forwarding-and-token-model.md)
+> yet** — this reviews the *design* in [credential-forwarding-and-token-model](../adr/0003-credential-forwarding-and-token-model.md)
 > and `../architecture-review.md` §7. It is also the **binding control checklist** that the later
 > code-level security scan (the `/security-review` skill, run against the implementation diff)
 > must verify.
@@ -161,7 +161,7 @@ verified later by the code-level review against the diff.
 
 ## 5. References
 
-- ADR gated by this review: [credential-forwarding-and-token-model](../adr/credential-forwarding-and-token-model.md)
+- ADR gated by this review: [credential-forwarding-and-token-model](../adr/0003-credential-forwarding-and-token-model.md)
 - Architecture review: `../architecture-review.md` §7 · Foundation: `../foundation.md` §8, Q-1/Q-11
 - Backend re-auth flow consumed on 401/403: `xcale-backend/docs/adr/0005-native-connection-reauth-lifecycle.md`
 - External: MCP security best practices (token passthrough); RFC 8693 (Token Exchange);

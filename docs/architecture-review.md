@@ -66,7 +66,7 @@ be reusable by **any** MCP-compatible backend, agent, or client:
 
 This is a **design constraint, not a v1 marketing goal**: v1 still serves only xcale (§5.2 of the
 foundation — not a marketplace yet). It keeps the door to reuse open at near-zero cost and forces
-clean, business-free contracts. See [consumer-agnostic-contract](adr/consumer-agnostic-contract.md).
+clean, business-free contracts. See [consumer-agnostic-contract](adr/0002-consumer-agnostic-contract.md).
 
 > **Litmus test (apply to every ADR and major review):** *Could a third party use
 > xcale-mcp-server without knowing xcale-backend exists?* If "no", undue coupling was introduced —
@@ -236,7 +236,7 @@ interface ProviderLifecycle {
 
 These travel in `server/discover` so consumers can surface deprecation/sunset to operators. v1
 ships `providerVersion` only (alongside `schemaVersion`); the rest are reserved fields, documented
-so the model has room to grow. See [additive-contract-versioning](adr/additive-contract-versioning.md).
+so the model has room to grow. See [additive-contract-versioning](adr/0001-additive-contract-versioning.md).
 
 **Reserved for optional capabilities (modeled now, not implemented).** v1 providers are simple
 synchronous request/response. To keep the model from being *locked* into that shape, a provider may
@@ -312,7 +312,7 @@ and found **no architectural blockers**, so the decision is **Accepted**; what i
 firewall, enforced pino redaction of `x-provider-token` + `authorization`, no request-body logging,
 TLS-only, token never in error messages), plus a **hard constraint** to move to **ephemeral
 references / token exchange (RFC 8693)** before the first financial provider (ePayco/Siigo). See
-[credential-forwarding-and-token-model](adr/credential-forwarding-and-token-model.md).
+[credential-forwarding-and-token-model](adr/0003-credential-forwarding-and-token-model.md).
 
 **Other tracked risks:** catalog/descriptor adds a contract surface to version carefully
 (mitigated by additive-only versioning + `schemaVersion`); author-time curation needs CI
@@ -324,13 +324,13 @@ enforcement as the team grows; opaque metadata mitigated by per-provider declare
 
 | ADR (slug) | Status | What it locks |
 |:--|:--|:--|
-| [credential-forwarding-and-token-model](adr/credential-forwarding-and-token-model.md) | ✅ **Accepted** (scope-bounded) | Token model; constraint: ephemeral refs before financial providers |
-| [three-pillar-mcp-contract-with-discovery](adr/three-pillar-mcp-contract-with-discovery.md) | Accepted | `server/discover` as pillar 3 |
-| [provider-knowledge-vs-credential-custody](adr/provider-knowledge-vs-credential-custody.md) | Accepted | The split + adaptive `authDescriptor` |
-| [stateless-gateway-and-thin-acl](adr/stateless-gateway-and-thin-acl.md) | Accepted | Stateless Streamable HTTP, single gateway, thin ACL |
-| [typed-tool-result-error-contract](adr/typed-tool-result-error-contract.md) | Accepted | Discriminated-union result + closed error codes |
-| [additive-contract-versioning](adr/additive-contract-versioning.md) | Accepted | Additive evolution + `schemaVersion` + provider lifecycle |
-| [consumer-agnostic-contract](adr/consumer-agnostic-contract.md) | Accepted | Public contract reusable beyond xcale (principle #2) |
+| [credential-forwarding-and-token-model](adr/0003-credential-forwarding-and-token-model.md) | ✅ **Accepted** (scope-bounded) | Token model; constraint: ephemeral refs before financial providers |
+| [three-pillar-mcp-contract-with-discovery](adr/0006-three-pillar-mcp-contract-with-discovery.md) | Accepted | `server/discover` as pillar 3 |
+| [provider-knowledge-vs-credential-custody](adr/0004-provider-knowledge-vs-credential-custody.md) | Accepted | The split + adaptive `authDescriptor` |
+| [stateless-gateway-and-thin-acl](adr/0005-stateless-gateway-and-thin-acl.md) | Accepted | Stateless Streamable HTTP, single gateway, thin ACL |
+| [typed-tool-result-error-contract](adr/0007-typed-tool-result-error-contract.md) | Accepted | Discriminated-union result + closed error codes |
+| [additive-contract-versioning](adr/0001-additive-contract-versioning.md) | Accepted | Additive evolution + `schemaVersion` + provider lifecycle |
+| [consumer-agnostic-contract](adr/0002-consumer-agnostic-contract.md) | Accepted | Public contract reusable beyond xcale (principle #2) |
 
 (ADRs are created unnumbered per house convention; numbers are minted at merge against `dev`.)
 Canonical living index + the ADR policy: [`adr/README.md`](adr/README.md).
