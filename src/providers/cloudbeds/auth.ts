@@ -20,6 +20,31 @@ export const cloudbedsAuthBase = {
 } as const satisfies Omit<Extract<ProviderAuthDescriptor, { type: 'oauth2' }>, 'scopes'>;
 
 /**
+ * The SECOND way in: an API key the property mints in its own Cloudbeds account
+ * (*Account → Apps & Marketplace → API Credentials*) and pastes into xcale. Keys are prefixed
+ * `cbat_`, are long-lived, and carry only the scopes the property ticked when creating them.
+ *
+ * **This is a connect method, not a second auth scheme.** Declared `bearer` — not `api_key` with
+ * `placement: 'header'` — because that makes it materialize byte-identically to `cloudbedsAuthBase`
+ * above (`Authorization: Bearer <secret>`), which is the invariant
+ * `__tests__/auth-materialization-parity.test.ts` enforces and the reason nothing in `client.ts` or
+ * the materializer had to change. Cloudbeds accepts the key under BOTH `Authorization: Bearer` and
+ * `x-api-key` — measured against a live property key on 2026-08-20, both returned 200 — so choosing
+ * the placement that preserves the invariant costs nothing.
+ *
+ * Why it exists: the OAuth path is gated by Cloudbeds' partner certification (*"Before
+ * certification, your app can only connect to your test account"*); this one is not gated at all, so
+ * it is the only route a real hotel has today. See ADR `multiple-connect-methods-per-provider` for
+ * what this lane cannot do (`getAppState`/`postAppState` are refused on a property key, so there is
+ * no connect/disconnect state machine and no webhook echo identity).
+ */
+export const cloudbedsApiKeyAuth: ProviderAuthDescriptor = {
+  type: 'bearer',
+  credentialDelivery: 'forwarded',
+  fields: [{ key: 'apiKey', label: 'Cloudbeds API key', placement: 'header' }],
+};
+
+/**
  * The scopes the **Cloudbeds app registration** is authorized to request — the ceiling.
  *
  * Source of truth is Cloudbeds' App Details page (*Permission Scopes*), which generates the app's
