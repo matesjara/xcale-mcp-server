@@ -57,12 +57,46 @@ function classifyEnvelopeFailure(message: string | undefined): ProviderErrorCode
  * not the status code — is what tells us a call failed. Every tool must unwrap through here; that is
  * why the paginated list reuses it too rather than re-implementing the check.
  */
+/**
+ * Some Cloudbeds endpoints are served ONLY to partner integrations. Asked with a property-level API
+ * key they answer **HTTP 403** and `"This call is restricted to third-party integrations."` —
+ * measured 2026-08-20 against a live property on `getEmailTemplates` and `getEmailSchedule`.
+ *
+ * The core maps every 403 to `AUTH_EXPIRED` (`core/http.ts`), which is right for a dead credential
+ * and wrong for this one: the credential is valid and every other read succeeds with it. Left alone,
+ * a single call to an email tool flips a healthy connection to EXPIRED and asks the hotel to
+ * reconnect — which fixes nothing, because the next call refuses identically. A reconnect loop
+ * pointed at a customer is worse than a plain error.
+ *
+ * Deliberately narrow: it matches only this phrase, on a 403, so a genuinely revoked or expired
+ * credential — which also answers 403 — keeps raising AUTH_EXPIRED. Widening this to "any 403 with
+ * a body" would hide real revocations, which is the failure this provider already learned once
+ * (see `classifyEnvelopeFailure`, the revoked-app case).
+ */
+const PARTNER_ONLY_REFUSAL = /restricted to third-party integrations/i;
+
+function classifyTransportFailure(res: Extract<RequestResult, { ok: false }>): {
+  code: ProviderErrorCode;
+  detail?: string;
+} {
+  if (res.status === 403 && PARTNER_ONLY_REFUSAL.test(res.body)) {
+    return {
+      code: ProviderErrorCode.PROVIDER_ERROR,
+      detail: 'This call is restricted to third-party integrations.',
+    };
+  }
+  return { code: res.errorCode };
+}
+
 function unwrap(res: RequestResult, method: string): Unwrapped {
   if (!res.ok) {
+    const { code, detail } = classifyTransportFailure(res);
     return {
       ok: false,
-      code: res.errorCode,
-      message: `Cloudbeds ${method} failed (HTTP ${res.status})`,
+      code,
+      message: detail
+        ? `Cloudbeds ${method}: ${detail}`
+        : `Cloudbeds ${method} failed (HTTP ${res.status})`,
     };
   }
   const body = res.data as {
