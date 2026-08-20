@@ -33,5 +33,7 @@ export const cloudbedsManifest: ProviderManifest = {
   // the propertyID that every other read needs has not been discovered yet. This is the one read
   // that takes no context — which is exactly why `contextDiscovery` above already leans on it.
   // Verified against a real property key (20064, 2026-08-20): `getHotels` → 200, `success:true`.
+  // Caveat (fixed-probe design, same as Toteat): the probe needs `read:hotel`, so an API key
+  // minted WITHOUT that scope fails connect as "credential invalid" rather than "scope missing".
   connectionProbe: { tool: `mcp_${SLUG}_list_properties` },
 };
