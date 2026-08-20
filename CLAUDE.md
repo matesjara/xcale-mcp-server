@@ -17,6 +17,10 @@ consumers (xcale-backend first) consume capabilities over stable, consumer-agnos
 Everything that lands in the repo or on GitHub stays in English — code, comments, docs, ADRs,
 commit messages, PR titles and bodies, branch names. Quoting an artifact inside a Spanish answer
 keeps its English wording; don't translate identifiers, paths, commands, or error strings.
+**One sanctioned exception** (decided 2026-08-20): *internal working journals* — dated
+investigation/certification diaries under `docs/design/` (e.g. the Cloudbeds certification
+notes) — may be written in Spanish. Anything external-facing, contract-adjacent, or durable
+(code, ADRs, design docs, READMEs) stays English.
 
 Top-down. **Ceiling: ~12 lines; a release or PR briefing ~18.** Past that you are explaining, not
 reporting — move the detail into the PR body, an ADR, or a doc and link it.
