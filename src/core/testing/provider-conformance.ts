@@ -1,10 +1,52 @@
 import { expect } from 'vitest';
 
 import { assertNever, ProviderErrorCode } from '../errors';
-import type { IProvider } from '../provider-port';
+import type { IProvider, ProviderAuthDescriptor } from '../provider-port';
 import { SecretString } from '../secret-string';
 
 const SLUG_RE = /^[a-z0-9-]+$/;
+
+/**
+ * Shape-per-variant + serializability for ONE auth descriptor. Applied to `provider.auth` and to
+ * every entry of `provider.additionalAuth` (ADR: multiple-connect-methods-per-provider) — the
+ * catalog publishes them all, so a malformed additional connect method is a consumer-facing bug.
+ */
+function assertAuthDescriptorShape(auth: ProviderAuthDescriptor, label: string): void {
+  // Exhaustive switch, so a new variant surfaces here (not silently).
+  switch (auth.type) {
+    case 'oauth2':
+      expect(auth.tokenUrl.length, `${label}: oauth2.tokenUrl`).toBeGreaterThan(0);
+      expect(auth.authorizationUrl.length, `${label}: oauth2.authorizationUrl`).toBeGreaterThan(0);
+      break;
+    case 'api_key':
+    case 'bearer':
+      expect(auth.fields.length, `${label}: fields`).toBeGreaterThan(0);
+      break;
+    case 'credential_exchange':
+      expect(
+        auth.tokenEndpoint.length,
+        `${label}: credential_exchange.tokenEndpoint`,
+      ).toBeGreaterThan(0);
+      expect(
+        Object.keys(auth.bodyFields).length,
+        `${label}: credential_exchange.bodyFields`,
+      ).toBeGreaterThan(0);
+      expect(
+        auth.responseFields.token.length,
+        `${label}: credential_exchange.responseFields.token`,
+      ).toBeGreaterThan(0);
+      break;
+    default:
+      assertNever(auth);
+  }
+
+  // Enforcement #5 (ADR: credential-delivery-strategies): the auth descriptor is serializable DATA
+  // only — a JSON round-trip must be identical. Catches any function/behavior smuggled into it.
+  expect(
+    JSON.parse(JSON.stringify(auth)) as unknown,
+    `${label} must be pure serializable data`,
+  ).toEqual(auth);
+}
 
 /**
  * The generic contract every provider must satisfy — the machine-checkable form of the
@@ -20,40 +62,11 @@ export async function runProviderConformance(provider: IProvider): Promise<void>
   expect(m.schemaVersion.length, 'manifest.schemaVersion').toBeGreaterThan(0);
   expect(m.providerVersion.length, 'manifest.providerVersion').toBeGreaterThan(0);
 
-  // Auth descriptor shape per variant — exhaustive, so a new variant surfaces here (not silently).
-  switch (provider.auth.type) {
-    case 'oauth2':
-      expect(provider.auth.tokenUrl.length, 'oauth2.tokenUrl').toBeGreaterThan(0);
-      expect(provider.auth.authorizationUrl.length, 'oauth2.authorizationUrl').toBeGreaterThan(0);
-      break;
-    case 'api_key':
-    case 'bearer':
-      expect(provider.auth.fields.length, 'auth.fields').toBeGreaterThan(0);
-      break;
-    case 'credential_exchange':
-      expect(
-        provider.auth.tokenEndpoint.length,
-        'credential_exchange.tokenEndpoint',
-      ).toBeGreaterThan(0);
-      expect(
-        Object.keys(provider.auth.bodyFields).length,
-        'credential_exchange.bodyFields',
-      ).toBeGreaterThan(0);
-      expect(
-        provider.auth.responseFields.token.length,
-        'credential_exchange.responseFields.token',
-      ).toBeGreaterThan(0);
-      break;
-    default:
-      assertNever(provider.auth);
-  }
-
-  // Enforcement #5 (ADR: credential-delivery-strategies): the auth descriptor is serializable DATA
-  // only — a JSON round-trip must be identical. Catches any function/behavior smuggled into it.
-  expect(
-    JSON.parse(JSON.stringify(provider.auth)) as unknown,
-    'authDescriptor must be pure serializable data',
-  ).toEqual(provider.auth);
+  // The primary descriptor and every additional connect method meet the same contract.
+  assertAuthDescriptorShape(provider.auth, 'auth');
+  (provider.additionalAuth ?? []).forEach((alt, i) =>
+    assertAuthDescriptorShape(alt, `additionalAuth[${i}]`),
+  );
 
   const tools = provider.listTools();
   expect(tools.length, 'listTools() must be non-empty').toBeGreaterThan(0);

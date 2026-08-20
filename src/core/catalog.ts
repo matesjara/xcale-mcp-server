@@ -13,6 +13,13 @@ export interface CatalogEntry {
   readonly schemaVersion: string;
   readonly providerVersion: string;
   readonly authDescriptor: ProviderAuthDescriptor;
+  /**
+   * Additional CONNECT methods, when the provider can be reached by more than one route (Cloudbeds:
+   * OAuth *or* a property-minted API key). Every entry materializes identically to `authDescriptor`
+   * — that is a tested invariant, see ADR `multiple-connect-methods-per-provider` — so a consumer
+   * reading only `authDescriptor` stays correct and simply offers one fewer way in.
+   */
+  readonly additionalAuthDescriptors?: readonly ProviderAuthDescriptor[];
   /** Relative or absolute URL to the provider's logo image. */
   readonly logoUrl?: string;
   /** JSON Schema of the context the consumer must forward (e.g. propertyID), when the provider needs it. */
@@ -53,6 +60,9 @@ export function buildCatalog(registry: ProviderRegistry): CatalogEntry[] {
       authDescriptor: provider.auth,
       toolCount: provider.listTools().length,
       // Optional fields only included when present.
+      ...(provider.additionalAuth !== undefined && provider.additionalAuth.length > 0
+        ? { additionalAuthDescriptors: provider.additionalAuth }
+        : {}),
       ...(provider.contextSchema !== undefined ? { contextSchema: provider.contextSchema } : {}),
       ...(m.logoUrl !== undefined ? { logoUrl: m.logoUrl } : {}),
       ...(m.capabilities !== undefined ? { capabilities: m.capabilities } : {}),

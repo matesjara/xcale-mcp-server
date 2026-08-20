@@ -4,6 +4,8 @@ xcale's own MCP integration platform (a "Composio LATAM"). Provider knowledge li
 consumers (xcale-backend first) consume capabilities over stable, consumer-agnostic MCP contracts.
 
 - **Identity & philosophy** — `.claude/rules/soul.md` (always loaded).
+- **Working with Mateo** — `.claude/skills/working-with-mateo` (always loaded via the import
+  in § Communication): report structure, altitude rules, decision surfacing.
 - **Glossary** — `CONTEXT.md` (use its canonical terms in code, docs, commits).
 - **Vision** — `docs/foundation.md`. **Target architecture & rationale** — `docs/architecture-review.md`.
 - **Decisions** — `docs/adr/` (index + policy: `docs/adr/README.md`).
@@ -15,6 +17,10 @@ consumers (xcale-backend first) consume capabilities over stable, consumer-agnos
 Everything that lands in the repo or on GitHub stays in English — code, comments, docs, ADRs,
 commit messages, PR titles and bodies, branch names. Quoting an artifact inside a Spanish answer
 keeps its English wording; don't translate identifiers, paths, commands, or error strings.
+**One sanctioned exception** (decided 2026-08-20): *internal working journals* — dated
+investigation/certification diaries under `docs/design/` (e.g. the Cloudbeds certification
+notes) — may be written in Spanish. Anything external-facing, contract-adjacent, or durable
+(code, ADRs, design docs, READMEs) stays English.
 
 Top-down. **Ceiling: ~12 lines; a release or PR briefing ~18.** Past that you are explaining, not
 reporting — move the detail into the PR body, an ADR, or a doc and link it.
@@ -25,6 +31,16 @@ Order, always:
 2. **⚠️ Then what I must decide or watch.** Decisions, risks, blockers, things that break. Marked.
 3. **Then facts, only if they'd change my decision.** Consolidated into one or two lines.
 
+**Decisions close every work turn as their own numbered block.** After any turn that does work
+(PR review, implementation, release…), if something needs my call, end the reply with:
+
+> **Decisiones:**
+> 1. <the decision, one line> — **Rec:** <your recommendation, a few words>
+
+One line per decision, recommendation always included, nothing else in the block. No pending
+decisions → no block (never an empty section). Items already parked in the roadmap only appear
+here when they block or newly need my call.
+
 Rules:
 
 - **No walkthroughs.** Never one section per PR / file / commit / step — group them into a claim.
@@ -33,6 +49,11 @@ Rules:
 - **Cut what I can infer.** "Gates green" — not a list of every gate that was green.
 - **Rationale lives in artifacts** (ADR, PR body, docs), not in chat. Link, don't paste.
 - If the honest answer is one line, it's one line. Length is never a proxy for rigor.
+
+The full working agreement (report structure, altitude rules, decision surfacing) is the
+`working-with-mateo` skill, auto-loaded here so every session starts with it:
+
+@.claude/skills/working-with-mateo/SKILL.md
 
 ## Stack
 
@@ -69,6 +90,13 @@ Rules:
 
 - `main` (default, protected: PR + 1 review) · `dev` (protected: PR). Implementation: feature
   branch → PR → `dev`; release: `dev` → `main` PR. Repo: https://github.com/JuanJo0775/xcale-mcp-server
+- **Release-owner override.** Mateo (`matesjara`, CEO) is the release owner and a repo admin;
+  `enforce_admins` is `false` on `main`, so he can merge past the 1-review requirement. This is
+  routine, not an incident: he authors most PRs and GitHub forbids self-approval, so a solo release
+  would otherwise deadlock. Once he has authorized the release, merge with
+  `gh pr merge <n> --merge --admin` — do not stop to ask who can approve. What still holds: CI must
+  be green, the release gates must pass, and the authorization must be his and explicit for *that*
+  release. Never use `--admin` to bypass a red build or an unreviewed contributor PR.
 
 ## Deploy
 

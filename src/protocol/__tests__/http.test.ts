@@ -14,6 +14,7 @@ beforeAll(async () => {
     serverSecret: SECRET,
     credentialResolveUrl: '',
     credentialResolveSecret: '',
+    siigoPartnerId: '',
   });
   await app.ready();
 });

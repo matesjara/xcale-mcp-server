@@ -31,3 +31,5 @@ Full rationale, alternatives, and the responsibility split live in `docs/archite
 | [tool-derived-oauth-scopes](tool-derived-oauth-scopes.md) | Accepted | An oauth2 provider's `scopes` is the union of its tools' `requiredScopes` — never hand-written; guard vs the app registration |
 | [control-plane-tools](control-plane-tools.md) | Accepted | `controlPlane` flag + `routableToolNames()`: menu ≠ router; control-plane tools callable but undiscoverable (documented exception; additive discovery later) |
 | [supply-chain-audit-gate](supply-chain-audit-gate.md) | Accepted | `npm audit` covers the **full** tree (never `--omit=dev`), blocking at `high`, split into prod/full steps; `overrides` over `npm audit fix` |
+| [fiscal-write-path](fiscal-write-path.md) | Proposed | Fiscal writes stay thin gateway passthrough; safety (confirmation, idempotency) lives in the consumer; at-most-once, never exactly-once |
+| [multiple-connect-methods-per-provider](multiple-connect-methods-per-provider.md) | Accepted | `auth` stays singular and is the ONLY materialization input; `additionalAuth[]` publishes extra CONNECT methods (catalog `additionalAuthDescriptors`, optional/additive) |

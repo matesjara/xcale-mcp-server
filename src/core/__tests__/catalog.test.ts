@@ -21,4 +21,15 @@ describe('buildCatalog', () => {
     const json = JSON.stringify(catalog);
     expect(json).not.toMatch(/clientSecret|client_secret|password|tenant|\bplan\b/i);
   });
+
+  it('publishes additionalAuthDescriptors only for providers declaring extra connect methods', () => {
+    // ADR multiple-connect-methods-per-provider: cloudbeds publishes the API-key lane.
+    const cloudbeds = catalog.find((e) => e.slug === 'cloudbeds');
+    expect(cloudbeds?.additionalAuthDescriptors?.length).toBeGreaterThan(0);
+    expect(cloudbeds?.additionalAuthDescriptors?.[0]?.type).toBe('bearer');
+    // Omitted — not empty, not null — when a provider declares none (additive-contract discipline).
+    const echo = catalog.find((e) => e.slug === 'echo');
+    expect(echo).toBeDefined();
+    expect(echo && 'additionalAuthDescriptors' in echo).toBe(false);
+  });
 });

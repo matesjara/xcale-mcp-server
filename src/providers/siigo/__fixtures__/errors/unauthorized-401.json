@@ -1,0 +1,11 @@
+{
+  "Status": 401,
+  "Errors": [
+    {
+      "Code": "unauthorized",
+      "Message": "Verify the authorization header: the token may be invalid or expired, or the user may have been blocked.",
+      "Params": [],
+      "Detail": "Check the API documentation: https://developer.siigo.com/introduction/codigos-de-error/unauthorized"
+    }
+  ]
+}

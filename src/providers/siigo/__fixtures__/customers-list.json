@@ -1,0 +1,26 @@
+{
+  "pagination": { "page": 1, "page_size": 25, "total_results": 82167 },
+  "results": [
+    {
+      "id": "556cad10-9ca3-4718-8791-e8b718a3f8ba",
+      "type": "Customer",
+      "person_type": "Company",
+      "id_type": { "code": "31", "name": "NIT" },
+      "identification": "900123456",
+      "branch_office": 0,
+      "check_digit": "3",
+      "name": ["ACME SAS"],
+      "active": true,
+      "vat_responsible": false,
+      "fiscal_responsibilities": [{ "code": "R-99-PN", "name": "No aplica - Otros" }],
+      "address": { "address": "", "city": {} },
+      "phones": [{ "indicative": "0", "number": "0", "extension": "0" }],
+      "contacts": [{ "first_name": "ACME SAS", "last_name": "", "email": "facturacion@acme.example" }],
+      "metadata": { "created": "2026-08-13T00:13:05.397" }
+    }
+  ],
+  "_links": {
+    "self": { "href": "https://api.siigo.com/v1/customers?page=1&page_size=25" },
+    "next": { "href": "https://api.siigo.com/v1/customers?page=2&page_size=25" }
+  }
+}

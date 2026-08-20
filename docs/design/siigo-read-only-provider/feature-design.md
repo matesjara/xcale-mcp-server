@@ -172,6 +172,15 @@ inline error; nothing is stored.
 during the validation mint. **Error**: the mint's failure reason (invalid credentials vs provider
 unavailable), localized.
 
+> **Correction 2026-08-12 (drift grill) — the mint-once gate is authoritative (backend wiring):**
+> connect validates by **minting once** against Siigo's token endpoint, reusing the one resolve-time mint
+> executor (`xcale-backend/src/modules/connections/credential-exchange.ts`) — a **mint-200 is the
+> fail-closed gate**, a 401/403 is "credentials rejected". It is **not** a post-mint data-endpoint probe:
+> Siigo publishes **no** `connectionProbe` and needs none. Siigo must **not** be routed through the
+> generic-rail `buildCredentialConfig`/`connectionProbe` path — that path reads `fields` (not `bodyFields`),
+> hard-throws on more than one secret (Siigo carries two: `userName`+`accessKey`), and forwards the pasted
+> secret verbatim without minting. See implementation-plan.md **B3.3** for the net-new wiring this implies.
+
 ### 6.2 Agent tool-call flow (the reference model, made concrete)
 
 The agent calls e.g. `mcp_siigo_list_invoices`. Rail A prepares the `tools/call`: it generates a
@@ -272,9 +281,25 @@ JWT ──wrapped as──▶ ResolvedCredential ──used by──▶ Provider
 | AD-4 | Mint ownership | Rail A (Credential Authority) mints/reuses/refreshes, caches 24h JWT | Durable credential never leaves Rail A |
 | AD-5 | Auth descriptor | `credential_exchange`, strictly declarative | Knowledge in server, additive contract; no DSL (ADR) |
 | AD-6 | `Partner-Id` | Non-secret institutional identity, `source: deployment`, out of catalog | Not custody; consumer-agnostic contract |
-| AD-7 | Context | No `contextSchema` (1 connection → 1 company) | Cardinality rule; multi-company = multiple connections |
+| AD-7 | Context | No `contextSchema` (1 connection → 1 company) — **Observed (B1 resolved Q-9; see note ↓)** | Cardinality rule; multi-company = multiple connections — falsifier did not trigger (`b1-sandbox-evidence.md` §7) |
 | AD-8 | Tool scope | Read-only, curated | First-slice minimizes domain irreversibility |
 | AD-9 | Error model | Error-ownership boundary; reuse `mapHttpStatusToErrorCode` | No change to `ProviderErrorCode` set |
+
+> **Correction 2026-08-12 (drift grill) — AD-7 is HYPOTHESIS-PENDING, not settled.** The
+> verbatim-passthrough decision holds, but "no `contextSchema`, one credential = one company/NIT" was
+> **asserted-settled** while every sibling API fact (Q-1..Q-4) was scheduled for B1 observation — and on a
+> **fiscal** provider a cross-company answer is a real data leak. This is downgraded to a **hypothesis**
+> until the sandbox falsifies it (see `sandbox-verification.md` **Q-9** and `traceability-matrix.md`'s
+> company→credential cardinality row). **Falsifier:** if one Siigo access key authenticates to more than
+> one company/NIT, or `/auth` enumerates companies, or any data endpoint accepts/requires a `companyId`/NIT
+> selector, then Siigo is **Cloudbeds-shaped** and needs a company-key `contextSchema` + `accountContextKeys`
+> (like `propertyID`), **not** the current no-`contextSchema` shape. If the sandbox proves multi-company,
+> the fix stays inside `src/providers/siigo/` + its backend toolbox entry (self-containment intact) — **no
+> core change**; keeping Siigo thin (no `contextSchema`) remains the **default** until falsified.
+>
+> **Resolved 2026-08-13 (B1):** the falsifier did **not** trigger — no company list in the token, no
+> `companyId`/NIT selector on any data endpoint. AD-7 is now **Observed**; see
+> `b1-sandbox-evidence.md` §7 and the cardinality row in `traceability-matrix.md`.
 
 ---
 

@@ -27,8 +27,28 @@
 
 | # | Step | Files (backend) | Definition of Done |
 |:--|:--|:--|:--|
-| 9 | Credential provider | `connections/providers/{slug}.ts` + register | `credential_exchange` connect: `validate` mints once (userName+accessKey), stores durable cred **encrypted JSON** in `credentialSecret`, `metadata.authMethod='credential_exchange'`; connect flow green |
+| 9 | Credential provider | `connections/providers/{slug}.ts` + register | `credential_exchange` connect: `validate` mints once (userName+accessKey), stores durable cred **encrypted JSON** in `credentialSecret` **whose object keys equal the descriptor's `bodyFields` LOGICAL names** (the same keys `resolve` reads — see correction), `metadata.authMethod='credential_exchange'`; connect flow green |
 | 10 | Deployment config | Doppler | `Partner-Id` value + `CREDENTIAL_RESOLVE_URL` (mcp-server) set per env |
+
+> **Correction 2026-08-12 (drift grill) — step 9 pins a cross-repo JSON-shape contract.** Nothing
+> currently pins the shape of `credentialSecret`. `resolve` (`credential-resolve.service.ts:89-96`)
+> `JSON.parse`s it and hands the object to `mintCredentialExchange`, which
+> (`credential-exchange.ts:62-69`) iterates `descriptor.bodyFields` and reads `credentialValues[LOGICAL]`,
+> throwing `missing credential value for field "X"` on any key mismatch. **Contract:** connect MUST
+> persist `credentialSecret` as a JSON object whose **keys equal the descriptor's `bodyFields` LOGICAL
+> names** — the same keys `resolve` reads; **both** connect and resolve MUST read the **one** backend
+> descriptor. Author a **golden/contract test** (B3.3 work — noted, not written here) pinning Siigo's
+> `bodyFields` logical keys + `tokenEndpoint` host across `src/providers/siigo/auth.ts` and the backend
+> mirror. B1 must record the `bodyFields` LOGICAL key names as **first-class Observed evidence**.
+>
+> **Correction 2026-08-12 (drift grill) — to-do for B3.3: resolve-time `descriptorFor` is a
+> backend-authoritative pinned mirror, not a live fetch.** The resolve path POSTs the **durable** Siigo
+> credential to `descriptor.tokenEndpoint`; that descriptor MUST be **pinned in backend code/config** (a
+> hand-authored mirror of the mcp-server's published descriptor), **never live-fetched** from the
+> discovered catalog (a network-fetched `tokenEndpoint` lets an mcp-server compromise/MITM redirect the
+> crown jewel — breaks AD-4 and `soul.md` "no dynamic discovery"). When `descriptorFor` is wired, **rewrite
+> the misleading comment** at `xcale-backend/src/modules/connections/internal-routes.ts:50-51` ("wired to
+> the discovered catalog in Phase B") to read "backend-authoritative pinned mirror, not live-fetched".
 
 ### B4 — Integration (backend reference emission — the A9b deferral)
 
