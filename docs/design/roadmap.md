@@ -131,6 +131,17 @@ providerVersion bump for `list_addons`). These Minors were **accepted and parked
 
 ## Siigo provider & docs wave — deferred from the PR #33/#34/#35 reviews (2026-08-18)
 
+### Release follow-up (2026-08-20)
+
+- **Siigo is dormant in prod** (released reachable-but-unwired in PR #42 by release-owner scope
+  decision). *Activation checklist:* (1) land the boot-time https validation of
+  `CREDENTIAL_RESOLVE_URL` (parked below in the Cloudbeds write-path section — its trigger has
+  fired); (2) confirm the **production** Partner-Id (sandbox is `EcomerceCG`); (3) set
+  `CREDENTIAL_RESOLVE_URL` / `CREDENTIAL_RESOLVE_SECRET` (both services) / `SIIGO_PARTNER_ID` in
+  Doppler `prd`, add them to `.do/app.yaml`, apply per `docs/deploy.md`; (4) re-smoke a Siigo read
+  e2e (the recorded e2e predates the envelope fix). *Trigger:* release owner green-lights
+  activation.
+
 The wave merged with its Blockers fixed in-branch (uniform `PaginatedResult` envelope on the 9
 paginated Siigo list tools + `api-contract.md` §C alignment; ship-log brought to the actual shipped
 state; two factual corrections in the Cloudbeds islands note). These items were **accepted and
