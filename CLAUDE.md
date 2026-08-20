@@ -88,15 +88,20 @@ The full working agreement (report structure, altitude rules, decision surfacing
 
 ## Git workflow
 
-- `main` (default, protected: PR + 1 review) · `dev` (protected: PR). Implementation: feature
-  branch → PR → `dev`; release: `dev` → `main` PR. Repo: https://github.com/JuanJo0775/xcale-mcp-server
-- **Release-owner override.** Mateo (`matesjara`, CEO) is the release owner and a repo admin;
-  `enforce_admins` is `false` on `main`, so he can merge past the 1-review requirement. This is
-  routine, not an incident: he authors most PRs and GitHub forbids self-approval, so a solo release
-  would otherwise deadlock. Once he has authorized the release, merge with
-  `gh pr merge <n> --merge --admin` — do not stop to ask who can approve. What still holds: CI must
-  be green, the release gates must pass, and the authorization must be his and explicit for *that*
-  release. Never use `--admin` to bypass a red build or an unreviewed contributor PR.
+- `main` (default, protected: PR + CI `verify` green, no direct or force pushes) · `dev`
+  (protected: same). Implementation: feature branch → PR → `dev`; release: `dev` → `main` PR.
+  Repo: https://github.com/matesjara/xcale-mcp-server
+- **Release owner** — Mateo (`matesjara`, CEO). A release to `main` needs his explicit
+  authorization for *that* release, whoever opens or merges the PR.
+- **No required approvals on `main`** (set 2026-08-20). GitHub personal-account repos have no
+  admin role for collaborators — everyone but the owner is capped at `write` — so a mandatory
+  approval permanently blocked Juan José from merging to `main`, and forced Mateo to `--admin`
+  past it on every release. The enforced gate is now PR + green CI; **review stays a team
+  convention, not a machine rule**. Giving Juan José real admin rights would require moving the
+  repo to a GitHub organization.
+- **Do not use `gh pr merge --admin`.** `enforce_admins` is still `false`, so with approvals at 0
+  the only thing that flag still bypasses is a red build. Merge with `gh pr merge <n> --merge`
+  once CI is green.
 
 ## Deploy
 
