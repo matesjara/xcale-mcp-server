@@ -40,6 +40,8 @@ export const cloudbedsAuthBase = {
  */
 export const cloudbedsApiKeyAuth: ProviderAuthDescriptor = {
   type: 'bearer',
+  // Informative for catalog readers only: the runtime dispatches delivery strategy off
+  // `provider.auth.credentialDelivery` alone (mcp-server.ts), never off an additionalAuth entry.
   credentialDelivery: 'forwarded',
   fields: [{ key: 'apiKey', label: 'Cloudbeds API key', placement: 'header' }],
 };

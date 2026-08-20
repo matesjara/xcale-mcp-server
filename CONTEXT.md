@@ -104,6 +104,14 @@ type + field labels; oauth2 → URLs/scopes/placement). Lets Rail A run auth flo
 \_Avoid*: putting secrets (`clientId`/`clientSecret`) in it — those stay in the backend's Doppler;
 hand-maintaining `scopes` for an oauth2 provider (it is **derived** — see [`requiredScopes`](#)).
 
+**`additionalAuth` (the CONNECT vs AUTHENTICATE split)** — a provider may publish more than one way
+to **connect** (e.g. Cloudbeds: OAuth _or_ a pasted property API key) via `additionalAuth[]`,
+surfaced in the catalog as `additionalAuthDescriptors`; but `auth` stays **singular** and is the
+**only** input to materialization — every connect method must yield a credential that authenticates
+identically (ADR `multiple-connect-methods-per-provider`). _Avoid_: a second materialization path
+keyed off `additionalAuth`; treating the array as call-time fallback auth (it is connect-time UX
+only, consumed by Rail A's connect flow).
+
 **`requiredScopes`** — the OAuth scopes one tool needs in order to run, declared **on the tool** beside
 its `input` schema. Provider knowledge, so it lives in the adapter. It is the **single source** of a
 provider's scope surface: the `authDescriptor`'s `scopes` is the **union** of its tools' `requiredScopes`,
