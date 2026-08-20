@@ -70,8 +70,9 @@ EOF
 
 ## Safety
 
-- **Pre-commit type check**: `npm run type-check` must pass. STOP if it fails.
-- **Pre-commit lint**: `npm run lint` must pass. STOP if it fails.
+- **Pre-commit type check**: `npm run typecheck` must pass. STOP if it fails.
+- **Pre-commit format**: `npm run format:check` must pass. STOP if it fails.
+- **Pre-commit tests**: `npm test` must pass. STOP if it fails.
 - **No amending**: Create new commits. Amending can destroy previous work.
 - **No force push**: Never to `main` or `dev`.
 - **No hook skipping**: Never `--no-verify`. Prettier runs as a hook on every edit — if it fails, fix the root cause.

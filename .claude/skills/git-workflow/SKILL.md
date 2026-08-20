@@ -6,19 +6,20 @@ argument-hint: "[optional: ticket ID like XCA-74, or action like 'ship', 'releas
 
 # Git Workflow
 
-This skill defines how code moves from local changes to production in xcale-backend. Follow this methodology for every git operation — whether the user explicitly says "ship" or naturally says "let's work on feature X" or "commit this".
+This skill defines how code moves from local changes to production in xcale-mcp-server. Follow this methodology for every git operation — whether the user explicitly says "ship" or naturally says "let's work on feature X" or "commit this".
 
-## Roles (two-dev model — decided 2026-06-11)
+## Roles (two-dev model — decided 2026-06-11; self-merge revised 2026-08-20)
 
 | Role | Who | May do | May NOT do |
 |:--|:--|:--|:--|
 | **Release owner** | Mateo (`matesjara`) | Everything below + **merge to `dev` and `main`** + Release | — |
-| **Contributor** | Juan José (`JuanJo0775`) | Start Working + Ship: branch from `dev` (or from his own branches as a working technique), open PRs **to `dev`**, write + run his feature's QA scenarios | Merge any PR (incl. his own) · push directly to `dev`/`main` · Release |
+| **Contributor** | Juan José (`JuanJo0775`) | Start Working + Ship: branch from `dev` (or from his own branches as a working technique), open PRs **to `dev`**, write + run his feature's QA scenarios, **merge his own PRs into `dev`** once CI is green | Merge to `main` · Release · push directly to `dev`/`main` |
 
 - **Every PR targets `dev`** — no stacked PRs (PR into another work branch). A big feature ships as ordered vertical slices, each PR'd to `dev`, not as a PR tower.
-- **No self-merge, ever.** The PR author never merges their own PR.
-- Enforcement is convention + a CI guard (a direct push to `dev` by anyone but the release owner turns CI red — detection, not prevention). If it recurs, escalate to GitHub Pro branch protection.
-- Start Working and Ship apply to **both** devs. Review & Merge and Release are **release-owner only**.
+- **Self-merge into `dev` is allowed** (revised 2026-08-20). The author may merge their own PR to `dev` once CI `verify` is green and they have run the Review & Merge gate below on their own diff. They do **not** wait for the release owner.
+- **`main` is different.** Every merge to `main` needs the release owner's explicit authorization for *that* release, whoever opens or merges the PR — `main` auto-deploys to production.
+- Enforcement is GitHub branch protection on both branches: PR required, CI `verify` green and up to date with the base, no direct pushes, no force pushes. **No approval is machine-required** — review is a team convention, so the gate below rides on the author's honour.
+- Start Working and Ship apply to **both** devs. Release is **release-owner only**.
 
 ## When to Activate
 
@@ -39,7 +40,7 @@ hotfix/auth-crash  ──PR─────────────────�
 
 | Branch            | Purpose                                                     | Receives PRs from                  |
 | ----------------- | ----------------------------------------------------------- | ---------------------------------- |
-| **`main`**        | Production. DO App Platform auto-deploys (`xcale-backend`). | `dev` (via release) or `hotfix/*`  |
+| **`main`**        | Production. DO App Platform auto-deploys (`xcale-mcp-server`). | `dev` (via release) or `hotfix/*`  |
 | **`dev`**         | Integration/staging. Quality gate before production.        | `feat/*`, `fix/*`, `chore/*`, etc. |
 | **Work branches** | One per task. Short-lived.                                  | —                                  |
 | **`hotfix/*`**    | Critical production fixes. Branch from `main`.              | —                                  |
@@ -68,8 +69,8 @@ If the user is already on a feature branch, just continue working — no branch 
 
 When changes are ready to ship:
 
-1. **Type check**: `npm run type-check` — **STOP if it fails**
-2. **Lint**: `npm run lint` — **STOP if it fails**
+1. **Format**: `npm run format:check` — **STOP if it fails**
+2. **Type check + tests**: `npm run typecheck` then `npm test` — **STOP if either fails**
 3. **Analyze**: `git diff --stat` — understand intent, check for secrets
 4. **Ship-log checkpoint (Gate 1)**: if the change ships a feature with a folder in
    `docs/design/<slug>/`, ensure a `docs/design/<slug>/ship-log.md` exists (create it from
@@ -87,34 +88,40 @@ When changes are ready to ship:
 9. **Push**: `git push -u origin <branch>`
 10. **PR**: `gh pr create --base dev` (or `--base main` for hotfixes)
 
-**Do not merge the PR automatically.** Creating the PR is where Ship ends — for everyone. The PR
-author **never** merges their own PR: a contributor's PR waits for the release owner's Review &
-Merge workflow (below); the release owner's own PRs still require their explicit "merge it".
+**Never merge the PR on your own initiative.** Creating the PR is where Ship ends. A merge always
+takes an explicit human "merge it" — from the PR's author or the release owner for `dev`, and from
+the release owner specifically for `main`. What changed on 2026-08-20 is *who may authorize*, not
+that authorization is needed: the author may now merge their own PR into `dev` once CI is green and
+the Review & Merge gate has run, instead of waiting on the release owner.
 
 See [references/commit-conventions.md](references/commit-conventions.md) for commit format and safety rules.
 
-### 3. Review & Merge (incoming PR) — release owner only
+### 3. Review & Merge (before any merge)
 
-When a PR into `dev` is ready for review (the user says "review Juan's PR", "revisa el PR", or a
-contributor PR is pending). The gate has **two levels**:
+Run this before a PR into `dev` is merged — by the release owner when he reviews someone else's PR
+("revisa el PR de Juan"), and by the author on their **own** diff when they self-merge. The gate has
+**two levels**:
 
 **Level 1 — every PR, including chores:**
-1. **CI green** (differential lint, type-check, tests, build). Never review a red PR — send it back first.
+1. **CI `verify` green** (provider `inputSchema` guard, format, type-check, tests, `npm audit` on prod deps and on the full tree). Never review a red PR — send it back first.
 2. **`code-reviewer` agent over the PR diff** (`gh pr diff <n>` as input) — **zero open Blockers**.
    Majors/Minors are judgment calls: request changes or accept-and-roadmap them, explicitly.
 3. **Brief the release owner in plain terms — always, before any verdict.** Mateo reads the
    briefing, not the diff. Lead with *what changes and why*, in concrete language, no jargon dump:
    what the code did before, what it does now, what breaks if we merge it, and what is left open
    (ops, follow-ups, half-closed roadmap items). Short and specific — a screen, not an essay.
-   Details go in the review notes below the fold; if he wants the diff he'll ask.
-4. **The human owns the verdict.** The agent and the briefing advise; the release owner decides.
+   Details go in the review notes below the fold; if he wants the diff he'll ask. On a self-merge
+   to `dev` this is still owed — after the fact, in the turn that reports the merge.
+4. **The human owns the verdict.** The agent and the briefing advise; a human decides — the author
+   for their own `dev` merge, the release owner for anything touching `main`.
 
 **Level 2 — feature PRs** (design folder in `docs/design/<slug>/`, or new/changed API surface), additionally:
 4. **Ship-log exists** (`docs/design/<slug>/ship-log.md`) with dev-side ops recorded (Ship Gate 1).
 5. **QA scenarios green on dev** — written and run by the PR author, result attached in the PR
    description. The reviewer may re-run them (`/qa <target>`) when in doubt.
 
-**Verdict**: merge (release owner only), or request changes citing the specific gate items that
+**Verdict**: merge (the author for their own `dev` PR, the release owner for anything to `main`),
+or request changes citing the specific gate items that
 failed. After merging: run the Cleanup workflow. If anything was accepted-with-debt, park it in
 `docs/design/roadmap.md` in the same breath.
 
@@ -187,15 +194,15 @@ Branches are short-lived. After a PR is merged, the branch should be deleted —
 
 ## Safety Rules (Always Apply)
 
-- **TypeScript first**: Never commit code that fails `npm run type-check`
-- **Lint clean**: Never commit code that fails `npm run lint`
+- **TypeScript first**: Never commit code that fails `npm run typecheck`
+- **Format clean**: Never commit code that fails `npm run format:check`
 - **No secrets**: Scan for `.env`, credentials, API keys, Doppler tokens before staging
 - **No force push**: Never to `main` or `dev`. Never without explicit request
 - **No hook skipping**: Never `--no-verify` unless explicitly requested
 - **No direct commits to `main`**: Always go through `dev` (or hotfix PR)
-- **No direct pushes to `dev` by contributors**: `dev` only moves via PRs merged by the release owner (CI guard flags violations)
-- **No self-merge**: The PR author never merges their own PR — contributor PRs go through Review & Merge
-- **No auto-merge**: Creating the PR ≠ merging it. The release owner authorizes merges explicitly
+- **No direct pushes to `dev` or `main`**: both are protected — they only move via PRs with CI green
+- **Self-merge to `dev` only**: the author may merge their own PR into `dev` after the Review & Merge gate; `main` always needs the release owner's explicit authorization for that release
+- **No auto-merge**: Creating the PR ≠ merging it. A merge always takes an explicit human "merge it"
 - **New commits only**: Never amend unless explicitly requested
 - **Atomic commits**: Suggest splitting unrelated changes
 
