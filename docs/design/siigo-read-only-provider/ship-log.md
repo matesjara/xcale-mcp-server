@@ -3,11 +3,15 @@
 > **Purpose.** A PR-ready handoff of everything built for the Siigo integration in this wave. Phase A
 > (provider-agnostic credential-delivery machinery) is already in `dev`; this log covers **Phase B**
 > (B2 contract → B3 provider+registration → B4 reference emission → B5 e2e).
-> **Date:** 2026-08-13 (status updated 2026-08-18). **Status:** built, tested, and **verified
-> end-to-end against the live Siigo sandbox** (agent returned real customers in the xcale chat).
-> In flight as PRs: this docs wave is **PR #34** and the adapter is **PR #33**, both into `dev` of
-> `xcale-mcp-server`; the backend halves ship as their own PRs in `xcale-backend`.
-> **Repos / base branch:** `xcale-mcp-server` + `xcale-backend`, both targeting `dev`.
+> **Date:** 2026-08-13. **Status: in-soak.** **Released to prod: 2026-08-20** (release PR #42,
+> merged by the release owner; deploy verified — new build live, `GET /health` ok).
+> **Prod posture: dormant by scope decision** — `CREDENTIAL_RESOLVE_URL` / `CREDENTIAL_RESOLVE_SECRET`
+> / `SIIGO_PARTNER_ID` unset in `prd`, so the reference resolver is not wired and Siigo tool calls
+> are not served. Activation is a follow-up gated on the boot-time https validation of
+> `CREDENTIAL_RESOLVE_URL` (roadmap). Dev-side: built, tested, **verified end-to-end against the
+> live Siigo sandbox** (agent returned real customers in the xcale chat; pre-envelope-fix — re-smoke
+> on activation). Shipped via PRs #33 (adapter) + #34 (docs) into `dev`; backend halves shipped in
+> `xcale-backend` (its release #546 carries Siigo connect).
 
 ## Summary
 
