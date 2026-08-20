@@ -4,6 +4,8 @@ xcale's own MCP integration platform (a "Composio LATAM"). Provider knowledge li
 consumers (xcale-backend first) consume capabilities over stable, consumer-agnostic MCP contracts.
 
 - **Identity & philosophy** — `.claude/rules/soul.md` (always loaded).
+- **Working with Mateo** — `.claude/skills/working-with-mateo` (always loaded via the import
+  in § Communication): report structure, altitude rules, decision surfacing.
 - **Glossary** — `CONTEXT.md` (use its canonical terms in code, docs, commits).
 - **Vision** — `docs/foundation.md`. **Target architecture & rationale** — `docs/architecture-review.md`.
 - **Decisions** — `docs/adr/` (index + policy: `docs/adr/README.md`).
@@ -43,6 +45,11 @@ Rules:
 - **Cut what I can infer.** "Gates green" — not a list of every gate that was green.
 - **Rationale lives in artifacts** (ADR, PR body, docs), not in chat. Link, don't paste.
 - If the honest answer is one line, it's one line. Length is never a proxy for rigor.
+
+The full working agreement (report structure, altitude rules, decision surfacing) is the
+`working-with-mateo` skill, auto-loaded here so every session starts with it:
+
+@.claude/skills/working-with-mateo/SKILL.md
 
 ## Stack
 
