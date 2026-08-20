@@ -151,6 +151,10 @@ parked**, not fixed.
   the journals — today every review flags it again. *Trigger:* next Cloudbeds-certification doc,
   or the next repo-rules edit.
 
+  > **CLOSED (2026-08-20).** Mateo officialized the exception: internal working journals may be
+  > written in Spanish; everything durable or external-facing stays English. Codified in
+  > CLAUDE.md § Communication — reviews stop flagging the journals.
+
 ### Minors
 
 - **`api-contract.md` §B cites xcale-backend internals** (`credential-resolve.service.ts`,
