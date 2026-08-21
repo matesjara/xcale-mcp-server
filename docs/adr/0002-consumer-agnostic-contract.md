@@ -1,4 +1,4 @@
-# ADR: Consumer-agnostic public contract (xcale-backend is a client, not a dependency)
+# ADR 0002: Consumer-agnostic public contract (xcale-backend is a client, not a dependency)
 
 - **Status:** Accepted
 - **Date:** 2026-06-19
@@ -71,5 +71,5 @@ actively onboarding third parties now.
 ## References
 - Architecture review: `docs/architecture-review.md` §0 (principle #2), §5
 - Foundation: `docs/foundation.md` §4.1 (reusability), §5.2 (not a marketplace yet)
-- Related ADRs: [provider-knowledge-vs-credential-custody](provider-knowledge-vs-credential-custody.md), [three-pillar-mcp-contract-with-discovery](three-pillar-mcp-contract-with-discovery.md)
+- Related ADRs: [provider-knowledge-vs-credential-custody](0004-provider-knowledge-vs-credential-custody.md), [three-pillar-mcp-contract-with-discovery](0006-three-pillar-mcp-contract-with-discovery.md)
 - External: Composio (consumer-agnostic catalog); MCP spec (open standard, any compatible client)

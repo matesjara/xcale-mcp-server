@@ -12,7 +12,7 @@
     "noFallthroughCasesInSwitch": true,
     // exactOptionalPropertyTypes is intentionally OFF — incompatible with @modelcontextprotocol/sdk's
     // published Transport types. Tracked decision + revisit trigger:
-    // docs/adr/typescript-strictness-config.md
+    // docs/adr/0008-typescript-strictness-config.md
 
     "esModuleInterop": true,
     "resolveJsonModule": true,
@@ -21,5 +21,5 @@
 
     "noEmit": true
   },
-  "include": ["src"]
+  "include": ["src", "scripts"]
 }

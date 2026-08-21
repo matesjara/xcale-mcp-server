@@ -1,4 +1,4 @@
-# ADR: Credential forwarding & token model (backend → server)
+# ADR 0003: Credential forwarding & token model (backend → server)
 
 - **Status:** Accepted. The architectural decision is made; what is bounded is its *scope of
   application* (see **Constraint**). The independent security review
@@ -112,6 +112,6 @@ These conditions are verified later by the code-level `/security-review` against
 ## References
 - Architecture review: `docs/architecture-review.md` §7
 - Foundation: `docs/foundation.md` §8 (auth model), Q-1, Q-11
-- Related ADRs: [stateless-gateway-and-thin-acl](stateless-gateway-and-thin-acl.md), [provider-knowledge-vs-credential-custody](provider-knowledge-vs-credential-custody.md)
+- Related ADRs: [stateless-gateway-and-thin-acl](0005-stateless-gateway-and-thin-acl.md), [provider-knowledge-vs-credential-custody](0004-provider-knowledge-vs-credential-custody.md)
 - External: MCP security best practices (token passthrough); RFC 8693 (OAuth 2.0 Token Exchange)
 - Backend re-auth flow this integrates with: `xcale-backend/docs/adr/0005-native-connection-reauth-lifecycle.md`

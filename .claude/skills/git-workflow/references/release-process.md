@@ -77,8 +77,9 @@ Promoting `dev` → `main` for production deployment on Digital Ocean App Platfo
 
 ## Pre-release checklist
 - [ ] All feature PRs merged to dev
-- [ ] Type check passes (npm run type-check)
-- [ ] Lint passes (npm run lint)
+- [ ] Type check passes (npm run typecheck)
+- [ ] Format check passes (npm run format:check)
+- [ ] Audit clean (npm audit --audit-level=high)
 - [ ] Manual QA against dev
 - [ ] No known blockers
 
@@ -91,7 +92,7 @@ EOF
 
 Once the release PR is merged to `main`:
 
-- DO App Platform auto-deploys to production (`xcale-backend`)
+- DO App Platform auto-deploys to production (`xcale-mcp-server`)
 - `dev` and `main` are in sync
 - New feature branches continue from `dev`
 

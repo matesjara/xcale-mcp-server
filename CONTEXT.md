@@ -202,7 +202,7 @@ into transport); the transport knowing any auth scheme; `.reveal()` outside this
 for a provider credential on the wire under the `reference` delivery strategy. It resolves to a
 **connection**, not a specific token — the Credential Authority decides at resolve time whether to
 mint, reuse, or refresh the real credential. Implements the "Alternative B (ephemeral references)" of
-[credential-forwarding-and-token-model](docs/adr/credential-forwarding-and-token-model.md) without
+[credential-forwarding-and-token-model](docs/adr/0003-credential-forwarding-and-token-model.md) without
 full RFC 8693 machinery; the wire contract is the same shape, so the internal mechanism can later
 harden to RFC 8693 without a contract change. On resolution failure (TTL expiry / already-consumed),
 the consumer retries **exactly once** with a fresh reference — a second failure is systemic, not a TTL
@@ -248,13 +248,13 @@ duplicating a constant; putting its value in the descriptor or catalog.
 concepts (no xcale entities, tenant ids, plan/business terms); the server is told _which token_ and
 _which tool_, never _which tenant_. xcale-backend is the **first consumer**, not a dependency.
 _Avoid_: "the boundary between xcale-backend and the server" (it is the boundary between the server
-and _any_ consumer). See `docs/adr/consumer-agnostic-contract.md`.
+and _any_ consumer). See `docs/adr/0002-consumer-agnostic-contract.md`.
 
 **Provider lifecycle** — per-provider evolution metadata in `manifest.ts`/catalog: `providerVersion`
 (adapter semver), `apiVersion`, `deprecated`, `sunsetDate`. v1 ships `providerVersion` (+
 `schemaVersion`); the rest are **reserved** so a provider can evolve or be retired without breaking
 consumers. _Avoid_: conflating it with `schemaVersion` (that versions the contract; this versions
-the provider). See `docs/adr/additive-contract-versioning.md`.
+the provider). See `docs/adr/0001-additive-contract-versioning.md`.
 
 **Provider capabilities (reserved)** — optional flags a provider may declare in the catalog
 (`streaming`, `longRunning`, `webhooks`, `polling`, `files`, `pagination`, `autoRefresh`); absent =
@@ -268,7 +268,7 @@ need it someday" scenario.
 
 ---
 
-### Canonical provider patterns (from the Cloudbeds grill, 2026-06-21 — see `docs/adr/canonical-provider-pattern.md`)
+### Canonical provider patterns (from the Cloudbeds grill, 2026-06-21 — see `docs/adr/0009-canonical-provider-pattern.md`)
 
 **`defineTool`** — the helper every tool is declared with: `{ name, description, input (zod), handler }`.
 The `input` is the **single source of truth** — it validates args AND generates the `tools/list`

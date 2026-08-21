@@ -226,7 +226,7 @@ on the open MCP protocol instead of a vendor SDK.
 - **No multi-tenant data model.** The server is told *which token* to use, not *which tenant*.
 - **Not a general MCP marketplace (yet).** v1 targets xcale's own provider needs; broad
   third-party reuse is a possible future, not a v1 requirement. **But** the contract is designed
-  **consumer-agnostic from day one** (principle #2 / `docs/adr/consumer-agnostic-contract.md`), so
+  **consumer-agnostic from day one** (principle #2 / `docs/adr/0002-consumer-agnostic-contract.md`), so
   reuse stays open at near-zero cost — "not a marketplace yet" is about scope, not about coupling.
 
 ---
@@ -299,7 +299,7 @@ xcale-mcp-server/
   reason this server exists. Public contracts carry no consumer-specific concepts (no xcale
   entities, tenant ids, plan/business terms) — only *which token* and *which tool*. A design
   constraint (keeps reuse open at near-zero cost), not a v1 marketplace goal. See
-  `docs/adr/consumer-agnostic-contract.md`.
+  `docs/adr/0002-consumer-agnostic-contract.md`.
 - **Proportionate, no framework magic.** No decorators / reflection / auto-discovery. The
   provider registry is an **explicit list** — missing a provider is one missing line,
   grep-able and auditable. (Mirrors Rail D/E's rejection of auto-discovery.)
@@ -316,7 +316,7 @@ The **only** interface between xcale-backend and this server is the MCP protocol
 else is an internal implementation detail of one side or the other.
 
 > **Update:** the contract is now **three pillars** — `server/discover` (capability catalog) was
-> added alongside the two methods below. See `docs/adr/three-pillar-mcp-contract-with-discovery.md`
+> added alongside the two methods below. See `docs/adr/0006-three-pillar-mcp-contract-with-discovery.md`
 > and `docs/architecture-review.md` §4.1.
 
 ### 7.1 The two methods that matter for v1

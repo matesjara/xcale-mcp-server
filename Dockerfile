@@ -1,7 +1,7 @@
 # xcale-mcp-server — production image (DigitalOcean App Platform).
 #
 # TypeScript runs directly through tsx: no build step, no dist/ (see
-# docs/adr/deployment-runtime-and-hosting.md). `tsx` is therefore a runtime
+# docs/adr/0012-deployment-runtime-and-hosting.md). `tsx` is therefore a runtime
 # dependency, not a dev tool — that is why it lives in `dependencies`.
 
 FROM node:22-alpine

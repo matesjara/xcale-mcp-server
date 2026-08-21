@@ -82,7 +82,7 @@ the contract ADRs), but three **principles**:
   errors map — all of it belongs to this server. The backend is a **generic consumer** of those
   capabilities (and, via Rail A, the custodian of credentials).
 - **Stable, additive evolution.** The contract must never break silently; it evolves additively
-  (see `docs/adr/additive-contract-versioning.md`). When you touch it, treat it as a public API
+  (see `docs/adr/0001-additive-contract-versioning.md`). When you touch it, treat it as a public API
   change — it ripples to the backend client.
 
 ## SOLID by default

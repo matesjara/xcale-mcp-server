@@ -1,4 +1,4 @@
-# ADR: Three-pillar MCP contract with capability discovery
+# ADR 0006: Three-pillar MCP contract with capability discovery
 
 - **Status:** Accepted
 - **Date:** 2026-06-19
@@ -60,7 +60,7 @@ box that publishes its capabilities. `server/discover` requires Hop B auth but *
 
 ### Negative
 - A third contract surface to evolve; governed by additive-only versioning + `schemaVersion`
-  (see [additive-contract-versioning](additive-contract-versioning.md)).
+  (see [additive-contract-versioning](0001-additive-contract-versioning.md)).
 
 ### Neutral
 - The backend gains an MCP-client step that calls `server/discover` (likely at provider
@@ -69,5 +69,5 @@ box that publishes its capabilities. `server/discover` requires Hop B auth but *
 ## References
 - Architecture review: `docs/architecture-review.md` §4.1
 - Foundation: `docs/foundation.md` §7, Q-9
-- Related ADRs: [provider-knowledge-vs-credential-custody](provider-knowledge-vs-credential-custody.md), [additive-contract-versioning](additive-contract-versioning.md)
+- Related ADRs: [provider-knowledge-vs-credential-custody](0004-provider-knowledge-vs-credential-custody.md), [additive-contract-versioning](0001-additive-contract-versioning.md)
 - External: MCP 2026-07-28 release candidate (`server/discover`, `ttlMs`/`cacheScope`); Composio Tool Router

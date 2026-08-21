@@ -106,5 +106,5 @@ provider-specific backend logic, revisit the architecture before adding the next
 - mcp-server side: `docs/design/cloudbeds-pilot/feature-design.md` + `work-log.md`,
   ADR `canonical-provider-pattern`, `docs/architecture-review.md`.
 - Catalog/contract the backend consumes: `GET /discover`, `tools/list`, `tools/call`
-  (`docs/adr/three-pillar-mcp-contract-with-discovery.md`).
+  (`docs/adr/0006-three-pillar-mcp-contract-with-discovery.md`).
 - Backend hooks: Rail E `MCPToolboxDefinition` (KD-1), Rail A connection lifecycle (ADR-0005).

@@ -1,4 +1,4 @@
-# ADR: Supply-chain audit gate covers the full dependency tree, not just production
+# ADR 0014: Supply-chain audit gate covers the full dependency tree, not just production
 
 - **Status:** Accepted
 - **Date:** 2026-08-12
@@ -122,6 +122,6 @@ For the known `vite → postcss` case the targeted fix is dropping the dependenc
 - `.github/workflows/ci.yml` (the audit steps reference this ADR)
 - `Dockerfile` (`npm ci --omit=dev` — the production install)
 - `package.json` → `overrides` (the remediation mechanism)
-- Related ADRs: [deployment-runtime-and-hosting](deployment-runtime-and-hosting.md)
+- Related ADRs: [deployment-runtime-and-hosting](0012-deployment-runtime-and-hosting.md)
   (`tsx` in `dependencies`, which is why `esbuild` is a *production* dep here)
 - `.claude/rules/soul.md` — Priority Order (Security first)

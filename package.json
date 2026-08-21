@@ -13,8 +13,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "format": "prettier --write \"src/**/*.ts\" vitest.config.ts",
-    "format:check": "prettier --check \"src/**/*.ts\" vitest.config.ts"
+    "format": "prettier --write \"src/**/*.ts\" \"scripts/**/*.ts\" vitest.config.ts",
+    "format:check": "prettier --check \"src/**/*.ts\" \"scripts/**/*.ts\" vitest.config.ts",
+    "adr:number": "tsx scripts/number-adrs.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",

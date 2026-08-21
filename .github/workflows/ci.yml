@@ -32,7 +32,7 @@ jobs:
       # Two steps, same threshold, both blocking — the split tells you at a glance whether a
       # finding reaches production. The full-tree step is deliberate: the test toolchain runs on
       # CI runners and dev machines with credentials in scope. See
-      # docs/adr/supply-chain-audit-gate.md (do NOT narrow this to --omit=dev).
+      # docs/adr/0014-supply-chain-audit-gate.md (do NOT narrow this to --omit=dev).
       - name: Audit — production deps (high+ severity)
         run: npm audit --omit=dev --audit-level=high
       - name: Audit — full tree incl. toolchain (high+ severity)

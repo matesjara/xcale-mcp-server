@@ -20,8 +20,8 @@ architecture decision. No code.
 - `docs/design/siigo-read-only-provider/api-contract.md` (new) — frozen read contract; §A-D + §C.3 reference-data + §C.4 resources
 - `docs/design/siigo-read-only-provider/ship-log.md` (new) — PR handoff + build log
 - `docs/design/siigo-read-only-provider/pr-bodies.md`, `write-path-grill-prep.md` (new) — staging artifacts
-- `docs/adr/fiscal-write-path.md` (new) — ADR (Proposed): thin MCP passthrough, consumer-owned write safety
-- `traceability-matrix.md`, `feature-design.md`, `implementation-plan.md`, `sandbox-verification.md`, `implementation-playbook.md`, `docs/adr/credential-delivery-strategies.md` (modified) — drift-grill corrections
+- `docs/adr/0015-fiscal-write-path.md` (new) — ADR (Proposed): thin MCP passthrough, consumer-owned write safety
+- `traceability-matrix.md`, `feature-design.md`, `implementation-plan.md`, `sandbox-verification.md`, `implementation-playbook.md`, `docs/adr/0010-credential-delivery-strategies.md` (modified) — drift-grill corrections
 
 **Notes:** unnumbered ADR (`fiscal-write-path.md`) — run `npm run adr:number -- --apply` before opening to `dev`. Ship-log & bodies are staging notes; safe to keep in the folder or drop.
 

@@ -1,4 +1,4 @@
-# ADR: TypeScript strictness configuration (full strict minus exactOptionalPropertyTypes)
+# ADR 0008: TypeScript strictness configuration (full strict minus exactOptionalPropertyTypes)
 
 - **Status:** Accepted
 - **Date:** 2026-06-19
@@ -76,6 +76,6 @@ delete this exception.
 
 ## References
 - `tsconfig.json` (the comment references this ADR)
-- Related ADRs: [stateless-gateway-and-thin-acl](stateless-gateway-and-thin-acl.md)
+- Related ADRs: [stateless-gateway-and-thin-acl](0005-stateless-gateway-and-thin-acl.md)
 - Upstream: `@modelcontextprotocol/sdk` transport types (`shared/transport.d.ts`,
   `server/streamableHttp.d.ts`)
