@@ -1,4 +1,4 @@
-# ADR: Stateless single gateway with a thin anti-corruption layer
+# ADR 0005: Stateless single gateway with a thin anti-corruption layer
 
 - **Status:** Accepted
 - **Date:** 2026-06-19
@@ -69,10 +69,10 @@ Three locked decisions:
 
 ### Neutral
 - `MCP_PROTOCOL_VERSION` is pinned as a constant; protocol upgrades are deliberate, coordinated
-  changes (see [additive-contract-versioning](additive-contract-versioning.md)).
+  changes (see [additive-contract-versioning](0001-additive-contract-versioning.md)).
 
 ## References
 - Architecture review: `docs/architecture-review.md` §3, §4.2
 - Foundation: `docs/foundation.md` §6, Q-4
-- Related ADRs: [three-pillar-mcp-contract-with-discovery](three-pillar-mcp-contract-with-discovery.md), [additive-contract-versioning](additive-contract-versioning.md)
+- Related ADRs: [three-pillar-mcp-contract-with-discovery](0006-three-pillar-mcp-contract-with-discovery.md), [additive-contract-versioning](0001-additive-contract-versioning.md)
 - External: MCP 2026-07-28 release candidate (session removal); MCP versioning spec

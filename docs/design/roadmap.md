@@ -85,7 +85,7 @@ Webhook wiring is the consumer's control-plane concern, not per-call agent surfa
 ## Cloudbeds — deferred from the control-plane review (PR #19, 2026-08-06)
 
 The control-plane PR merged with its one Major resolved by an ADR
-(`docs/adr/control-plane-tools.md` — the `controlPlane`/`routableToolNames()` mechanism and its
+(`docs/adr/0013-control-plane-tools.md` — the `controlPlane`/`routableToolNames()` mechanism and its
 accepted no-discovery trade-off). These Minors were **accepted and parked**:
 
 ### Minors

@@ -1,7 +1,7 @@
 # Deploy — DigitalOcean App Platform
 
 Operational runbook. The *why* behind these choices is in
-[`docs/adr/deployment-runtime-and-hosting.md`](adr/deployment-runtime-and-hosting.md).
+[`docs/adr/0012-deployment-runtime-and-hosting.md`](adr/0012-deployment-runtime-and-hosting.md).
 
 ## What runs where
 

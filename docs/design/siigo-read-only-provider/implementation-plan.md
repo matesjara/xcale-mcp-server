@@ -2,7 +2,7 @@
 
 > **Scope**: cross-repo (xcale-mcp-server + xcale-backend). **Upstream**:
 > [feature-design.md](feature-design.md) · [sandbox-verification.md](sandbox-verification.md) ·
-> ADR [credential-delivery-strategies](../../adr/credential-delivery-strategies.md).
+> ADR [credential-delivery-strategies](../../adr/0010-credential-delivery-strategies.md).
 > **Status**: **Phase A COMPLETE & committed** (both repos green — mcp-server 70 tests, backend 155
 > connections tests). **Phase B is evidence-gated and currently BLOCKED at B0** (external: a Siigo test
 > account's `userName`+`accessKey` and the assigned `Partner-Id`). No provider code or API contract is

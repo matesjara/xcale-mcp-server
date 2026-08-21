@@ -1,4 +1,4 @@
-# ADR: Additive-only contract evolution with a per-provider schema version
+# ADR 0001: Additive-only contract evolution with a per-provider schema version
 
 - **Status:** Accepted
 - **Date:** 2026-06-19
@@ -106,5 +106,5 @@ These rules also govern the lifecycle and capability fields above.
 ## References
 - Architecture review: `docs/architecture-review.md` §4.3, §7
 - Foundation: `docs/foundation.md` Q-2
-- Related ADRs: [three-pillar-mcp-contract-with-discovery](three-pillar-mcp-contract-with-discovery.md), [typed-tool-result-error-contract](typed-tool-result-error-contract.md), [stateless-gateway-and-thin-acl](stateless-gateway-and-thin-acl.md)
+- Related ADRs: [three-pillar-mcp-contract-with-discovery](0006-three-pillar-mcp-contract-with-discovery.md), [typed-tool-result-error-contract](0007-typed-tool-result-error-contract.md), [stateless-gateway-and-thin-acl](0005-stateless-gateway-and-thin-acl.md)
 - External: MCP versioning spec (date-based, additive); MCP TypeScript SDK issue #2108 (protocol-version pinning)

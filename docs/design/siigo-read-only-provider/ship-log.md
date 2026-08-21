@@ -40,7 +40,7 @@ Docs-only.
 | `docs/design/siigo-read-only-provider/implementation-plan.md` | Drift corrections C1/C2/C4/C6 |
 | `docs/design/siigo-read-only-provider/sandbox-verification.md` | Added open question Q-9 (company cardinality) |
 | `docs/design/siigo-read-only-provider/implementation-playbook.md` | Step-9 credentialSecret JSON-shape + descriptorFor pins |
-| `docs/adr/credential-delivery-strategies.md` | Note: single retry lives at the emitter; resolver throws typed |
+| `docs/adr/0010-credential-delivery-strategies.md` | Note: single retry lives at the emitter; resolver throws typed |
 | `docs/design/siigo-read-only-provider/ship-log.md` | **NEW** — this file |
 
 ---
@@ -177,7 +177,7 @@ returned** (~82,199 total). Backend log confirms
   (show "No disponible" until a manual refresh) — missing `invalidateQueries` on the connect mutation.
 
 **Write frontier (Slice 2 — design started, NOT shipping in these PRs):** the write-path architecture is
-recorded in ADR [fiscal-write-path](../../adr/fiscal-write-path.md) (Proposed) — thin MCP passthrough,
+recorded in ADR [fiscal-write-path](../../adr/0015-fiscal-write-path.md) (Proposed) — thin MCP passthrough,
 consumer-owned idempotency + duplicate detection + two-phase confirmation guardrail + compensating action
 (credit note, not delete). Gated behind Slice-1 prod-soak; first write is non-fiscal (`create_customer`)
 to de-risk before the fiscal `create_invoice`. The write api-contract (payload shapes) is authored later

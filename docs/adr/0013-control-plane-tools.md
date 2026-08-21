@@ -1,4 +1,4 @@
-# ADR: Control-plane tools — callable, not published
+# ADR 0013: Control-plane tools — callable, not published
 
 - **Status:** Accepted
 - **Date:** 2026-08-06
@@ -88,7 +88,7 @@ not the caller.
   a consumer must know their **names and schemas out-of-band**. That is a deliberate, documented
   exception to the capability-discovery principle (soul.md: "the backend never hardcodes tools")
   and to the intent of
-  [three-pillar-mcp-contract-with-discovery](three-pillar-mcp-contract-with-discovery.md).
+  [three-pillar-mcp-contract-with-discovery](0006-three-pillar-mcp-contract-with-discovery.md).
   Accepted because today the coupling is small and stable: one consumer, one provider, four
   tools whose names follow the standard `mcp_{slug}_*` convention.
 - Reversing the mechanism means collapsing the router back into the menu — cheap in code, but it
@@ -98,11 +98,11 @@ not the caller.
 
 - **Future option, on trigger:** a discovery surface for control-plane tools — e.g. a
   `controlPlaneTools` field on the `server/discover` catalog entry — is a purely **additive**
-  change under [additive-contract-versioning](additive-contract-versioning.md). Adopt it when a
+  change under [additive-contract-versioning](0001-additive-contract-versioning.md). Adopt it when a
   second consumer, or a second provider with control-plane tools, makes out-of-band knowledge a
   real maintenance cost; not before.
 - Scope derivation still unions **all** tools' `requiredScopes`, control-plane included
-  ([tool-derived-oauth-scopes](tool-derived-oauth-scopes.md)) — a hidden tool that needed a
+  ([tool-derived-oauth-scopes](0011-tool-derived-oauth-scopes.md)) — a hidden tool that needed a
   scope would still have to request it on the consent screen. (Cloudbeds' four declare
   `requiredScopes: []`, so the consent screen is unchanged.)
 - The registry's duplicate-name guard now applies across the full routable set: two providers
@@ -111,12 +111,12 @@ not the caller.
 ## References
 
 - Related ADRs:
-  [three-pillar-mcp-contract-with-discovery](three-pillar-mcp-contract-with-discovery.md) (the
+  [three-pillar-mcp-contract-with-discovery](0006-three-pillar-mcp-contract-with-discovery.md) (the
   discovery principle this excepts),
-  [additive-contract-versioning](additive-contract-versioning.md) (`schemaVersion` semantics; the
+  [additive-contract-versioning](0001-additive-contract-versioning.md) (`schemaVersion` semantics; the
   additive path back to discoverability),
-  [canonical-provider-pattern](canonical-provider-pattern.md) (single-source tool definitions the
-  flag extends), [tool-derived-oauth-scopes](tool-derived-oauth-scopes.md) (scope union covers
+  [canonical-provider-pattern](0009-canonical-provider-pattern.md) (single-source tool definitions the
+  flag extends), [tool-derived-oauth-scopes](0011-tool-derived-oauth-scopes.md) (scope union covers
   unpublished tools).
 - Origin of the withdrawal + closure note: `docs/design/roadmap.md` (PR #11 section, "Withdrawn
   in this PR (Blocker 2)").

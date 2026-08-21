@@ -1,4 +1,4 @@
-# ADR: Typed tool-result and closed error-code contract
+# ADR 0007: Typed tool-result and closed error-code contract
 
 - **Status:** Accepted
 - **Date:** 2026-06-19
@@ -40,7 +40,7 @@ type ProviderErrorCode = typeof ProviderErrorCode[keyof typeof ProviderErrorCode
 ```
 
 The code set is **closed and evolves additively only** (see
-[additive-contract-versioning](additive-contract-versioning.md)). Both repos `switch` on `code`
+[additive-contract-versioning](0001-additive-contract-versioning.md)). Both repos `switch` on `code`
 with an exhaustiveness guard; the backend treats unknown future codes as a generic error. A
 provider auth failure is a **tool-execution** result (`isError: true`), never a JSON-RPC
 protocol error.
@@ -90,5 +90,5 @@ protocol error.
 - Architecture review: `docs/architecture-review.md` §4.3
 - Foundation: `docs/foundation.md` Q-1, FR-5
 - Glossary: `CONTEXT.md` (`PROVIDER_AUTH_EXPIRED`)
-- Related ADRs: [additive-contract-versioning](additive-contract-versioning.md), [stateless-gateway-and-thin-acl](stateless-gateway-and-thin-acl.md)
+- Related ADRs: [additive-contract-versioning](0001-additive-contract-versioning.md), [stateless-gateway-and-thin-acl](0005-stateless-gateway-and-thin-acl.md)
 - External: RFC 9457 (problem details pattern); gRPC status codes (subset); TS "prefer unions over enums"

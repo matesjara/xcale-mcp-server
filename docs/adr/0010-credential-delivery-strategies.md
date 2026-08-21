@@ -1,4 +1,4 @@
-# ADR: Credential delivery strategies and the credential-resolution phase
+# ADR 0010: Credential delivery strategies and the credential-resolution phase
 
 - **Status:** Accepted
 - **Date:** 2026-07-02
@@ -7,7 +7,7 @@
 
 ## Context
 
-The [credential-forwarding-and-token-model](credential-forwarding-and-token-model.md) ADR accepted
+The [credential-forwarding-and-token-model](0003-credential-forwarding-and-token-model.md) ADR accepted
 **direct credential forwarding** (`X-Provider-Token` carries the decrypted provider credential; the
 Execution Engine uses it and discards it) **with a scope constraint**: it is approved for
 non-financial / standard-risk providers (Nevatal, Cloudbeds) only, and a **hard gate** requires
@@ -35,10 +35,10 @@ enough"?**
 
 ## Forces
 
-- **Custody stays in Rail A** ([provider-knowledge-vs-credential-custody](provider-knowledge-vs-credential-custody.md)) — a second service storing secrets is more attack surface, not less.
+- **Custody stays in Rail A** ([provider-knowledge-vs-credential-custody](0004-provider-knowledge-vs-credential-custody.md)) — a second service storing secrets is more attack surface, not less.
 - **Blast radius** — a compromised Execution Engine must not yield a reusable provider credential.
-- **Consumer-agnostic** ([consumer-agnostic-contract](consumer-agnostic-contract.md)) — no consumer/tenant identity on the wire or in the catalog.
-- **Stateless Execution Engine** ([stateless-gateway-and-thin-acl](stateless-gateway-and-thin-acl.md)) — it receives a credential per call and discards it; it never reads a credential store.
+- **Consumer-agnostic** ([consumer-agnostic-contract](0002-consumer-agnostic-contract.md)) — no consumer/tenant identity on the wire or in the catalog.
+- **Stateless Execution Engine** ([stateless-gateway-and-thin-acl](0005-stateless-gateway-and-thin-acl.md)) — it receives a credential per call and discards it; it never reads a credential store.
 - **Complexity on demand** — no new infrastructure (Redis, workers) without a demonstrated need.
 - **Provider Self-Containment** — onboarding a provider must not scatter per-provider `if`s across the core, protocol, or a consumer.
 
@@ -139,7 +139,7 @@ implementation detail, not part of the boundary — see the invariants below.
 - **Rail A becomes the Credential Authority** (resolves references, owns mint/reuse/refresh), not merely a token store. The server is the **Execution Engine**.
 - **`ResolvedCredential` is the convergence boundary.** The Credential Resolution phase always produces exactly one `ResolvedCredential`, and Provider Execution is defined **exclusively** in terms of it — never in terms of a delivery strategy, a token shape, or a transport. This is the single seam a future third strategy would have to satisfy.
 - **The resolution transport is not part of the abstraction.** The abstraction is `CredentialResolver → Credential Authority`. The `POST /internal/credentials/resolve` Hop-B callback is the **first consumer's implementation** of that resolution; it can later become an RFC 8693 STS exchange, a SPIFFE/SVID handshake, a unix socket, or a sidecar **without** changing the `CredentialResolver` boundary or the wire contract. Do not treat the HTTP callback as the architecture.
-- **Error-ownership boundary (invariant):** a `ProviderErrorCode`/`ToolResult` is emitted **iff the failure belongs to the provider domain** — determined by *who owns the cause*, not by phase or timing. A resolve-time **mint** failure because the durable credential was revoked is **provider-owned** → `PROVIDER_AUTH_EXPIRED` (even though no JWT ever existed and no data call ran). An **expired / consumed reference** or Hop-B failure is **transport-owned** → one transparent retry with a fresh reference, then a transport error; never a `ProviderErrorCode`, no `ToolResult`. This is an **additive clarification** to [typed-tool-result-error-contract](typed-tool-result-error-contract.md); it does **not** change the `ProviderErrorCode` set.
+- **Error-ownership boundary (invariant):** a `ProviderErrorCode`/`ToolResult` is emitted **iff the failure belongs to the provider domain** — determined by *who owns the cause*, not by phase or timing. A resolve-time **mint** failure because the durable credential was revoked is **provider-owned** → `PROVIDER_AUTH_EXPIRED` (even though no JWT ever existed and no data call ran). An **expired / consumed reference** or Hop-B failure is **transport-owned** → one transparent retry with a fresh reference, then a transport error; never a `ProviderErrorCode`, no `ToolResult`. This is an **additive clarification** to [typed-tool-result-error-contract](0007-typed-tool-result-error-contract.md); it does **not** change the `ProviderErrorCode` set.
 
   > **Correction 2026-08-12 (drift grill) — where the single retry lives.** The "one transparent retry"
   > above is a **transport-owned** action that lives at the **emitter** (the backend MCP client /
@@ -159,8 +159,8 @@ implementation detail, not part of the boundary — see the invariants below.
 
 ## References
 
-- Parent (this implements the **architectural form** of its "Alternative B", deferring the RFC 8693 protocol itself): [credential-forwarding-and-token-model](credential-forwarding-and-token-model.md)
-- Related ADRs: [provider-knowledge-vs-credential-custody](provider-knowledge-vs-credential-custody.md), [typed-tool-result-error-contract](typed-tool-result-error-contract.md) (additive clarification), [additive-contract-versioning](additive-contract-versioning.md), [three-pillar-mcp-contract-with-discovery](three-pillar-mcp-contract-with-discovery.md), [stateless-gateway-and-thin-acl](stateless-gateway-and-thin-acl.md), [canonical-provider-pattern](canonical-provider-pattern.md)
+- Parent (this implements the **architectural form** of its "Alternative B", deferring the RFC 8693 protocol itself): [credential-forwarding-and-token-model](0003-credential-forwarding-and-token-model.md)
+- Related ADRs: [provider-knowledge-vs-credential-custody](0004-provider-knowledge-vs-credential-custody.md), [typed-tool-result-error-contract](0007-typed-tool-result-error-contract.md) (additive clarification), [additive-contract-versioning](0001-additive-contract-versioning.md), [three-pillar-mcp-contract-with-discovery](0006-three-pillar-mcp-contract-with-discovery.md), [stateless-gateway-and-thin-acl](0005-stateless-gateway-and-thin-acl.md), [canonical-provider-pattern](0009-canonical-provider-pattern.md)
 - Security review (binding controls): `docs/security/credential-boundary-review.md` §2.5
 - Glossary terms: `CONTEXT.md` — Credential delivery strategy, Credential Resolution phase, Credential Authority, Execution Engine, Ephemeral reference, `credential_exchange`, Error-ownership boundary, Provider institutional identity
 - Provider docs: Siigo API — https://developers.siigo.com/ (auth: `POST /auth` with `username`+`access_key` → 24h JWT; `Partner-Id` required on all calls)

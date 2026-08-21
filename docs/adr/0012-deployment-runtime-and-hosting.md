@@ -1,4 +1,4 @@
-# ADR: Deployment runtime and hosting (DO App Platform, Docker, tsx in production)
+# ADR 0012: Deployment runtime and hosting (DO App Platform, Docker, tsx in production)
 
 - **Status:** Accepted
 - **Date:** 2026-07-21

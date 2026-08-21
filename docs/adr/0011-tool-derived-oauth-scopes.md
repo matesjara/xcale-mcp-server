@@ -1,4 +1,4 @@
-# ADR: Tool-derived OAuth scopes
+# ADR 0011: Tool-derived OAuth scopes
 
 - **Status:** Accepted
 - **Date:** 2026-07-15
@@ -134,12 +134,12 @@ app registration because there is no list.
 
 ## References
 
-- Related ADRs: [provider-knowledge-vs-credential-custody](provider-knowledge-vs-credential-custody.md)
+- Related ADRs: [provider-knowledge-vs-credential-custody](0004-provider-knowledge-vs-credential-custody.md)
   (knowledge → server, custody → Rail A; the `authDescriptor` this refines),
-  [consumer-agnostic-contract](consumer-agnostic-contract.md) (why policy stays with the consumer),
-  [canonical-provider-pattern](canonical-provider-pattern.md) (single-source tool contract — this extends
+  [consumer-agnostic-contract](0002-consumer-agnostic-contract.md) (why policy stays with the consumer),
+  [canonical-provider-pattern](0009-canonical-provider-pattern.md) (single-source tool contract — this extends
   the same stance from `input` to `requiredScopes`),
-  [additive-contract-versioning](additive-contract-versioning.md) (`requiredScopes` is additive; no
+  [additive-contract-versioning](0001-additive-contract-versioning.md) (`requiredScopes` is additive; no
   consumer breaks).
 - Evidence: `docs/design/cloudbeds-scope-coverage/scope-endpoint-map.md` (the observed facts, the 61/32/24
   scope arithmetic, the falsified hypotheses) and `tool-map.md` (the ~38-tool proposal over 69 operations).

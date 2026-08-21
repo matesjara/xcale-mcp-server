@@ -9,8 +9,8 @@
 
 > **Lineage.** This FD consumes a closed Grill (2026-07-10). It does **not** re-decide the Grill's
 > outcomes; it records them and designs against them. Constraints it honors (does not re-open):
-> `docs/adr/stateless-gateway-and-thin-acl.md`, `docs/adr/credential-forwarding-and-token-model.md`,
-> `docs/adr/provider-knowledge-vs-credential-custody.md`, `docs/adr/canonical-provider-pattern.md`,
+> `docs/adr/0005-stateless-gateway-and-thin-acl.md`, `docs/adr/0003-credential-forwarding-and-token-model.md`,
+> `docs/adr/0004-provider-knowledge-vs-credential-custody.md`, `docs/adr/0009-canonical-provider-pattern.md`,
 > `.claude/rules/soul.md` (stateless · business-in-consumer · complexity-on-demand), and the pilot
 > `docs/design/cloudbeds-pilot/feature-design.md` (§2 non-goals, §4/R-1, §5.1 — `create_reservation`
 > was explicitly out of the read-first pilot).

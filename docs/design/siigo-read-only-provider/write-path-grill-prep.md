@@ -1,7 +1,7 @@
 # Siigo write-path — grill prep (for tomorrow)
 
 > **STATUS: grill DONE 2026-08-13.** All 5 forks resolved (needs-change; core ADR shape held). Refinements
-> baked into `../../adr/fiscal-write-path.md` (§ Grill resolutions) + 6 new CONTEXT.md terms. Next step is
+> baked into `../../adr/0015-fiscal-write-path.md` (§ Grill resolutions) + 6 new CONTEXT.md terms. Next step is
 > the **sandbox write probe** below, then the write api-contract → feature-design → build (post Slice-1 soak).
 
 ## Write-probe checklist (definitive, from the grill — Observe before the write api-contract)
@@ -31,7 +31,7 @@
 
 ## Subject to grill
 
-ADR **[`fiscal-write-path.md`](../../adr/fiscal-write-path.md)** (Proposed) — "Fiscal write-path: thin MCP
+ADR **[`fiscal-write-path.md`](../../adr/0015-fiscal-write-path.md)** (Proposed) — "Fiscal write-path: thin MCP
 passthrough, consumer-owned safety." Read it first; the grill stress-tests its decision and the four
 consumer responsibilities.
 
@@ -75,7 +75,7 @@ passes its prod-soak gate** (feature-design §9).
 ## State carried in
 
 - Read integration DONE + verified e2e (19 tools); see `ship-log.md`.
-- Idempotency-in-the-consumer is the established pattern ([`credential-delivery-strategies`](../../adr/credential-delivery-strategies.md)
+- Idempotency-in-the-consumer is the established pattern ([`credential-delivery-strategies`](../../adr/0010-credential-delivery-strategies.md)
   and the Cloudbeds E-08 booking write-path precedent).
 - Sandbox creds: user-held (`sandbox@siigoapi.com` + access key); Partner-Id `EcomerceCG`. The env-from-file
   probe pattern (creds never in chat) is in `ship-log.md` / today's session.
