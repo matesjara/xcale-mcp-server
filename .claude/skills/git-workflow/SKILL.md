@@ -202,7 +202,14 @@ Branches are short-lived. After a PR is merged, the branch should be deleted —
 - **No direct commits to `main`**: Always go through `dev` (or hotfix PR)
 - **No direct pushes to `dev` or `main`**: both are protected — they only move via PRs with CI green
 - **Self-merge to `dev` only**: the author may merge their own PR into `dev` after the Review & Merge gate; `main` always needs the release owner's explicit authorization for that release
-- **No auto-merge**: Creating the PR ≠ merging it. A merge always takes an explicit human "merge it"
+- **No auto-merge**: Creating the PR ≠ merging it. A merge always takes an explicit human "merge it".
+  **One carve-out** (2026-08-23): the `/agentic-ship` harness may merge its own PR into `dev` — and
+  only into `dev` — when its three independent gates all pass and CI `verify` is green. Nothing
+  else auto-merges, and nothing auto-merges to `main`. See ADR
+  [agentic-auto-merge-to-dev](../../../docs/adr/0017-agentic-auto-merge-to-dev.md)
+- **Never `gh pr merge --admin`**: with approvals at 0, the only rule it still bypasses is a red
+  build. A red build is either a defect (fix it) or an out-of-diff advisory (decide on it) — merging
+  fixes neither
 - **New commits only**: Never amend unless explicitly requested
 - **Atomic commits**: Suggest splitting unrelated changes
 
