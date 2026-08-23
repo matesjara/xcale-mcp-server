@@ -48,6 +48,9 @@ const reach = args?.reach ?? 'shared'; // fail closed: an unknown reach gets the
 
 phase('Gates');
 
+// Which gates this run OWES a verdict. Kept beside the runners so the two can never drift.
+const expectedGates = ['code-review', 'pr-review'];
+
 const gateRuns = [
   () =>
     agent(
@@ -68,6 +71,7 @@ const gateRuns = [
 // The third gate reviews the published MCP contract, not a running process — see SKILL.md § 1.
 // It runs for anything that touches src/. Docs- and skill-only changes cannot move the contract.
 if (reach !== 'docs') {
+  expectedGates.push('contract-qa');
   gateRuns.push(() =>
     agent(
       `You are the CONTRACT-QA gate on PR #${pr}. It touches \`src/\` (reach: ${reach}), so the published MCP surface may have moved. Produce EXECUTED evidence — run the suites and boot the app in-process, never assert from reading alone — and judge the round trip, the agent-fitness of the tools, additive-only evolution, and the credential boundary at egress.${
@@ -81,4 +85,26 @@ if (reach !== 'docs') {
 }
 
 const verdicts = await parallel(gateRuns);
-return verdicts.filter(Boolean);
+
+// Do NOT drop empty slots. A gate that crashed, timed out, or returned schema-invalid output would
+// otherwise vanish, and step 7 auto-merges on "every verdict says pass" — which a shorter array
+// satisfies trivially. A missing verdict is a BLOCKED gate, not an absent one; the caller escalates.
+const returned = verdicts.filter(Boolean);
+if (returned.length !== expectedGates.length) {
+  const heard = new Set(returned.map((v) => v.gate));
+  const missing = expectedGates.filter((g) => !heard.has(g));
+  return [
+    ...returned,
+    ...missing.map((gate) => ({
+      gate,
+      result: 'blocked',
+      findings: [
+        {
+          severity: 'blocker',
+          description: `Gate "${gate}" returned no verdict (crashed, timed out, or produced output that did not match the schema). Treated as blocked: a gate that did not run cannot have passed. Re-run it, or escalate.`,
+        },
+      ],
+    })),
+  ];
+}
+return returned;

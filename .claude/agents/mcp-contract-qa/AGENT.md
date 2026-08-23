@@ -33,8 +33,17 @@ node --import tsx .claude/skills/agentic-ship/references/contract-probe.mjs \
 ```
 
 The probe boots the real app in-process and prints the **published** surface — the catalog, every
-tool with its description and generated JSON Schema, and a real `tools/call`. It uses a throwaway
-Hop-B secret and a fake provider token: no secrets, no Doppler, no network to a provider.
+tool with its description and generated JSON Schema, and a `tools/call`. It uses a throwaway Hop-B
+secret and a fake provider token, and needs no Doppler.
+
+> **`server/discover` and `tools/list` are offline; `tools/call` is not.** Only `mcp_echo_*` is a
+> stub. Calling any real provider tool egresses to that provider's **production** API — there is no
+> sandbox switch here. The probe therefore refuses a non-`echo` tool without `--live`, and refuses a
+> mutating verb without `--allow-write` on top. **Do not lift either guard to produce evidence.**
+> Reaching a real customer's PMS or accounting to satisfy a gate is not a trade you get to make: a
+> read against a live tenant is someone's data, and a write is unrecoverable from here. Use `--live`
+> with a deliberately bad token to evidence the 401 path (that is its intended use), and for
+> anything else say what could not be verified and why.
 
 Run the probe on the PR branch, and — for any contract question — again on `dev` (`git stash` or a
 second checkout) so you compare two **printed** surfaces rather than reasoning about a diff. Paste
@@ -50,9 +59,11 @@ return the typed `PROVIDER_AUTH_EXPIRED` result on a forced 401. Verify each, fr
 
 - The provider is in the catalog with a non-placeholder `schemaVersion`/`providerVersion`.
 - Its tools are namespaced `mcp_{slug}_{verb}`, published, and non-empty.
-- A tool call with a deliberately bad token comes back as a **typed error result**, with
-  `PROVIDER_AUTH_EXPIRED` for 401/403 — never a thrown exception, never an opaque generic error.
-  A consumer keys its whole re-auth flow off that code.
+- A tool call with a deliberately bad token (`--live --token bad-token`) comes back as a **typed
+  error result**, with `PROVIDER_AUTH_EXPIRED` for 401/403 — never a thrown exception, never an
+  opaque generic error. A consumer keys its whole re-auth flow off that code. Pick a **read** tool
+  for this; the 401 arrives before anything is written either way, and there is no reason to point
+  a write tool at a live system to prove it.
 - Fixtures under `__fixtures__/` are anonymized recordings of the real API, and the tests actually
   read them. A fixture invented to make a test pass is a **blocker**: it turns the suite into a
   mirror of the author's assumptions about the provider.
@@ -118,9 +129,10 @@ exactly-once**. Verify from the diff and the printed surface:
 - No invented idempotency key or dedupe cache in the adapter — that is the consumer's job, and a
   half-implementation here is worse than none.
 - The tool's description states plainly that it **writes**, so the calling model treats it as such.
-- An executed round trip (or, where a live write is impossible, the recorded fixture path plus the
-  forced-error path) is in your evidence. "Cannot be tested" is a **blocker** on a write tool: say
-  what would be needed instead of waving it through.
+- Evidence is the recorded fixture path plus the forced-error path — **never a live write**. You do
+  not have permission to execute a write tool against a real system, and "I proved it end to end"
+  bought that way is worse than an honest gap. "Cannot be tested here" is fine to report; waving the
+  tool through with no evidence at all is a **blocker**. Say what a human would have to run, where.
 
 ### 6. The golden rule's footprint (provider changes)
 

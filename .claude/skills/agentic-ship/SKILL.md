@@ -174,8 +174,10 @@ work; the release owner closes the issue after it ships to `main`.
 
 ### 4. Run the gates
 
-Run [`references/gates.workflow.js`](references/gates.workflow.js) with `{ prNumber, slug, reach }`.
-It spawns **fresh, independent** subagents and returns structured verdicts:
+Run [`references/gates.workflow.js`](references/gates.workflow.js) with
+`{ prNumber, slug, reach, issue }` — pass the issue number whenever the run came from one, or
+`pr-review` cannot check the diff against what was actually asked. It spawns **fresh, independent**
+subagents and returns structured verdicts:
 
 | Gate | Agent | Lens |
 |:--|:--|:--|
@@ -184,6 +186,11 @@ It spawns **fresh, independent** subagents and returns structured verdicts:
 | `contract-qa` | `mcp-contract-qa` | the published MCP surface — round trip, agent-fitness, additive evolution |
 
 `contract-qa` runs whenever `reach !== 'docs'`.
+
+**A gate that returns nothing is `blocked`, never absent.** The workflow synthesizes a blocking
+verdict for any gate that crashed, timed out, or produced output the schema rejected — because step
+7 merges on "every verdict says `pass`", a condition a *short* verdict list satisfies trivially. If
+you ever see fewer verdicts than gates, that is the bug, not a green run.
 
 ### 5. Post the verdicts
 
