@@ -44,6 +44,7 @@ need light adaptation (flagged ⚙️ below) before they fully apply here.
 
 | Skill | Use it to | Status |
 |:--|:--|:--|
+| **agentic-ship** | Build a scoped change in an isolated worktree, run it past three independent gate agents, auto-merge to `dev`. The human gate stays at `dev → main`. | ✅ native to this repo (ported from `xcale-backend`, with its three gates re-decided here) |
 | **improve-architecture** | Whole-codebase "deepening" review — shallow modules, tangled seams, untestable code. Complements diff-scoped review. | ✅ portable |
 | **qa** | Run QA suites + the post-implementation reconcile-to-zero-blockers loop. | ⚙️ adapt — references the backend dev server (curl) + the `quala` (Playwright/UI) subagent that don't exist here. The reconcile-loop method is reusable; the suite machinery needs an MCP-server target (e.g. JSON-RPC scenarios against the `/mcp` endpoint). |
 
@@ -64,9 +65,11 @@ need light adaptation (flagged ⚙️ below) before they fully apply here.
 |:--|:--|:--|
 | **mcp-architect** | Read-only architecture advisor specific to this MCP server (boundary, provider contract, auth model, SOLID). | native to this repo |
 | **architect** | General read-only technical-spec designer. | portable; overlaps with `mcp-architect` — use `mcp-architect` for MCP-specific design |
-| **code-reviewer** | Reviews diffs for quality, security, architecture compliance. | portable |
+| **code-reviewer** | The **inward** gate: credential boundary first, then correctness and the architecture invariants. | rewritten for this repo 2026-08-23 — it was the backend's file (Mongo, use cases, i18n, soft delete) and judged invariants this repo does not have |
+| **pr-reviewer** | The **outward** gate: scope, fidelity to what was asked, honesty of the PR body against the diff, hygiene. | native to this repo |
+| **mcp-contract-qa** | The **contract** gate: executed `discover`/`tools\|list`/`tools\|call` round trip, agent-fitness of the published tools, additive-only evolution, credential boundary at egress. | native to this repo — the third gate of `/agentic-ship` |
 | **debugger** | Systematic local bug diagnosis & fixing. | portable |
-| **api-qa** | Executes curl/HTTP test scenarios against a dev server. | ⚙️ becomes useful once the `/mcp` HTTP endpoint exists |
+| **api-qa** | Executes curl/HTTP test scenarios against a backend dev server. | ⚠️ **not used here** — it is `xcale-backend`'s file verbatim (JWT login, Mongo, `{success,data,error}`). It is **not** an `/agentic-ship` gate; `mcp-contract-qa` covers this surface instead. See `agentic-ship/SKILL.md` § 1 |
 | **prod-debugger** | Safe production debugging (DO/Atlas read-first SRE protocols). | ⚙️ applies once this server is deployed (DO App Platform, `foundation.md` Q-4) |
 
 ---
@@ -86,6 +89,14 @@ grill ─▶ feature-design ─▶ api-contract-authoring ─▶ implementation-
   │                                                                                                                    │
   └────────────────────── adr (whenever a durable decision is locked) ──────────────────────────────────────────────┘
        handoff (wrap up / resume a session at any point)
+```
+
+Or, fully autonomously — `/agentic-ship` runs the build and the gates and merges to `dev` itself:
+
+```
+worktree from dev ─▶ implementer subagent ─▶ PR ─▶ code-reviewer ┐
+                                                  pr-reviewer    ├─▶ all pass + CI green ─▶ merge to dev
+                                                  mcp-contract-qa┘        any blocked ─▶ escalate
 ```
 
 ## Not yet present (recommended next seeds)

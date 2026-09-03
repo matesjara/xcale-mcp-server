@@ -94,6 +94,13 @@ the release owner specifically for `main`. What changed on 2026-08-20 is *who ma
 that authorization is needed: the author may now merge their own PR into `dev` once CI is green and
 the Review & Merge gate has run, instead of waiting on the release owner.
 
+> **The one exception** (2026-08-23): a PR opened by the `/agentic-ship` harness merges itself into
+> `dev` when its three independent gates all pass and CI `verify` is green — the gate below is run
+> by those agents instead of by a human, and the human gate is relocated to `dev → main`. It never
+> merges to `main`, and it escalates instead of merging on any doubt. ADR
+> [agentic-auto-merge-to-dev](../../../docs/adr/0017-agentic-auto-merge-to-dev.md). Everything a
+> human ships still follows the paragraph above.
+
 See [references/commit-conventions.md](references/commit-conventions.md) for commit format and safety rules.
 
 ### 3. Review & Merge (before any merge)
@@ -113,7 +120,10 @@ Run this before a PR into `dev` is merged — by the release owner when he revie
    Details go in the review notes below the fold; if he wants the diff he'll ask. On a self-merge
    to `dev` this is still owed — after the fact, in the turn that reports the merge.
 4. **The human owns the verdict.** The agent and the briefing advise; a human decides — the author
-   for their own `dev` merge, the release owner for anything touching `main`.
+   for their own `dev` merge, the release owner for anything touching `main`. **Except on an
+   `/agentic-ship` run**, where three independent gate agents own the `dev` verdict and the human
+   verdict moves to the `dev → main` release; the briefing in step 3 is still owed, after the fact,
+   in the turn that reports the merge.
 
 **Level 2 — feature PRs** (design folder in `docs/design/<slug>/`, or new/changed API surface), additionally:
 4. **Ship-log exists** (`docs/design/<slug>/ship-log.md`) with dev-side ops recorded (Ship Gate 1).
@@ -202,7 +212,14 @@ Branches are short-lived. After a PR is merged, the branch should be deleted —
 - **No direct commits to `main`**: Always go through `dev` (or hotfix PR)
 - **No direct pushes to `dev` or `main`**: both are protected — they only move via PRs with CI green
 - **Self-merge to `dev` only**: the author may merge their own PR into `dev` after the Review & Merge gate; `main` always needs the release owner's explicit authorization for that release
-- **No auto-merge**: Creating the PR ≠ merging it. A merge always takes an explicit human "merge it"
+- **No auto-merge**: Creating the PR ≠ merging it. A merge always takes an explicit human "merge it".
+  **One carve-out** (2026-08-23): the `/agentic-ship` harness may merge its own PR into `dev` — and
+  only into `dev` — when its three independent gates all pass and CI `verify` is green. Nothing
+  else auto-merges, and nothing auto-merges to `main`. See ADR
+  [agentic-auto-merge-to-dev](../../../docs/adr/0017-agentic-auto-merge-to-dev.md)
+- **Never `gh pr merge --admin`**: with approvals at 0, the only rule it still bypasses is a red
+  build. A red build is either a defect (fix it) or an out-of-diff advisory (decide on it) — merging
+  fixes neither
 - **New commits only**: Never amend unless explicitly requested
 - **Atomic commits**: Suggest splitting unrelated changes
 

@@ -102,6 +102,11 @@ The full working agreement (report structure, altitude rules, decision surfacing
 - **Do not use `gh pr merge --admin`.** `enforce_admins` is still `false`, so with approvals at 0
   the only thing that flag still bypasses is a red build. Merge with `gh pr merge <n> --merge`
   once CI is green.
+- **Autonomous path** — `/agentic-ship` builds a scoped change in an isolated worktree and merges
+  it to `dev` on its own when three independent gate agents (`code-reviewer`, `pr-reviewer`,
+  `mcp-contract-qa`) all pass and CI `verify` is green. It never merges to `main`, never uses
+  `--admin`, and escalates instead of merging anything that reaches `src/core|protocol|auth`.
+  ADR: `docs/adr/0017-agentic-auto-merge-to-dev.md`.
 
 ## Deploy
 
