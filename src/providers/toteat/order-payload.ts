@@ -18,20 +18,54 @@
  * pure function does the flattening. The model never composes the flat array.
  */
 
+/**
+ * The money and naming a line carries, when the caller knows them.
+ *
+ * Toteat rejected an order that named products and quantities but no amounts with a bare
+ * `Invalid Parameters` (observed 2026-08-18, the first payload it ever evaluated for us — every
+ * earlier attempt died on a closed shift). Its `Lines` schema marks `comment`, `discount`,
+ * `seatNumber` and `categoryCode` as optional and says nothing of the sort about the amounts, and
+ * every example in the vendor spec carries them.
+ *
+ * Optional HERE all the same, because the gateway must not invent money: a caller that cannot price
+ * a line sends it without a price and gets the venue's answer, rather than a number we made up.
+ */
+export interface ToteatLineMoney {
+  /** Itemized taxes, when the caller knows them. */
+  readonly tax?: ReadonlyArray<{ readonly name: string; readonly value: number }>;
+  /** What this line costs in total, tax included — unit price × quantity, never a unit price. */
+  readonly amountAfterTax?: number;
+  /** The dish's own name, as the venue spells it. Printed on the comanda. */
+  readonly productName?: string;
+  /** The venue's own category for the dish. */
+  readonly category?: string;
+}
+
 /** What a caller declares: a product and the extras that belong to it, explicitly. */
-export interface ToteatOrderLineInput {
+export interface ToteatOrderLineInput extends ToteatLineMoney {
   readonly productCode: string;
   readonly quantity: number;
   readonly comment?: string;
-  readonly modifiers?: ReadonlyArray<{ readonly productCode: string; readonly quantity: number }>;
+  readonly modifiers?: ReadonlyArray<
+    { readonly productCode: string; readonly quantity: number } & ToteatLineMoney
+  >;
 }
 
 /** What Toteat receives: a flat list where position carries the meaning. */
-export interface ToteatWireLine {
+export interface ToteatWireLine extends ToteatLineMoney {
   readonly lineNumber: number;
   readonly productCode: string;
   readonly quantity: number;
   readonly comment?: string;
+  /**
+   * Itemized taxes. **Required by Toteat on every line** — it refuses the whole order otherwise
+   * (`Field 'document.line.0.tax' - Field required`, observed 2026-08-18) — so the key is always
+   * present even when empty.
+   *
+   * Empty means "we itemize no taxes", which is a statement. It is NOT an invented 19%: a made-up
+   * rate lands in a real venue's accounting, and being wrong there is worse than being silent.
+   */
+  readonly tax: ReadonlyArray<{ readonly name: string; readonly value: number }>;
 }
 
 /**
@@ -46,9 +80,11 @@ export interface ToteatWireLine {
 export function buildOrderLines(lines: readonly ToteatOrderLineInput[]): ToteatWireLine[] {
   const out: ToteatWireLine[] = [];
   for (const line of lines) {
-    out.push(wireLine(out.length + 1, line.productCode, line.quantity, line.comment));
+    out.push(wireLine(out.length + 1, line, line.comment));
     for (const modifier of line.modifiers ?? []) {
-      out.push(wireLine(out.length + 1, modifier.productCode, modifier.quantity));
+      // An extra is a line of its own and carries its OWN price. Folding it into the dish's amount
+      // would make the comanda's arithmetic disagree with the venue's own product list.
+      out.push(wireLine(out.length + 1, modifier));
     }
   }
   return out;
@@ -56,11 +92,35 @@ export function buildOrderLines(lines: readonly ToteatOrderLineInput[]): ToteatW
 
 function wireLine(
   lineNumber: number,
-  productCode: string,
-  quantity: number,
+  src: { readonly productCode: string; readonly quantity: number } & ToteatLineMoney,
   comment?: string,
 ): ToteatWireLine {
-  return comment === undefined
-    ? { lineNumber, productCode, quantity }
-    : { lineNumber, productCode, quantity, comment };
+  return {
+    lineNumber,
+    productCode: src.productCode,
+    quantity: src.quantity,
+    // Always present: Toteat rejects a line without the key, empty array included.
+    tax: src.tax ?? [],
+    ...(comment === undefined ? {} : { comment }),
+    // Omitted, never defaulted to 0: a zero amount is a claim that the dish is free, and a venue
+    // that prices its food would be told to hand it over for nothing.
+    ...(src.amountAfterTax === undefined ? {} : { amountAfterTax: src.amountAfterTax }),
+    ...(src.productName === undefined ? {} : { productName: src.productName }),
+    ...(src.category === undefined ? {} : { category: src.category }),
+  };
+}
+
+/**
+ * Toteat's timestamp format: `YYYY-MM-DDTHH:mm:ss`, with **no zone and no `Z`**.
+ *
+ * Every example in the vendor spec is naked local time, so an ISO string with a `Z` would tell a
+ * Bogotá kitchen its order was placed five hours from now. Local components are what a venue reads
+ * on its own comanda, so local components are what we send.
+ */
+export function toteatTimestamp(at: Date): string {
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return (
+    `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}` +
+    `T${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}`
+  );
 }

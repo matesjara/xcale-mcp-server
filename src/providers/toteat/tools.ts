@@ -1,3 +1,7 @@
+import { appendFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { z } from 'zod';
 
 import { ProviderErrorCode } from '../../core/errors';
@@ -11,12 +15,46 @@ import {
 } from './client';
 import type { ToteatContext } from './context';
 import { unwrapToteat } from './errors';
-import { buildOrderLines } from './order-payload';
+import { buildOrderLines, toteatTimestamp } from './order-payload';
 import { SLUG } from './manifest';
 
 const tool = toolFactory<ToteatContext>();
 
 const NO_ARGS = z.object({}).strict();
+
+/**
+ * An order's full round trip, where a human can actually find it.
+ *
+ * Toteat's envelope says only `Invalid Parameters` — no field, no reason — so the exact body we sent
+ * next to its raw answer is the only thing that turns "it does not work" into a diagnosis. Two
+ * destinations on purpose: the console for whoever is watching the process, and a file for whoever
+ * is not, because the person debugging is rarely the one who started the gateway.
+ *
+ * Failure-only, and never on a read path, so this stays a rare line rather than a log of every order.
+ *
+ * The file is skipped in production: there the console goes to the platform's log aggregator, and a
+ * gateway writing to its own container's disk is a leak nobody is watching.
+ */
+function reportOrderOutcome(message: string, sent: unknown, received: unknown): void {
+  const block =
+    `[toteat] create_order ${message}
+` +
+    `  sent    : ${JSON.stringify(sent)}
+` +
+    `  received: ${JSON.stringify(received)}`;
+  console.warn(block);
+
+  if (process.env.NODE_ENV === 'production') return;
+  try {
+    appendFileSync(
+      join(tmpdir(), 'toteat-order-refusals.log'),
+      `${block}
+`,
+    );
+  } catch {
+    // Diagnostics must never take down the call they were describing.
+  }
+}
 
 /** ISO calendar date on the tool boundary; each endpoint's own wire format is applied inside. */
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD');
@@ -191,8 +229,11 @@ export function buildToteatTools(
         'Create an order, or append products to an existing table order. `orderReference` is the ' +
         "CALLER's own id and is required: it is the only handle by which a failed call can later be " +
         'reconciled against `list_open_orders`. Extras are declared nested inside their product — ' +
-        'this tool flattens them into the positional format Toteat expects. Payment is create-time ' +
-        'only; an open order cannot be paid through the API. A shift must be open.',
+        'this tool flattens them into the positional format Toteat expects. Send each ' +
+        "line's `amountAfterTax` (unit price × quantity, tax included) with its `productName` " +
+        'and `category`: a venue rejects an order that names dishes without pricing them. ' +
+        'Payment is create-time only; an open order cannot be paid through the API. ' +
+        'A shift must be open.',
       input: z
         .object({
           orderReference: z.string().min(1),
@@ -200,9 +241,12 @@ export function buildToteatTools(
           channel: z
             .enum(['webstore', 'crm', 'erp', 'pos', 'marketplace', 'app'])
             .default('webstore'),
+          /** Who is sending the order. Printed by the venue to tell integrations apart. */
+          vendorName: z.string().min(1).optional(),
+          /** Required by Toteat on create; `new` is the only honest value for an order we just took. */
           status: z
             .enum(['new', 'created', 'preparing', 'ready', 'ondelivery', 'delivered'])
-            .optional(),
+            .default('new'),
           /** Required when `type` is `order` (a physical table). Ids come from `get_tables`. */
           tableId: z.number().int().positive().optional(),
           /** Append to an existing TABLE order. Omit to create a new one. */
@@ -215,12 +259,28 @@ export function buildToteatTools(
                   productCode: z.string().min(1),
                   quantity: z.number().int().positive(),
                   comment: z.string().optional(),
+                  /** Line total, tax included — unit price × quantity, not a unit price. */
+                  amountAfterTax: z.number().nonnegative().optional(),
+                  productName: z.string().min(1).optional(),
+                  category: z.string().min(1).optional(),
+                  /** Itemized taxes. Sent as `[]` when unknown — Toteat requires the key. */
+                  tax: z
+                    .array(z.object({ name: z.string().min(1), value: z.number() }).strict())
+                    .optional(),
                   modifiers: z
                     .array(
                       z
                         .object({
                           productCode: z.string().min(1),
                           quantity: z.number().int().positive(),
+                          amountAfterTax: z.number().nonnegative().optional(),
+                          productName: z.string().min(1).optional(),
+                          category: z.string().min(1).optional(),
+                          tax: z
+                            .array(
+                              z.object({ name: z.string().min(1), value: z.number() }).strict(),
+                            )
+                            .optional(),
                         })
                         .strict(),
                     )
@@ -250,10 +310,20 @@ export function buildToteatTools(
             })
             .strict()
             .optional(),
+          /**
+           * Required by Toteat: it refuses an order with no payments block at all
+           * (`Field 'document.payments' - Field required`, observed 2026-08-18). Use `pending: true`
+           * for an order the diner settles at the venue or with the courier.
+           */
           payment: z
             .object({
               amount: z.number(),
-              amountPaid: z.number().optional(),
+              /**
+               * What the diner has actually handed over. Defaults to 0 — for an order settled at the
+               * venue or with the courier, nothing has been paid yet, and claiming otherwise tells a
+               * till it is square when it is not.
+               */
+              amountPaid: z.number().default(0),
               tip: z.number().optional(),
               /** 1000 cash, 2000 credit, 3000 debit, 9001 transfer; venues may define their own. */
               paymentType: z.number().int(),
@@ -272,30 +342,56 @@ export function buildToteatTools(
           );
         }
 
+        // Toteat requires all three inside the payment and documents none of them as required
+        // (`document.payments.0.{id,amountPaid,operationDate}`, observed 2026-08-18). `id: 0` is its
+        // stated convention for "this is new", the same one `orderId` uses. The payment is stamped
+        // with the order's own moment: they are the same event.
+        const stampedAt = toteatTimestamp(new Date());
+        const payments =
+          args.payment === undefined
+            ? undefined
+            : [{ id: 0, operationDate: stampedAt, ...args.payment }];
+
         const body: Record<string, unknown> = {
           restaurantId: Number(ctx.metadata.xir),
           localNumber: Number(ctx.metadata.xil),
           orderReference: args.orderReference,
           type: args.type,
           channel: args.channel,
+          ...(args.vendorName !== undefined ? { vendorName: args.vendorName } : {}),
           // Toteat wants 0 for "create"; a real id means "append to this table order".
           orderId: args.orderId ?? 0,
           ...(args.tableId !== undefined ? { tableId: args.tableId } : {}),
-          ...(args.status !== undefined ? { status: args.status } : {}),
+          status: args.status,
+          // Required by Toteat. Stamped HERE, at the moment of the call, because that is when the
+          // order reaches the venue — and because idempotency rests on `orderReference`, not on this,
+          // so a retry seconds later is still the same order.
+          operationDate: stampedAt,
           ...(args.comment !== undefined ? { comment: args.comment } : {}),
           document: {
             line: buildOrderLines(args.lines),
             ...(args.customer !== undefined ? { customer: args.customer } : {}),
-            ...(args.payment !== undefined ? { payments: [args.payment] } : {}),
+            ...(payments !== undefined ? { payments } : {}),
           },
         };
 
-        return toOutcome(
-          unwrapToteat(
-            await client.post('orders', ctx.request, ctx.metadata, body),
-            'create order',
-          ),
+        const res = await client.post('orders', ctx.request, ctx.metadata, body);
+        const unwrapped = unwrapToteat(res, 'create order');
+
+        // A refused order is the one failure a venue cannot shrug off, and Toteat's envelope says
+        // only `Invalid Parameters` — no field, no reason. Its RAW answer, next to the exact body we
+        // sent, is the only thing that turns "it does not work" into a diagnosis. Logged on failure
+        // only, and never on the read paths, so this stays a rare line and not a firehose of orders.
+        // Both outcomes, because the accepted one is the harder to learn from: the venue's answer to
+        // a create is the only place its own handling of our fields is visible, and an order that
+        // worked is exactly when nobody thinks to look.
+        reportOrderOutcome(
+          unwrapped.ok ? 'accepted' : `refused: ${unwrapped.message}`,
+          body,
+          res.ok ? res.data : res.body,
         );
+
+        return toOutcome(unwrapped);
       },
     }),
 
