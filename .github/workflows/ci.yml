@@ -16,6 +16,17 @@ jobs:
           # Match the production image (Dockerfile: node:22-alpine). Node 20 is EOL.
           node-version: 22
           cache: npm
+      # Only the audit steps below need this, and they need it badly. npm is retiring the legacy
+      # `POST /-/npm/v1/security/audits/quick` endpoint that the npm shipped with Node 22 calls,
+      # and it now answers 400 with "Invalid package tree, run npm install to rebuild your
+      # package-lock.json". That message is misleading: `npm ci` succeeds on the same tree, and
+      # npm 11 locally reports 0 vulnerabilities against it. npm 11 uses the bulk advisory
+      # endpoint instead, which is the one that is not going away.
+      #
+      # The RUNTIME stays Node 22 deliberately — matching the production image is the whole point
+      # of pinning it above. This upgrades only the client that talks to the advisory API.
+      - name: Use an npm whose audit client is not the retired endpoint
+        run: npm install -g npm@11
       - run: npm ci
       - name: Guard — providers must not hand-write inputSchema (single source of truth)
         run: |
