@@ -69,8 +69,15 @@ difference between them is entirely upstream of the wire.
 
 4. **A `connectionProbe` is now mandatory for Cloudbeds' credential method.** The consumer's
    `buildCredentialConfig()` returns `null` without one and refuses to register the method — _"a
-   credential we cannot verify is one we do not store"_. `mcp_cloudbeds_get_hotel_details` is the
-   probe: cheapest published read, needs only the call context.
+   credential we cannot verify is one we do not store"_. `mcp_cloudbeds_list_properties` is the
+   probe — **not** `get_hotel_details`, which every other read reaches only once `propertyID` is
+   known. The probe runs BEFORE the connection exists, so no `propertyID` has been discovered yet;
+   `list_properties` is the one published read that takes no context, which is why
+   `contextDiscovery` already leans on it. Verified against a real property key (`20064`,
+   2026-08-20): `getHotels` → `200`, `success: true`.
+
+   **Caveat — fixed-probe design, same as Toteat:** the probe needs `read:hotel`, so a key minted
+   WITHOUT that scope fails connect as _"credential invalid"_ rather than _"scope missing"_.
 
 ## Consequences
 
