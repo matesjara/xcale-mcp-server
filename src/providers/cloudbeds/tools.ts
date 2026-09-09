@@ -4,6 +4,7 @@ import { ProviderErrorCode } from '../../core/errors';
 import type { RequestResult } from '../../core/http';
 import { definePaginatedList } from '../../core/pagination';
 import { type ToolDefinition, err, ok, toolFactory } from '../../core/tool';
+import { resolveHorizon, shapeRoomCalendars } from './availability-calendar';
 import type { CloudbedsClient } from './client';
 import type { CloudbedsContext } from './context';
 import { SLUG } from './manifest';
@@ -344,6 +345,75 @@ export function buildCloudbedsTools(
         });
         const u = unwrap(res, 'getAvailableRoomTypes');
         return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
+    // The gap this closes, observed in a live WhatsApp conversation (2026-09-07): the guest asked
+    // "¿para cuándo está disponible esa?" and the agent had to answer that it could only check dates
+    // the guest named — it could confirm a no, but never turn it into a yes. `get_availability` prices
+    // ONE window; nobody could see forward. So the sale ended at the first "not available".
+    tool({
+      name: `mcp_${SLUG}_get_room_calendar`,
+      requiredScopes: ['read:rate'], // spec: getRatePlans (already granted — no reconnect)
+      description:
+        'Answer WHEN a room is free, looking forward: per room type, the date ranges that can ' +
+        'actually be booked (`freeWindows`) and the dates that cannot (`unavailable`). Use it when ' +
+        'the guest asks when something is available, or after a "no" for their dates, instead of ' +
+        'guessing dates and re-checking them one by one. In every window `to` is the CHECKOUT date, ' +
+        'not the last night: 19→22 is three nights (19, 20 and 21). A window is only listed if the ' +
+        'property will really sell it — minimum stay, blocked and closed-to-arrival nights are ' +
+        'already excluded. It carries NO guest or reservation data, only inventory. Two limits: it ' +
+        'does not know the size of the party, so a free window is not proof the room fits them, and ' +
+        'it does not price anything — use get_availability or get_rate_plans for the dates the guest ' +
+        'settles on.',
+      input: z
+        .object({
+          startDate: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD')
+            .describe('YYYY-MM-DD. The first night to look at.'),
+          endDate: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD')
+            .optional()
+            .describe(
+              'YYYY-MM-DD checkout. Defaults to 30 nights ahead; anything beyond 90 is cut.',
+            ),
+          roomTypeID: z
+            .string()
+            .optional()
+            .describe('Limit to one room type. Omit to get the calendar of every room type.'),
+          quantity: z
+            .number()
+            .int()
+            .min(1)
+            .optional()
+            .describe('How many rooms of the type are needed. Defaults to 1.'),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const endDate = resolveHorizon(args.startDate, args.endDate);
+        const res = await client.get('getRatePlans', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          startDate: args.startDate,
+          endDate,
+          roomTypeID: args.roomTypeID,
+          // The whole tool rests on this: without it the response has no nightly rows to read.
+          detailedRates: 'true',
+        });
+        const u = unwrap(res, 'getRatePlans');
+        if (!u.ok) return err(u.code, u.message);
+
+        const plans = Array.isArray(u.data) ? u.data : [];
+        const shaped = shapeRoomCalendars(plans, args.startDate, args.quantity ?? 1);
+        if (!shaped.ok) {
+          return err(
+            ProviderErrorCode.PROVIDER_ERROR,
+            'Cloudbeds returned nightly rates without per-night availability for this property, so ' +
+              'no calendar can be built. Check specific dates with get_availability instead.',
+          );
+        }
+        return ok({ from: args.startDate, to: endDate, roomTypes: shaped.roomTypes });
       },
     }),
 

@@ -43,6 +43,7 @@ Seven read tools (`tools.ts`), all `GET`, read scopes only:
 | `list_properties` | `getHotels` | context discovery (`propertyID`) |
 | `get_hotel_details` | `getHotelDetails` | property facts |
 | `get_availability` | `getAvailableRoomTypes` | availability for a date range |
+| `get_room_calendar` | `getRatePlans` (`detailedRates`) | **when** a room is free, looking forward — free windows per room type |
 | `list_room_types` | `getRoomTypes` | room types (+ rates, partial) |
 | `list_reservations` | `getReservations` | list/search reservations |
 | `get_reservation` | `getReservation` | one reservation |
@@ -75,6 +76,7 @@ conversational-Booking scope (different vertical/ops surface).
 | Room types | `getRoomTypes` | [HAVE] | descriptions/occupancy |
 | Rate plans | `getRatePlans` | **[HAVE — W1]** | **the quote**: rateID for create + per-night rates & restrictions via `detailedRates` (§7) |
 | Rate detail | `getRate` | **[DROPPED]** | redundant with `get_rate_plans` — evidence §7 |
+| Forward calendar | `getRatePlans` (`detailedRates`) | **[HAVE — 2026-09-09]** | shipped as `get_room_calendar`. The same call as the quote, read as a CALENDAR: nightly `roomsAvailable` + restrictions collapsed into bookable windows. No new scope, no guest data. **Unconfirmed live:** per-night `roomsAvailable` is not in §7's observed field list — the tool refuses rather than reporting a false "nothing is free" if a property omits it |
 | Rooms with fees/taxes | `getRoomsFeesAndTaxes` | [BLOCKED] | all-in nightly price — **scope not granted** (§7) |
 | Eligible rates / policies | `getEligibleRates` | [LATER] | policy-aware quoting |
 | Packages | `getPackages` / `getPackageNames` | **[OUT]** | `Package: Read` **not granted** to the app (§7) |
