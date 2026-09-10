@@ -189,3 +189,30 @@ parked**, not fixed.
 - **"Tercero" (Siigo's counterparty noun) is unglossed.** Used across `fiscal-write-path` and
   `write-path-grill-prep.md` without a CONTEXT.md entry mapping it to the read contract's
   "customer". *Fix:* one glossary line. *Trigger:* Slice-2 write-path work.
+
+---
+
+## Contract — ADR 0001's cache-invalidation premise is not what the consumer does (PR #62 review, 2026-09-10)
+
+Surfaced while reviewing `feat(cloudbeds): get_room_calendar`. Not that PR's debt — ours.
+
+- **The ADR asserts a cache key the consumer does not use.** ADR 0001 `additive-contract-versioning`
+  states: *"The backend keys its `tools/list` cache on `(slug, schemaVersion)`, so a server redeploy
+  that changes a provider's schema invalidates the cache deterministically."* The comment block in
+  `src/providers/cloudbeds/manifest.ts` rests on that premise and turns it into a rule ("without a
+  bump a warm cache would never surface it"). The consumer does neither: `xcale-backend`'s
+  `src/modules/mcp/tools-cache.ts` keys by mcp-server URL under a 5-minute TTL plus explicit
+  invalidation, and `schemaVersion` exists there only as an unused field on `McpToolDef`.
+
+  *Why it matters, in both directions.* Today it inflates our reviews: a missing `schemaVersion` bump
+  reads as "the new tool is permanently invisible to the consumer", which is false — the real
+  exposure is ≤5 minutes of staleness. One gate raised exactly that as a blocker on PR #62 and it did
+  not survive verification. Tomorrow it inverts: if the backend ever adopts the ADR's model, every
+  provider that shipped a tool without a bump becomes genuinely invisible, and we already have at
+  least one such tool on record.
+
+  *Fix:* pick one. Either amend ADR 0001 to describe the TTL + explicit-invalidation model and demote
+  the bump to a stated convention (with its real, bounded reason), or file the issue in
+  `matesjara/xcale-backend` to key the cache as the ADR says and leave the ADR standing. Do not leave
+  the two describing different systems. *Trigger:* the next provider PR that publishes a new tool, or
+  any work on the consumer's `tools/list` cache — whichever comes first.
