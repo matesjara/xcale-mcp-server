@@ -4,7 +4,7 @@ import { ProviderErrorCode } from '../../core/errors';
 import type { RequestResult } from '../../core/http';
 import { definePaginatedList } from '../../core/pagination';
 import { type ToolDefinition, err, ok, toolFactory } from '../../core/tool';
-import { resolveHorizon, shapeRoomCalendars } from './availability-calendar';
+import { isRealDate, resolveHorizon, shapeRoomCalendars } from './availability-calendar';
 import type { CloudbedsClient } from './client';
 import type { CloudbedsContext } from './context';
 import { SLUG } from './manifest';
@@ -360,12 +360,19 @@ export function buildCloudbedsTools(
         'actually be booked (`freeWindows`) and the dates that cannot (`unavailable`). Use it when ' +
         'the guest asks when something is available, or after a "no" for their dates, instead of ' +
         'guessing dates and re-checking them one by one. In every window `to` is the CHECKOUT date, ' +
-        'not the last night: 19→22 is three nights (19, 20 and 21). A window is only listed if the ' +
-        'property will really sell it — minimum stay, blocked and closed-to-arrival nights are ' +
-        'already excluded. It carries NO guest or reservation data, only inventory. Two limits: it ' +
-        'does not know the size of the party, so a free window is not proof the room fits them, and ' +
-        'it does not price anything — use get_availability or get_rate_plans for the dates the guest ' +
-        'settles on.',
+        'not the last night: 19→22 is three nights (19, 20 and 21). ' +
+        'IMPORTANT — a window guarantees THAT WHOLE STAY and only that: arriving on `from` and ' +
+        'leaving on `to` is sellable, checked against the minimum stay, blocked nights, ' +
+        'closed arrivals and closed departures. It does NOT mean every shorter stay inside the ' +
+        'window is available: a night in the middle may refuse arrivals or demand a longer stay. ' +
+        'If the guest wants part of a window, offer the window as it is or check their exact dates ' +
+        'with get_availability — never assume a sub-range is free. ' +
+        'A room type may come back with `availabilityUnknown: true`: that means the property did ' +
+        'not report availability for it, NOT that it is full — say you could not check it rather ' +
+        'than that it is taken. It carries NO guest or reservation data, only inventory. Two more ' +
+        'limits: it does not know the size of the party, so a free window is not proof the room ' +
+        'fits them, and it does not price anything — use get_availability or get_rate_plans for ' +
+        'the dates the guest settles on.',
       input: z
         .object({
           startDate: z
@@ -392,6 +399,25 @@ export function buildCloudbedsTools(
         })
         .strict(),
       handler: async (args, ctx) => {
+        // The regex on the input accepts shapes, not dates: `2026-13-45` matches it and `addDays`
+        // would roll it forward into a plausible-looking horizon. Refuse instead of answering a
+        // question nobody asked.
+        if (!isRealDate(args.startDate)) {
+          return err(
+            ProviderErrorCode.INVALID_INPUT,
+            `startDate ${args.startDate} is not a real date`,
+          );
+        }
+        if (args.endDate !== undefined && !isRealDate(args.endDate)) {
+          return err(ProviderErrorCode.INVALID_INPUT, `endDate ${args.endDate} is not a real date`);
+        }
+        if (args.endDate !== undefined && args.endDate <= args.startDate) {
+          return err(
+            ProviderErrorCode.INVALID_INPUT,
+            `endDate ${args.endDate} must be after startDate ${args.startDate} — it is the checkout date`,
+          );
+        }
+
         const endDate = resolveHorizon(args.startDate, args.endDate);
         const res = await client.get('getRatePlans', ctx.request, {
           propertyID: ctx.metadata.propertyID,
@@ -404,13 +430,25 @@ export function buildCloudbedsTools(
         const u = unwrap(res, 'getRatePlans');
         if (!u.ok) return err(u.code, u.message);
 
-        const plans = Array.isArray(u.data) ? u.data : [];
-        const shaped = shapeRoomCalendars(plans, args.startDate, args.quantity ?? 1);
+        // An unexpected shape is a failure, not an empty property. Coercing it to `[]` answered
+        // `roomTypes: []` — "this property has no room types" — with `ok: true` (review 2026-09-09).
+        if (!Array.isArray(u.data)) {
+          return err(
+            ProviderErrorCode.PROVIDER_ERROR,
+            'Cloudbeds answered getRatePlans with an unexpected shape, so no calendar can be built. ' +
+              'Check specific dates with get_availability instead.',
+          );
+        }
+
+        const shaped = shapeRoomCalendars(u.data, args.startDate, endDate, args.quantity ?? 1);
         if (!shaped.ok) {
           return err(
             ProviderErrorCode.PROVIDER_ERROR,
-            'Cloudbeds returned nightly rates without per-night availability for this property, so ' +
-              'no calendar can be built. Check specific dates with get_availability instead.',
+            shaped.reason === 'no-identified-room-type'
+              ? 'Cloudbeds returned rate plans with no room type id, so no calendar can be addressed. ' +
+                  'Check specific dates with get_availability instead.'
+              : 'Cloudbeds returned nightly rates without per-night availability for this property, ' +
+                  'so no calendar can be built. Check specific dates with get_availability instead.',
           );
         }
         return ok({ from: args.startDate, to: endDate, roomTypes: shaped.roomTypes });

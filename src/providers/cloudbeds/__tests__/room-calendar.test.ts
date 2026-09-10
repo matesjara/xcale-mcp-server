@@ -104,7 +104,7 @@ describe('get_room_calendar', () => {
     });
   });
 
-  it('merges the rate plans of one room type — a night any rate can sell is a free night', async () => {
+  it('never builds a stay no single rate plan can sell', async () => {
     const { result } = await call(
       { startDate: '2026-09-19', endDate: '2026-09-21' },
       {
@@ -132,10 +132,16 @@ describe('get_room_calendar', () => {
       },
     );
 
+    // Rate 1 can only sell the 20th, rate 2 only the 19th. Taking the max across plans per night
+    // produced one two-night window that NEITHER rate could honour — the guest books 19→21 and the
+    // Gate refuses (review 2026-09-09). A stay rides one plan, so the answer is two one-night stays.
     const { roomTypes } = (result as { data: { roomTypes: unknown[] } }).data;
     expect(roomTypes).toHaveLength(1);
     expect(roomTypes[0]).toMatchObject({
-      freeWindows: [{ from: '2026-09-19', to: '2026-09-21', nights: 2, roomsFree: 1 }],
+      freeWindows: [
+        { from: '2026-09-19', to: '2026-09-20', nights: 1, roomsFree: 2 },
+        { from: '2026-09-20', to: '2026-09-21', nights: 1, roomsFree: 1 },
+      ],
     });
   });
 
@@ -177,5 +183,87 @@ describe('get_room_calendar', () => {
 
     expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
     expect((result as { message: string }).message).toMatch(/per-night availability/i);
+  });
+
+  it('refuses the same way when no nightly rows arrive at all', async () => {
+    // `plan([])` is the filler four request-shape tests above use, and nothing asserted what the
+    // tool ANSWERS for it — so the empty-rows path was exercised and silently blessed. It used to
+    // come back a well-formed success naming the room type with zero windows AND zero unavailable
+    // dates, which reads as "checked, nothing blocked" (review 2026-09-09).
+    const { result } = await call({ startDate: '2026-09-19', endDate: '2026-09-21' }, plan([]));
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
+  });
+
+  it('marks an unreadable room type instead of publishing it as sold out', async () => {
+    const { result } = await call(
+      { startDate: '2026-09-19', endDate: '2026-09-21' },
+      {
+        success: true,
+        data: [
+          {
+            rateID: '1',
+            roomTypeID: 'A',
+            roomTypeName: 'Ecohab',
+            roomRateDetailed: [
+              { date: '2026-09-19', roomsAvailable: 2 },
+              { date: '2026-09-20', roomsAvailable: 2 },
+            ],
+          },
+          {
+            rateID: '2',
+            roomTypeID: 'B',
+            roomTypeName: 'Suite',
+            roomRateDetailed: [
+              { date: '2026-09-19', rate: 350 },
+              { date: '2026-09-20', rate: 350 },
+            ],
+          },
+        ],
+      },
+    );
+
+    // One readable type used to suppress the refusal for every other one, and the unreadable type
+    // went out looking exactly like a full one.
+    const { roomTypes } = (result as { data: { roomTypes: Record<string, unknown>[] } }).data;
+    expect(roomTypes[0]).toMatchObject({ roomTypeID: 'A', unavailable: [] });
+    expect(roomTypes[0]?.freeWindows).toHaveLength(1);
+    expect(roomTypes[1]).toMatchObject({
+      roomTypeID: 'B',
+      availabilityUnknown: true,
+      freeWindows: [],
+      unavailable: [],
+    });
+  });
+
+  it('fails loudly when getRatePlans answers with a shape that is not a list', async () => {
+    // `Array.isArray(u.data) ? u.data : []` turned this into `roomTypes: []` with `ok: true` —
+    // "this property has no room types" (soul #2: no silent failures).
+    const { result } = await call(
+      { startDate: '2026-09-19', endDate: '2026-09-21' },
+      { success: true, data: { unexpected: 'object' } },
+    );
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
+    expect((result as { message: string }).message).toMatch(/unexpected shape/i);
+  });
+
+  it('refuses a checkout date that lands on or before the arrival', async () => {
+    const { result } = await call(
+      { startDate: '2026-09-21', endDate: '2026-09-19' },
+      plan([{ date: '2026-09-21', roomsAvailable: 1 }]),
+    );
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+  });
+
+  it('refuses a date that matches the shape but is not on any calendar', async () => {
+    // `2026-13-45` passes the regex and UTC math rolls it into a plausible 2027 horizon.
+    const { result } = await call(
+      { startDate: '2026-13-45' },
+      plan([{ date: '2026-09-19', roomsAvailable: 1 }]),
+    );
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
   });
 });
