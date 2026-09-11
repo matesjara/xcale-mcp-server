@@ -43,6 +43,7 @@ Seven read tools (`tools.ts`), all `GET`, read scopes only:
 | `list_properties` | `getHotels` | context discovery (`propertyID`) |
 | `get_hotel_details` | `getHotelDetails` | property facts |
 | `get_availability` | `getAvailableRoomTypes` | availability for a date range |
+| `get_room_calendar` | `getRatePlans` (`detailedRates`) | **when** a room is free, looking forward — free windows per room type |
 | `list_room_types` | `getRoomTypes` | room types (+ rates, partial) |
 | `list_reservations` | `getReservations` | list/search reservations |
 | `get_reservation` | `getReservation` | one reservation |
@@ -75,6 +76,7 @@ conversational-Booking scope (different vertical/ops surface).
 | Room types | `getRoomTypes` | [HAVE] | descriptions/occupancy |
 | Rate plans | `getRatePlans` | **[HAVE — W1]** | **the quote**: rateID for create + per-night rates & restrictions via `detailedRates` (§7) |
 | Rate detail | `getRate` | **[DROPPED]** | redundant with `get_rate_plans` — evidence §7 |
+| Forward calendar | `getRatePlans` (`detailedRates`) | **[HAVE — 2026-09-09]** | shipped as `get_room_calendar`. The same call as the quote, read as a CALENDAR: nightly `roomsAvailable` + restrictions collapsed into bookable windows. No new scope, no guest data. **Confirmed live 2026-09-10** — see §7.3 |
 | Rooms with fees/taxes | `getRoomsFeesAndTaxes` | [BLOCKED] | all-in nightly price — **scope not granted** (§7) |
 | Eligible rates / policies | `getEligibleRates` | [LATER] | policy-aware quoting |
 | Packages | `getPackages` / `getPackageNames` | **[OUT]** | `Package: Read` **not granted** to the app (§7) |
@@ -216,6 +218,34 @@ Probed live with a write-scoped token. **Three corrections to the model above:**
 — missing param *and* ungranted scope both look like a success at the status-code level. The envelope, not
 the status, decides. Every tool must unwrap through the shared `unwrap()`; a tool that trusted the 200
 would hand the agent a phantom empty result.
+
+### 7.3 The nightly row, read live (2026-09-10, Bio Habitat) — and one field that lies
+
+`getRatePlans` with `detailedRates=true`, three rate plans, three nights, through the gateway the
+agent actually uses. The row is:
+
+```
+blocked, closedToArrival, closedToDeparture, cutOff, date, lastMinuteBooking,
+maxLos, minLos, rate, roomsAvailable, totalRate
+```
+
+**`roomsAvailable` is present on every night of every plan.** The question the forward-calendar work
+carried as "unconfirmed" — whether per-night availability arrives at all — is settled: it does. The
+refusal path in `availability-calendar.ts` stays, because it costs nothing and the failure it guards
+against is a sold-out lie, but it is no longer the expected outcome.
+
+The same read closed the question the other way for the quote: `roomsAvailable` also decides
+`bookable` in the consumer's booking Gate (`cloudbeds-stay-truth.adapter.ts` requires
+`Number(n.roomsAvailable ?? 0) >= quantity` on every night), so a single booking that ever validated
+would have proven it too.
+
+**`maxLos: 0` means NO MAXIMUM.** Every observed row carries `0`, and the property sets no maximum
+stay. Read as a cap — which is what the field name invites — every window collapses to zero nights
+and the tool answers "nothing is free" for a property that is wide open. `cutOff` and
+`lastMinuteBooking` are `0` on every observed row too, and are deliberately **not read**: a booking
+cut-off decides whether a date can still be booked today, and inventing its unit from a field that
+has only ever been zero would put a guessed rule between a guest and a real date. Recorded here,
+unread in code — the honest order.
 
 ### 7.1 Webhooks are NOT scope-blocked — a correction, and the lesson behind it
 
