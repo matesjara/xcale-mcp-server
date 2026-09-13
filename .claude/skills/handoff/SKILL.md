@@ -1,72 +1,56 @@
 ---
 name: handoff
-description: Compact the current conversation into a handoff document — or, at the start of a new session, load and consume the last one. Persists to docs/handoff/ (versioned, travels across machines via git). References existing artifacts — feature designs, API contracts, ADRs, CONTEXT.md, roadmaps, branches, PRs, commits, memory — by path/URL instead of duplicating them. Use when wrapping up a session, or when starting a new session that continues prior work.
-argument-hint: "[focus for next session]  |  'resume' to load the last handoff"
+description: Write the handoff for the next session — HANDOFF.md at the repo root, committed and pushed so another session, or another machine, picks the work up cold. Use when the user asks for a handoff or wraps up work that continues later. Picking a handoff up needs no skill; the working policy says how.
+argument-hint: "[what the next session will focus on]"
+disable-model-invocation: true
 metadata:
+  canonical: xcale-harness
   derived_from: "https://github.com/mattpocock/skills/tree/main/skills/productivity/handoff (MIT, Matt Pocock)"
 ---
 
 # Handoff
 
-This skill has **two modes**. Pick one by the rule below, then follow that section.
+Write the baton for the next session: everything it needs to continue cold, and nothing it can read
+somewhere else. The lifecycle — one at a time, committed, read first, absorbed, deleted in the commit
+that absorbs it — is in `.claude/rules/working-policy.md`. This skill is how to write one.
 
-## Mode detection
+If `.claude/skills/handoff/REPO.md` exists, read it first: it names this repo's authoritative sources and
+any section this repo requires. It belongs to the repo; this file is canonical and is not edited here.
 
-1. If the argument is a load keyword (`resume`, `load`, `continue`, `start`) → **LOAD mode**.
-2. Else if the argument describes what the next session will focus on → **WRITE mode** (use it as the focus).
-3. Else (no argument):
-   - `docs/handoff/` contains a handoff `*.md` → **LOAD mode** (you're resuming).
-   - `docs/handoff/` is empty or absent → **WRITE mode**.
+## Before writing
 
-The normal cycle keeps the folder holding **at most one** handoff: you WRITE at the end of a session, and the next session's LOAD consumes (deletes) it. So at the start of a session there's one to load; mid/end-of-session the folder is empty and you write a fresh one.
+- **A `HANDOFF.md` already at the root has not been absorbed.** Say so, and ask whether to absorb it
+  first or fold it into the new one. Never stack two.
+- **Check what is true now**, not what the conversation believes: the branch and whether it is pushed,
+  the open PRs and their state, the issues touched and their labels.
 
----
+## What it holds
 
-## WRITE mode
+1. **Goal of the next session** — from the argument, or from where the conversation landed. One or two
+   sentences.
+2. **State** — done and verified; done but not verified; not started. A skipped or half-done step is
+   said plainly: a handoff that inflates progress is worse than none.
+3. **Branch and commits** — the branch, the last commit, whether it is pushed, the open PRs with their
+   titles.
+4. **Next action** — the one step to start with, concrete enough to start cold.
+5. **What is left** — an ordered checklist.
+6. **Open decisions and waits** — what waits on Mateo or on someone outside, each marked blocking or no
+   rush, with the options when there are some. Decide nothing for them.
+7. **Traps** — what will bite the next session and is not obvious: a doc that contradicts the code, a
+   gate that needs an authorization, a workaround that is holding something together.
+8. **Skills to use** — which skills the next session should run, in order.
+9. **Pointers** — issues and PRs by URL with their titles, files by path, ADRs by number, memory files by
+   name.
 
-Produce a handoff so a fresh agent (this session's continuation, possibly on another machine) can pick up without re-deriving context.
+**Reference, never copy.** A design doc, a contract, an ADR, an issue thread or a commit already holds
+its content; a second copy goes stale and gets believed. **No credentials, tokens or customer data** —
+name where a secret lives (the Doppler key), never its value.
 
-1. `mkdir -p docs/handoff` (the working dir is the repo root).
-2. Write the doc to **`docs/handoff/<YYYY-MM-DD>-<short-slug>.md`** (date from `date +%F`; slug = kebab-case of the focus, else `session`).
-3. Fill the **Sections** below, honoring **the one rule: reference, don't duplicate**.
-4. **Commit + push** so it travels: `git add docs/handoff/ && git commit -m "docs(handoff): <slug>" && git push` on the current branch (normally `dev`). This auto-commit is the point of the skill — persistence across machines — so do it without asking.
-5. Tell the user the committed path.
+## Commit it
 
-> If WRITE mode runs while a handoff already exists (folder not empty — e.g. you wrote twice without resuming), don't silently stack a second one: tell the user there's an un-consumed handoff and ask whether to replace it or keep both.
-
-## LOAD mode
-
-Resume from the last handoff and leave the folder clean.
-
-1. Read the most recent `docs/handoff/*.md` (by filename date; normally exactly one). If none exists, say so and offer WRITE mode instead.
-2. **Reload context**: open the artifacts it references (the roadmap/tracker, branch, key code anchors, ADRs) so you actually hold the state — don't just echo the doc.
-3. Summarize to the user where things stand and the immediate next step, and surface any **Open decisions** the doc flagged.
-4. **Consume it**: `git rm docs/handoff/<file>` (remove every handoff so the folder stays clean), `git commit -m "docs(handoff): consume <slug>" && git push`. Delete only **after** you've loaded the context.
-5. Continue the work.
-
----
-
-## The one rule: reference, don't duplicate
-
-Do **not** restate content that already lives in a durable artifact. Link to it by path or URL. This repo is full of authoritative sources — point at them:
-
-- **Feature design / API contract** — `docs/design/<slug>/feature-design.md`, `docs/design/<slug>/api-contract.md` (the source of truth while in flight; never copy). Post-ship they move to `docs/archive/<year>-q<N>/<slug>/`.
-- **ADRs** — `docs/adr/NNNN-*.md` (durable decisions; cite the number, don't re-explain the rationale).
-- **Initiative roadmaps** — e.g. `docs/design/<initiative>/roadmap.md` or a retroactive plan (the cross-session "where are we" tracker; update its status index rather than restating it).
-- **Domain glossary** — `CONTEXT.md` (don't re-explain terms; point to them).
-- **Architecture** — `docs/architecture-guide.md`, module `README.md` files.
-- **Git** — branch name, open PR URL, key commit SHAs (`git log --oneline -10`). Mind the `feat/* → dev → main` model and the dev-branch auto-delete gotcha (see memory).
-- **Memory** — relevant files under the auto-memory dir (`…/memory/`), by name.
-- **Code anchors** — `src/modules/.../file.ts:line` for the exact spots the next session touches.
-
-Duplication is the exact drift this avoids — a second stale copy of the contract is worse than a link.
-
-## Sections (WRITE mode)
-
-- **Goal of next session** — from the user's argument, or inferred from where the conversation landed.
-- **State of play** — what's done, what's in progress, what's blocking. Be concrete.
-- **Open decisions** — what the next agent must decide, with options if you have them (don't decide for them).
-- **Skills to use** — concrete list (e.g. `/grill` to pressure-test before designing, `/feature-design` → `/api-contract-authoring` → implementation, `/qa <target>`, `/git-workflow` ship → release (archives the design folder after soak; reference: `.claude/skills/git-workflow/references/promote-docs.md`)).
-- **Artifacts** — the path/URL list above. No prose duplicating their contents.
-
-Keep it tight. A handoff is a map to the real artifacts, not a transcript.
+- Write `HANDOFF.md` at the repo root, in English and skimmable: headings, short lines, checkboxes.
+- Commit that file alone and push it, so it reaches the other machine:
+  `git add HANDOFF.md && git commit -m "docs(handoff): <focus>" && git push`.
+- On the branch the work is on. On `dev` only if you may push to `dev`; never on `main`. With no work
+  branch and no right to push to `dev`, cut `docs/handoff-<slug>` from `origin/dev` and push that.
+- Tell the user the branch and the two or three things that matter most in it.

@@ -50,7 +50,7 @@ CLAUDE.md's ceiling (~12 lines; ~18 for a release/PR briefing):
 - **Blocking vs. no-rush, always labeled.** He should see in two seconds whether work is
   waiting on him.
 - A decision that must survive the conversation gets parked in an artifact
-  (`docs/design/roadmap.md`, an ADR, a PR body); the conversation carries the ask, the artifact
+  (a `parked` issue, an ADR, a PR body); the conversation carries the ask, the artifact
   carries the record.
 
 ## Example — the same PR-review update at the wrong and right altitude

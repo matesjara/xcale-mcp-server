@@ -8,17 +8,20 @@ argument-hint: "[optional: ticket ID like XCA-74, or action like 'ship', 'releas
 
 This skill defines how code moves from local changes to production in xcale-mcp-server. Follow this methodology for every git operation — whether the user explicitly says "ship" or naturally says "let's work on feature X" or "commit this".
 
-## Roles (two-dev model — decided 2026-06-11; self-merge revised 2026-08-20)
+## Roles (two-dev model — decided 2026-06-11; the xcale working policy since 2026-09-13)
+
+The policy every xcale repo shares — done means merged into `dev`, who merges, merge commits, the
+state labels — is `.claude/rules/working-policy.md` (always loaded). This skill is how it runs here.
 
 | Role | Who | May do | May NOT do |
 |:--|:--|:--|:--|
 | **Release owner** | Mateo (`matesjara`) | Everything below + **merge to `dev` and `main`** + Release | — |
-| **Contributor** | Juan José (`JuanJo0775`) | Start Working + Ship: branch from `dev` (or from his own branches as a working technique), open PRs **to `dev`**, write + run his feature's QA scenarios, **merge his own PRs into `dev`** once CI is green | Merge to `main` · Release · push directly to `dev`/`main` |
+| **Contributor** | Juan José (`JuanJo0775`) | Start Working + Ship: branch from `dev` (or from his own branches as a working technique), open PRs **to `dev`**, write + run his feature's QA scenarios | Merge any PR (incl. his own) · Release · push directly to `dev`/`main` |
 
 - **Every PR targets `dev`** — no stacked PRs (PR into another work branch). A big feature ships as ordered vertical slices, each PR'd to `dev`, not as a PR tower.
-- **Self-merge into `dev` is allowed** (revised 2026-08-20). The author may merge their own PR to `dev` once CI `verify` is green and they have run the Review & Merge gate below on their own diff. They do **not** wait for the release owner.
-- **`main` is different.** Every merge to `main` needs the release owner's explicit authorization for *that* release, whoever opens or merges the PR — `main` auto-deploys to production.
-- Enforcement is GitHub branch protection on both branches: PR required, CI `verify` green and up to date with the base, no direct pushes, no force pushes. **No approval is machine-required** — review is a team convention, so the gate below rides on the author's honour.
+- **No merge without an independent review** (2026-09-13 — this retires the self-merge into `dev` allowed on 2026-08-20). A contributor never merges, not even their own PR: it waits for the release owner's Review & Merge, or for the `/agentic-ship` gates. The release owner merges his own PR only after the same Level 1 review has run on it.
+- **`main` is different.** Every merge to `main` needs the release owner's explicit authorization for *that* release — `main` auto-deploys to production.
+- Enforcement is GitHub branch protection on both branches: PR required, CI `verify` green and up to date with the base, no direct pushes, no force pushes. **No approval is machine-required** — the independent review is a team rule the platform does not enforce.
 - Start Working and Ship apply to **both** devs. Release is **release-owner only**.
 
 ## When to Activate
@@ -86,13 +89,13 @@ When changes are ready to ship:
 7. **Stage**: `git add <specific files>` — never `git add .`
 8. **Commit**: Conventional format with Co-Authored-By footer
 9. **Push**: `git push -u origin <branch>`
-10. **PR**: `gh pr create --base dev` (or `--base main` for hotfixes)
+10. **PR**: `gh pr create --base dev` (or `--base main` for hotfixes). Name the issue in the body:
+    `Closes #N` for the issue this PR completes — a link only, since it does not fire on a merge
+    into `dev` (the default branch is `main`), so Review & Merge closes the issue by hand.
 
 **Never merge the PR on your own initiative.** Creating the PR is where Ship ends. A merge always
-takes an explicit human "merge it" — from the PR's author or the release owner for `dev`, and from
-the release owner specifically for `main`. What changed on 2026-08-20 is *who may authorize*, not
-that authorization is needed: the author may now merge their own PR into `dev` once CI is green and
-the Review & Merge gate has run, instead of waiting on the release owner.
+takes an explicit "merge it" from the release owner — for `dev` and for `main`. The author does not
+merge their own PR, whoever they are: it waits for Review & Merge.
 
 > **The one exception** (2026-08-23): a PR opened by the `/agentic-ship` harness merges itself into
 > `dev` when its three independent gates all pass and CI `verify` is green — the gate below is run
@@ -106,8 +109,7 @@ See [references/commit-conventions.md](references/commit-conventions.md) for com
 ### 3. Review & Merge (before any merge)
 
 Run this before a PR into `dev` is merged — by the release owner when he reviews someone else's PR
-("revisa el PR de Juan"), and by the author on their **own** diff when they self-merge. The gate has
-**two levels**:
+("revisa el PR de Juan"), and on his own PR before he merges it. The gate has **two levels**:
 
 **Level 1 — every PR, including chores:**
 1. **CI `verify` green** (provider `inputSchema` guard, format, type-check, tests, `npm audit` on prod deps and on the full tree). Never review a red PR — send it back first.
@@ -116,24 +118,25 @@ Run this before a PR into `dev` is merged — by the release owner when he revie
 3. **Brief the release owner in plain terms — always, before any verdict.** Mateo reads the
    briefing, not the diff. Lead with *what changes and why*, in concrete language, no jargon dump:
    what the code did before, what it does now, what breaks if we merge it, and what is left open
-   (ops, follow-ups, half-closed roadmap items). Short and specific — a screen, not an essay.
-   Details go in the review notes below the fold; if he wants the diff he'll ask. On a self-merge
-   to `dev` this is still owed — after the fact, in the turn that reports the merge.
-4. **The human owns the verdict.** The agent and the briefing advise; a human decides — the author
-   for their own `dev` merge, the release owner for anything touching `main`. **Except on an
-   `/agentic-ship` run**, where three independent gate agents own the `dev` verdict and the human
-   verdict moves to the `dev → main` release; the briefing in step 3 is still owed, after the fact,
-   in the turn that reports the merge.
+   (ops, follow-ups, half-closed `parked` issues). Short and specific — a screen, not an essay.
+   Details go in the review notes below the fold; if he wants the diff he'll ask.
+4. **The release owner owns the verdict.** The agent and the briefing advise; Mateo decides, for
+   `dev` and for `main`. **Except on an `/agentic-ship` run**, where three independent gate agents
+   own the `dev` verdict and the human verdict moves to the `dev → main` release; the briefing in
+   step 3 is still owed, after the fact, in the turn that reports the merge.
 
 **Level 2 — feature PRs** (design folder in `docs/design/<slug>/`, or new/changed API surface), additionally:
 4. **Ship-log exists** (`docs/design/<slug>/ship-log.md`) with dev-side ops recorded (Ship Gate 1).
 5. **QA scenarios green on dev** — written and run by the PR author, result attached in the PR
    description. The reviewer may re-run them (`/qa <target>`) when in doubt.
 
-**Verdict**: merge (the author for their own `dev` PR, the release owner for anything to `main`),
-or request changes citing the specific gate items that
-failed. After merging: run the Cleanup workflow. If anything was accepted-with-debt, park it in
-`docs/design/roadmap.md` in the same breath.
+**Verdict**: merge (the release owner) with a merge commit — `gh pr merge <n> --merge`, never squash,
+never `--admin` — or request changes citing the specific gate items that failed. After merging, once
+`gh pr view <n> --json state` reads `MERGED`: **close the issue** the PR completes —
+`gh issue close <n> --comment "Merged into dev in #<pr> (<PR title>)"` — and remove
+`status:building`; done means merged into `dev`. Delete the branch in a separate step, after removing
+any worktree that holds it, then run the Cleanup workflow. If anything was accepted-with-debt, open it
+as a `parked` issue in the same breath (`gh issue create --label parked`).
 
 ### 4. Release (dev → main)
 
@@ -211,8 +214,10 @@ Branches are short-lived. After a PR is merged, the branch should be deleted —
 - **No hook skipping**: Never `--no-verify` unless explicitly requested
 - **No direct commits to `main`**: Always go through `dev` (or hotfix PR)
 - **No direct pushes to `dev` or `main`**: both are protected — they only move via PRs with CI green
-- **Self-merge to `dev` only**: the author may merge their own PR into `dev` after the Review & Merge gate; `main` always needs the release owner's explicit authorization for that release
-- **No auto-merge**: Creating the PR ≠ merging it. A merge always takes an explicit human "merge it".
+- **No merge without an independent review**: a contributor never merges, not even their own PR; the release owner merges after Review & Merge, and `main` always needs his explicit authorization for that release
+- **Merge commits**: `gh pr merge <n> --merge`, never squash or rebase; delete the branch separately, after its worktree is gone
+- **Done at `dev`**: the merge closes nothing by itself — close the issue by hand once the merge has landed
+- **No auto-merge**: Creating the PR ≠ merging it. A merge always takes the release owner's explicit "merge it".
   **One carve-out** (2026-08-23): the `/agentic-ship` harness may merge its own PR into `dev` — and
   only into `dev` — when its three independent gates all pass and CI `verify` is green. Nothing
   else auto-merges, and nothing auto-merges to `main`. See ADR
