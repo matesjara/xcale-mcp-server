@@ -45,8 +45,9 @@ State lives in issue labels — one set, the same in every code repo:
 | `status:building` | Taken: a lane is building it, a branch or PR exists |
 | `blocked` | Overlay: cannot move until a dependency lands or a human decides — the reason is on the issue |
 
-- An open issue carries exactly one of `parked`, `ready`, `status:building`, and `blocked` rides on top.
-  Closed means merged into `dev` — or dropped, with the reason in a comment.
+- An open work item carries exactly one of `parked`, `ready`, `status:building`, and `blocked` rides on
+  top. A parent issue (an epic, a spec) needs none: its children carry the state, and it closes with the
+  last of them. Closed means merged into `dev` — or dropped, with the reason in a comment.
 - Whoever moves the work moves the label, when it happens, and reads it back after writing:
   `ready → status:building` at pickup; `status:building` comes off as the issue closes at the merge;
   work handed back returns to `ready` with the reason; an escalation adds `blocked`.
@@ -75,3 +76,5 @@ A handoff is a baton between two sessions, not a document that stays.
   When there is one, the session reads it before anything else, verifies what it is about to act on,
   moves what must last to its home (the issue, the design doc, an ADR) and deletes it with
   `git rm HANDOFF.md` in the commit that absorbs it. No PR merges into `dev` with a `HANDOFF.md` in it.
+- **Scheduled routines and autonomous pipelines leave it alone**: a handoff is addressed to the next
+  working session, never consumed by an unattended run.
