@@ -18,9 +18,9 @@ is merged until he says so, per PR.
 
 ## Roles
 
-Merging is the release owner's call, always (see `/git-workflow` › Review & Merge). Self-merge into
-`dev` exists for the author of a PR — it is not this skill's mandate. This skill never merges on its
-own initiative and never batches merges the owner has not each approved. **Never `gh pr merge
+Merging is the release owner's call, always (see `/git-workflow` › Review & Merge and
+`.claude/rules/working-policy.md`): nobody merges their own PR, and Juan José merges none. This skill
+never merges on its own initiative and never batches merges the owner has not each approved. **Never `gh pr merge
 --admin`**: with approvals at 0 the only rule it still bypasses is a red build.
 
 ---
@@ -41,7 +41,7 @@ Do this before saying anything to the user. It is research, not conversation.
    `git merge-tree --write-tree --name-only origin/<branch-a> origin/<branch-b> | grep -i conflict`.
    The repeat offenders here are the **provider registry** (`src/providers/index.ts` — every new
    provider adds a line to the same list), a single provider's `tools.ts` / `manifest.ts` when two
-   PRs extend the same adapter, `docs/design/roadmap.md`, and the ADR index. Conflicts decide merge
+   PRs extend the same adapter, and the ADR index. Conflicts decide merge
    order; they are not the owner's problem to solve.
 5. **ADR number collisions**: two branches can each mint the same `NNNN-` prefix. Any PR carrying an
    unnumbered ADR (`docs/adr/<slug>.md`) needs `npm run adr:number -- --apply` against fresh `dev`
@@ -49,8 +49,8 @@ Do this before saying anything to the user. It is research, not conversation.
 6. **Hotfix drift**: `git rev-list --count origin/dev..origin/main` — anything with real content on
    `main` and not on `dev` must be back-merged before a release.
 7. **Process gates** (from `/git-workflow`, Level 2): for each feature PR, does a
-   `docs/design/<slug>/ship-log.md` exist, are QA results attached, and is the change reflected in
-   `docs/design/roadmap.md`? A new provider or a new tool with no design folder is a finding, not a
+   `docs/design/<slug>/ship-log.md` exist, are QA results attached, and does the PR name the issue it
+   completes (`Closes #N`)? A new provider or a new tool with no design folder is a finding, not a
    detail.
 8. **Release steps hiding in the diffs** — this repo has no migrations; its equivalents are:
    - a **new provider or new tool** → the published catalog changes, so xcale-backend's discovery
@@ -169,8 +169,8 @@ context is loaded. Do not batch it to the end; by then you will have re-read six
 
 The same applies to a decision that outlives the walk: a founder decision to NOT build something is
 as worth recording as one to build it, or the next person reads the gap as a bug and starts building.
-Park an entry that states the decision, what is true today, what it would take, and what would unpark
-it.
+Park an issue (`gh issue create --label parked`) that states the decision, what is true today, what it
+would take, and what would unpark it.
 
 Keep a running tally of decisions taken so far, so the walk can be resumed after an interruption or a
 context compaction: PR, verdict, what he said.
@@ -181,9 +181,10 @@ Only after the walk, and only for the PRs he approved:
 
 1. Merge in an order that respects chains and the conflict map. Retarget stacked children to `dev`
    **before** deleting a parent branch. Mechanics that cost time the first run:
-   - **Squash the standalone PRs, but merge-commit the parent of a chain.** After a squash the parent
-     branch is no longer an ancestor of `dev`, so retargeting the child re-shows the parent's changes
-     in its diff. A merge commit keeps the child's diff to its own work.
+   - **Merge commit, every PR** — `gh pr merge <n> --merge`, standalone or chained
+     (`.claude/rules/working-policy.md`). A squash would also break a chain: the parent branch would
+     no longer be an ancestor of `dev`, so retargeting the child re-shows the parent's changes in its
+     diff. A merge commit keeps the child's diff to its own work.
    - Merge the parent, **then** `gh pr edit <child> --base dev`, then merge the child. Delete no
      branch until the whole chain has landed.
    - Mint ADR numbers (`npm run adr:number -- --apply`) on the branch, against fresh `dev`, right
@@ -192,12 +193,13 @@ Only after the walk, and only for the PRs he approved:
      Confirm with `gh pr view <n> --json state`, never by re-listing.
    - Push to a branch and its checks restart: re-read `gh pr checks <n>` before merging anything you
      just committed to.
-2. After each merge, move the roadmap entry in `docs/design/roadmap.md` (and the issue's label, where
-   an issue exists) from building to on-dev.
+2. After each merge has landed, close the issue it completes — done means merged into `dev`:
+   `gh issue close <n> --comment "Merged into dev in #<pr> (<PR title>)"`, and remove
+   `status:building`.
 3. For every returned PR, post the findings as a PR comment — specific, cited, and phrased as what
    the code does versus what the description says. Never merge a PR he sent back.
-4. Anything accepted with debt becomes a parked entry in `docs/design/roadmap.md` (and an issue where
-   one is warranted) in the same breath. Work that lands on the consumer goes to
+4. Anything accepted with debt becomes a `parked` issue in the same breath (`gh issue create --label
+   parked`) — there is no markdown roadmap. Work that lands on the consumer goes to
    `matesjara/xcale-backend` as an issue there, cross-linked by URL — never as an edit to that repo.
 5. Run the Cleanup workflow from `/git-workflow`. Note that the reviewing worktree ends the session on
    whatever branch the last agent checked out — return it to a detached `origin/dev` rather than
