@@ -53,7 +53,7 @@ need light adaptation (flagged ⚙️ below) before they fully apply here.
 | Skill | Use it to | Status |
 |:--|:--|:--|
 | **creating-skills** | Author new skills for this repo (e.g. a future `test-mcp-tool` skill). | ✅ portable |
-| **handoff** | Compact a session into a handoff doc, or load the last one when resuming. Lands in `docs/handoff/`. | ✅ portable |
+| **handoff** | User-invoked: write `HANDOFF.md` at the repo root for the next session, committed and pushed; the session that picks it up absorbs and deletes it. Canonical — maintained in xcale-harness; repo specifics in `REPO.md`. | ✅ canonical |
 | **mintlify-documentation** | Build/maintain a Mintlify docs site if/when this server gets public docs. | ✅ portable (optional) |
 | **git-workflow** | Branch, commit, ship, PR, release. | ⚙️ adapt — the release/soak/archival flow references backend docs-lifecycle specifics; branching/committing/PR parts are portable. |
 

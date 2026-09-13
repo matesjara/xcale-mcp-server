@@ -145,8 +145,8 @@ code).
    on the orchestrator).
 6. **Self-review** — `code-reviewer` over the iteration diff; fix Blockers/Majors; re-verify
    `tsc`/`lint`/tests/`/qa`.
-7. **Exit: zero Blockers** (not zero findings). Major/Minor/Enhancement graduate to
-   `docs/design/roadmap.md` and ride the next iteration. Else loop again.
+7. **Exit: zero Blockers** (not zero findings). Major/Minor/Enhancement graduate to `parked`
+   GitHub issues and ride the next iteration. Else loop again.
 
 ### Living-vs-snapshot docs (traceability rule)
 

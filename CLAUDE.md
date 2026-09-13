@@ -38,7 +38,7 @@ Order, always:
 > 1. <the decision, one line> — **Rec:** <your recommendation, a few words>
 
 One line per decision, recommendation always included, nothing else in the block. No pending
-decisions → no block (never an empty section). Items already parked in the roadmap only appear
+decisions → no block (never an empty section). Items already `parked` as issues only appear
 here when they block or newly need my call.
 
 Rules:
@@ -91,14 +91,17 @@ The full working agreement (report structure, altitude rules, decision surfacing
 - `main` (default, protected: PR + CI `verify` green, no direct or force pushes) · `dev`
   (protected: same). Implementation: feature branch → PR → `dev`; release: `dev` → `main` PR.
   Repo: https://github.com/matesjara/xcale-mcp-server
-- **Release owner** — Mateo (`matesjara`, CEO). A release to `main` needs his explicit
-  authorization for *that* release, whoever opens or merges the PR.
-- **No required approvals on `main`** (set 2026-08-20). GitHub personal-account repos have no
-  admin role for collaborators — everyone but the owner is capped at `write` — so a mandatory
-  approval permanently blocked Juan José from merging to `main`, and forced Mateo to `--admin`
-  past it on every release. The enforced gate is now PR + green CI; **review stays a team
-  convention, not a machine rule**. Giving Juan José real admin rights would require moving the
-  repo to a GitHub organization.
+- **Working policy** — `.claude/rules/working-policy.md` (always loaded; shared by the five xcale
+  repos, maintained in xcale-harness): done means merged into `dev`, merges into `dev` by Mateo or
+  by `/agentic-ship` after its gates, nobody merges their own work, merge commits, the state
+  labels, handoffs.
+- **Release owner** — Mateo (`matesjara`, CEO). He merges into `dev` and `main`; a release to
+  `main` needs his explicit authorization for *that* release. Juan José opens PRs to `dev` and
+  merges none (2026-09-13 — the self-merge into `dev` allowed on 2026-08-20 is retired).
+- **No required approvals on `dev` or `main`** (set 2026-08-20). On a personal-account repo a
+  required approval is only met with `--admin` — an author cannot approve their own PR, and
+  `/agentic-ship` merges under Mateo's identity — so the enforced gate is PR + green CI, and **the
+  independent review is a team rule, not a machine rule**.
 - **Do not use `gh pr merge --admin`.** `enforce_admins` is still `false`, so with approvals at 0
   the only thing that flag still bypasses is a red build. Merge with `gh pr merge <n> --merge`
   once CI is green.
