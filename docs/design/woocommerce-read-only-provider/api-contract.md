@@ -50,10 +50,16 @@ Namespaced `mcp_woocommerce_{verb}`. The zod `input` is the single source of tru
 | Tool | WooCommerce REST v3 endpoint | Input (zod) | Notes |
 |:--|:--|:--|:--|
 | `mcp_woocommerce_list_products` | `GET /wp-json/wc/v3/products` ⏳ | `{ search?, category?, stockStatus?, page?, pageSize? }` | `definePaginatedList`; catalog filters |
-| `mcp_woocommerce_get_product` | `GET /wp-json/wc/v3/products/{id}` ⏳ | `{ id: string }` | Variations inline in v1 |
+| `mcp_woocommerce_get_product` | `GET /wp-json/wc/v3/products/{id}` ⏳ | `{ id: string }` | Detail; returns variation ids (read details via `get_product_variations`) |
+| `mcp_woocommerce_get_product_variations` | `GET /wp-json/wc/v3/products/{id}/variations` ⏳ | `{ id: string, page?, pageSize? }` | Per-variation price/stock (size/color) — answers "size M in stock?" |
 | `mcp_woocommerce_list_categories` | `GET /wp-json/wc/v3/products/categories` ⏳ | `{ page?, pageSize? }` | To filter/browse the catalog |
+| `mcp_woocommerce_list_shipping_zones` | `GET /wp-json/wc/v3/shipping/zones` ⏳ | `{}` | Configured shipping zones |
+| `mcp_woocommerce_get_shipping_zone_locations` | `GET /wp-json/wc/v3/shipping/zones/{id}/locations` ⏳ | `{ id: string }` | Countries/states/postcodes of a zone — answers "do you ship to my city?" |
+| `mcp_woocommerce_get_shipping_zone_methods` | `GET /wp-json/wc/v3/shipping/zones/{id}/methods` ⏳ | `{ id: string }` | Methods + **base rates** for a zone (not a cart-accurate quote — see §2 note) |
 | `mcp_woocommerce_list_orders` | `GET /wp-json/wc/v3/orders` ⏳ | `{ status?, after?, before?, page?, pageSize? }` | Owner use; filters by status/date |
 | `mcp_woocommerce_get_order` | `GET /wp-json/wc/v3/orders/{id}` ⏳ | `{ id: string }` | Order detail |
+
+> **Not a tool (by design):** a composite `get_shipping_options(location)` that resolves which zone applies to a customer address and returns its options is **not** an MCP tool — the zone-matching (country/state/postcode ranges) is WooCommerce-internal business logic and must not live in the adapter. If ever needed, it is a **backend use case** over the three thin shipping tools, decided separately. `list_coupons`/`list_payment_gateways` are also out of v1 (see feature design § Out of Scope / Fase 2).
 
 ### 1.3 Inputs (zod, shape)
 
@@ -68,10 +74,19 @@ const listProductsInput = z.object({
 }).strict();
 
 const getProductInput = z.object({ id: z.string().min(1) }).strict();
+const getProductVariationsInput = z.object({
+  id: z.string().min(1),                    // parent product id
+  page: z.number().int().positive().optional(),
+  pageSize: z.number().int().positive().max(100).optional(),
+}).strict();
 const listCategoriesInput = z.object({
   page: z.number().int().positive().optional(),
   pageSize: z.number().int().positive().max(100).optional(),
 }).strict();
+// Shipping (thin, 1:1 with WooCommerce endpoints)
+const listShippingZonesInput = z.object({}).strict();
+const getShippingZoneLocationsInput = z.object({ id: z.string().min(1) }).strict(); // zone id
+const getShippingZoneMethodsInput = z.object({ id: z.string().min(1) }).strict();   // zone id
 const listOrdersInput = z.object({
   status: z.string().optional(),            // e.g. 'processing' | 'completed' ⏳ verify set
   after: z.string().datetime().optional(),  // ISO 8601
@@ -114,6 +129,23 @@ interface WooOrderDetail extends WooOrderSummary {
   lineItems: { name: string; quantity: number; total: string }[];
 }
 interface WooCategory { id: string; name: string; slug: string; parent?: string; count?: number }
+
+interface WooProductVariation {
+  id: string;
+  attributes: { name: string; option: string }[]; // e.g. [{ name: 'Size', option: 'M' }] ⏳
+  price: string;
+  stockStatus: string;      // ⏳
+  stockQuantity?: number | null;
+}
+interface WooShippingZone { id: string; name: string; order?: number }
+interface WooShippingZoneLocation { type: string; code: string } // type: 'country' | 'state' | 'postcode' | 'continent' ⏳
+interface WooShippingZoneMethod {
+  id: string;
+  methodId: string;         // 'flat_rate' | 'free_shipping' | 'local_pickup' ⏳
+  title: string;
+  enabled: boolean;
+  baseCost?: string;        // configured base rate; NOT a cart-accurate quote (⚠️ see §2 note)
+}
 ```
 
 ### 1.5 Pagination
@@ -131,6 +163,8 @@ WooCommerce paginates with `page` + `per_page` (max 100 ⏳) and returns the tot
 | Rate limit / 5xx | 429 / 5xx | `kind: 'error'` | generic, not swallowed |
 
 > Security rule (soul.md): error messages use **status/code**, never interpolate `res.body` or the store URL (it could carry data or the credential in the query fallback).
+
+> **Shipping cost note (§2):** `get_shipping_zone_methods` returns each method's **configured base rate** (flat-rate amount, free-shipping threshold), not a per-cart total. The real cost is computed at checkout from cart contents/weight/classes/coupons (WooCommerce Store API — out of scope for v1). Tool results and the agent must present cost as "from / base rate", never as a guaranteed total.
 
 ---
 
@@ -240,7 +274,7 @@ The 5 tools are discovered generically via the MCP catalog; the agent sees them 
 | Phase | Contract change |
 |:--|:--|
 | **v1** | This document (5 read-only tools + `basic` + connect) |
-| **Fase 2** | Tools `update_inventory`, `update_order_status`, `list_customers`/`get_customer`, split variations → new additive entries |
+| **Fase 2** | Tools `update_inventory`, `update_order_status`, `list_customers`/`get_customer`, `list_payment_gateways` (curated, no secrets), `get_product_reviews`, sales reports, richer variation modeling → new additive entries |
 | **Fase 3** | Separate contract for the **Commerce vertical adapter** (idempotency, checkout, webhooks) in `xcale-backend` |
 
 ---
@@ -249,10 +283,11 @@ The 5 tools are discovered generically via the MCP catalog; the agent sees them 
 
 Before freezing the implementation, against a test WooCommerce store (LocalWP/Docker) with sample data and a read-only key, **observe and fix** in this contract (removing the `⏳`):
 
-1. Real routes and responses of the 5 tools (exact field names, string vs number types).
-2. The real order `status` set and `stock_status` values.
-3. Pagination headers (`X-WP-Total`, `X-WP-TotalPages`) and max `per_page`.
-4. The real 401/403 error shape (code/field) to confirm the mapping to `PROVIDER_AUTH_EXPIRED`.
-5. If a test host strips the `Authorization` header → decide Q-1 (query-param fallback `consumer_key`/`consumer_secret`).
+1. Real routes and responses of the 9 tools (exact field names, string vs number types).
+2. The real order `status` set and `stock_status` values; the variation `attributes` shape and per-variation stock/price.
+3. Shipping: zone/location/method response shapes, the `type` set for locations (`country`/`state`/`postcode`/…), and where each method's base rate lives in the payload.
+4. Pagination headers (`X-WP-Total`, `X-WP-TotalPages`) and max `per_page`.
+5. The real 401/403 error shape (code/field) to confirm the mapping to `PROVIDER_AUTH_EXPIRED`.
+6. If a test host strips the `Authorization` header → decide Q-1 (query-param fallback `consumer_key`/`consumer_secret`).
 
 > Store the evidence in a journal `docs/design/woocommerce-read-only-provider/sandbox-evidence.md` (Spanish allowed), as Siigo did.

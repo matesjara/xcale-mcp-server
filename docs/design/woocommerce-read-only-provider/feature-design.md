@@ -1,6 +1,6 @@
 # WooCommerce Read-Only Provider (v1) — Feature Design
 
-> **Feature**: Onboard WooCommerce as an MCP provider (`api_key` / HTTP Basic / `forwarded`), read-only, with 5 curated tools, connected to xcale-backend via Rail A.
+> **Feature**: Onboard WooCommerce as an MCP provider (`api_key` / HTTP Basic / `forwarded`), read-only, with 9 curated read tools (catalog, shipping, orders), connected to xcale-backend via Rail A.
 > **Priority**: P1 High
 > **Owner**: Sara
 > **Status**: Draft
@@ -76,17 +76,18 @@ A business with a WooCommerce store connects its keys once and, from then on, it
 
 - **US-01**: As the owner, I want to connect my WooCommerce store by pasting URL + `consumer_key` + `consumer_secret` once, to enable the agent.
 - **US-02**: As a customer, I want to ask about products (name, category, availability) and have the agent answer with real data.
-- **US-03**: As a customer, I want a product's detail (price, stock, description) when I ask about one.
-- **US-04**: As the owner, I want to query my orders (by status/date) and one order's detail.
+- **US-03**: As a customer, I want a product's detail (price, stock, description) when I ask about one, including per-variation stock/price (size/color).
+- **US-04**: As a customer, I want to know if the store ships to my city and the available shipping options and base cost, so I can decide to buy.
+- **US-05**: As the owner, I want to query my orders (by status/date) and one order's detail.
 
 ### Should Have (P1) — Fase 2
 
-- **US-05**: As the owner, I want to query my customers from the agent (with proven identity).
-- **US-06**: As the owner, I want to adjust stock and change an order's status conversationally.
+- **US-06**: As the owner, I want to query my customers from the agent (with proven identity).
+- **US-07**: As the owner, I want to adjust stock and change an order's status conversationally.
 
 ### Could Have (P2) — Fase 3
 
-- **US-07**: As a customer, I want to build a purchase and have an order created in the store.
+- **US-08**: As a customer, I want to build a purchase and have an order created in the store.
 
 ---
 
@@ -94,7 +95,10 @@ A business with a WooCommerce store connects its keys once and, from then on, it
 
 ### ✅ Must Have — v1 (Fase 1, read-only)
 
-- [ ] `woocommerce` provider in the MCP (`src/providers/woocommerce/`) with the 5 read-only tools.
+- [ ] `woocommerce` provider in the MCP (`src/providers/woocommerce/`) with the 9 read-only tools:
+  - Catalog (customer): `list_products`, `get_product`, `get_product_variations`, `list_categories`
+  - Shipping (customer): `list_shipping_zones`, `get_shipping_zone_locations`, `get_shipping_zone_methods`
+  - Orders (owner): `list_orders`, `get_order`
 - [ ] `basic` auth variant in the core materializer (ADR [basic-http-auth-scheme](../../adr/0018-basic-http-auth-scheme.md)).
 - [ ] `authDescriptor` declaring `basic` + a `contextSchema` carrying `storeUrl` as call context.
 - [ ] Rail A connect path reusing `registerCredentialProvider` (`api_key` method): stores `ck`+`cs`, validates the URL, forwards `ck:cs`.
@@ -106,7 +110,8 @@ A business with a WooCommerce store connects its keys once and, from then on, it
 
 - [ ] Write tools: `update_inventory`, `update_order_status`.
 - [ ] Customer tools: `list_customers`, `get_customer` (PII — once there is a clear use case).
-- [ ] Variations (size/color) as separate tools, as in the documentation (in v1 they live inside `get_product`).
+- [ ] Additional read tools: `list_payment_gateways` (curated, never expose gateway secrets/settings), `get_product_reviews` (social proof), sales reports (`reports/top_sellers`, `reports/sales` — owner analytics).
+- [ ] Richer variation modeling (dedicated per-attribute tools). v1 already **reads** variations via `get_product_variations`; this is the structural refinement.
 
 ### 🔵 Could Have — Fase 3
 
@@ -116,6 +121,7 @@ A business with a WooCommerce store connects its keys once and, from then on, it
 
 - **Selling / order creation / payments** in v1 — that is Fase 3, and it goes through a **WooCommerce materialization adapter in the Commerce vertical** (with its own idempotency, confirmation gate, checkout handoff), NOT as a standalone tool. It gets its own grill + feature design in `xcale-backend`.
 - **Customer PII** in v1 — with no use case, `list_customers` is not brought in.
+- **Coupons (`list_coupons`)** — deliberately not auto-exposed: handing out coupon codes to any customer is a product decision for the owner, not a default capability.
 - **Generic multi-secret / imperative scheme (HMAC)** — out; the core only gains `basic` over a single composed secret (ADR).
 - **WooCommerce `wc-auth` OAuth flow** — v1 uses manual key entry (simpler and more robust).
 
@@ -139,7 +145,7 @@ A business with a WooCommerce store connects its keys once and, from then on, it
 
 ### 6.2 Conversational behavior (customer over WhatsApp)
 
-The customer asks "do you have black shirts?"; the agent picks `list_products` (with a filter), gets the result, and answers in natural language with names, prices, and availability. For "how much is X?" it uses `get_product`. The customer never sees tools, URLs, or keys.
+The customer asks "do you have black shirts?"; the agent picks `list_products` (with a filter), gets the result, and answers in natural language with names, prices, and availability. For "how much is X?" it uses `get_product`; for "do you have size M in black?" it uses `get_product_variations`. For "do you ship to my city?" / "how much is shipping?" it uses the shipping tools (`list_shipping_zones` + `get_shipping_zone_locations` for coverage, `get_shipping_zone_methods` for options), phrasing cost as a base rate (see R-6). The customer never sees tools, URLs, or keys.
 
 ### 6.3 Key states
 
@@ -220,6 +226,8 @@ connected ──401/403 on a call──▶ auth_failed ──reconnect──▶ 
 | R-3 | Some hosts strip the `Authorization` header | Med | Med | WooCommerce supports a query-param fallback (`consumer_key`/`consumer_secret`); evaluate during implementation (see Q-1) |
 | R-4 | Version/route differences across stores | Low | Med | Pin `wc/v3`; test against a test store |
 | R-5 | Base64 is not encryption | Low | High | `https` mandatory (ties to R-1); never interpolate the URL/credential into logs or errors |
+| R-6 | Shipping cost is not cart-accurate | Med | Med | `get_shipping_zone_methods` returns configured **base rates**, not a per-cart quote (that lives in WooCommerce's Store API, out of scope). The agent must phrase costs as "from / base rate", never a guaranteed total |
+| R-7 | Zone matching (location → applicable zone) is WooCommerce-internal | Med | Med | Not replicated in the adapter (would be business logic). v1 exposes thin zone/location/method reads; a `location → options` resolver, if ever needed, is a backend use case — not an MCP tool |
 
 ### Open Questions
 
@@ -236,7 +244,7 @@ connected ──401/403 on a call──▶ auth_failed ──reconnect──▶ 
 | Phase | Scope Summary | Key Deliverables | Dependencies | Est. Effort |
 |:--|:--|:--|:--|:--|
 | **v1 (Fase 1)** | Read-only | WooCommerce provider (5 tools) + `basic` scheme (MCP) + Rail A connect + URL validation (backend) | ADR `basic-http-auth-scheme` | L |
-| **Fase 2** | Writes + customers | `update_inventory`, `update_order_status`, `list_customers`/`get_customer`, split variations | v1 in production and proven | M |
+| **Fase 2** | Writes + more reads | `update_inventory`, `update_order_status`, `list_customers`/`get_customer`, `list_payment_gateways`, `get_product_reviews`, sales reports, richer variation modeling | v1 in production and proven | M |
 | **Fase 3** | Selling | WooCommerce adapter in the **Commerce vertical** (idempotency, confirmation, checkout, webhooks) | Own grill + feature design in `xcale-backend` | XL |
 
 ---
