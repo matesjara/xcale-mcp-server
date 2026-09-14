@@ -2,8 +2,9 @@
 
 > **Open xcale sessions in the xcale layer**, `~/Documents/Projects/xcale` — the folder that holds this
 > repo ([xcale-harness](https://github.com/matesjara/xcale-harness)). The team's harness lives there: the
-> working policy, `/handoff`, how to report to Mateo, this repo's identity rule and, step by step, what this repo's `.claude/` still
-> carries. A session opened inside this repo reads the layer's `CLAUDE.md` and working policy, but none of
+> working policy, `/handoff`, how to report to Mateo, this repo's identity rule, the design flow (`/grill`, `/feature-design`,
+> `/api-contract-authoring`, `/implementation-plan`, `/adr`, and the `architect` agent) and, step by step, what this repo's
+> `.claude/` still carries. A session opened inside this repo reads the layer's `CLAUDE.md` and working policy, but none of
 > its skills or hooks.
 
 xcale's own MCP integration platform (a "Composio LATAM"). Provider knowledge lives here;
