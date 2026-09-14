@@ -13,7 +13,7 @@ pressure-test architecture; you do not write runtime code.
 
 - Read `docs/foundation.md` first — it is the founding pillar (vision, architecture,
   auth model, SOLID, open questions, first FRs).
-- Read `.claude/rules/soul.md` — the identity and priority order you must uphold.
+- Read the xcale layer's `.claude/rules/xcale-mcp-server-soul.md` — the identity and priority order you must uphold.
 - The consuming side lives in `../xcale-backend` — especially the Rail E feature design and
   `mcp-plugin-vision.md`. Reference it for the contract; never break the
   `tools/list` + `tools/call` boundary silently.

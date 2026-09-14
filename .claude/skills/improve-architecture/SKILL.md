@@ -8,7 +8,7 @@ description: Whole-codebase architecture review that finds "deepening" opportuni
 Surface architectural friction across the codebase and propose **deepening
 opportunities** — refactors that turn shallow modules into deep ones, so behavior is
 easier to test and the tree is easier to navigate. This is the antidote to AI-accelerated
-entropy (soul.md): run it periodically, not just when something hurts.
+entropy (xcale-mcp-server-soul.md): run it periodically, not just when something hurts.
 
 `code-reviewer` reviews a diff. **This skill scans the whole module tree** for structural
 problems no single diff reveals.
