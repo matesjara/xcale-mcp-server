@@ -22,6 +22,8 @@ need light adaptation (flagged ⚙️ below) before they fully apply here.
 
 The engineering discipline — `git-workflow`, `tdd`, `diagnose`, `improve-architecture`, `creating-skills`, and the `debugger` and `prod-debugger` agents — lives there too since its step 3.3.5, with a reference for this repo wherever it differs (the `prod-debugger` one names this server's own app; the copies that lived here pointed at the backend).
 
+So does review, since its step 3.3.6: `/pr-review` and the three gate agents — `code-reviewer` (inward: the credential boundary first, then correctness and the architecture invariants), `pr-reviewer` (outward: scope, fidelity, the honesty of the PR body, hygiene), each with a reference for this repo, and `mcp-contract-qa` (the published surface, with executed evidence: the round trip, agent-fitness, additive evolution, the boundary at egress). The `qa` skill and the `api-qa` agent that sat here were xcale-backend's copies, running backend scenarios; they are retired — `mcp-contract-qa` and the suite cover this surface.
+
 ### 🔨 Build
 
 | Skill | Use it to | Status |
@@ -39,7 +41,6 @@ The engineering discipline — `git-workflow`, `tdd`, `diagnose`, `improve-archi
 | Skill | Use it to | Status |
 |:--|:--|:--|
 | **agentic-ship** | Build a scoped change in an isolated worktree, run it past three independent gate agents, auto-merge to `dev`. The human gate stays at `dev → main`. | ✅ native to this repo (ported from `xcale-backend`, with its three gates re-decided here) |
-| **qa** | Run QA suites + the post-implementation reconcile-to-zero-blockers loop. | ⚙️ adapt — references the backend dev server (curl) + the `quala` (Playwright/UI) subagent that don't exist here. The reconcile-loop method is reusable; the suite machinery needs an MCP-server target (e.g. JSON-RPC scenarios against the `/mcp` endpoint). |
 
 ### 📝 Document & iterate with the agent
 
@@ -49,14 +50,9 @@ The engineering discipline — `git-workflow`, `tdd`, `diagnose`, `improve-archi
 
 ---
 
-## Agents (`agents/`)
+## Agents
 
-| Agent | Role | Notes |
-|:--|:--|:--|
-| **code-reviewer** | The **inward** gate: credential boundary first, then correctness and the architecture invariants. | rewritten for this repo 2026-08-23 — it was the backend's file (Mongo, use cases, i18n, soft delete) and judged invariants this repo does not have |
-| **pr-reviewer** | The **outward** gate: scope, fidelity to what was asked, honesty of the PR body against the diff, hygiene. | native to this repo |
-| **mcp-contract-qa** | The **contract** gate: executed `discover`/`tools\|list`/`tools\|call` round trip, agent-fitness of the published tools, additive-only evolution, credential boundary at egress. | native to this repo — the third gate of `/agentic-ship` |
-| **api-qa** | Executes curl/HTTP test scenarios against a backend dev server. | ⚠️ **not used here** — it is `xcale-backend`'s file verbatim (JWT login, Mongo, `{success,data,error}`). It is **not** an `/agentic-ship` gate; `mcp-contract-qa` covers this surface instead. See `agentic-ship/SKILL.md` § 1 |
+None in this repo: its three gate agents live in the xcale layer (above).
 
 ---
 
