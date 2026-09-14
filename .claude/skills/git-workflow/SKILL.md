@@ -11,7 +11,8 @@ This skill defines how code moves from local changes to production in xcale-mcp-
 ## Roles (two-dev model — decided 2026-06-11; the xcale working policy since 2026-09-13)
 
 The policy every xcale repo shares — done means merged into `dev`, who merges, merge commits, the
-state labels — is `.claude/rules/working-policy.md` (always loaded). This skill is how it runs here.
+state labels — is the xcale layer's [working policy](https://github.com/matesjara/xcale-harness/blob/main/.claude/rules/working-policy.md) (always loaded). This skill is how it runs
+here.
 
 | Role | Who | May do | May NOT do |
 |:--|:--|:--|:--|
