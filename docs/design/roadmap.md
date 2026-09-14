@@ -1,7 +1,7 @@
 # Roadmap — moved to GitHub Issues
 
-> **This file is a pointer.** Accepted debt and deferred work are `parked` GitHub issues — the working
-> policy of the xcale repos (`.claude/rules/working-policy.md`) keeps no markdown roadmap, backlog or
+> **This file is a pointer.** Accepted debt and deferred work are `parked` GitHub issues — the [working
+> policy](https://github.com/matesjara/xcale-harness/blob/main/.claude/rules/working-policy.md) of the xcale repos keeps no markdown roadmap, backlog or
 > parking lot. Adding an entry here is drift, not tracking.
 
 - **Everything deferred:** [open `parked` issues](https://github.com/matesjara/xcale-mcp-server/issues?q=is%3Aissue+is%3Aopen+label%3Aparked).

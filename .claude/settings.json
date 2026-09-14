@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'This session was opened inside xcale-mcp-server: it reads the CLAUDE.md and the working policy of the xcale layer, but none of the layer skills or hooks, such as /handoff and how to report to Mateo. The team opens its sessions in the layer, ~/Documents/Projects/xcale (the folder that holds this repo): https://github.com/matesjara/xcale-harness#setting-up-a-machine'"
+          }
+        ]
+      }
+    ]
+  }
+}

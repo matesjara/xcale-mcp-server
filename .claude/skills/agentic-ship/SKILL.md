@@ -123,7 +123,7 @@ trail. The trail has to be worth reading.
   built diff turns out to have wider reach than planned, **the diff wins**: re-derive from
   `gh pr diff <n> --name-only` after the build, never from the intent.
 
-This repo uses the **state labels every xcale repo shares** (`.claude/rules/working-policy.md`):
+This repo uses the **state labels every xcale repo shares** ([working policy](https://github.com/matesjara/xcale-harness/blob/main/.claude/rules/working-policy.md)):
 `ready` → `status:building` at pickup, closed at the merge into `dev`, `blocked` added on an
 escalation. There are no epics — the backend's roadmap-issue mode has no counterpart here — and the
 issue thread and the PR are the whole audit trail.
