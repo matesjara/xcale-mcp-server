@@ -20,7 +20,7 @@ need light adaptation (flagged ⚙️ below) before they fully apply here.
 
 `grill`, `feature-design`, `api-contract-authoring` (here the contract is the **MCP boundary**: `tools/list` + `tools/call`, schemas, error shapes), `implementation-plan` and `adr` live in the [xcale layer](https://github.com/matesjara/xcale-harness/tree/main/.claude/skills) since its step 3.3.4 — one version for every xcale repo, with a `references/xcale-mcp-server.md` for what differs here. So does the `architect` agent, which absorbed this repo's `mcp-architect`.
 
-The engineering discipline — `git-workflow`, `tdd`, `diagnose`, `improve-architecture`, `creating-skills`, and the `debugger` and `prod-debugger` agents — lives there too since its step 3.3.5, each with a reference for this repo (the `prod-debugger` one names this server's own app; the copies that lived here pointed at the backend).
+The engineering discipline — `git-workflow`, `tdd`, `diagnose`, `improve-architecture`, `creating-skills`, and the `debugger` and `prod-debugger` agents — lives there too since its step 3.3.5, with a reference for this repo wherever it differs (the `prod-debugger` one names this server's own app; the copies that lived here pointed at the backend).
 
 ### 🔨 Build
 
