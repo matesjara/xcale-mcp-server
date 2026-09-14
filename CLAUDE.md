@@ -2,14 +2,14 @@
 
 > **Open xcale sessions in the xcale layer**, `~/Documents/Projects/xcale` — the folder that holds this
 > repo ([xcale-harness](https://github.com/matesjara/xcale-harness)). The team's harness lives there: the
-> working policy, `/handoff`, how to report to Mateo and, step by step, what this repo's `.claude/` still
+> working policy, `/handoff`, how to report to Mateo, this repo's identity rule and, step by step, what this repo's `.claude/` still
 > carries. A session opened inside this repo reads the layer's `CLAUDE.md` and working policy, but none of
 > its skills or hooks.
 
 xcale's own MCP integration platform (a "Composio LATAM"). Provider knowledge lives here;
 consumers (xcale-backend first) consume capabilities over stable, consumer-agnostic MCP contracts.
 
-- **Identity & philosophy** — `.claude/rules/soul.md` (always loaded).
+- **Identity & philosophy** — the xcale layer's [`.claude/rules/xcale-mcp-server-soul.md`](https://github.com/matesjara/xcale-harness/blob/main/.claude/rules/xcale-mcp-server-soul.md) (loaded, from the layer, whenever a session works with a file in this repo).
 - **Glossary** — `CONTEXT.md` (use its canonical terms in code, docs, commits).
 - **Vision** — `docs/foundation.md`. **Target architecture & rationale** — `docs/architecture-review.md`.
 - **Decisions** — `docs/adr/` (index + policy: `docs/adr/README.md`).

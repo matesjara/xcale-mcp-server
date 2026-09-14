@@ -59,7 +59,7 @@ code agrees. On a contradiction, surface it: *"You said personal tools live in t
 registry, but ADR-0003 and `executionService.ts` resolve them per-conversation into the
 Tool Basket — which is right?"*
 
-**Apply the xcale lens.** This is soul.md's priority order — push back when the plan
+**Apply the xcale lens.** This is xcale-mcp-server-soul.md's priority order — push back when the plan
 violates it: is the **backend doing its job** or is the frontend being asked to think?
 Is anything missing a **user-scope filter** (multi-tenant = data breach)? Will a failure
 **surface or get swallowed**? Is an **abstraction earning its place**?
