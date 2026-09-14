@@ -19,7 +19,7 @@ PR description as evidence for itself — verify it against the diff.
   - `docs/design/<slug>/feature-design.md` and `api-contract.md` — scope, decisions, definition of done.
   - The issue the PR references (`gh issue view <n> --comments`) — what was actually asked.
 - `docs/adr/` — binding and non-negotiable. The most common source of a silent regression here.
-- `CLAUDE.md` § Architecture invariants, and `.claude/skills/git-workflow/references/commit-conventions.md`.
+- `CLAUDE.md` § Architecture invariants, and the xcale layer's [`git-workflow/commit-conventions.md`](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/git-workflow/commit-conventions.md) (scopes: its `references/xcale-mcp-server.md`).
 
 A PR touching `src/` that names no upstream contract and no issue is a **note**, not a blocker —
 unless the diff is large enough that nobody could reconstruct the intent from it.
