@@ -123,9 +123,10 @@ trail. The trail has to be worth reading.
   built diff turns out to have wider reach than planned, **the diff wins**: re-derive from
   `gh pr diff <n> --name-only` after the build, never from the intent.
 
-This repo has **no epic/`status:*` label lifecycle** (`gh label list` is stock GitHub). There is no
-label to swap on pickup and no `blocked` label to apply — the backend's roadmap-issue mode has no
-counterpart here. The issue thread and the PR are the whole audit trail.
+This repo uses the **state labels every xcale repo shares** ([working policy](https://github.com/matesjara/xcale-harness/blob/main/.claude/rules/working-policy.md)):
+`ready` → `status:building` at pickup, closed at the merge into `dev`, `blocked` added on an
+escalation. There are no epics — the backend's roadmap-issue mode has no counterpart here — and the
+issue thread and the PR are the whole audit trail.
 
 ## The pipeline
 
@@ -145,6 +146,11 @@ git -C .claude/worktrees/<slug> merge-base --is-ancestor origin/dev HEAD   # mus
 Then `EnterWorktree` by path. A branch that did not come off `origin/dev` is an abort, not a
 warning: `strict: true` on `dev` will reject it at merge time anyway, and the gates would have
 judged the wrong baseline.
+
+When the run came from an issue, **mark the pickup**:
+`gh issue edit <n> --remove-label ready --add-label status:building`, then read it back
+(`gh issue view <n> --json labels`). A failed write is loud — stop and say so, never proceed on a
+label state you did not verify.
 
 ### 2. Build
 
@@ -169,8 +175,8 @@ unnumbered ADR, focused `git add` (**never** `git add .`), a conventional commit
 repo's PR template honestly, including the Provider Self-Containment checkboxes; the outward gate
 reads it as a claim and checks it against the diff.
 
-Reference the issue as `Refs #N`. **Never `Closes #N`** — the merge to `dev` is not the end of the
-work; the release owner closes the issue after it ships to `main`.
+Name the issue as `Closes #N` — a link only: the keyword does not fire on a merge into `dev` (the
+default branch is `main`), so step 7 closes the issue by hand. Done means merged into `dev`.
 
 ### 4. Run the gates
 
@@ -208,7 +214,8 @@ If any gate returns `blocked`:
 - Repeat at most **twice**.
 - Still blocked after the cap → **STOP and escalate**: leave the worktree, branch and PR in place,
   convert the PR to draft (`gh pr ready <n> --undo`) so nothing merges it by reflex, post the
-  outstanding findings and the iteration diffs on the PR, and comment on the issue. Do **not** merge.
+  outstanding findings and the iteration diffs on the PR, comment on the issue and add `blocked` to it
+  (`gh issue edit <n> --add-label blocked`). Do **not** merge.
 
 Escalate immediately, without spending iterations, when: `reach === 'shared'`, CI red for a reason
 outside the diff (a fresh `npm audit` advisory), or a gate reports a finding that requires a
@@ -223,7 +230,9 @@ When every gate is `pass`, `reach !== 'shared'`, and CI is green:
 - **Verify the branch is current** — `gh pr view <n> --json mergeStateStatus`. `BEHIND` →
   `gh pr update-branch <n>`, wait for CI, re-check. `BLOCKED`/`DIRTY`/`UNKNOWN` → escalate.
 - `gh pr merge <n> --merge`. **Never `--admin`.**
-- Post the merge on the issue with the PR link, and leave the issue open.
+- Once the merge has landed (`gh pr view <n> --json state` reads `MERGED`), **close the issue**:
+  `gh issue close <n> --comment "Merged into dev in #<pr> (<PR title>)"` and
+  `gh issue edit <n> --remove-label status:building`, then read it back.
 
 Any gate `blocked`, any check not green, or `reach === 'shared'` → escalate, never merge.
 
@@ -245,7 +254,7 @@ Nothing is auto-cleaned after a merge — this step is mandatory:
 - **Never lets the builder judge.** Every gate is a fresh subagent with no memory of the build.
 - **Never invents a business or architecture decision.** A gap in the plan is an escalation, not an
   improvisation.
-- **Never closes the issue.** Closing follows the release to `main`, not the merge to `dev`.
+- **Never closes the issue before its merge has landed on `dev`** — and never leaves it open after.
 - **Never runs the backend's `api-qa`** as a gate here (see § 1).
 
 ## References

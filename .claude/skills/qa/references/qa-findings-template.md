@@ -16,7 +16,7 @@ design folder.
 - **Sev** — `Blocker` (security/correctness; gates release) · `Major` · `Minor` · `Enhancement`.
 - **Verdict** (set at grill) — `code-bug` · `contract-wrong` · `design-gap` · `not-a-bug` · `deferred`.
 - **Status** — `open` · `grill` · `fixed` · `deferred` · `wontfix`.
-- **Exit**: zero open `Blocker`. Lower sevs graduate to `docs/design/roadmap.md`.
+- **Exit**: zero open `Blocker`. Lower sevs graduate to `parked` GitHub issues.
 
 ## Findings
 
@@ -29,7 +29,7 @@ design folder.
 
 ## Triage outcomes (filled at grill time)
 > Each open/grill row gets a dated verdict + decision here, and graduates to:
-> fix-this-iteration · roadmap (next iteration) · contract update · wontfix.
+> fix-this-iteration · `parked` issue (next iteration) · contract update · wontfix.
 
 ### <YYYY-MM-DD> — Grill: <topic> → Iteration <n>
 - **F-__** — <decision, which side fixes, the design choice>.

@@ -46,6 +46,6 @@ Durable architectural decisions go to an ADR, not here. Optional — omit if not
 - [ ] prod smoke / verification — ⬜ pending
 
 ## Known gaps at ship
-- <deferred item> → see `docs/design/roadmap.md`
+- <deferred item> → captured as `parked` issue #NNN
 - <incident, if any> → see `docs/incidents/<file>`
 ```

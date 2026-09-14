@@ -653,7 +653,7 @@ provider moves to MCP; the rest of the plumbing is what migrates out.
 - Composio curation pattern: `xcale-backend/src/modules/composio/curation/README.md`
 - Rail A (connection auth the MCP path consumes): `xcale-backend/docs/adr/0005-native-connection-reauth-lifecycle.md`
 - Native-vs-Composio sourcing policy: `xcale-backend/docs/adr/0004-native-vs-composio-sourcing-policy.md`
-- xcale identity & engineering philosophy: `xcale-backend/.claude/rules/soul.md`
+- xcale identity & engineering philosophy: `.claude/rules/xcale-backend-soul.md` in the xcale layer
 
 **External:**
 

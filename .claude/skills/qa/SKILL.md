@@ -127,7 +127,7 @@ code).
    key/ID schemes** (an idealized seed once masked a recall-killing `externalId` idempotency bug).
 2. **Register** — every finding → `docs/design/<slug>/qa-findings.md` (the durable ledger; the
    `ship-log.md` stays light and *references* it). Fixed schema + legend → [references/qa-findings-template.md](references/qa-findings-template.md).
-   `Sev` = Blocker|Major|Minor|Enhancement (rank by `soul.md`: security > correctness > perf > simplicity).
+   `Sev` = Blocker|Major|Minor|Enhancement (rank by `xcale-mcp-server-soul.md`: security > correctness > perf > simplicity).
    `Verdict` (set at grill) = code-bug | contract-wrong | design-gap | not-a-bug | deferred.
 3. **Cross-repo reconcile** — the `api-contract.md` is the shared seam: BE verifies it *serves* the
    contract, FE verifies it *consumes* + renders. **Write a handoff artifact** to
@@ -145,8 +145,8 @@ code).
    on the orchestrator).
 6. **Self-review** — `code-reviewer` over the iteration diff; fix Blockers/Majors; re-verify
    `tsc`/`lint`/tests/`/qa`.
-7. **Exit: zero Blockers** (not zero findings). Major/Minor/Enhancement graduate to
-   `docs/design/roadmap.md` and ride the next iteration. Else loop again.
+7. **Exit: zero Blockers** (not zero findings). Major/Minor/Enhancement graduate to `parked`
+   GitHub issues and ride the next iteration. Else loop again.
 
 ### Living-vs-snapshot docs (traceability rule)
 

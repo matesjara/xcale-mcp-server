@@ -233,7 +233,7 @@ Opus-class context plus subagent delegation make this viable. Two rules keep it 
 2. **Phase boundaries are verification gates, not human stops.** Before a phase's work begins,
    the prior phase's Definition of Done must be **green** (`tsc`/`lint`/tests/`qa`). A gate that
    fails **halts and surfaces** — it never silently builds the next phase on a broken foundation
-   (soul.md correctness). A gate that passes proceeds automatically.
+   (xcale-mcp-server-soul.md correctness). A gate that passes proceeds automatically.
 
 3. **Detail tapers by phase (rolling-wave) — and the plan says so.** The vertical slices cover
    **all** phases (the spine is complete and visible up front). The per-file detail (file tree +
@@ -263,7 +263,7 @@ stages that halt on failure, and **each green gate → a commit**.
 
 ## Definition of Done
 
-`soul.md` correctness: nothing is "done" without an objective check. Every slice and the phase
+`xcale-mcp-server-soul.md` correctness: nothing is "done" without an objective check. Every slice and the phase
 as a whole carry a Definition of Done tied to **real commands**:
 
 - Type check: `npx tsc --noEmit` clean.

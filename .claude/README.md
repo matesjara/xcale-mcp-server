@@ -5,11 +5,11 @@ full set of Claude skills, agents, rules, and commands needed to **design, build
 and iterate** on this MCP server — without exposing the rest of `xcale-proyect`.
 
 The skills and agents below are shared with `xcale-backend` (same org, same conventions, same
-`soul.md` philosophy). They were brought in so the toolset travels with the repo. Process and
+identity philosophy). They were brought in so the toolset travels with the repo. Process and
 design skills are **portable as-is**; a few build/QA skills reference the backend's runtime and
 need light adaptation (flagged ⚙️ below) before they fully apply here.
 
-> **Identity:** `rules/soul.md` (this repo's identity — loaded every session).
+> **Identity:** the xcale layer's `.claude/rules/xcale-mcp-server-soul.md` (this repo's identity — loaded when a session works with a file in this repo).
 > **Founding pillar:** `../docs/foundation.md` (read first).
 
 ---
@@ -53,7 +53,6 @@ need light adaptation (flagged ⚙️ below) before they fully apply here.
 | Skill | Use it to | Status |
 |:--|:--|:--|
 | **creating-skills** | Author new skills for this repo (e.g. a future `test-mcp-tool` skill). | ✅ portable |
-| **handoff** | Compact a session into a handoff doc, or load the last one when resuming. Lands in `docs/handoff/`. | ✅ portable |
 | **mintlify-documentation** | Build/maintain a Mintlify docs site if/when this server gets public docs. | ✅ portable (optional) |
 | **git-workflow** | Branch, commit, ship, PR, release. | ⚙️ adapt — the release/soak/archival flow references backend docs-lifecycle specifics; branching/committing/PR parts are portable. |
 
@@ -88,7 +87,6 @@ need light adaptation (flagged ⚙️ below) before they fully apply here.
 grill ─▶ feature-design ─▶ api-contract-authoring ─▶ implementation-plan ─▶ tdd / add-provider ─▶ code-reviewer ─▶ git-workflow
   │                                                                                                                    │
   └────────────────────── adr (whenever a durable decision is locked) ──────────────────────────────────────────────┘
-       handoff (wrap up / resume a session at any point)
 ```
 
 Or, fully autonomously — `/agentic-ship` runs the build and the gates and merges to `dev` itself:

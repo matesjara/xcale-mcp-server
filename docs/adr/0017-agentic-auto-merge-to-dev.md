@@ -1,9 +1,16 @@
 # ADR 0017: Agentic gates with auto-merge to `dev`; the human gate stays at `dev → main`
 
-- **Status:** Accepted
+- **Status:** Accepted — context amended 2026-09-13 by [xcale-harness ADR 0002](https://github.com/matesjara/xcale-harness/blob/main/docs/adr/0002-one-working-policy-done-at-dev-nobody-merges-their-own-work.md)
 - **Date:** 2026-08-23
 - **Decision makers:** Mateo (release owner)
 - **Tags:** process, agent, ci, git-workflow, security
+
+> **Amended (2026-09-13).** The author's self-merge into `dev` described below no longer exists:
+> one [working policy](https://github.com/matesjara/xcale-harness/blob/main/.claude/rules/working-policy.md) now binds the five xcale repos — nobody
+> merges their own work without an independent review, Juan José merges nothing, and a merge into
+> `dev` is made by Mateo or by this pipeline after its gates. This pipeline also closes the issue
+> at the merge into `dev`. The decision recorded here — three independent gates, auto-merge to
+> `dev` only, escalation on shared reach — stands.
 
 ## Context
 
