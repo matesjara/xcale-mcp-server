@@ -1,13 +1,9 @@
 # `.claude/` — Agent toolset for xcale-mcp-server
 
-This folder makes the project **self-contained** when opened on its own in the editor: the
-full set of Claude skills, agents, rules, and commands needed to **design, build, document,
-and iterate** on this MCP server — without exposing the rest of `xcale-proyect`.
-
-The skills and agents below are shared with `xcale-backend` (same org, same conventions, same
-identity philosophy). They were brought in so the toolset travels with the repo. Process and
-design skills are **portable as-is**; a few build/QA skills reference the backend's runtime and
-need light adaptation (flagged ⚙️ below) before they fully apply here.
+What is left of this repo's own Claude harness while the xcale layer (`~/Documents/Projects/xcale`,
+[xcale-harness](https://github.com/matesjara/xcale-harness)) takes it over step by step: the team's skills, agents and
+rules live there once, and this folder keeps only what has not moved yet — listed below, with ⚙️ where an item is
+still the backend's copy.
 
 > **Identity:** the xcale layer's `.claude/rules/xcale-mcp-server-soul.md` (this repo's identity — loaded when a session works with a file in this repo).
 > **Founding pillar:** `../docs/foundation.md` (read first).

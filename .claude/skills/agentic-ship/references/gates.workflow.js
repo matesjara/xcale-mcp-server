@@ -16,7 +16,8 @@ export const meta = {
 //   issue    — optional issue #N, so pr-review can check the diff against what was asked
 //
 // Returns: array of { gate, result: 'pass'|'blocked', findings: [{severity, description, location?}] }
-// The gates run as FRESH subagents (agentType) — independence is enforced here, not by convention.
+// The gates run as FRESH general-purpose subagents following the layer's agent files — independence is
+// enforced here, not by convention.
 
 const VERDICT = {
   type: 'object',
@@ -52,7 +53,7 @@ const reach = args?.reach ?? 'shared'; // fail closed: an unknown reach gets the
 const follow = (name, withReference) =>
   `Your definition is the xcale layer's \`${name}\` agent. Before anything else, read $HOME/Documents/Projects/xcale/.claude/agents/${name}/AGENT.md in full${
     withReference ? ' and its references/xcale-mcp-server.md' : ''
-  } (resolve $HOME with \`echo $HOME\`) and follow ${withReference ? 'both' : 'it'}. Paths there start at the layer: inside this worktree, drop the \`xcale-mcp-server/\` prefix.`;
+  } (resolve $HOME with \`echo $HOME\`) and follow ${withReference ? 'both' : 'it'}. If you cannot read it, stop: return a blocked verdict whose one blocker says the gate's definition could not be read. Paths there are written from the layer: one starting with \`xcale-mcp-server/\` is inside this worktree (drop the prefix, and run a \`cd xcale-mcp-server && …\` command from the worktree root); one starting with \`.claude/\` or with another repo's name is under $HOME/Documents/Projects/xcale/. You are a judge: never modify a tracked file, commit or push.`;
 
 phase('Gates');
 
@@ -63,7 +64,7 @@ const gateRuns = [
   () =>
     agent(
       `${follow('code-reviewer', true)} You are the CODE-REVIEW (inward) gate on PR #${pr}. Read the diff with \`gh pr diff ${pr}\` and the changed files in full. Judge intrinsic quality: the CREDENTIAL BOUNDARY FIRST (SecretString, \`.reveal()\` only at provider egress, nothing logged or persisted), then correctness, error mapping, and the architecture invariants in CLAUDE.md. Report a verdict with gate "code-review".`,
-      { label: 'gate:code-review', schema: VERDICT }
+      { label: 'gate:code-review', agentType: 'general-purpose', model: 'opus', schema: VERDICT }
     ),
   () =>
     agent(
@@ -72,7 +73,7 @@ const gateRuns = [
       }${
         issue ? ` The work was requested in issue #${issue} — read it with \`gh issue view ${issue} --comments\` and check the diff delivers what it asked, no more and no less.` : ''
       } Report a verdict with gate "pr-review".`,
-      { label: 'gate:pr-review', schema: VERDICT }
+      { label: 'gate:pr-review', agentType: 'general-purpose', model: 'opus', schema: VERDICT }
     ),
 ];
 
@@ -87,7 +88,7 @@ if (reach !== 'docs') {
           ? ' This is a PROVIDER change: the golden-rule file footprint (only src/providers/{slug}/ + tests + one line in src/providers/index.ts + generic config) is a BLOCKER when broken without an exceptional ADR in the same diff.'
           : ' This change reaches SHARED infrastructure or the public contract. A live consumer (xcale-backend) depends on it and this repo cannot test that side — hold every contract move to additive-only evolution (ADR additive-contract-versioning) and say plainly what a consumer would have to change.'
       } Report a verdict with gate "contract-qa".`,
-      { label: 'gate:contract-qa', schema: VERDICT }
+      { label: 'gate:contract-qa', agentType: 'general-purpose', model: 'opus', schema: VERDICT }
     )
   );
 }
