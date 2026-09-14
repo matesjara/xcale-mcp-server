@@ -18,13 +18,7 @@ need light adaptation (flagged ⚙️ below) before they fully apply here.
 
 ### 🎯 Design & align (before building)
 
-| Skill | Use it to | Status |
-|:--|:--|:--|
-| **grill** | Pressure-test a plan/idea against the domain and the code before designing. Resolves the open questions in `foundation.md` §12. Runs in front of `feature-design`. | ✅ portable |
-| **feature-design** | Write a Feature Design / PRD for a slice (the protocol boundary, the auth model, a provider). Lands in `docs/design/<slug>/feature-design.md`. | ✅ portable |
-| **api-contract-authoring** | Define the contract before code. Here the contract is the **MCP boundary** (`tools/list` + `tools/call`, schemas, error shapes). | ✅ portable |
-| **implementation-plan** | The executive build map — file tree, per-file symbol changes, ordered slices, subagent delegation. Runs after the contract, before code. | ✅ portable |
-| **adr** | Record durable architecture decisions (protocol choice, stateless auth, stack) in `docs/adr/`. | ✅ portable |
+`grill`, `feature-design`, `api-contract-authoring` (here the contract is the **MCP boundary**: `tools/list` + `tools/call`, schemas, error shapes), `implementation-plan` and `adr` live in the [xcale layer](https://github.com/matesjara/xcale-harness/tree/main/.claude/skills) since its step 3.3.4 — one version for every xcale repo, with a `references/xcale-mcp-server.md` for what differs here. So does the `architect` agent, which absorbed this repo's `mcp-architect`.
 
 ### 🔨 Build
 
@@ -62,8 +56,6 @@ need light adaptation (flagged ⚙️ below) before they fully apply here.
 
 | Agent | Role | Notes |
 |:--|:--|:--|
-| **mcp-architect** | Read-only architecture advisor specific to this MCP server (boundary, provider contract, auth model, SOLID). | native to this repo |
-| **architect** | General read-only technical-spec designer. | portable; overlaps with `mcp-architect` — use `mcp-architect` for MCP-specific design |
 | **code-reviewer** | The **inward** gate: credential boundary first, then correctness and the architecture invariants. | rewritten for this repo 2026-08-23 — it was the backend's file (Mongo, use cases, i18n, soft delete) and judged invariants this repo does not have |
 | **pr-reviewer** | The **outward** gate: scope, fidelity to what was asked, honesty of the PR body against the diff, hygiene. | native to this repo |
 | **mcp-contract-qa** | The **contract** gate: executed `discover`/`tools\|list`/`tools\|call` round trip, agent-fitness of the published tools, additive-only evolution, credential boundary at egress. | native to this repo — the third gate of `/agentic-ship` |

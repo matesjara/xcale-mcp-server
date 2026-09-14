@@ -82,7 +82,7 @@ When changes are ready to ship:
    dev-side ops now — migration on dev (`✅`/`N/A`), and open the manual-QA section. Do **not**
    archive here — archival is a Release step, after the prod soak. Mark items `✅ done (date)` /
    `⬜ pending` / `N/A (reason)`; only `⬜` items are worth flagging. See `docs/README.md`.
-5. **ADR numbering checkpoint**: if the branch added any **unnumbered** ADR (`docs/adr/<slug>.md`, no `NNNN-` prefix), run `npm run adr:number -- --apply` so its number is minted against `dev` right before merge — this is the guard against two branches colliding on the same number. (No-op if there are none.) See `.claude/skills/adr/SKILL.md`.
+5. **ADR numbering checkpoint**: if the branch added any **unnumbered** ADR (`docs/adr/<slug>.md`, no `NNNN-` prefix), run `npm run adr:number -- --apply` so its number is minted against `dev` right before merge — this is the guard against two branches colliding on the same number. (No-op if there are none.) See the xcale layer's [`/adr` skill, xcale-mcp-server reference](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/adr/references/xcale-mcp-server.md).
 6. **QA evidence (feature PRs)**: if Gate 1 applied (feature with a design folder / new or
    changed API surface), the QA scenarios (`.claude/skills/qa/scenarios/<target>.md`) must exist
    and have run **green on dev** — the author writes and runs them (QA is part of delivering the

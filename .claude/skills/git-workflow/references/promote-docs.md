@@ -32,7 +32,8 @@ Open `docs/design/<slug>/ship-log.md`. Every checklist item is `✅` or `N/A`. A
 ### 2. Decide whether an ADR is warranted
 
 If the feature locked in an architectural choice not yet recorded, write one via `/adr` **before**
-archiving (created unnumbered; numbered at its own merge — see `.claude/skills/adr/SKILL.md`).
+archiving (created unnumbered; numbered at its own merge — see the xcale layer's
+[`/adr` skill](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/adr/references/xcale-mcp-server.md)).
 Most features have none. Don't manufacture an ADR per feature.
 
 ### 3. Determine the archive bucket
