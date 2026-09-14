@@ -168,7 +168,7 @@ in-process probes, not `curl` against a live port (see § 1 above).
 
 ### 3. Open the PR
 
-Ship via the `/git-workflow` Ship discipline — `npm run format:check`, `npm run typecheck`,
+Ship via the `/git-workflow` Ship discipline (the xcale layer's skill, with its `references/xcale-mcp-server.md`) — `npm run format:check`, `npm run typecheck`,
 `npm test`, the ship-log checkpoint, `npm run adr:number -- --apply` if the branch added an
 unnumbered ADR, focused `git add` (**never** `git add .`), a conventional commit with the
 `Co-Authored-By` footer, `git push -u origin <branch>` — then `gh pr create --base dev`. Fill the
@@ -262,5 +262,5 @@ Nothing is auto-cleaned after a merge — this step is mandatory:
 - [`references/gates.workflow.js`](references/gates.workflow.js) — the three-gate engine (fresh independent subagents).
 - [`references/merge-safety.md`](references/merge-safety.md) — the real `dev` protection, what "green" means, and why `--admin` is banned.
 - ADR [agentic-auto-merge-to-dev](../../../docs/adr/0017-agentic-auto-merge-to-dev.md) — the decision, its alternatives and its tripwire.
-- [`/git-workflow`](../git-workflow/SKILL.md) — the Ship discipline this skill reuses and the Release gate it stops short of.
+- [`/git-workflow`](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/git-workflow/SKILL.md) — the Ship discipline this skill reuses and the Release gate it stops short of. It lives in the xcale layer since its step 3.3.5: a run started inside this repo reads `~/Documents/Projects/xcale/.claude/skills/git-workflow/SKILL.md` and its `references/xcale-mcp-server.md`, dropping the `xcale-mcp-server/` prefix from the paths it writes.
 - [`/add-provider`](../add-provider/SKILL.md) — the golden rule and the Definition of Done the gates enforce on a provider change.

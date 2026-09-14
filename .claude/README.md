@@ -20,13 +20,13 @@ need light adaptation (flagged ⚙️ below) before they fully apply here.
 
 `grill`, `feature-design`, `api-contract-authoring` (here the contract is the **MCP boundary**: `tools/list` + `tools/call`, schemas, error shapes), `implementation-plan` and `adr` live in the [xcale layer](https://github.com/matesjara/xcale-harness/tree/main/.claude/skills) since its step 3.3.4 — one version for every xcale repo, with a `references/xcale-mcp-server.md` for what differs here. So does the `architect` agent, which absorbed this repo's `mcp-architect`.
 
+The engineering discipline — `git-workflow`, `tdd`, `diagnose`, `improve-architecture`, `creating-skills`, and the `debugger` and `prod-debugger` agents — lives there too since its step 3.3.5, each with a reference for this repo (the `prod-debugger` one names this server's own app; the copies that lived here pointed at the backend).
+
 ### 🔨 Build
 
 | Skill | Use it to | Status |
 |:--|:--|:--|
-| **tdd** | Red-green-refactor with Vitest through the core/provider seams. | ✅ portable |
 | **api-integration** | Implement an outbound provider integration (Sandwich: Tool → UseCase → Repository → API Client). Directly relevant to **provider adapters** — pairs with `add-provider`. | ⚙️ adapt — written for Fastify modules; the *pattern* applies, the file layout maps to `src/providers/{slug}/`. |
-| **diagnose** | Disciplined bug/perf diagnosis loop (reproduce → minimise → hypothesise → fix → regression-test). | ✅ portable |
 
 ### 🔌 Project-specific (built for this repo)
 
@@ -39,16 +39,13 @@ need light adaptation (flagged ⚙️ below) before they fully apply here.
 | Skill | Use it to | Status |
 |:--|:--|:--|
 | **agentic-ship** | Build a scoped change in an isolated worktree, run it past three independent gate agents, auto-merge to `dev`. The human gate stays at `dev → main`. | ✅ native to this repo (ported from `xcale-backend`, with its three gates re-decided here) |
-| **improve-architecture** | Whole-codebase "deepening" review — shallow modules, tangled seams, untestable code. Complements diff-scoped review. | ✅ portable |
 | **qa** | Run QA suites + the post-implementation reconcile-to-zero-blockers loop. | ⚙️ adapt — references the backend dev server (curl) + the `quala` (Playwright/UI) subagent that don't exist here. The reconcile-loop method is reusable; the suite machinery needs an MCP-server target (e.g. JSON-RPC scenarios against the `/mcp` endpoint). |
 
 ### 📝 Document & iterate with the agent
 
 | Skill | Use it to | Status |
 |:--|:--|:--|
-| **creating-skills** | Author new skills for this repo (e.g. a future `test-mcp-tool` skill). | ✅ portable |
 | **mintlify-documentation** | Build/maintain a Mintlify docs site if/when this server gets public docs. | ✅ portable (optional) |
-| **git-workflow** | Branch, commit, ship, PR, release. | ⚙️ adapt — the release/soak/archival flow references backend docs-lifecycle specifics; branching/committing/PR parts are portable. |
 
 ---
 
@@ -59,9 +56,7 @@ need light adaptation (flagged ⚙️ below) before they fully apply here.
 | **code-reviewer** | The **inward** gate: credential boundary first, then correctness and the architecture invariants. | rewritten for this repo 2026-08-23 — it was the backend's file (Mongo, use cases, i18n, soft delete) and judged invariants this repo does not have |
 | **pr-reviewer** | The **outward** gate: scope, fidelity to what was asked, honesty of the PR body against the diff, hygiene. | native to this repo |
 | **mcp-contract-qa** | The **contract** gate: executed `discover`/`tools\|list`/`tools\|call` round trip, agent-fitness of the published tools, additive-only evolution, credential boundary at egress. | native to this repo — the third gate of `/agentic-ship` |
-| **debugger** | Systematic local bug diagnosis & fixing. | portable |
 | **api-qa** | Executes curl/HTTP test scenarios against a backend dev server. | ⚠️ **not used here** — it is `xcale-backend`'s file verbatim (JWT login, Mongo, `{success,data,error}`). It is **not** an `/agentic-ship` gate; `mcp-contract-qa` covers this surface instead. See `agentic-ship/SKILL.md` § 1 |
-| **prod-debugger** | Safe production debugging (DO/Atlas read-first SRE protocols). | ⚙️ applies once this server is deployed (DO App Platform, `foundation.md` Q-4) |
 
 ---
 
