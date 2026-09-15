@@ -75,7 +75,7 @@ xcale-mcp-server/
 ├── docs/                       ← deploy.md, adr/, design/<slug>/, foundation.md, security/
 ├── scripts/ · assets/          ← tooling; logos served at /assets
 ├── Dockerfile · doppler.yaml   ← runs `src/server.ts` under tsx, no build step
-└── .claude/                    ← agent rules, skills (add-provider), agents, commands
+└── .claude/                    ← settings; the harness lives in the xcale layer
 ```
 
 ## Conventions
