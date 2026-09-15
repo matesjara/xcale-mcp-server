@@ -22,7 +22,7 @@
  *                  reaches a real hotel's PMS or a real client's accounting, and this server is
  *                  at-most-once by design (ADR fiscal-write-path) — there is no undo from here.
  *
- *   node --import tsx .claude/skills/agentic-ship/references/contract-probe.mjs
+ *   node --import tsx scripts/contract-probe.mjs
  *   … --provider cloudbeds                      # only that provider's tools, with full schemas
  *   … --tool mcp_echo_say --args '{"message":"hi"}'                          # offline
  *   … --tool mcp_cloudbeds_list_reservations --metadata '{"propertyID":"1"}' \
@@ -41,7 +41,7 @@ const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
 const { StreamableHTTPClientTransport } = await import(
   '@modelcontextprotocol/sdk/client/streamableHttp.js'
 );
-const { buildApp } = await import('../../../../src/server.ts');
+const { buildApp } = await import('../src/server.ts');
 
 function flag(name, fallback) {
   const i = process.argv.indexOf(`--${name}`);
