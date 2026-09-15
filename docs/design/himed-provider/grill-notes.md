@@ -95,8 +95,16 @@ and a branch in the materializer that inserts the secret into the JSON body befo
 
 - **Q1 (blocking phase 2 · external):** how is the autoagendamiento SHA-256 `token` generated?
   Static pre-hashed → fits body-placement (no imperative ADR). Computed per request → signed auth → conditional ADR.
-- **Q2 (commercial · founder):** who pays for the HiMed API Key and how much (COP)?
-  The sandbox requires a paid key; the endpoints/docs are free.
+- **Q2 (commercial) — RESOLVED (2026-09-15, Mateo):** who pays for the HiMed API Key?
+
+  _Decision:_ **each client clinic pays** for its own HiMed API Key. xcale is **only the integrator**.
+
+  _Why:_ xcale does not resell HiMed access; the clinic holds the commercial relationship with HiMed. xcale
+  builds the technical integration and custodies the clinic's key in Rail A.
+
+  _Implication:_ onboarding a clinic includes the clinic obtaining its own key/sandbox access from HiMed
+  (the sandbox still requires a paid key — the clinic's, not xcale's). HiMed support: `ayudamed@himedsolutions.com`,
+  line `3009120001` op 2.
 - **Q3 (product) — RESOLVED (2026-09-15):** does phase 1 include patient writes (create/update), or does it
   start read-only?
 
