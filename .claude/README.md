@@ -20,6 +20,8 @@ The engineering discipline — `git-workflow`, `tdd`, `diagnose`, `improve-archi
 
 So does review, since its step 3.3.6: `/pr-review` and the three gate agents — `code-reviewer` (inward: the credential boundary first, then correctness and the architecture invariants), `pr-reviewer` (outward: scope, fidelity, the honesty of the PR body, hygiene), each with a reference for this repo, and `mcp-contract-qa` (the published surface, with executed evidence: the round trip, agent-fitness, additive evolution, the boundary at egress). The `qa` skill and the `api-qa` agent that sat here were xcale-backend's copies, running backend scenarios; they are retired — `mcp-contract-qa` and the suite cover this surface.
 
+So does the autonomous pipeline, since its step 3.3.7: `/implement` builds a scoped change in a worktree of this repo, runs those three gates and merges into `dev` when they pass and CI `verify` is green; what differs here — reach, the protected `dev`, the ban on `--admin` — is in its [`references/xcale-mcp-server.md`](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/implement/references/xcale-mcp-server.md). The contract probe stays in this repo as a test asset: `scripts/contract-probe.mjs`.
+
 ### 🔨 Build
 
 | Skill | Use it to | Status |
@@ -31,12 +33,6 @@ So does review, since its step 3.3.6: `/pr-review` and the three gate agents —
 | Skill | Use it to | Status |
 |:--|:--|:--|
 | **add-provider** | The **mechanical recipe** to onboard a new provider as a thin MCP adapter — the system's core leverage (`foundation.md` §9). | ✅ native to this repo |
-
-### 🔍 Review & QA
-
-| Skill | Use it to | Status |
-|:--|:--|:--|
-| **agentic-ship** | Build a scoped change in an isolated worktree, run it past three independent gate agents, auto-merge to `dev`. The human gate stays at `dev → main`. | ✅ native to this repo (ported from `xcale-backend`, with its three gates re-decided here) |
 
 ### 📝 Document & iterate with the agent
 
@@ -68,7 +64,7 @@ grill ─▶ feature-design ─▶ api-contract-authoring ─▶ implementation-
   └────────────────────── adr (whenever a durable decision is locked) ──────────────────────────────────────────────┘
 ```
 
-Or, fully autonomously — `/agentic-ship` runs the build and the gates and merges to `dev` itself:
+Or, fully autonomously — the layer's `/implement` runs the build and the gates and merges to `dev` itself:
 
 ```
 worktree from dev ─▶ implementer subagent ─▶ PR ─▶ code-reviewer ┐
