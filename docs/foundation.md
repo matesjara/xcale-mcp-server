@@ -1,7 +1,9 @@
 # xcale-mcp-server — Foundation Document ("Composio LATAM")
 
-> **Status:** Foundational / pre-implementation. This is the founding pillar for the
-> architectural design and development of the system. No runtime code exists yet.
+> **Status:** Foundational; the system is built and runs in production. This file remains the
+> founding pillar — the vision and principles the system was designed from — and does not
+> track what runs today: the Status block of [`README.md`](../README.md) does, in one place.
+> Where this document and the code differ, the code is the truth.
 > **Type:** Vision + architecture seed + first functional requirements.
 > **Owner:** Juan José (design lead) · in coordination with the xcale team (Mateo, founder).
 > **Created:** 2026-06-18
