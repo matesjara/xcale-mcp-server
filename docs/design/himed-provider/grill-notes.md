@@ -97,7 +97,14 @@ and a branch in the materializer that inserts the secret into the JSON body befo
   Static pre-hashed → fits body-placement (no imperative ADR). Computed per request → signed auth → conditional ADR.
 - **Q2 (commercial · founder):** who pays for the HiMed API Key and how much (COP)?
   The sandbox requires a paid key; the endpoints/docs are free.
-- **Q3 — RESOLVED (2026-09-15):** phase 1 **includes** creating/updating patients. See D3. (Tied to Q4: PHI field curation.)
+- **Q3 (product) — RESOLVED (2026-09-15):** does phase 1 include patient writes (create/update), or does it
+  start read-only?
+
+  _Decision:_ phase 1 **includes** creating/updating patients (`create_patient`, `update_patient`, `change_patient_document`).
+
+  _Why:_ creating an appointment (phase 2) **requires the patient to already exist** in HiMed, so patient
+  creation must land in phase 1 — starting read-only would strand phase 2 with a half-built dependency. Being
+  PHI writes, these tools go with field curation (see Q4). See D3.
 - **Q4 (security · PHI) — OPEN:** results carry health data (names, document, phone, email, address, birth
   date) that enters the LLM context and the stored conversation. soul.md #1.
 
