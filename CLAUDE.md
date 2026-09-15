@@ -2,8 +2,11 @@
 
 > **Open xcale sessions in the xcale layer**, `~/Documents/Projects/xcale` — the folder that holds this
 > repo ([xcale-harness](https://github.com/matesjara/xcale-harness)). The team's harness lives there: the
-> working policy, `/handoff`, how to report to Mateo, this repo's identity rule and, step by step, what this repo's `.claude/` still
-> carries. A session opened inside this repo reads the layer's `CLAUDE.md` and working policy, but none of
+> working policy, `/handoff`, how to report to Mateo, this repo's identity rule, the design flow (`/grill`, `/feature-design`,
+> `/api-contract-authoring`, `/implementation-plan`, `/adr`, and the `architect` agent), the engineering discipline
+> (`/git-workflow`, `/tdd`, `/diagnose`, `/improve-architecture`, `/creating-skills`, and the `debugger` and `prod-debugger`
+> agents), review (`/pr-review`, and the `code-reviewer`, `pr-reviewer` and `mcp-contract-qa` agents), the autonomous pipeline (`/implement`) and, step by step, what this repo's
+> `.claude/` still carries. A session opened inside this repo reads the layer's `CLAUDE.md` and working policy, but none of
 > its skills or hooks.
 
 xcale's own MCP integration platform (a "Composio LATAM"). Provider knowledge lives here;
@@ -57,28 +60,33 @@ notes) — may be written in Spanish. Anything external-facing, contract-adjacen
 
 ## Git workflow
 
+- **How code moves** — the xcale layer's [`/git-workflow`](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/git-workflow/SKILL.md),
+  with this repo's checks, deploy, gates and scopes in its
+  [`references/xcale-mcp-server.md`](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/git-workflow/references/xcale-mcp-server.md).
 - `main` (default, protected: PR + CI `verify` green, no direct or force pushes) · `dev`
   (protected: same). Implementation: feature branch → PR → `dev`; release: `dev` → `main` PR.
   Repo: https://github.com/matesjara/xcale-mcp-server
 - **Working policy** — [`.claude/rules/working-policy.md` in xcale-harness](https://github.com/matesjara/xcale-harness/blob/main/.claude/rules/working-policy.md) (always loaded, from
   the xcale layer): done means merged into `dev`, merges into `dev` by Mateo or by
-  `/agentic-ship` after its gates, nobody merges their own work, merge commits, the state labels,
+  `/implement` after its gates, nobody merges their own work, merge commits, the state labels,
   handoffs.
 - **Release owner** — Mateo (`matesjara`, CEO). He merges into `dev` and `main`; a release to
   `main` needs his explicit authorization for *that* release. Juan José opens PRs to `dev` and
   merges none (2026-09-13 — the self-merge into `dev` allowed on 2026-08-20 is retired).
 - **No required approvals on `dev` or `main`** (set 2026-08-20). On a personal-account repo a
   required approval is only met with `--admin` — an author cannot approve their own PR, and
-  `/agentic-ship` merges under Mateo's identity — so the enforced gate is PR + green CI, and **the
+  `/implement` merges under Mateo's identity — so the enforced gate is PR + green CI, and **the
   independent review is a team rule, not a machine rule**.
 - **Do not use `gh pr merge --admin`.** `enforce_admins` is still `false`, so with approvals at 0
   the only thing that flag still bypasses is a red build. Merge with `gh pr merge <n> --merge`
   once CI is green.
-- **Autonomous path** — `/agentic-ship` builds a scoped change in an isolated worktree and merges
+- **Autonomous path** — `/implement`, the xcale layer's pipeline, builds a scoped change in a worktree of this repo and merges
   it to `dev` on its own when three independent gate agents (`code-reviewer`, `pr-reviewer`,
-  `mcp-contract-qa`) all pass and CI `verify` is green. It never merges to `main`, never uses
+  `mcp-contract-qa`, all in the xcale layer) pass and CI `verify` is green. It never merges to `main`, never uses
   `--admin`, and escalates instead of merging anything that reaches `src/core|protocol|auth`.
-  ADR: `docs/adr/0017-agentic-auto-merge-to-dev.md`.
+  ADR: `docs/adr/0017-agentic-auto-merge-to-dev.md`; what differs here — reach, the green list — is the pipeline's
+  [`references/xcale-mcp-server.md`](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/implement/references/xcale-mcp-server.md).
+  Its contract probe is this repo's `scripts/contract-probe.mjs`.
 
 ## Deploy
 
