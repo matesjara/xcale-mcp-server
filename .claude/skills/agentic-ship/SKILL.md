@@ -25,9 +25,9 @@ to restate and expensive to re-derive.
 
 `xcale-backend`'s third gate is `api-qa`: it drives a Doppler-wrapped dev server with `curl`,
 logs in over `POST /api/users/login`, and asserts against the `{ success, data, error }` envelope.
-**None of that exists here** — no login, no Mongo, no envelope — and the copy of `api-qa` sitting
-in `.claude/agents/api-qa/` is the backend's file, unadapted. It is **not** a gate in this
-pipeline.
+**None of that exists here** — no login, no Mongo, no envelope — and the copy of `api-qa` that sat
+in this repo was the backend's file, unadapted (retired in the xcale layer's step 3.3.6). It is
+**not** a gate in this pipeline.
 
 Adapting it would also duplicate work already done better by CI. `src/protocol/__tests__/mcp.integration.test.ts`
 already boots the real Fastify app on an ephemeral port and drives it with a real MCP `Client` over
@@ -192,6 +192,8 @@ subagents and returns structured verdicts:
 | `contract-qa` | `mcp-contract-qa` | the published MCP surface — round trip, agent-fitness, additive evolution |
 
 `contract-qa` runs whenever `reach !== 'docs'`.
+
+The three agents live in the xcale layer since its step 3.3.6 (`~/Documents/Projects/xcale/.claude/agents/<name>/AGENT.md`, with a `references/xcale-mcp-server.md` for the two reviewers). A run started inside this repo cannot dispatch them by type: each gate is a general-purpose subagent told to follow the layer's file. The contract probe stays here, beside this pipeline.
 
 **A gate that returns nothing is `blocked`, never absent.** The workflow synthesizes a blocking
 verdict for any gate that crashed, timed out, or produced output the schema rejected — because step

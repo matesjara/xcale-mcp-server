@@ -5,7 +5,7 @@
 > working policy, `/handoff`, how to report to Mateo, this repo's identity rule, the design flow (`/grill`, `/feature-design`,
 > `/api-contract-authoring`, `/implementation-plan`, `/adr`, and the `architect` agent), the engineering discipline
 > (`/git-workflow`, `/tdd`, `/diagnose`, `/improve-architecture`, `/creating-skills`, and the `debugger` and `prod-debugger`
-> agents) and, step by step, what this repo's
+> agents), review (`/pr-review`, and the `code-reviewer`, `pr-reviewer` and `mcp-contract-qa` agents) and, step by step, what this repo's
 > `.claude/` still carries. A session opened inside this repo reads the layer's `CLAUDE.md` and working policy, but none of
 > its skills or hooks.
 
@@ -82,7 +82,7 @@ notes) — may be written in Spanish. Anything external-facing, contract-adjacen
   once CI is green.
 - **Autonomous path** — `/agentic-ship` builds a scoped change in an isolated worktree and merges
   it to `dev` on its own when three independent gate agents (`code-reviewer`, `pr-reviewer`,
-  `mcp-contract-qa`) all pass and CI `verify` is green. It never merges to `main`, never uses
+  `mcp-contract-qa`, all in the xcale layer) pass and CI `verify` is green. It never merges to `main`, never uses
   `--admin`, and escalates instead of merging anything that reaches `src/core|protocol|auth`.
   ADR: `docs/adr/0017-agentic-auto-merge-to-dev.md`.
 
