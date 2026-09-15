@@ -14,8 +14,12 @@ export const cloudbedsManifest: ProviderManifest = {
   // NOT bumped by the API-key connect method: `schemaVersion` keys the consumer's `tools/list`
   // cache, and that change adds a way IN, not a tool. `providerVersion` carries it instead — the
   // catalog entry (auth descriptors, connectionProbe) is read fresh at consumer bootstrap.
-  schemaVersion: '2026-08-06',
-  providerVersion: '0.7.0',
+  // Bumped again: three published tools now carry an `identityPolicy`, so `listTools()` output
+  // changed — the rule the paragraphs above keep restating. No tool was added or removed and no
+  // input schema moved, so a consumer that ignores the field sees exactly the menu it saw before;
+  // one that reads it can finally tell a guest lookup from a room-type read.
+  schemaVersion: '2026-09-15',
+  providerVersion: '0.8.0',
   logoUrl: '/assets/cloudbeds.svg',
   capabilities: { pagination: true },
   // A Cloudbeds token is scoped to its property; discover the propertyID via getHotels instead of
