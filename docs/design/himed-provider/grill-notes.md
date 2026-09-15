@@ -110,11 +110,18 @@ and a branch in the materializer that inserts the secret into the JSON body befo
   _What projection does NOT solve (still open):_
   - **Logs / storage:** even curated, it is still PHI in the LLM context and the stored conversation; ensure neither MCP nor backend logs raw results.
   - **Legal/consent (Mateo's call):** sending **sensitive** health data (Ley 1581, Colombian habeas data) to a US-based LLM has consent and data-residency implications. Not solved by code; may be a bigger blocker than `placement: 'body'`. Raise before sending PHI to production.
-- **Q5 (product + confirm with HiMed):** per the public docs there are **no webhooks / websockets / push** —
-  the model is **pull**, the client initiates every call (FAQ: "unilateral flow"). Note: the host is named
-  `socket.medsas.co` and the path carries `notificaciones`, but that is **misleading naming**, not a real-time
-  channel. Because the name is misleading, **confirm it directly with HiMed** before closing the design.
-  Implication if confirmed: appointment reminders ⇒ **polling** of `citasPaciente` (evaluate cost).
+- **Q5 (product) — RESOLVED (decision):** does HiMed push events (webhooks / websockets / real-time), or must
+  the client poll?
+
+  _Decision:_ **we use polling** for appointment reminders (poll `citasPaciente`).
+
+  _Why:_ HiMed's flow is **unilateral / pull-only** per its docs (FAQ: "unilateral flow") — it does not push
+  to the client, so there is no push channel to subscribe to. The `socket.medsas.co` host and the
+  `notificaciones` path are **misleading naming**, not a real-time channel.
+
+  _Note:_ this is decided from the public docs. A direct confirmation with HiMed is **optional / low-stakes** —
+  if we were wrong and a real-time channel existed, we would only miss an optimization, not be blocked (polling
+  is the fallback either way). Polling cost is evaluated at Phase 3 (reminders are a Should Have, not MVP).
 
 ## 6. How the integration works (end-to-end)
 
