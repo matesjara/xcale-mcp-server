@@ -414,9 +414,8 @@ export interface ProviderCallContext {
 5. **(Backend side)** add an `MCPToolboxDefinition` entry pointing at this server's
    `mcpServerUrl` and the provider slug; Rail A handles the connection.
 
-This recipe is captured as a repeatable Claude skill at
-`.claude/skills/add-provider/SKILL.md` and (optionally) a scaffold command at
-`.claude/commands/scaffold-provider.md`.
+This recipe is captured as a repeatable Claude skill, `add-provider`, which lives in the xcale layer
+([xcale-harness](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/add-provider/SKILL.md)).
 
 ### 9.3 Constraints that keep it mechanical
 

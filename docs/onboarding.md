@@ -47,8 +47,8 @@ src/providers/{slug}/
 └── __tests__/    # unit + conformance tests
 ```
 
-Run the repeatable recipe with the **`add-provider`** skill (`.claude/skills/add-provider/`), or
-scaffold the skeleton with **`/scaffold-provider <slug>`**. Checklist:
+Run the repeatable recipe with the xcale layer's **`add-provider`** skill
+([xcale-harness](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/add-provider/SKILL.md)). Checklist:
 
 1. Declare the `ProviderAuthDescriptor` (adaptive — only what the auth type needs; never secrets).
 2. Declare tools (`name`, `description`, `inputSchema` via zod) — **curate at author time**: only
@@ -70,6 +70,6 @@ scaffold the skeleton with **`/scaffold-provider <slug>`**. Checklist:
 
 ## The agent toolset
 
-This repo is self-contained for AI-assisted work — see **`.claude/README.md`** for the full set of
-skills (grill, feature-design, api-contract-authoring, implementation-plan, adr, tdd, add-provider,
-…), agents, and commands, grouped by purpose.
+AI-assisted work on this repo runs from the xcale layer ([xcale-harness](https://github.com/matesjara/xcale-harness)),
+the folder that holds this repo: its skills (grill, feature-design, api-contract-authoring, implementation-plan, adr,
+tdd, add-provider, …), agents and pipeline serve this repo, with a reference for it where it differs.
