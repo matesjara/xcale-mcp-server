@@ -5,9 +5,10 @@
 > working policy, `/handoff`, how to report to Mateo, this repo's identity rule, the design flow (`/grill`, `/feature-design`,
 > `/api-contract-authoring`, `/implementation-plan`, `/adr`, and the `architect` agent), the engineering discipline
 > (`/git-workflow`, `/tdd`, `/diagnose`, `/improve-architecture`, `/creating-skills`, and the `debugger` and `prod-debugger`
-> agents), review (`/pr-review`, and the `code-reviewer`, `pr-reviewer` and `mcp-contract-qa` agents), the autonomous pipeline (`/implement`), this repo's own skill (`add-provider`) and, in its step 3.3.9, the settings this repo's
-> `.claude/` still carries. A session opened inside this repo reads the layer's `CLAUDE.md` and working policy, but none of
-> its skills or hooks.
+> agents), review (`/pr-review`, and the `code-reviewer`, `pr-reviewer` and `mcp-contract-qa` agents), the autonomous pipeline
+> (`/implement`), this repo's own skill (`add-provider`), and the gates every command and edit goes through — guard,
+> secret scan, push gate, formatter, type check. A session opened inside this repo reads the layer's `CLAUDE.md` and
+> working policy, but none of its skills, and it runs without those gates.
 
 xcale's own MCP integration platform (a "Composio LATAM"). Provider knowledge lives here;
 consumers (xcale-backend first) consume capabilities over stable, consumer-agnostic MCP contracts.
