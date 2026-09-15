@@ -21,7 +21,7 @@ xcale-backend (MCP client)  ──/discover · tools/list · tools/call──▶
 ## Start here
 
 - [`docs/deploy.md`](docs/deploy.md) — what runs where, how a change reaches production.
-- [`docs/adr/README.md`](docs/adr/README.md) — the 16 decisions behind the shape (credential
+- [`docs/adr/README.md`](docs/adr/README.md) — the decisions behind the shape (credential
   delivery, statelessness, tool-derived scopes, control-plane tools, the audit gate…).
 - [`docs/design/`](docs/design/) — one folder per provider or protocol slice
   (`cloudbeds-*`, `toteat-provider`, `siigo-read-only-provider`, `protocol-skeleton`,

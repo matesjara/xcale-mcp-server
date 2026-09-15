@@ -270,9 +270,10 @@ xcale-mcp-server/
 └── .claude/                   ← agent rules, skills, agents, commands for this repo
 ```
 
-> The `src/` tree above is a **proposed** starting structure, not yet built. It mirrors the
-> "thin adapter per provider" shape described in the vision doc and is the seed for the first
-> implementation plan.
+> The `src/` tree above was the **proposed** starting structure, before anything was built. It
+> mirrored the "thin adapter per provider" shape described in the vision doc and was the seed
+> for the first implementation plan. The layout as built is described in
+> [`README.md` › Repo layout (current)](../README.md#repo-layout-current).
 
 ### 6.2 Request lifecycle (happy path)
 
