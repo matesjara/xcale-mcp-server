@@ -11,7 +11,7 @@ Full rationale, alternatives, and the responsibility split live in `docs/archite
 - **Create or modify an ADR only when a structural decision or a long-term principle changes.**
   Prefer **superseding** an old ADR (status `Superseded by …`) over editing its decision in place.
 - House convention: created unnumbered (`<slug>.md`, `# ADR: …`); the number is minted at merge
-  against `dev`. See `.claude/skills/adr/SKILL.md`.
+  against `dev`. See the xcale layer's [`/adr` skill](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/adr/references/xcale-mcp-server.md).
 
 ## Index
 
