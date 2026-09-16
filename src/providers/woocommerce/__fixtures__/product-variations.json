@@ -1,0 +1,32 @@
+[
+  {
+    "id": 101,
+    "description": "",
+    "permalink": "https://store.example.com/product/camiseta/?attribute_talla=S",
+    "sku": "CL-001-S",
+    "price": "100000",
+    "regular_price": "100000",
+    "sale_price": "",
+    "on_sale": false,
+    "status": "publish",
+    "manage_stock": true,
+    "stock_quantity": 10,
+    "stock_status": "instock",
+    "attributes": [{ "id": 1, "name": "Talla", "option": "S" }]
+  },
+  {
+    "id": 102,
+    "description": "",
+    "permalink": "https://store.example.com/product/camiseta/?attribute_talla=M",
+    "sku": "CL-001-M",
+    "price": "100000",
+    "regular_price": "100000",
+    "sale_price": "",
+    "on_sale": false,
+    "status": "publish",
+    "manage_stock": true,
+    "stock_quantity": 0,
+    "stock_status": "outofstock",
+    "attributes": [{ "id": 1, "name": "Talla", "option": "M" }]
+  }
+]

@@ -8,7 +8,7 @@
 ---
 
 > ### ⚠️ Evidence status (binding)
-> The concrete values in this contract (routes, field names, pagination headers, error codes) come from the **official WooCommerce REST API v3 documentation** (https://woocommerce.github.io/woocommerce-rest-api-docs/), **not** from a real execution yet. Before freezing the implementation they must be **verified against a test store** (see §8 Verification plan). Each table marks values not yet observed with `⏳`. This honors the "Evidence Before Contract" rule: the contract introduces no assumptions that cannot be confirmed.
+> **S0 partial (2026-09-14):** 7 of the 9 endpoints were verified against a real LocalWP WooCommerce sandbox (WC 11.1.0) — see [sandbox-evidence.md](sandbox-evidence.md). Confirmed: `list_products`, `get_product`, `list_categories`, `list_shipping_zones`, `get_shipping_zone_methods`, `list_orders`, plus the pagination headers and the 401 error shape. **Still `⏳` (unobserved):** `get_product_variations` (needs a variable product) and the `get_shipping_zone_locations` shape (the test zone had no regions; sandbox auth then got blocked). Those two stay documented from the official docs and must be confirmed at build time. Real findings (id/price typing, HTML descriptions, shipping-zone `id:0` catch-all, rate in `settings.cost.value`) are folded into the shapes below.
 
 ---
 
@@ -49,10 +49,10 @@ Namespaced `mcp_woocommerce_{verb}`. The zod `input` is the single source of tru
 
 | Tool | WooCommerce REST v3 endpoint | Input (zod) | Notes |
 |:--|:--|:--|:--|
-| `mcp_woocommerce_list_products` | `GET /wp-json/wc/v3/products` ⏳ | `{ search?, category?, stockStatus?, page?, pageSize? }` | `definePaginatedList`; catalog filters |
-| `mcp_woocommerce_get_product` | `GET /wp-json/wc/v3/products/{id}` ⏳ | `{ id: string }` | Detail; returns variation ids (read details via `get_product_variations`) |
-| `mcp_woocommerce_get_product_variations` | `GET /wp-json/wc/v3/products/{id}/variations` ⏳ | `{ id: string, page?, pageSize? }` | Per-variation price/stock (size/color) — answers "size M in stock?" |
-| `mcp_woocommerce_list_categories` | `GET /wp-json/wc/v3/products/categories` ⏳ | `{ page?, pageSize? }` | To filter/browse the catalog |
+| `mcp_woocommerce_list_products` | `GET /wp-json/wc/v3/products` | `{ search?, category?, stockStatus?, page?, pageSize? }` | `definePaginatedList`; catalog filters — **implemented S2** |
+| `mcp_woocommerce_get_product` | `GET /wp-json/wc/v3/products/{id}` | `{ id: string }` | Detail; description stripped to plain text; returns variation ids — **implemented S3** |
+| `mcp_woocommerce_get_product_variations` | `GET /wp-json/wc/v3/products/{id}/variations` ⏳ | `{ id: string, page?, pageSize? }` | Per-variation price/stock (size/color) — **implemented S3** (shape `⏳`, from docs) |
+| `mcp_woocommerce_list_categories` | `GET /wp-json/wc/v3/products/categories` | `{ page?, pageSize? }` | To filter/browse the catalog — **implemented S3** |
 | `mcp_woocommerce_list_shipping_zones` | `GET /wp-json/wc/v3/shipping/zones` ⏳ | `{}` | Configured shipping zones |
 | `mcp_woocommerce_get_shipping_zone_locations` | `GET /wp-json/wc/v3/shipping/zones/{id}/locations` ⏳ | `{ id: string }` | Countries/states/postcodes of a zone — answers "do you ship to my city?" |
 | `mcp_woocommerce_get_shipping_zone_methods` | `GET /wp-json/wc/v3/shipping/zones/{id}/methods` ⏳ | `{ id: string }` | Methods + **base rates** for a zone (not a cart-accurate quote — see §2 note) |

@@ -6,6 +6,9 @@ import type { ProviderCallContext, ToolResult } from '../../../core/types';
 import { createWoocommerceProvider } from '../provider';
 
 import productsList from '../__fixtures__/products-list.json';
+import productGet from '../__fixtures__/product-get.json';
+import productVariations from '../__fixtures__/product-variations.json';
+import categoriesList from '../__fixtures__/categories-list.json';
 
 const CTX: ProviderCallContext = {
   credential: { secret: new SecretString('ck_test:cs_test') },
@@ -109,5 +112,79 @@ describe('woocommerce provider — list_products', () => {
     if (result.kind === 'error') {
       expect(result.code).toBe('PROVIDER_AUTH_EXPIRED');
     }
+  });
+});
+
+describe('woocommerce provider — get_product', () => {
+  it('fetches products/{id} and returns curated detail with description stripped to plain text', async () => {
+    const { provider: p, calls } = provider(productGet);
+    const result = await p.callTool('mcp_woocommerce_get_product', { id: '12' }, CTX);
+
+    expect(calls[0]).toContain('https://store.example.com/wp-json/wc/v3/products/12');
+    const data = successData(result) as {
+      id: string;
+      sku: string | null;
+      description: string;
+      categories: { id: string; name: string }[];
+      images: { src: string }[];
+      variations: string[];
+    };
+    expect(data.id).toBe('12');
+    expect(data.sku).toBe('CL-001');
+    // HTML tags and entities are gone; text is collapsed.
+    expect(data.description).toBe(
+      'Camiseta marfil en jersey premium. 100% Algodón & alto gramaje.',
+    );
+    expect(data.description).not.toContain('<');
+    expect(data.categories[0]).toEqual({ id: '15', name: 'Uncategorized' });
+    expect(data.images[0]?.src).toContain('96541-1.webp');
+    expect(data.variations).toEqual([]);
+  });
+});
+
+describe('woocommerce provider — get_product_variations', () => {
+  it('fetches products/{id}/variations and returns curated variations (attributes + per-variation stock)', async () => {
+    const { provider: p, calls } = provider(productVariations);
+    const result = await p.callTool('mcp_woocommerce_get_product_variations', { id: '12' }, CTX);
+
+    expect(calls[0]).toContain('https://store.example.com/wp-json/wc/v3/products/12/variations');
+    const data = successData(result) as {
+      items: {
+        id: string;
+        attributes: { name: string; option: string }[];
+        stockStatus: string;
+      }[];
+    };
+    expect(data.items).toHaveLength(2);
+    expect(data.items[0]).toEqual({
+      id: '101',
+      attributes: [{ name: 'Talla', option: 'S' }],
+      price: '100000',
+      stockStatus: 'instock',
+      stockQuantity: 10,
+    });
+    expect(data.items[1]?.stockStatus).toBe('outofstock');
+  });
+});
+
+describe('woocommerce provider — list_categories', () => {
+  it('fetches products/categories and returns curated categories (parent normalized)', async () => {
+    const { provider: p, calls } = provider(categoriesList);
+    const result = await p.callTool('mcp_woocommerce_list_categories', {}, CTX);
+
+    expect(calls[0]).toContain('https://store.example.com/wp-json/wc/v3/products/categories');
+    const data = successData(result) as {
+      items: { id: string; name: string; parent: string | null; count: number }[];
+    };
+    expect(data.items).toHaveLength(2);
+    // parent 0 → null (top-level); parent 15 → "15".
+    expect(data.items[0]).toEqual({
+      id: '15',
+      name: 'Uncategorized',
+      slug: 'uncategorized',
+      parent: null,
+      count: 1,
+    });
+    expect(data.items[1]?.parent).toBe('15');
   });
 });
