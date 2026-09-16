@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { ProviderErrorCode } from './errors';
 import { type ToolDefinition, type ToolHandlerContext, defineTool, err, ok } from './tool';
+import type { ToolIdentityPolicy } from './types';
 
 export const DEFAULT_PAGE_SIZE = 25;
 export const MAX_PAGE_SIZE = 100;
@@ -73,6 +74,17 @@ export function definePaginatedList<I extends z.ZodObject<z.ZodRawShape>, T, M =
   input: I;
   /** Forwarded verbatim — a list tool declares its scopes exactly like any other (see `ToolDefinition`). */
   requiredScopes?: readonly string[];
+  /**
+   * Forwarded verbatim, for the same reason — and it is the list tools that need it most: a
+   * paginated search is exactly the shape that reaches many people at once.
+   *
+   * **This helper re-declares its parameter type rather than deriving it from `ToolDefinition`, so
+   * every new declarative field has to be added HERE as well or it is silently dropped for every
+   * paginated tool.** That is how this one first arrived: `search_guests` declared a policy, the
+   * published tool carried none, and nothing failed — only a contract test over `listTools()`
+   * caught it. A field that is declared and not published is worse than one nobody declared.
+   */
+  identityPolicy?: ToolIdentityPolicy;
   handler: (
     args: z.infer<I> & PaginationInput,
     ctx: ToolHandlerContext<M>,
@@ -85,6 +97,7 @@ export function definePaginatedList<I extends z.ZodObject<z.ZodRawShape>, T, M =
     description: def.description,
     input: mergedInput,
     ...(def.requiredScopes ? { requiredScopes: def.requiredScopes } : {}),
+    ...(def.identityPolicy ? { identityPolicy: def.identityPolicy } : {}),
     handler: async (args, ctx) => {
       const result = await def.handler(args as z.infer<I> & PaginationInput, ctx);
       if (!result.ok) {
