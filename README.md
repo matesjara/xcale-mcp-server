@@ -74,8 +74,7 @@ xcale-mcp-server/
 │   └── providers/              ← cloudbeds · toteat · siigo · echo (explicit list in index.ts)
 ├── docs/                       ← deploy.md, adr/, design/<slug>/, foundation.md, security/
 ├── scripts/ · assets/          ← tooling; logos served at /assets
-├── Dockerfile · doppler.yaml   ← runs `src/server.ts` under tsx, no build step
-└── .claude/                    ← agent rules, skills (add-provider), agents, commands
+└── Dockerfile · doppler.yaml   ← runs `src/server.ts` under tsx, no build step
 ```
 
 ## Conventions
