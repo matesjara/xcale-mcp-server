@@ -157,6 +157,72 @@ function toCategory(c: RawCategory): WooCategory {
 }
 
 // ---------------------------------------------------------------------------
+// Shipping (zones/locations/methods are NOT paginated — WooCommerce returns the full set)
+// ---------------------------------------------------------------------------
+
+interface RawShippingZone {
+  readonly id: number;
+  readonly name: string;
+  readonly order: number;
+}
+
+/** Curated shipping zone. WooCommerce always includes zone `id:0` = "rest of world" (catch-all). */
+export interface WooShippingZone {
+  readonly id: string;
+  readonly name: string;
+  readonly order: number;
+}
+
+function toShippingZone(zone: RawShippingZone): WooShippingZone {
+  return { id: String(zone.id), name: zone.name, order: zone.order };
+}
+
+// Zone → location shape is ⏳ (unobserved in S0 — the test zone had no regions; documented form).
+interface RawShippingZoneLocation {
+  readonly code: string;
+  readonly type: string;
+}
+
+/** A location a zone covers. `type` is `country | state | postcode | continent`. */
+export interface WooShippingZoneLocation {
+  readonly type: string;
+  readonly code: string;
+}
+
+function toShippingZoneLocation(l: RawShippingZoneLocation): WooShippingZoneLocation {
+  return { type: l.type, code: l.code };
+}
+
+interface RawShippingZoneMethod {
+  readonly id: number;
+  readonly method_id: string;
+  readonly title: string;
+  readonly enabled: boolean;
+  readonly settings?: { cost?: { value?: string } };
+}
+
+/**
+ * Curated shipping method. `baseCost` is the CONFIGURED base rate (`settings.cost.value`), NOT a
+ * cart-accurate quote — it may even be a formula (e.g. `10.00 * [qty]`). `free_shipping` has no
+ * cost (null); its minimum-order threshold lives in settings and is out of the v1 shape (R-6).
+ */
+export interface WooShippingZoneMethod {
+  readonly methodId: string;
+  readonly title: string;
+  readonly enabled: boolean;
+  readonly baseCost: string | null;
+}
+
+function toShippingZoneMethod(m: RawShippingZoneMethod): WooShippingZoneMethod {
+  return {
+    methodId: m.method_id,
+    title: m.title,
+    enabled: m.enabled,
+    baseCost: m.settings?.cost?.value ?? null,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Inputs
 // ---------------------------------------------------------------------------
 
@@ -171,6 +237,8 @@ const listProductsInput = z
 const getProductInput = z.object({ id: z.string().min(1) }).strict();
 const getProductVariationsInput = z.object({ id: z.string().min(1) }).strict();
 const listCategoriesInput = z.object({}).strict();
+const noArgsInput = z.object({}).strict();
+const getShippingZoneInput = z.object({ id: z.string().min(1) }).strict();
 
 /**
  * Build the WooCommerce read tool set (v1). Catalog (S2–S3): products, product detail, variations,
@@ -265,6 +333,49 @@ export function buildWoocommerceTools(
         }
         const items = (res.data as RawCategory[]).map(toCategory);
         return { ok: true, items };
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_list_shipping_zones`,
+      description:
+        'List the store\'s configured shipping zones (includes the "rest of world" zone, id 0).',
+      input: noArgsInput,
+      handler: async (_args, ctx) => {
+        const res = await client.get('shipping/zones', ctx.request, ctx.metadata);
+        if (!res.ok) return err(res.errorCode, `WooCommerce error (HTTP ${res.status})`);
+        return ok((res.data as RawShippingZone[]).map(toShippingZone));
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_get_shipping_zone_locations`,
+      description:
+        'List the geographic locations (countries/states/postcodes) a shipping zone covers.',
+      input: getShippingZoneInput,
+      handler: async (args, ctx) => {
+        const res = await client.get(
+          `shipping/zones/${args.id}/locations`,
+          ctx.request,
+          ctx.metadata,
+        );
+        if (!res.ok) return err(res.errorCode, `WooCommerce error (HTTP ${res.status})`);
+        return ok((res.data as RawShippingZoneLocation[]).map(toShippingZoneLocation));
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_get_shipping_zone_methods`,
+      description: 'List the shipping methods and their base rates available for a shipping zone.',
+      input: getShippingZoneInput,
+      handler: async (args, ctx) => {
+        const res = await client.get(
+          `shipping/zones/${args.id}/methods`,
+          ctx.request,
+          ctx.metadata,
+        );
+        if (!res.ok) return err(res.errorCode, `WooCommerce error (HTTP ${res.status})`);
+        return ok((res.data as RawShippingZoneMethod[]).map(toShippingZoneMethod));
       },
     }),
   ];

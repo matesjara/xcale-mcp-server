@@ -9,6 +9,9 @@ import productsList from '../__fixtures__/products-list.json';
 import productGet from '../__fixtures__/product-get.json';
 import productVariations from '../__fixtures__/product-variations.json';
 import categoriesList from '../__fixtures__/categories-list.json';
+import shippingZones from '../__fixtures__/shipping-zones.json';
+import shippingMethods from '../__fixtures__/shipping-methods.json';
+import shippingLocations from '../__fixtures__/shipping-locations.json';
 
 const CTX: ProviderCallContext = {
   credential: { secret: new SecretString('ck_test:cs_test') },
@@ -186,5 +189,59 @@ describe('woocommerce provider — list_categories', () => {
       count: 1,
     });
     expect(data.items[1]?.parent).toBe('15');
+  });
+});
+
+describe('woocommerce provider — shipping', () => {
+  it('list_shipping_zones returns curated zones including the id:0 catch-all', async () => {
+    const { provider: p, calls } = provider(shippingZones);
+    const result = await p.callTool('mcp_woocommerce_list_shipping_zones', {}, CTX);
+
+    expect(calls[0]).toContain('https://store.example.com/wp-json/wc/v3/shipping/zones');
+    const zones = successData(result) as { id: string; name: string; order: number }[];
+    expect(zones).toHaveLength(2);
+    expect(zones[0]?.id).toBe('0');
+    expect(zones[1]).toEqual({ id: '1', name: 'Quindio', order: 0 });
+  });
+
+  it('get_shipping_zone_methods curates methodId/title/enabled and baseCost from settings.cost.value', async () => {
+    const { provider: p, calls } = provider(shippingMethods);
+    const result = await p.callTool('mcp_woocommerce_get_shipping_zone_methods', { id: '1' }, CTX);
+
+    expect(calls[0]).toContain('https://store.example.com/wp-json/wc/v3/shipping/zones/1/methods');
+    const methods = successData(result) as {
+      methodId: string;
+      enabled: boolean;
+      baseCost: string | null;
+    }[];
+    // free_shipping has no cost → null; flat_rate exposes its base rate.
+    expect(methods[0]).toEqual({
+      methodId: 'free_shipping',
+      title: 'Free shipping',
+      enabled: true,
+      baseCost: null,
+    });
+    expect(methods[1]).toEqual({
+      methodId: 'flat_rate',
+      title: 'Flat rate',
+      enabled: true,
+      baseCost: '18000',
+    });
+  });
+
+  it('get_shipping_zone_locations returns curated {type, code} (shape ⏳, from docs)', async () => {
+    const { provider: p, calls } = provider(shippingLocations);
+    const result = await p.callTool(
+      'mcp_woocommerce_get_shipping_zone_locations',
+      { id: '1' },
+      CTX,
+    );
+
+    expect(calls[0]).toContain(
+      'https://store.example.com/wp-json/wc/v3/shipping/zones/1/locations',
+    );
+    const locations = successData(result) as { type: string; code: string }[];
+    expect(locations[0]).toEqual({ type: 'country', code: 'CO' });
+    expect(locations[1]?.type).toBe('state');
   });
 });

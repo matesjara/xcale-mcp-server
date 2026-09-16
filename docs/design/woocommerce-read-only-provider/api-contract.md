@@ -53,9 +53,9 @@ Namespaced `mcp_woocommerce_{verb}`. The zod `input` is the single source of tru
 | `mcp_woocommerce_get_product` | `GET /wp-json/wc/v3/products/{id}` | `{ id: string }` | Detail; description stripped to plain text; returns variation ids — **implemented S3** |
 | `mcp_woocommerce_get_product_variations` | `GET /wp-json/wc/v3/products/{id}/variations` ⏳ | `{ id: string, page?, pageSize? }` | Per-variation price/stock (size/color) — **implemented S3** (shape `⏳`, from docs) |
 | `mcp_woocommerce_list_categories` | `GET /wp-json/wc/v3/products/categories` | `{ page?, pageSize? }` | To filter/browse the catalog — **implemented S3** |
-| `mcp_woocommerce_list_shipping_zones` | `GET /wp-json/wc/v3/shipping/zones` ⏳ | `{}` | Configured shipping zones |
-| `mcp_woocommerce_get_shipping_zone_locations` | `GET /wp-json/wc/v3/shipping/zones/{id}/locations` ⏳ | `{ id: string }` | Countries/states/postcodes of a zone — answers "do you ship to my city?" |
-| `mcp_woocommerce_get_shipping_zone_methods` | `GET /wp-json/wc/v3/shipping/zones/{id}/methods` ⏳ | `{ id: string }` | Methods + **base rates** for a zone (not a cart-accurate quote — see §2 note) |
+| `mcp_woocommerce_list_shipping_zones` | `GET /wp-json/wc/v3/shipping/zones` | `{}` | Configured zones (incl. `id:0` catch-all); not paginated — **implemented S4** |
+| `mcp_woocommerce_get_shipping_zone_locations` | `GET /wp-json/wc/v3/shipping/zones/{id}/locations` ⏳ | `{ id: string }` | Countries/states/postcodes of a zone — **implemented S4** (shape `⏳`, from docs) |
+| `mcp_woocommerce_get_shipping_zone_methods` | `GET /wp-json/wc/v3/shipping/zones/{id}/methods` | `{ id: string }` | Methods + **base rates** (`baseCost` from `settings.cost.value`, may be a formula — not a cart quote, R-6); not paginated — **implemented S4** |
 | `mcp_woocommerce_list_orders` | `GET /wp-json/wc/v3/orders` ⏳ | `{ status?, after?, before?, page?, pageSize? }` | Owner use; filters by status/date |
 | `mcp_woocommerce_get_order` | `GET /wp-json/wc/v3/orders/{id}` ⏳ | `{ id: string }` | Order detail |
 
