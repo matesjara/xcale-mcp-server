@@ -211,7 +211,7 @@ connected ──401/403 on a call──▶ auth_failed ──reconnect──▶ 
 | AD-6 | Backend connect | Reuse `registerCredentialProvider` (`api_key` method) | Existing rail (Shopify-token/Toteat precedent); no new rail |
 | AD-7 | Error mapping | 401/403 → `PROVIDER_AUTH_EXPIRED` | Typed error contract; triggers reconnect in Rail A |
 | AD-8 | Credential posture | **Read-only** key in v1 | v1 only reads; minimal surface if leaked |
-| AD-9 | Pagination | `definePaginatedList` (uniform result) | Consistency with the tool catalog |
+| AD-9 | Pagination | `definePaginatedList` (uniform result); **v1 omits totals — Option A** | Consistency with the tool catalog. WooCommerce returns totals in response headers, which the core transport does not surface; list tools return `items`+`page`+`pageSize` without `totalPages`/`totalResults`. Exposing headers is a core change deferred to its own ADR. See api-contract §1.5 |
 
 ---
 

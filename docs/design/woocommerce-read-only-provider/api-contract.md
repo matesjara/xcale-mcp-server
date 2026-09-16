@@ -150,7 +150,9 @@ interface WooShippingZoneMethod {
 
 ### 1.5 Pagination
 
-WooCommerce paginates with `page` + `per_page` (max 100 ⏳) and returns the total in the `X-WP-Total` and `X-WP-TotalPages` headers ⏳. The client reads those headers and `definePaginatedList` produces the catalog's uniform `PaginatedResult` (`{ items, page, pageSize, total? }`). The `pageSize → per_page` mapping is done by the helper.
+WooCommerce paginates with `page` + `per_page` (max 100) and returns the totals in the `X-WP-Total` and `X-WP-TotalPages` response **headers** (confirmed in S0). List tools use `definePaginatedList`, which merges the uniform `page`/`pageSize` input and wraps the handler's items into the uniform `PaginatedResult`. The `pageSize → per_page` mapping is done by the tool.
+
+> **v1 decision — Option A (no totals) [implemented S2]:** the core HTTP transport (`sendRequest` in `src/core/http.ts`) returns only the parsed body (`{ status, data }`), **not** the response headers — so the provider cannot read `X-WP-Total`/`X-WP-TotalPages`. List tools therefore return `{ items, page, pageSize }` and **omit** `totalPages`/`totalResults` (and thus `hasMore`), which `buildPage` permits. Surfacing headers would be a core-transport change (its own ADR); deferred until a real need. The agent still gets the full page of items.
 
 ---
 
