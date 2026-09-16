@@ -36,6 +36,10 @@ function assertAuthDescriptorShape(auth: ProviderAuthDescriptor, label: string):
         `${label}: credential_exchange.responseFields.token`,
       ).toBeGreaterThan(0);
       break;
+    case 'basic':
+      // No fields to assert — Basic carries only the (consumer-composed) key:secret at runtime;
+      // the descriptor is pure marker data. The serializability check below still applies.
+      break;
     default:
       assertNever(auth);
   }

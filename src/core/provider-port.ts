@@ -24,6 +24,17 @@ export type ProviderAuthDescriptor =
       }>;
     }
   | {
+      /**
+       * HTTP Basic auth (WooCommerce-class): a single composed `key:secret` credential is
+       * Base64-encoded into the `Authorization: Basic …` header. The two provider secrets are
+       * joined by the consumer (Rail A) before forwarding; this server stays single-secret and
+       * only encodes. No `fields` — Basic always targets the `Authorization` header. See ADR 0018
+       * (basic-http-auth-scheme).
+       */
+      readonly type: 'basic';
+      readonly credentialDelivery?: CredentialDelivery;
+    }
+  | {
       readonly type: 'oauth2';
       readonly credentialDelivery?: CredentialDelivery;
       readonly authorizationUrl: string;
