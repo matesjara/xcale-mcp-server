@@ -8,7 +8,7 @@
 ---
 
 > ### ⚠️ Evidence status (binding)
-> **S0 partial (2026-09-14):** 7 of the 9 endpoints were verified against a real LocalWP WooCommerce sandbox (WC 11.1.0) — see [sandbox-evidence.md](sandbox-evidence.md). Confirmed: `list_products`, `get_product`, `list_categories`, `list_shipping_zones`, `get_shipping_zone_methods`, `list_orders`, plus the pagination headers and the 401 error shape. **Still `⏳` (unobserved):** `get_product_variations` (needs a variable product) and the `get_shipping_zone_locations` shape (the test zone had no regions; sandbox auth then got blocked). Those two stay documented from the official docs and must be confirmed at build time. Real findings (id/price typing, HTML descriptions, shipping-zone `id:0` catch-all, rate in `settings.cost.value`) are folded into the shapes below.
+> **S0 complete (2026-09-17):** all **9 endpoints** were verified against a real LocalWP WooCommerce sandbox (WC 11.1.0) — see [sandbox-evidence.md](sandbox-evidence.md). The last two shapes were confirmed on 2026-09-17: `get_product_variations` (against a variable product — `{ id, attributes:[{name,option}], price, stock }`) and `get_shipping_zone_locations` (`{ type, code }`, type `continent|country|state`). Real findings folded into the shapes below: id/price typing, HTML descriptions, shipping-zone `id:0` catch-all, rate in `settings.cost.value`, pagination headers, and the 401 error shape. Any remaining inline `⏳` hints in the illustrative code blocks are superseded by the implemented types in `src/providers/woocommerce/`.
 
 ---
 
@@ -51,10 +51,10 @@ Namespaced `mcp_woocommerce_{verb}`. The zod `input` is the single source of tru
 |:--|:--|:--|:--|
 | `mcp_woocommerce_list_products` | `GET /wp-json/wc/v3/products` | `{ search?, category?, stockStatus?, page?, pageSize? }` | `definePaginatedList`; catalog filters — **implemented S2** |
 | `mcp_woocommerce_get_product` | `GET /wp-json/wc/v3/products/{id}` | `{ id: string }` | Detail; description stripped to plain text; returns variation ids — **implemented S3** |
-| `mcp_woocommerce_get_product_variations` | `GET /wp-json/wc/v3/products/{id}/variations` ⏳ | `{ id: string, page?, pageSize? }` | Per-variation price/stock (size/color) — **implemented S3** (shape `⏳`, from docs) |
+| `mcp_woocommerce_get_product_variations` | `GET /wp-json/wc/v3/products/{id}/variations` | `{ id: string, page?, pageSize? }` | Per-variation price/stock (size/color) — **implemented S3**, shape confirmed |
 | `mcp_woocommerce_list_categories` | `GET /wp-json/wc/v3/products/categories` | `{ page?, pageSize? }` | To filter/browse the catalog — **implemented S3** |
 | `mcp_woocommerce_list_shipping_zones` | `GET /wp-json/wc/v3/shipping/zones` | `{}` | Configured zones (incl. `id:0` catch-all); not paginated — **implemented S4** |
-| `mcp_woocommerce_get_shipping_zone_locations` | `GET /wp-json/wc/v3/shipping/zones/{id}/locations` ⏳ | `{ id: string }` | Countries/states/postcodes of a zone — **implemented S4** (shape `⏳`, from docs) |
+| `mcp_woocommerce_get_shipping_zone_locations` | `GET /wp-json/wc/v3/shipping/zones/{id}/locations` | `{ id: string }` | Continent/country/state a zone covers — **implemented S4**, shape confirmed |
 | `mcp_woocommerce_get_shipping_zone_methods` | `GET /wp-json/wc/v3/shipping/zones/{id}/methods` | `{ id: string }` | Methods + **base rates** (`baseCost` from `settings.cost.value`, may be a formula — not a cart quote, R-6); not paginated — **implemented S4** |
 | `mcp_woocommerce_list_orders` | `GET /wp-json/wc/v3/orders` | `{ status?, after?, before?, page?, pageSize? }` | Owner use; filters by status/date — **implemented S5** |
 | `mcp_woocommerce_get_order` | `GET /wp-json/wc/v3/orders/{id}` | `{ id: string }` | Detail: line items + condensed `customer` (contact + shipping address) — **implemented S5** |
@@ -134,13 +134,13 @@ interface WooCategory { id: string; name: string; slug: string; parent?: string;
 
 interface WooProductVariation {
   id: string;
-  attributes: { name: string; option: string }[]; // e.g. [{ name: 'Size', option: 'M' }] ⏳
+  attributes: { name: string; option: string }[]; // confirmed: [{ name: 'Talla', option: 'S' }]
   price: string;
-  stockStatus: string;      // ⏳
+  stockStatus: string;      // 'instock' | 'outofstock' | 'onbackorder'
   stockQuantity?: number | null;
 }
 interface WooShippingZone { id: string; name: string; order?: number }
-interface WooShippingZoneLocation { type: string; code: string } // type: 'country' | 'state' | 'postcode' | 'continent' ⏳
+interface WooShippingZoneLocation { type: string; code: string } // confirmed type: 'continent' | 'country' | 'state' (e.g. code "CO:CO-QUI")
 interface WooShippingZoneMethod {
   id: string;
   methodId: string;         // 'flat_rate' | 'free_shipping' | 'local_pickup' ⏳

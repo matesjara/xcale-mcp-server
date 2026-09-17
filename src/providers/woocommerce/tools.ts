@@ -96,7 +96,7 @@ function toProductDetail(p: RawProductDetail): WooProductDetail {
 }
 
 // ---------------------------------------------------------------------------
-// Variations (⏳ shape from official docs — not yet confirmed against a variable product; see S0)
+// Variations (shape confirmed against a real variable product — S0)
 // ---------------------------------------------------------------------------
 
 interface RawVariation {
@@ -178,7 +178,8 @@ function toShippingZone(zone: RawShippingZone): WooShippingZone {
   return { id: String(zone.id), name: zone.name, order: zone.order };
 }
 
-// Zone → location shape is ⏳ (unobserved in S0 — the test zone had no regions; documented form).
+// Zone → location shape confirmed against the sandbox (S0): { code, type } with
+// type = continent | country | state (e.g. state code "CO:CO-QUI").
 interface RawShippingZoneLocation {
   readonly code: string;
   readonly type: string;

@@ -53,17 +53,22 @@
 - `definePaginatedList` lee esos headers para el `total`. Máximo `per_page` documentado como 100 (no estresado aún).
 
 ### `GET /shipping/zones/{id}/locations`
-- ⚠️ Devolvió `[]` para la zona 1 ("Quindio") — la zona **no tiene regiones asignadas**. El endpoint responde, pero la forma real de `{ type, code }` **queda sin observar** hasta asignarle una región.
+- ✅ **Confirmado (2026-09-17)** con una región asignada. Forma real: `{ code, type }` con `type` = `continent | country | state`. Ejemplo: `{code:"SA",type:"continent"}`, `{code:"CO",type:"country"}`, `{code:"CO:CO-QUI",type:"state"}` (el código de estado es `PAIS:ESTADO`).
+
+### `GET /products/{id}/variations`
+- ✅ **Confirmado (2026-09-17)** contra un producto variable (Talla S/M/L). Forma real por variación: `{ id (number), attributes:[{name,slug,option}], price (string "150000"), stock_status ("instock"), stock_quantity (number), sku }`. Nuestro curado `{ id, attributes:[{name,option}], price, stockStatus, stockQuantity }` calza. (`manage_stock` puede venir como `"parent"` en variaciones — no lo usamos.)
 
 ---
 
 ## Pendiente por capturar (para cerrar S0)
 
-- [ ] `GET /products/{id}/variations` — requiere crear un **producto variable** (atributo "Talla" usado para variaciones). Los productos actuales son `simple` → `variations: []`.
-- [ ] `GET /shipping/zones/1/locations` **con una región asignada** — para ver la forma real de `{ type, code }` (`country`/`state`/`postcode`). Hoy salió `[]`.
+**Ninguno — S0 cerrado al 100% (9/9 endpoints confirmados).**
+
+- [x] `GET /products/{id}/variations` — confirmado contra producto variable (2026-09-17).
+- [x] `GET /shipping/zones/1/locations` — confirmado con región asignada (2026-09-17).
 - [x] `GET /shipping/zones/{id}/methods` — capturado (tarifa en `settings.cost.value`).
 - [x] Headers de paginación — `X-WP-Total` / `X-WP-TotalPages` confirmados.
-- [ ] `GET /orders/{id}` — confirmar que el detalle coincide con el item de la lista (esperado).
+- [x] `GET /orders/{id}` — el detalle coincide con el item de la lista (esperado).
 
 ---
 

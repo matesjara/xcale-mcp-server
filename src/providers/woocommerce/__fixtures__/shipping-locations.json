@@ -1,4 +1,5 @@
 [
+  { "code": "SA", "type": "continent" },
   { "code": "CO", "type": "country" },
-  { "code": "CO:QUI", "type": "state" }
+  { "code": "CO:CO-QUI", "type": "state" }
 ]

@@ -160,15 +160,16 @@ describe('woocommerce provider — get_product_variations', () => {
         stockStatus: string;
       }[];
     };
-    expect(data.items).toHaveLength(2);
+    // Real S0 shape (confirmed against a variable product): {id, attributes:[{name,option}], price, stock}.
+    expect(data.items).toHaveLength(3);
     expect(data.items[0]).toEqual({
-      id: '101',
+      id: '18',
       attributes: [{ name: 'Talla', option: 'S' }],
-      price: '100000',
+      price: '150000',
       stockStatus: 'instock',
-      stockQuantity: 10,
+      stockQuantity: 76,
     });
-    expect(data.items[1]?.stockStatus).toBe('outofstock');
+    expect(data.items[2]?.attributes[0]?.option).toBe('L');
   });
 });
 
@@ -231,7 +232,7 @@ describe('woocommerce provider — shipping', () => {
     });
   });
 
-  it('get_shipping_zone_locations returns curated {type, code} (shape ⏳, from docs)', async () => {
+  it('get_shipping_zone_locations returns curated {type, code} (shape confirmed against sandbox)', async () => {
     const { provider: p, calls } = provider(shippingLocations);
     const result = await p.callTool(
       'mcp_woocommerce_get_shipping_zone_locations',
@@ -243,8 +244,10 @@ describe('woocommerce provider — shipping', () => {
       'https://store.example.com/wp-json/wc/v3/shipping/zones/1/locations',
     );
     const locations = successData(result) as { type: string; code: string }[];
-    expect(locations[0]).toEqual({ type: 'country', code: 'CO' });
-    expect(locations[1]?.type).toBe('state');
+    // Real S0 shape: continent | country | state, e.g. state code "CO:CO-QUI".
+    expect(locations).toHaveLength(3);
+    expect(locations).toContainEqual({ type: 'country', code: 'CO' });
+    expect(locations.find((l) => l.type === 'state')?.code).toBe('CO:CO-QUI');
   });
 });
 
