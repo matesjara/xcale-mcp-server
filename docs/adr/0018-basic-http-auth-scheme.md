@@ -76,6 +76,7 @@ still compile-forces every new variant to be implemented.
 ### Neutral
 - The `authDescriptor` union gains a published `basic` variant — an additive public-contract surface to evolve per the additive-versioning ADR.
 - The backend now owns one new credential-materialization shape: "join two stored fields with a colon and forward as one secret" for `basic` providers.
+- **The `basic` variant declares `fields`** (label-only, no `placement` — Basic always targets the `Authorization` header). This closes the consumer-agnostic gap: a consumer derives the connect form (which secrets to collect) from the catalog alone, and **the declared order is the Basic order** — the consumer joins `fields[0]:fields[1]`. Without it, the "collect `consumer_key` + `consumer_secret`" knowledge would have to be hardcoded in the backend, leaking provider knowledge to the consumer.
 
 ## References
 

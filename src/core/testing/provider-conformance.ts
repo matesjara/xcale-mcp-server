@@ -37,8 +37,9 @@ function assertAuthDescriptorShape(auth: ProviderAuthDescriptor, label: string):
       ).toBeGreaterThan(0);
       break;
     case 'basic':
-      // No fields to assert — Basic carries only the (consumer-composed) key:secret at runtime;
-      // the descriptor is pure marker data. The serializability check below still applies.
+      // Basic declares the credential inputs a consumer must collect (in Basic order); it composes
+      // them at the consumer and only encodes here. At least one field must be declared.
+      expect(auth.fields.length, `${label}: basic fields`).toBeGreaterThan(0);
       break;
     default:
       assertNever(auth);

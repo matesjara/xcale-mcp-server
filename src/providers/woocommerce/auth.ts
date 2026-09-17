@@ -15,4 +15,9 @@ import type { ProviderAuthDescriptor } from '../../core/provider-port';
 export const woocommerceAuth: ProviderAuthDescriptor = {
   type: 'basic',
   credentialDelivery: 'forwarded',
+  // Declared order IS the Basic order: consumer_key (user) : consumer_secret (password).
+  fields: [
+    { key: 'consumer_key', label: 'Consumer Key' },
+    { key: 'consumer_secret', label: 'Consumer Secret' },
+  ],
 };

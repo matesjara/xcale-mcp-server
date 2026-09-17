@@ -65,6 +65,7 @@ describe('AuthenticationMaterializer', () => {
     const auth: ProviderAuthDescriptor = {
       type: 'basic',
       credentialDelivery: 'forwarded',
+      fields: [{ key: 'consumer_key', label: 'Consumer Key' }],
     };
     const req = materialize(auth, { secret: new SecretString('ck_abc:cs_xyz') }, spec);
     expect(req.headers.authorization).toBe(

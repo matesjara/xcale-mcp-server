@@ -16,7 +16,7 @@ const tool = toolFactory<WoocommerceContext>();
  */
 function stripHtml(html: string): string {
   return html
-    .replace(/<[^>]*>/g, ' ')
+    .replace(/<[^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
@@ -357,7 +357,6 @@ const listProductsInput = z
 
 const getProductInput = z.object({ id: z.string().min(1) }).strict();
 const getProductVariationsInput = z.object({ id: z.string().min(1) }).strict();
-const listCategoriesInput = z.object({}).strict();
 const noArgsInput = z.object({}).strict();
 const getShippingZoneInput = z.object({ id: z.string().min(1) }).strict();
 const listOrdersInput = z
@@ -409,7 +408,11 @@ export function buildWoocommerceTools(
         'Get one product by id: price, stock, description (plain text), categories, images, and variation ids.',
       input: getProductInput,
       handler: async (args, ctx) => {
-        const res = await client.get(`products/${args.id}`, ctx.request, ctx.metadata);
+        const res = await client.get(
+          `products/${encodeURIComponent(args.id)}`,
+          ctx.request,
+          ctx.metadata,
+        );
         if (!res.ok) return wooError(res);
         return ok(toProductDetail(res.data as RawProductDetail));
       },
@@ -421,20 +424,25 @@ export function buildWoocommerceTools(
         "List a variable product's variations (size/color combos) with each one's price and stock.",
       input: getProductVariationsInput,
       handler: async (args, ctx) => {
-        const res = await client.get(`products/${args.id}/variations`, ctx.request, ctx.metadata, {
-          per_page: args.pageSize,
-          page: args.page,
-        });
+        const res = await client.get(
+          `products/${encodeURIComponent(args.id)}/variations`,
+          ctx.request,
+          ctx.metadata,
+          {
+            per_page: args.pageSize,
+            page: args.page,
+          },
+        );
         if (!res.ok) return wooError(res);
         const items = (res.data as RawVariation[]).map(toVariation);
         return { ok: true, items };
       },
     }),
 
-    definePaginatedList<typeof listCategoriesInput, WooCategory, WoocommerceContext>({
+    definePaginatedList<typeof noArgsInput, WooCategory, WoocommerceContext>({
       name: `mcp_${SLUG}_list_categories`,
       description: 'List product categories in the store catalog.',
-      input: listCategoriesInput,
+      input: noArgsInput,
       handler: async (args, ctx) => {
         const res = await client.get('products/categories', ctx.request, ctx.metadata, {
           per_page: args.pageSize,
@@ -465,7 +473,7 @@ export function buildWoocommerceTools(
       input: getShippingZoneInput,
       handler: async (args, ctx) => {
         const res = await client.get(
-          `shipping/zones/${args.id}/locations`,
+          `shipping/zones/${encodeURIComponent(args.id)}/locations`,
           ctx.request,
           ctx.metadata,
         );
@@ -480,7 +488,7 @@ export function buildWoocommerceTools(
       input: getShippingZoneInput,
       handler: async (args, ctx) => {
         const res = await client.get(
-          `shipping/zones/${args.id}/methods`,
+          `shipping/zones/${encodeURIComponent(args.id)}/methods`,
           ctx.request,
           ctx.metadata,
         );
@@ -513,7 +521,11 @@ export function buildWoocommerceTools(
         'Get one order by id: status, total, line items, and the buyer contact + shipping address. Owner-facing.',
       input: getOrderInput,
       handler: async (args, ctx) => {
-        const res = await client.get(`orders/${args.id}`, ctx.request, ctx.metadata);
+        const res = await client.get(
+          `orders/${encodeURIComponent(args.id)}`,
+          ctx.request,
+          ctx.metadata,
+        );
         if (!res.ok) return wooError(res);
         return ok(toOrderDetail(res.data as RawOrderDetail));
       },

@@ -23,6 +23,11 @@ The provider is published in the MCP catalog with this descriptor (shape; exact 
 export const woocommerceAuth: ProviderAuthDescriptor = {
   type: 'basic',                 // NEW scheme (ADR basic-http-auth-scheme)
   credentialDelivery: 'forwarded',
+  // Consumer-agnostic: declared order IS the Basic order (consumer_key:consumer_secret).
+  fields: [
+    { key: 'consumer_key', label: 'Consumer Key' },
+    { key: 'consumer_secret', label: 'Consumer Secret' },
+  ],
 };
 ```
 

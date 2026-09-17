@@ -20,22 +20,24 @@ const CTX: ProviderCallContext = {
   metadata: { storeUrl: 'https://store.example.com' },
 };
 
-/** A fetch double that records the URL it was asked for and answers with a fixture. */
+/** A fetch double that records the URL + request headers it was asked for and answers with a fixture. */
 function fakeFetch(body: unknown, status = 200) {
   const calls: string[] = [];
-  const impl = vi.fn(async (url: string | URL) => {
+  const sentHeaders: Record<string, string>[] = [];
+  const impl = vi.fn(async (url: string | URL, init?: RequestInit) => {
     calls.push(String(url));
+    sentHeaders.push((init?.headers ?? {}) as Record<string, string>);
     return new Response(JSON.stringify(body), {
       status,
       headers: { 'content-type': 'application/json' },
     });
   });
-  return { impl: impl as unknown as typeof globalThis.fetch, calls };
+  return { impl: impl as unknown as typeof globalThis.fetch, calls, sentHeaders };
 }
 
 function provider(body: unknown, status = 200) {
-  const { impl, calls } = fakeFetch(body, status);
-  return { provider: createWoocommerceProvider({ fetchImpl: impl }), calls };
+  const { impl, calls, sentHeaders } = fakeFetch(body, status);
+  return { provider: createWoocommerceProvider({ fetchImpl: impl }), calls, sentHeaders };
 }
 
 function successData(result: ToolResult): unknown {
@@ -54,8 +56,20 @@ describe('woocommerce provider — catalog surface', () => {
     await runProviderConformance(createWoocommerceProvider());
   });
 
-  it('publishes a basic auth descriptor (HTTP Basic over the forwarded ck:cs)', () => {
-    expect(createWoocommerceProvider().auth.type).toBe('basic');
+  it('publishes a basic auth descriptor declaring the credential fields (consumer_key, consumer_secret)', () => {
+    const auth = createWoocommerceProvider().auth;
+    expect(auth.type).toBe('basic');
+    if (auth.type === 'basic') {
+      // Consumer-agnostic: a consumer learns what to collect (and the Basic order) from the catalog.
+      expect(auth.fields.map((f) => f.key)).toEqual(['consumer_key', 'consumer_secret']);
+    }
+  });
+
+  it('materializes Authorization: Basic base64(consumer_key:consumer_secret) on the request', async () => {
+    const { provider: p, sentHeaders } = provider(productsList);
+    await p.callTool('mcp_woocommerce_list_products', {}, CTX);
+    const expected = 'Basic ' + Buffer.from('ck_test:cs_test').toString('base64');
+    expect(sentHeaders[0]?.authorization).toBe(expected);
   });
 
   it('publishes the storeUrl context so a consumer knows what to forward', () => {
@@ -144,6 +158,23 @@ describe('woocommerce provider — get_product', () => {
     expect(data.categories[0]).toEqual({ id: '15', name: 'Uncategorized' });
     expect(data.images[0]?.src).toContain('96541-1.webp');
     expect(data.variations).toEqual([]);
+  });
+
+  it('strips tags even when an attribute value contains ">"', async () => {
+    const body = {
+      id: 5,
+      name: 'X',
+      price: '1',
+      stock_status: 'instock',
+      stock_quantity: 1,
+      permalink: 'u',
+      description: '<a title="3 > 2">Sale</a> now',
+    };
+    const { provider: p } = provider(body);
+    const result = await p.callTool('mcp_woocommerce_get_product', { id: '5' }, CTX);
+    const data = successData(result) as { description: string };
+    expect(data.description).toBe('Sale now');
+    expect(data.description).not.toContain('>');
   });
 });
 
