@@ -56,8 +56,8 @@ Namespaced `mcp_woocommerce_{verb}`. The zod `input` is the single source of tru
 | `mcp_woocommerce_list_shipping_zones` | `GET /wp-json/wc/v3/shipping/zones` | `{}` | Configured zones (incl. `id:0` catch-all); not paginated — **implemented S4** |
 | `mcp_woocommerce_get_shipping_zone_locations` | `GET /wp-json/wc/v3/shipping/zones/{id}/locations` ⏳ | `{ id: string }` | Countries/states/postcodes of a zone — **implemented S4** (shape `⏳`, from docs) |
 | `mcp_woocommerce_get_shipping_zone_methods` | `GET /wp-json/wc/v3/shipping/zones/{id}/methods` | `{ id: string }` | Methods + **base rates** (`baseCost` from `settings.cost.value`, may be a formula — not a cart quote, R-6); not paginated — **implemented S4** |
-| `mcp_woocommerce_list_orders` | `GET /wp-json/wc/v3/orders` ⏳ | `{ status?, after?, before?, page?, pageSize? }` | Owner use; filters by status/date |
-| `mcp_woocommerce_get_order` | `GET /wp-json/wc/v3/orders/{id}` ⏳ | `{ id: string }` | Order detail |
+| `mcp_woocommerce_list_orders` | `GET /wp-json/wc/v3/orders` | `{ status?, after?, before?, page?, pageSize? }` | Owner use; filters by status/date — **implemented S5** |
+| `mcp_woocommerce_get_order` | `GET /wp-json/wc/v3/orders/{id}` | `{ id: string }` | Detail: line items + condensed `customer` (contact + shipping address) — **implemented S5** |
 
 > **Not a tool (by design):** a composite `get_shipping_options(location)` that resolves which zone applies to a customer address and returns its options is **not** an MCP tool — the zone-matching (country/state/postcode ranges) is WooCommerce-internal business logic and must not live in the adapter. If ever needed, it is a **backend use case** over the three thin shipping tools, decided separately. `list_coupons`/`list_payment_gateways` are also out of v1 (see feature design § Out of Scope / Fase 2).
 
@@ -119,14 +119,16 @@ interface WooProductDetail extends WooProductSummary {
 interface WooOrderSummary {
   id: string;
   number: string;
-  status: string;           // ⏳ verify status set
+  status: string;           // e.g. processing | completed | pending | cancelled | refunded | on-hold | failed
   currency: string;
   total: string;
   dateCreated: string;      // ISO 8601
+  customerId: number | null;
 }
 interface WooOrderDetail extends WooOrderSummary {
-  customerId?: number;
-  lineItems: { name: string; quantity: number; total: string }[];
+  lineItems: { name: string; quantity: number; total: string; sku: string | null }[];
+  // Owner-facing: the buyer's contact + full formatted shipping address to fulfil the order.
+  customer: { name: string; email: string; phone: string; shippingAddress: string };
 }
 interface WooCategory { id: string; name: string; slug: string; parent?: string; count?: number }
 
@@ -160,7 +162,7 @@ WooCommerce paginates with `page` + `per_page` (max 100) and returns the totals 
 
 | Situation | WooCommerce HTTP | `ToolResult` | Code |
 |:--|:--|:--|:--|
-| Invalid/revoked key | 401 / 403 ⏳ | `kind: 'error'` | `PROVIDER_AUTH_EXPIRED` (triggers reconnect in Rail A) |
+| Invalid/revoked key | 401 / 403 | `kind: 'error'` | `PROVIDER_AUTH_EXPIRED` (triggers reconnect in Rail A) — centralized in `errors.ts` `wooError()` |
 | Nonexistent resource | 404 ⏳ | `kind: 'error'` | generic mapping via `mapHttpStatusToErrorCode` |
 | Rate limit / 5xx | 429 / 5xx | `kind: 'error'` | generic, not swallowed |
 

@@ -1,9 +1,10 @@
 import { z } from 'zod';
 
 import { definePaginatedList } from '../../core/pagination';
-import { type ToolDefinition, err, ok, toolFactory } from '../../core/tool';
+import { type ToolDefinition, ok, toolFactory } from '../../core/tool';
 import type { WoocommerceClient } from './client';
 import type { WoocommerceContext } from './context';
+import { wooError } from './errors';
 import { SLUG } from './manifest';
 
 const tool = toolFactory<WoocommerceContext>();
@@ -223,6 +224,125 @@ function toShippingZoneMethod(m: RawShippingZoneMethod): WooShippingZoneMethod {
 }
 
 // ---------------------------------------------------------------------------
+// Orders (owner-facing)
+// ---------------------------------------------------------------------------
+
+interface RawOrder {
+  readonly id: number;
+  readonly number: string;
+  readonly status: string;
+  readonly currency: string;
+  readonly total: string;
+  readonly date_created: string;
+  readonly customer_id: number | null;
+}
+
+interface RawAddress {
+  readonly first_name?: string;
+  readonly last_name?: string;
+  readonly address_1?: string;
+  readonly address_2?: string;
+  readonly city?: string;
+  readonly state?: string;
+  readonly postcode?: string;
+  readonly country?: string;
+  readonly email?: string;
+  readonly phone?: string;
+}
+
+interface RawLineItem {
+  readonly name: string;
+  readonly quantity: number;
+  readonly total: string;
+  readonly sku?: string;
+}
+
+interface RawOrderDetail extends RawOrder {
+  readonly billing?: RawAddress;
+  readonly shipping?: RawAddress;
+  readonly line_items?: readonly RawLineItem[];
+}
+
+/** Curated order summary (owner-facing). `total` is a string; `dateCreated` is ISO 8601. */
+export interface WooOrderSummary {
+  readonly id: string;
+  readonly number: string;
+  readonly status: string;
+  readonly currency: string;
+  readonly total: string;
+  readonly dateCreated: string;
+  readonly customerId: number | null;
+}
+
+/**
+ * Curated order detail (owner-facing). `customer` condenses the buyer's contact (name/email/phone)
+ * plus the full formatted shipping address so the OWNER can fulfil the order. This is the owner's own
+ * order data — not a cross-customer listing — and like every field it is typed data, never
+ * interpolated into a log or error message.
+ */
+export interface WooOrderDetail extends WooOrderSummary {
+  readonly lineItems: ReadonlyArray<{
+    name: string;
+    quantity: number;
+    total: string;
+    sku: string | null;
+  }>;
+  readonly customer: {
+    readonly name: string;
+    readonly email: string;
+    readonly phone: string;
+    readonly shippingAddress: string;
+  };
+}
+
+function toOrderSummary(o: RawOrder): WooOrderSummary {
+  return {
+    id: String(o.id),
+    number: o.number,
+    status: o.status,
+    currency: o.currency,
+    total: o.total,
+    dateCreated: o.date_created,
+    customerId: o.customer_id ?? null,
+  };
+}
+
+function fullName(a: RawAddress | undefined): string {
+  return [a?.first_name, a?.last_name]
+    .map((p) => (p ?? '').trim())
+    .filter((p) => p.length > 0)
+    .join(' ');
+}
+
+/** Join the non-empty parts of an address into one condensed line. */
+function formatAddress(a: RawAddress | undefined): string {
+  if (!a) return '';
+  return [a.address_1, a.address_2, a.city, a.state, a.postcode, a.country]
+    .map((p) => (p ?? '').trim())
+    .filter((p) => p.length > 0)
+    .join(', ');
+}
+
+function toOrderDetail(o: RawOrderDetail): WooOrderDetail {
+  return {
+    ...toOrderSummary(o),
+    lineItems: (o.line_items ?? []).map((li) => ({
+      name: li.name,
+      quantity: li.quantity,
+      total: li.total,
+      sku: li.sku ?? null,
+    })),
+    customer: {
+      // Name/email/phone come from billing (it carries contact); shipping address from shipping.
+      name: fullName(o.billing) || fullName(o.shipping),
+      email: (o.billing?.email ?? '').trim(),
+      phone: (o.billing?.phone ?? o.shipping?.phone ?? '').trim(),
+      shippingAddress: formatAddress(o.shipping),
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Inputs
 // ---------------------------------------------------------------------------
 
@@ -239,6 +359,14 @@ const getProductVariationsInput = z.object({ id: z.string().min(1) }).strict();
 const listCategoriesInput = z.object({}).strict();
 const noArgsInput = z.object({}).strict();
 const getShippingZoneInput = z.object({ id: z.string().min(1) }).strict();
+const listOrdersInput = z
+  .object({
+    status: z.string().optional(),
+    after: z.string().optional(),
+    before: z.string().optional(),
+  })
+  .strict();
+const getOrderInput = z.object({ id: z.string().min(1) }).strict();
 
 /**
  * Build the WooCommerce read tool set (v1). Catalog (S2–S3): products, product detail, variations,
@@ -268,14 +396,7 @@ export function buildWoocommerceTools(
           category: args.category,
           stock_status: args.stockStatus,
         });
-        if (!res.ok) {
-          // Error messages use status/code only — never interpolate the provider body or the URL.
-          return {
-            ok: false,
-            code: res.errorCode,
-            message: `WooCommerce error (HTTP ${res.status})`,
-          };
-        }
+        if (!res.ok) return wooError(res);
         const items = (res.data as RawProduct[]).map(toProductSummary);
         return { ok: true, items };
       },
@@ -288,7 +409,7 @@ export function buildWoocommerceTools(
       input: getProductInput,
       handler: async (args, ctx) => {
         const res = await client.get(`products/${args.id}`, ctx.request, ctx.metadata);
-        if (!res.ok) return err(res.errorCode, `WooCommerce error (HTTP ${res.status})`);
+        if (!res.ok) return wooError(res);
         return ok(toProductDetail(res.data as RawProductDetail));
       },
     }),
@@ -303,13 +424,7 @@ export function buildWoocommerceTools(
           per_page: args.pageSize,
           page: args.page,
         });
-        if (!res.ok) {
-          return {
-            ok: false,
-            code: res.errorCode,
-            message: `WooCommerce error (HTTP ${res.status})`,
-          };
-        }
+        if (!res.ok) return wooError(res);
         const items = (res.data as RawVariation[]).map(toVariation);
         return { ok: true, items };
       },
@@ -324,13 +439,7 @@ export function buildWoocommerceTools(
           per_page: args.pageSize,
           page: args.page,
         });
-        if (!res.ok) {
-          return {
-            ok: false,
-            code: res.errorCode,
-            message: `WooCommerce error (HTTP ${res.status})`,
-          };
-        }
+        if (!res.ok) return wooError(res);
         const items = (res.data as RawCategory[]).map(toCategory);
         return { ok: true, items };
       },
@@ -343,7 +452,7 @@ export function buildWoocommerceTools(
       input: noArgsInput,
       handler: async (_args, ctx) => {
         const res = await client.get('shipping/zones', ctx.request, ctx.metadata);
-        if (!res.ok) return err(res.errorCode, `WooCommerce error (HTTP ${res.status})`);
+        if (!res.ok) return wooError(res);
         return ok((res.data as RawShippingZone[]).map(toShippingZone));
       },
     }),
@@ -359,7 +468,7 @@ export function buildWoocommerceTools(
           ctx.request,
           ctx.metadata,
         );
-        if (!res.ok) return err(res.errorCode, `WooCommerce error (HTTP ${res.status})`);
+        if (!res.ok) return wooError(res);
         return ok((res.data as RawShippingZoneLocation[]).map(toShippingZoneLocation));
       },
     }),
@@ -374,8 +483,38 @@ export function buildWoocommerceTools(
           ctx.request,
           ctx.metadata,
         );
-        if (!res.ok) return err(res.errorCode, `WooCommerce error (HTTP ${res.status})`);
+        if (!res.ok) return wooError(res);
         return ok((res.data as RawShippingZoneMethod[]).map(toShippingZoneMethod));
+      },
+    }),
+
+    definePaginatedList<typeof listOrdersInput, WooOrderSummary, WoocommerceContext>({
+      name: `mcp_${SLUG}_list_orders`,
+      description: "List the store's orders, filtered by status and/or date range. Owner-facing.",
+      input: listOrdersInput,
+      handler: async (args, ctx) => {
+        const res = await client.get('orders', ctx.request, ctx.metadata, {
+          per_page: args.pageSize,
+          page: args.page,
+          status: args.status,
+          after: args.after,
+          before: args.before,
+        });
+        if (!res.ok) return wooError(res);
+        const items = (res.data as RawOrder[]).map(toOrderSummary);
+        return { ok: true, items };
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_get_order`,
+      description:
+        'Get one order by id: status, total, line items, and the buyer contact + shipping address. Owner-facing.',
+      input: getOrderInput,
+      handler: async (args, ctx) => {
+        const res = await client.get(`orders/${args.id}`, ctx.request, ctx.metadata);
+        if (!res.ok) return wooError(res);
+        return ok(toOrderDetail(res.data as RawOrderDetail));
       },
     }),
   ];

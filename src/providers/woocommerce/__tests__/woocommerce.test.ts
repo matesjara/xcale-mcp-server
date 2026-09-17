@@ -12,6 +12,8 @@ import categoriesList from '../__fixtures__/categories-list.json';
 import shippingZones from '../__fixtures__/shipping-zones.json';
 import shippingMethods from '../__fixtures__/shipping-methods.json';
 import shippingLocations from '../__fixtures__/shipping-locations.json';
+import ordersList from '../__fixtures__/orders-list.json';
+import orderGet from '../__fixtures__/order-get.json';
 
 const CTX: ProviderCallContext = {
   credential: { secret: new SecretString('ck_test:cs_test') },
@@ -243,5 +245,57 @@ describe('woocommerce provider — shipping', () => {
     const locations = successData(result) as { type: string; code: string }[];
     expect(locations[0]).toEqual({ type: 'country', code: 'CO' });
     expect(locations[1]?.type).toBe('state');
+  });
+});
+
+describe('woocommerce provider — orders', () => {
+  it('list_orders returns curated summaries and forwards status/date filters', async () => {
+    const { provider: p, calls } = provider(ordersList);
+    const result = await p.callTool(
+      'mcp_woocommerce_list_orders',
+      { status: 'processing', after: '2026-09-01T00:00:00' },
+      CTX,
+    );
+
+    expect(calls[0]).toContain('https://store.example.com/wp-json/wc/v3/orders?');
+    expect(calls[0]).toContain('status=processing');
+    expect(calls[0]).toContain('after=');
+    const data = successData(result) as {
+      items: { id: string; number: string; status: string; total: string; customerId: number }[];
+    };
+    expect(data.items[0]).toEqual({
+      id: '14',
+      number: '14',
+      status: 'processing',
+      currency: 'COP',
+      total: '400000',
+      dateCreated: '2026-09-14T22:33:26',
+      customerId: 0,
+    });
+  });
+
+  it('get_order returns line items and the condensed customer (contact + formatted shipping address)', async () => {
+    const { provider: p, calls } = provider(orderGet);
+    const result = await p.callTool('mcp_woocommerce_get_order', { id: '14' }, CTX);
+
+    expect(calls[0]).toContain('https://store.example.com/wp-json/wc/v3/orders/14');
+    const data = successData(result) as {
+      id: string;
+      lineItems: { name: string; quantity: number; total: string; sku: string | null }[];
+      customer: { name: string; email: string; phone: string; shippingAddress: string };
+    };
+    expect(data.id).toBe('14');
+    expect(data.lineItems[0]).toEqual({
+      name: 'Camiseta',
+      quantity: 4,
+      total: '400000',
+      sku: 'CL-001',
+    });
+    expect(data.customer).toEqual({
+      name: 'Maria Lopez',
+      email: 'maria@example.com',
+      phone: '3001234567',
+      shippingAddress: 'Calle 10 #5-55, Apto 302, Armenia, QUI, 630001, CO',
+    });
   });
 });
