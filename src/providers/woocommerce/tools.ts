@@ -409,6 +409,64 @@ function toStockUpdate(r: RawStock): WooStockUpdate {
   return { id: String(r.id), stockQuantity: r.stock_quantity ?? null, stockStatus: r.stock_status };
 }
 
+/** The order `meta_data` key that carries the caller's reconciliation reference tag. */
+const ORDER_REF_META_KEY = '_xcale_order_ref';
+
+const createOrderInput = z
+  .object({
+    orderReference: z.string().min(1),
+    lineItems: z
+      .array(
+        z.object({
+          productId: z.string().min(1),
+          variationId: z.string().min(1).optional(),
+          quantity: z.number().int().positive(),
+        }),
+      )
+      .min(1),
+    customer: z
+      .object({
+        email: z.string().email().optional(),
+        firstName: z.string().optional(),
+        lastName: z.string().optional(),
+        phone: z.string().optional(),
+      })
+      .optional(),
+    status: z.enum(['pending', 'processing', 'on-hold']).default('pending'),
+  })
+  .strict();
+
+const reconcileOrderInput = z.object({ orderReference: z.string().min(1) }).strict();
+
+/** Curated result of a create/reconcile — the fields a caller needs to recognize its own order. */
+export interface WooOrderCreated {
+  readonly id: string;
+  readonly number: string;
+  readonly status: string;
+  readonly total: string | null;
+  readonly orderReference: string;
+}
+interface RawOrderRef {
+  readonly id: number;
+  readonly number?: string | number;
+  readonly status?: string;
+  readonly total?: string;
+  readonly meta_data?: ReadonlyArray<{ key: string; value: unknown }>;
+}
+function toOrderCreated(r: RawOrderRef, orderReference: string): WooOrderCreated {
+  return {
+    id: String(r.id),
+    number: r.number !== undefined ? String(r.number) : String(r.id),
+    status: r.status ?? 'unknown',
+    total: r.total ?? null,
+    orderReference,
+  };
+}
+function orderRef(r: RawOrderRef): string | undefined {
+  const found = (r.meta_data ?? []).find((m) => m.key === ORDER_REF_META_KEY);
+  return typeof found?.value === 'string' ? found.value : undefined;
+}
+
 /**
  * Build the WooCommerce read tool set (v1). Catalog (S2–S3): products, product detail, variations,
  * categories. Shipping (S4) and orders (S5) arrive in later slices.
@@ -499,6 +557,64 @@ export function buildWoocommerceTools(
         const res = await client.put(path, body, ctx.request, ctx.metadata);
         if (!res.ok) return wooError(res);
         return ok(toStockUpdate(res.data as RawStock));
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_create_order`,
+      description:
+        "Create an order for a buyer. `orderReference` is the CALLER's own id and is required: it is " +
+        'the only handle by which a failed call can be reconciled (via reconcile_order) — never retry ' +
+        'a create blind.',
+      input: createOrderInput,
+      handler: async (args, ctx) => {
+        const body: Record<string, unknown> = {
+          status: args.status,
+          line_items: args.lineItems.map((li) => ({
+            product_id: Number(li.productId),
+            ...(li.variationId !== undefined ? { variation_id: Number(li.variationId) } : {}),
+            quantity: li.quantity,
+          })),
+          meta_data: [{ key: ORDER_REF_META_KEY, value: args.orderReference }],
+        };
+        if (args.customer !== undefined) {
+          body.billing = {
+            ...(args.customer.email !== undefined ? { email: args.customer.email } : {}),
+            ...(args.customer.firstName !== undefined
+              ? { first_name: args.customer.firstName }
+              : {}),
+            ...(args.customer.lastName !== undefined ? { last_name: args.customer.lastName } : {}),
+            ...(args.customer.phone !== undefined ? { phone: args.customer.phone } : {}),
+          };
+        }
+        const res = await client.post('orders', body, ctx.request, ctx.metadata);
+        if (!res.ok) return wooError(res);
+        return ok(toOrderCreated(res.data as RawOrderRef, args.orderReference));
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_reconcile_order`,
+      description:
+        'Control-plane recovery: find an order by the caller-supplied orderReference to learn whether ' +
+        'a create landed, before any retry. Withdrawn from the agent menu.',
+      input: reconcileOrderInput,
+      controlPlane: true,
+      handler: async (args, ctx) => {
+        // WooCommerce REST has no native filter-orders-by-meta_data; narrow with `search`, then CONFIRM
+        // the match on meta_data in the adapter. If write-S0 finds `search` misses meta, switch to a
+        // bounded fetch-recent scan here (the meta-confirm stays identical). See api-contract Q-3.
+        const res = await client.get('orders', ctx.request, ctx.metadata, {
+          search: args.orderReference,
+          per_page: 20,
+        });
+        if (!res.ok) return wooError(res);
+        const match = (res.data as RawOrderRef[]).find((o) => orderRef(o) === args.orderReference);
+        return ok(
+          match
+            ? { found: true, order: toOrderCreated(match, args.orderReference) }
+            : { found: false },
+        );
       },
     }),
 

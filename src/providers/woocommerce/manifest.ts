@@ -14,8 +14,8 @@ export const woocommerceManifest: ProviderManifest = {
   slug: SLUG,
   displayName: 'WooCommerce',
   category: 'ecommerce',
-  schemaVersion: '2026-09-16',
-  providerVersion: '0.1.0',
+  schemaVersion: '2026-09-18',
+  providerVersion: '0.2.0',
   connectionProbe: { tool: `mcp_${SLUG}_list_products` },
   accountContextKeys: ['storeUrl'],
 };

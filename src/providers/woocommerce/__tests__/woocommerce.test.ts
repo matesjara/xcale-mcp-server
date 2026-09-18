@@ -449,3 +449,90 @@ describe('woocommerce provider — update_stock (write, S3)', () => {
     expect(JSON.parse(sentBodies[0]!)).toEqual({ stock_status: 'outofstock' });
   });
 });
+
+describe('woocommerce provider — create_order (write, S4)', () => {
+  const CREATED = {
+    id: 312,
+    number: '312',
+    status: 'pending',
+    total: '300000',
+    meta_data: [{ key: '_xcale_order_ref', value: 'xco-7b1f2e' }],
+  };
+
+  it('POSTs orders with line_items + the orderReference in meta_data, echoes the ref', async () => {
+    const { provider: p, calls, sentMethods, sentBodies } = provider(CREATED, 201);
+    const result = await p.callTool(
+      'mcp_woocommerce_create_order',
+      {
+        orderReference: 'xco-7b1f2e',
+        lineItems: [{ productId: '14', variationId: '20', quantity: 2 }],
+        customer: { email: 'b@e.com', firstName: 'Ana' },
+      },
+      CTX,
+    );
+    expect(calls[0]).toContain('https://store.example.com/wp-json/wc/v3/orders');
+    expect(sentMethods[0]).toBe('POST');
+    const body = JSON.parse(sentBodies[0]!);
+    expect(body.line_items).toEqual([{ product_id: 14, variation_id: 20, quantity: 2 }]);
+    expect(body.meta_data).toEqual([{ key: '_xcale_order_ref', value: 'xco-7b1f2e' }]);
+    expect(body.status).toBe('pending'); // default
+    expect(body.billing).toMatchObject({ email: 'b@e.com', first_name: 'Ana' });
+    expect(successData(result)).toMatchObject({
+      id: '312',
+      status: 'pending',
+      orderReference: 'xco-7b1f2e',
+    });
+  });
+
+  it('maps a 401 to PROVIDER_AUTH_EXPIRED', async () => {
+    const { provider: p } = provider({ code: 'woocommerce_rest_cannot_create' }, 401);
+    const result = await p.callTool(
+      'mcp_woocommerce_create_order',
+      { orderReference: 'x', lineItems: [{ productId: '1', quantity: 1 }] },
+      CTX,
+    );
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe('PROVIDER_AUTH_EXPIRED');
+  });
+});
+
+describe('woocommerce provider — reconcile_order (control-plane, S5)', () => {
+  it('is withdrawn from tools/list but still routable', () => {
+    const p = createWoocommerceProvider();
+    expect(p.listTools().map((t) => t.name)).not.toContain('mcp_woocommerce_reconcile_order');
+    expect(p.routableToolNames()).toContain('mcp_woocommerce_reconcile_order');
+  });
+
+  it('found → returns the order whose meta_data carries the orderReference', async () => {
+    const orders = [
+      { id: 99, meta_data: [{ key: 'other', value: 'x' }] },
+      {
+        id: 312,
+        number: '312',
+        status: 'pending',
+        total: '300000',
+        meta_data: [{ key: '_xcale_order_ref', value: 'xco-7b1f2e' }],
+      },
+    ];
+    const { provider: p, calls } = provider(orders);
+    const result = await p.callTool(
+      'mcp_woocommerce_reconcile_order',
+      { orderReference: 'xco-7b1f2e' },
+      CTX,
+    );
+    expect(calls[0]).toContain('https://store.example.com/wp-json/wc/v3/orders');
+    const data = successData(result) as { found: boolean; order?: { id: string } };
+    expect(data.found).toBe(true);
+    expect(data.order?.id).toBe('312');
+  });
+
+  it('not found → { found: false } (safe to retry the create)', async () => {
+    const { provider: p } = provider([{ id: 99, meta_data: [] }]);
+    const result = await p.callTool(
+      'mcp_woocommerce_reconcile_order',
+      { orderReference: 'nope' },
+      CTX,
+    );
+    expect(successData(result)).toEqual({ found: false });
+  });
+});
