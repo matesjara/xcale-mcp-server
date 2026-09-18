@@ -15,6 +15,11 @@ import type { FetchLike } from '../../core/http';
  * checked addresses into the socket** so there is no second, unchecked DNS resolution between the
  * check and the connect. That pin is what closes DNS rebinding down to nothing.
  *
+ * Because we follow redirects MANUALLY (to re-validate each hop for SSRF), the Fetch spec's own
+ * cross-origin `Authorization`-stripping does NOT run — so we replicate it here: credential headers
+ * are dropped the moment a redirect leaves the initial origin, or a store that 302s to an
+ * attacker-controlled public host would receive the tenant's `consumer_key:consumer_secret`.
+ *
  * Why undici and not global fetch: the pin is a dispatcher, and Node's global `fetch` silently
  * ignores an undici dispatcher — the pinned lookup would never run and the request would go out
  * unpinned. Same package for both halves, or the pin is decorative.
@@ -50,6 +55,10 @@ type PinnedLookup = (
 ) => void;
 
 const MAX_REDIRECTS = 3;
+/** Bound the DNS phase so a slow/hostile nameserver for a tenant's storeUrl can't hang the call. */
+const DNS_TIMEOUT_MS = 5000;
+/** Credential-bearing headers stripped on a cross-origin redirect (Fetch-spec parity). */
+const CREDENTIAL_HEADER = /^(authorization|cookie|proxy-authorization)$/i;
 
 const blockList = new BlockList();
 // IPv4
@@ -73,7 +82,10 @@ function stripBrackets(host: string): string {
 /** True for any address in a blocked range (fail-closed on an unparseable value). */
 export function isBlockedIp(ip: string): boolean {
   let candidate = stripBrackets(ip).toLowerCase();
-  // Unwrap dotted IPv4-mapped IPv6 (::ffff:a.b.c.d) and re-check as IPv4.
+  // Unwrap dotted IPv4-mapped IPv6 (::ffff:a.b.c.d) and re-check as IPv4 — the form real resolvers
+  // (inet_ntop) emit. NOTE (scope): NAT64 embedded-IPv4 (`64:ff9b::/96`) is NOT unwrapped and is only
+  // checked as a bare IPv6 address; not exploitable on our egress (DigitalOcean App Platform performs
+  // no NAT64 translation), so left as a documented limit rather than extra parsing.
   if (candidate.startsWith('::ffff:') && candidate.includes('.')) {
     candidate = candidate.slice('::ffff:'.length);
   }
@@ -86,6 +98,34 @@ function urlOf(input: Parameters<FetchLike>[0]): string {
   if (typeof input === 'string') return input;
   if (input instanceof URL) return input.href;
   return (input as Request).url;
+}
+
+/**
+ * Normalize the request headers into a mutable plain record so we can strip keys per hop. The only
+ * production caller (`core/http.ts` `sendRequest`) passes a plain object; an array of pairs is also
+ * handled. A `Headers` instance is duck-typed via `forEach` to avoid depending on the DOM lib.
+ */
+function normalizeHeaders(h: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!h || typeof h !== 'object') return out;
+  if (typeof (h as { forEach?: unknown }).forEach === 'function' && !Array.isArray(h)) {
+    (h as { forEach: (cb: (v: string, k: string) => void) => void }).forEach((v, k) => {
+      out[k] = String(v);
+    });
+  } else if (Array.isArray(h)) {
+    for (const [k, v] of h as Array<[string, string]>) out[k] = String(v);
+  } else {
+    for (const [k, v] of Object.entries(h as Record<string, unknown>)) out[k] = String(v);
+  }
+  return out;
+}
+
+function stripCredentialHeaders(h: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(h)) {
+    if (!CREDENTIAL_HEADER.test(k)) out[k] = v;
+  }
+  return out;
 }
 
 /** Parse + synchronous checks: valid URL, https only, no internal IP literal. Returns the URL. */
@@ -109,6 +149,24 @@ function parseAndAssert(rawUrl: string): URL {
   return url;
 }
 
+/** Race the DNS lookup against a timeout so a stalled resolver fails fast instead of hanging. */
+async function lookupWithTimeout(host: string, lookupImpl: LookupFn): Promise<ResolvedAddress[]> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      lookupImpl(host),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new UnsafeHostError(`DNS resolution timed out for "${host}"`)),
+          DNS_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Resolve the host and reject if any address is internal; returns the checked addresses to pin.
  * `null` for an IP literal — nothing to re-resolve, so no pin needed.
@@ -118,8 +176,9 @@ async function resolveAndCheck(url: URL, lookupImpl: LookupFn): Promise<Resolved
   if (isIP(host) !== 0) return null;
   let addresses: ResolvedAddress[];
   try {
-    addresses = await lookupImpl(host);
-  } catch {
+    addresses = await lookupWithTimeout(host, lookupImpl);
+  } catch (error) {
+    if (error instanceof UnsafeHostError) throw error;
     throw new UnsafeHostError(`DNS resolution failed for "${host}"`);
   }
   if (addresses.length === 0) {
@@ -151,9 +210,9 @@ function createPinnedLookup(addresses: ResolvedAddress[]): PinnedLookup {
 
 /**
  * A `fetch` that SSRF-validates and pins the target host before delegating, re-validating every
- * redirect hop. Drop-in for the provider's `fetchImpl`. `lookupImpl`/`fetchImpl` are test seams; when
- * `fetchImpl` is injected the socket pin is skipped (there is no real socket), but every host check
- * and redirect re-validation still runs.
+ * redirect hop and stripping credential headers on any cross-origin hop. Drop-in for the provider's
+ * `fetchImpl`. `lookupImpl`/`fetchImpl` are test seams; when `fetchImpl` is injected the socket pin is
+ * skipped (no real socket), but every host check, redirect re-validation and header strip still runs.
  */
 export function createSafeFetch(
   opts: { lookupImpl?: LookupFn; fetchImpl?: FetchLike } = {},
@@ -162,22 +221,36 @@ export function createSafeFetch(
   const injectedFetch = opts.fetchImpl;
 
   return (async (input, init) => {
-    let currentUrl = urlOf(input);
+    const originalUrl = urlOf(input);
+    let currentUrl = originalUrl;
+    let headers = normalizeHeaders(init?.headers);
+    let initialOrigin: string | undefined;
+
     for (let hop = 0; ; hop++) {
       const url = parseAndAssert(currentUrl);
+      if (hop === 0) {
+        initialOrigin = url.origin;
+      } else if (url.origin !== initialOrigin) {
+        // Once we leave the initial origin, credentials never travel again (conservative even if a
+        // later hop bounces back) — this is the cross-origin Authorization strip a manual follow owes.
+        headers = stripCredentialHeaders(headers);
+      }
       const pinned = await resolveAndCheck(url, doLookup);
+      // NOTE: method + body are resent unchanged. Inert today — the WooCommerce client is GET-only
+      // (`client.ts`). When a write tool (POST/PUT) is added, apply the Fetch-spec method/body
+      // downgrade here (303 → GET + drop body; 301/302 conventionally too) before it ships.
+      const hopInit = { ...init, headers, redirect: 'manual' as const };
 
       let response: Response;
       if (injectedFetch) {
-        response = await injectedFetch(url.toString(), { ...init, redirect: 'manual' });
+        response = await injectedFetch(url.toString(), hopInit);
       } else {
         const agent = pinned
           ? new Agent({ connect: { lookup: createPinnedLookup(pinned) } })
           : undefined;
         try {
           response = (await undiciFetch(url.toString(), {
-            ...(init as Parameters<typeof undiciFetch>[1]),
-            redirect: 'manual',
+            ...(hopInit as Parameters<typeof undiciFetch>[1]),
             dispatcher: agent,
           })) as unknown as Response;
         } finally {
@@ -191,7 +264,7 @@ export function createSafeFetch(
       if (!location) return response; // 3xx without Location — nothing to follow
       void response.body?.cancel().catch(() => {});
       if (hop >= MAX_REDIRECTS) {
-        throw new UnsafeHostError(`Too many redirects fetching "${urlOf(input)}"`);
+        throw new UnsafeHostError(`Too many redirects fetching "${originalUrl}"`);
       }
       currentUrl = new URL(location, url).toString();
     }

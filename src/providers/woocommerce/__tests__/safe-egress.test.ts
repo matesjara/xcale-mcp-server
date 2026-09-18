@@ -113,4 +113,45 @@ describe('createSafeFetch', () => {
     const fetch = createSafeFetch({ lookupImpl: publicLookup, fetchImpl: inner });
     await expect(fetch('https://start.example.com/x')).rejects.toBeInstanceOf(UnsafeHostError);
   });
+
+  it('strips Authorization on a CROSS-origin redirect (no credential leak)', async () => {
+    const seen: Array<string | undefined> = [];
+    let calls = 0;
+    const inner = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      seen.push((init?.headers as Record<string, string> | undefined)?.authorization);
+      calls += 1;
+      return calls === 1
+        ? new Response(null, {
+            status: 302,
+            headers: { location: 'https://evil.example.com/steal' },
+          })
+        : new Response('{}', { status: 200 });
+    });
+    const fetch = createSafeFetch({ lookupImpl: publicLookup, fetchImpl: inner });
+    await fetch('https://store.example.com/wp-json', {
+      headers: { authorization: 'Basic c2VjcmV0' },
+    });
+    expect(seen[0]).toBe('Basic c2VjcmV0'); // sent to the original store
+    expect(seen[1]).toBeUndefined(); // NOT forwarded to evil.example.com
+  });
+
+  it('keeps Authorization on a SAME-origin redirect', async () => {
+    const seen: Array<string | undefined> = [];
+    let calls = 0;
+    const inner = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      seen.push((init?.headers as Record<string, string> | undefined)?.authorization);
+      calls += 1;
+      return calls === 1
+        ? new Response(null, {
+            status: 301,
+            headers: { location: 'https://store.example.com/wp-json/' },
+          })
+        : new Response('{}', { status: 200 });
+    });
+    const fetch = createSafeFetch({ lookupImpl: publicLookup, fetchImpl: inner });
+    await fetch('https://store.example.com/wp-json', {
+      headers: { authorization: 'Basic c2VjcmV0' },
+    });
+    expect(seen[1]).toBe('Basic c2VjcmV0'); // same origin (WP trailing-slash) → kept
+  });
 });
