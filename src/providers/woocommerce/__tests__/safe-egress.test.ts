@@ -68,4 +68,49 @@ describe('createSafeFetch', () => {
     await expect(fetch('https://nowhere.example/x')).rejects.toBeInstanceOf(UnsafeHostError);
     expect(inner).not.toHaveBeenCalled();
   });
+
+  it('re-validates every redirect hop and rejects one pointing at an internal address', async () => {
+    // A public host that 302s to cloud metadata — the classic redirect SSRF the initial check misses.
+    const inner = vi.fn(
+      async () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: 'https://169.254.169.254/' },
+        }),
+    );
+    const fetch = createSafeFetch({ lookupImpl: publicLookup, fetchImpl: inner });
+    await expect(fetch('https://store.example.com/wp-json')).rejects.toBeInstanceOf(
+      UnsafeHostError,
+    );
+    expect(inner).toHaveBeenCalledTimes(1); // stopped before following into the internal host
+  });
+
+  it('follows a redirect to another public host', async () => {
+    let calls = 0;
+    const inner = vi.fn(async () => {
+      calls += 1;
+      return calls === 1
+        ? new Response(null, {
+            status: 302,
+            headers: { location: 'https://other.example.com/x' },
+          })
+        : new Response('{}', { status: 200 });
+    });
+    const fetch = createSafeFetch({ lookupImpl: publicLookup, fetchImpl: inner });
+    const res = await fetch('https://store.example.com/wp-json');
+    expect(res.status).toBe(200);
+    expect(inner).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects too many redirects', async () => {
+    const inner = vi.fn(
+      async () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: 'https://loop.example.com/next' },
+        }),
+    );
+    const fetch = createSafeFetch({ lookupImpl: publicLookup, fetchImpl: inner });
+    await expect(fetch('https://start.example.com/x')).rejects.toBeInstanceOf(UnsafeHostError);
+  });
 });

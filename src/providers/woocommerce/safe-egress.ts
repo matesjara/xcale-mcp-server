@@ -1,21 +1,23 @@
 import { lookup as dnsLookup } from 'dns/promises';
 import { BlockList, isIP } from 'net';
 
+import { Agent, fetch as undiciFetch } from 'undici';
+
 import type { FetchLike } from '../../core/http';
 
 /**
  * SSRF-safe egress for WooCommerce.
  *
  * WooCommerce is the first provider whose base URL is the tenant's own `storeUrl` (self-hosted), so
- * the gateway must not fetch it blindly. Before every request this: requires `https`, rejects
- * internal IP literals (loopback / RFC1918 / CGNAT / link-local, and IPv6 equivalents), resolves the
- * hostname and rejects if ANY resolved address is internal. The backend also validates at connect,
- * but its check is IP-literal-only — a hostname that resolves to a private address (cloud metadata at
- * `169.254.169.254`, an internal service on `10.x`) would otherwise reach the network from here.
+ * the gateway must not fetch it blindly. On every request (and every redirect hop) this: requires
+ * `https`, rejects internal IP literals (loopback / RFC1918 / CGNAT / link-local, and IPv6
+ * equivalents), resolves the hostname, rejects if ANY resolved address is internal, and **pins those
+ * checked addresses into the socket** so there is no second, unchecked DNS resolution between the
+ * check and the connect. That pin is what closes DNS rebinding down to nothing.
  *
- * Re-checking on every call closes slow DNS rebinding too. The only residual is the sub-second
- * TOCTOU between this resolution and the socket connect, which needs a pinned dispatcher (undici) —
- * a documented fast-follow, deliberately not pulled in for this read-only v1.
+ * Why undici and not global fetch: the pin is a dispatcher, and Node's global `fetch` silently
+ * ignores an undici dispatcher — the pinned lookup would never run and the request would go out
+ * unpinned. Same package for both halves, or the pin is decorative.
  *
  * Provider-self-contained on purpose: WooCommerce is the only user-supplied-host provider today, so
  * the guard lives in its folder (prove-don't-pre-abstract). A second such provider extracts it to a
@@ -36,6 +38,18 @@ export interface ResolvedAddress {
 
 /** Narrow DNS seam, injectable in tests. */
 export type LookupFn = (hostname: string) => Promise<ResolvedAddress[]>;
+
+/** The Node-style `lookup` a socket calls; answers with pre-validated addresses (no re-resolution). */
+type PinnedLookup = (
+  hostname: string,
+  options: { all?: boolean } | undefined,
+  callback: {
+    (err: null, addresses: ResolvedAddress[]): void;
+    (err: null, address: string, family: number): void;
+  },
+) => void;
+
+const MAX_REDIRECTS = 3;
 
 const blockList = new BlockList();
 // IPv4
@@ -74,7 +88,8 @@ function urlOf(input: Parameters<FetchLike>[0]): string {
   return (input as Request).url;
 }
 
-async function assertPublicUrl(rawUrl: string, lookupImpl: LookupFn): Promise<void> {
+/** Parse + synchronous checks: valid URL, https only, no internal IP literal. Returns the URL. */
+function parseAndAssert(rawUrl: string): URL {
   let url: URL;
   try {
     url = new URL(rawUrl);
@@ -88,12 +103,19 @@ async function assertPublicUrl(rawUrl: string, lookupImpl: LookupFn): Promise<vo
   if (host === 'localhost' || host.endsWith('.localhost')) {
     throw new UnsafeHostError(`Blocked loopback host "${host}"`);
   }
-  if (isIP(host) !== 0) {
-    if (isBlockedIp(host)) {
-      throw new UnsafeHostError(`Blocked internal IP literal "${host}"`);
-    }
-    return; // public IP literal — nothing to resolve
+  if (isIP(host) !== 0 && isBlockedIp(host)) {
+    throw new UnsafeHostError(`Blocked internal IP literal "${host}"`);
   }
+  return url;
+}
+
+/**
+ * Resolve the host and reject if any address is internal; returns the checked addresses to pin.
+ * `null` for an IP literal — nothing to re-resolve, so no pin needed.
+ */
+async function resolveAndCheck(url: URL, lookupImpl: LookupFn): Promise<ResolvedAddress[] | null> {
+  const host = stripBrackets(url.hostname);
+  if (isIP(host) !== 0) return null;
   let addresses: ResolvedAddress[];
   try {
     addresses = await lookupImpl(host);
@@ -108,19 +130,70 @@ async function assertPublicUrl(rawUrl: string, lookupImpl: LookupFn): Promise<vo
       throw new UnsafeHostError(`Host "${host}" resolves to blocked address ${address}`);
     }
   }
+  return addresses;
 }
 
 /**
- * A `fetch` that SSRF-validates the target host before delegating. Drop-in for the provider's
- * `fetchImpl`. `lookupImpl`/`fetchImpl` are test seams; production uses DNS + global fetch.
+ * A `lookup` that ignores DNS and answers with the addresses we already validated — closing the
+ * rebinding window between the check and the connect. The hostname stays in the URL (TLS SNI + Host),
+ * only name resolution is overridden.
+ */
+function createPinnedLookup(addresses: ResolvedAddress[]): PinnedLookup {
+  return (_hostname, options, callback) => {
+    if (options?.all) {
+      callback(null, addresses);
+      return;
+    }
+    const first = addresses[0]!;
+    callback(null, first.address, first.family);
+  };
+}
+
+/**
+ * A `fetch` that SSRF-validates and pins the target host before delegating, re-validating every
+ * redirect hop. Drop-in for the provider's `fetchImpl`. `lookupImpl`/`fetchImpl` are test seams; when
+ * `fetchImpl` is injected the socket pin is skipped (there is no real socket), but every host check
+ * and redirect re-validation still runs.
  */
 export function createSafeFetch(
   opts: { lookupImpl?: LookupFn; fetchImpl?: FetchLike } = {},
 ): FetchLike {
   const doLookup: LookupFn = opts.lookupImpl ?? ((host) => dnsLookup(host, { all: true }));
-  const inner: FetchLike = opts.fetchImpl ?? globalThis.fetch;
+  const injectedFetch = opts.fetchImpl;
+
   return (async (input, init) => {
-    await assertPublicUrl(urlOf(input), doLookup);
-    return inner(input, init);
+    let currentUrl = urlOf(input);
+    for (let hop = 0; ; hop++) {
+      const url = parseAndAssert(currentUrl);
+      const pinned = await resolveAndCheck(url, doLookup);
+
+      let response: Response;
+      if (injectedFetch) {
+        response = await injectedFetch(url.toString(), { ...init, redirect: 'manual' });
+      } else {
+        const agent = pinned
+          ? new Agent({ connect: { lookup: createPinnedLookup(pinned) } })
+          : undefined;
+        try {
+          response = (await undiciFetch(url.toString(), {
+            ...(init as Parameters<typeof undiciFetch>[1]),
+            redirect: 'manual',
+            dispatcher: agent,
+          })) as unknown as Response;
+        } finally {
+          // The agent owns a connection pool; each hop makes its own, so close it or leak sockets.
+          void agent?.close().catch(() => {});
+        }
+      }
+
+      if (response.status < 300 || response.status >= 400) return response;
+      const location = response.headers.get('location');
+      if (!location) return response; // 3xx without Location — nothing to follow
+      void response.body?.cancel().catch(() => {});
+      if (hop >= MAX_REDIRECTS) {
+        throw new UnsafeHostError(`Too many redirects fetching "${urlOf(input)}"`);
+      }
+      currentUrl = new URL(location, url).toString();
+    }
   }) as FetchLike;
 }
