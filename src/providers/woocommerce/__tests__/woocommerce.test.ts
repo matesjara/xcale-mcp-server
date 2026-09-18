@@ -24,20 +24,36 @@ const CTX: ProviderCallContext = {
 function fakeFetch(body: unknown, status = 200) {
   const calls: string[] = [];
   const sentHeaders: Record<string, string>[] = [];
+  const sentMethods: (string | undefined)[] = [];
+  const sentBodies: (string | undefined)[] = [];
   const impl = vi.fn(async (url: string | URL, init?: RequestInit) => {
     calls.push(String(url));
     sentHeaders.push((init?.headers ?? {}) as Record<string, string>);
+    sentMethods.push(init?.method);
+    sentBodies.push(init?.body as string | undefined);
     return new Response(JSON.stringify(body), {
       status,
       headers: { 'content-type': 'application/json' },
     });
   });
-  return { impl: impl as unknown as typeof globalThis.fetch, calls, sentHeaders };
+  return {
+    impl: impl as unknown as typeof globalThis.fetch,
+    calls,
+    sentHeaders,
+    sentMethods,
+    sentBodies,
+  };
 }
 
 function provider(body: unknown, status = 200) {
-  const { impl, calls, sentHeaders } = fakeFetch(body, status);
-  return { provider: createWoocommerceProvider({ fetchImpl: impl }), calls, sentHeaders };
+  const { impl, calls, sentHeaders, sentMethods, sentBodies } = fakeFetch(body, status);
+  return {
+    provider: createWoocommerceProvider({ fetchImpl: impl }),
+    calls,
+    sentHeaders,
+    sentMethods,
+    sentBodies,
+  };
 }
 
 function successData(result: ToolResult): unknown {
@@ -357,5 +373,79 @@ describe('woocommerce provider — orders', () => {
       phone: '3001234567',
       shippingAddress: 'Calle 10 #5-55, Apto 302, Armenia, QUI, 630001, CO',
     });
+  });
+});
+
+describe('woocommerce provider — update_product (write, S2)', () => {
+  it('PUTs only the curated fields to products/{id} and returns the updated detail', async () => {
+    const { provider: p, calls, sentMethods, sentBodies } = provider(productGet);
+    const result = await p.callTool(
+      'mcp_woocommerce_update_product',
+      { id: '12', regularPrice: '120000', status: 'draft' },
+      CTX,
+    );
+    expect(calls[0]).toContain('https://store.example.com/wp-json/wc/v3/products/12');
+    expect(sentMethods[0]).toBe('PUT');
+    expect(JSON.parse(sentBodies[0]!)).toEqual({ regular_price: '120000', status: 'draft' });
+    expect((successData(result) as { id: string }).id).toBe('12');
+  });
+
+  it('rejects an id-only call (no mutable field) as INVALID_INPUT, no network', async () => {
+    const { provider: p, calls } = provider(productGet);
+    const result = await p.callTool('mcp_woocommerce_update_product', { id: '12' }, CTX);
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe('PROVIDER_INVALID_INPUT');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('maps a 401 (cannot_edit) to PROVIDER_AUTH_EXPIRED', async () => {
+    const { provider: p } = provider({ code: 'woocommerce_rest_cannot_edit' }, 401);
+    const result = await p.callTool(
+      'mcp_woocommerce_update_product',
+      { id: '12', status: 'publish' },
+      CTX,
+    );
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe('PROVIDER_AUTH_EXPIRED');
+  });
+});
+
+describe('woocommerce provider — update_stock (write, S3)', () => {
+  it('PUTs stock to products/{id} and forces manage_stock when a quantity is set', async () => {
+    const {
+      provider: p,
+      calls,
+      sentMethods,
+      sentBodies,
+    } = provider({
+      id: 12,
+      stock_quantity: 50,
+      stock_status: 'instock',
+    });
+    const result = await p.callTool(
+      'mcp_woocommerce_update_stock',
+      { id: '12', stockQuantity: 50 },
+      CTX,
+    );
+    expect(calls[0]).toContain('https://store.example.com/wp-json/wc/v3/products/12');
+    expect(sentMethods[0]).toBe('PUT');
+    expect(JSON.parse(sentBodies[0]!)).toEqual({ stock_quantity: 50, manage_stock: true });
+    expect(successData(result)).toMatchObject({ stockQuantity: 50, stockStatus: 'instock' });
+  });
+
+  it('routes to the variation endpoint when productId is given', async () => {
+    const { provider: p, calls } = provider({ id: 20, stock_quantity: 5, stock_status: 'instock' });
+    await p.callTool(
+      'mcp_woocommerce_update_stock',
+      { id: '20', productId: '14', stockQuantity: 5 },
+      CTX,
+    );
+    expect(calls[0]).toContain('https://store.example.com/wp-json/wc/v3/products/14/variations/20');
+  });
+
+  it('sets stock_status alone (no manage_stock) when only status is given', async () => {
+    const { provider: p, sentBodies } = provider({ id: 12, stock_status: 'outofstock' });
+    await p.callTool('mcp_woocommerce_update_stock', { id: '12', stockStatus: 'outofstock' }, CTX);
+    expect(JSON.parse(sentBodies[0]!)).toEqual({ stock_status: 'outofstock' });
   });
 });

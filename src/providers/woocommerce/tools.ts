@@ -368,6 +368,47 @@ const listOrdersInput = z
   .strict();
 const getOrderInput = z.object({ id: z.string().min(1) }).strict();
 
+// --- Write inputs (Phase 2) ---
+const updateProductInput = z
+  .object({
+    id: z.string().min(1),
+    regularPrice: z.string().optional(),
+    salePrice: z.string().optional(),
+    status: z.enum(['publish', 'draft', 'private']).optional(),
+  })
+  .strict()
+  .refine(
+    (a) => a.regularPrice !== undefined || a.salePrice !== undefined || a.status !== undefined,
+    { message: 'at least one mutable field (regularPrice, salePrice, status) is required' },
+  );
+
+const updateStockInput = z
+  .object({
+    id: z.string().min(1),
+    productId: z.string().min(1).optional(),
+    stockQuantity: z.number().int().optional(),
+    stockStatus: z.enum(['instock', 'outofstock', 'onbackorder']).optional(),
+  })
+  .strict()
+  .refine((a) => a.stockQuantity !== undefined || a.stockStatus !== undefined, {
+    message: 'at least one of stockQuantity, stockStatus is required',
+  });
+
+/** Curated result of a stock write — works for both a product and a variation response. */
+export interface WooStockUpdate {
+  readonly id: string;
+  readonly stockQuantity: number | null;
+  readonly stockStatus: string;
+}
+interface RawStock {
+  readonly id: number;
+  readonly stock_quantity: number | null;
+  readonly stock_status: string;
+}
+function toStockUpdate(r: RawStock): WooStockUpdate {
+  return { id: String(r.id), stockQuantity: r.stock_quantity ?? null, stockStatus: r.stock_status };
+}
+
 /**
  * Build the WooCommerce read tool set (v1). Catalog (S2–S3): products, product detail, variations,
  * categories. Shipping (S4) and orders (S5) arrive in later slices.
@@ -415,6 +456,49 @@ export function buildWoocommerceTools(
         );
         if (!res.ok) return wooError(res);
         return ok(toProductDetail(res.data as RawProductDetail));
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_update_product`,
+      description:
+        'Update a product: price (regularPrice / salePrice) and/or publish status. Idempotent — only the fields you pass change.',
+      input: updateProductInput,
+      handler: async (args, ctx) => {
+        const body: Record<string, unknown> = {};
+        if (args.regularPrice !== undefined) body.regular_price = args.regularPrice;
+        if (args.salePrice !== undefined) body.sale_price = args.salePrice;
+        if (args.status !== undefined) body.status = args.status;
+        const res = await client.put(
+          `products/${encodeURIComponent(args.id)}`,
+          body,
+          ctx.request,
+          ctx.metadata,
+        );
+        if (!res.ok) return wooError(res);
+        return ok(toProductDetail(res.data as RawProductDetail));
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_update_stock`,
+      description:
+        "Set a product's or variation's stock quantity and/or status. Pass productId to target a variation. Idempotent.",
+      input: updateStockInput,
+      handler: async (args, ctx) => {
+        const body: Record<string, unknown> = {};
+        if (args.stockQuantity !== undefined) {
+          body.stock_quantity = args.stockQuantity;
+          body.manage_stock = true; // WooCommerce ignores stock_quantity unless manage_stock is on
+        }
+        if (args.stockStatus !== undefined) body.stock_status = args.stockStatus;
+        const path =
+          args.productId !== undefined
+            ? `products/${encodeURIComponent(args.productId)}/variations/${encodeURIComponent(args.id)}`
+            : `products/${encodeURIComponent(args.id)}`;
+        const res = await client.put(path, body, ctx.request, ctx.metadata);
+        if (!res.ok) return wooError(res);
+        return ok(toStockUpdate(res.data as RawStock));
       },
     }),
 
