@@ -69,6 +69,16 @@ describe('createSafeFetch', () => {
     expect(inner).not.toHaveBeenCalled();
   });
 
+  it('fails closed (no crash) when the DNS lookup itself rejects', async () => {
+    const failingLookup = async () => {
+      throw new Error('ENOTFOUND');
+    };
+    const inner = vi.fn(async () => okResponse());
+    const fetch = createSafeFetch({ lookupImpl: failingLookup, fetchImpl: inner });
+    await expect(fetch('https://broken-dns.example/x')).rejects.toBeInstanceOf(UnsafeHostError);
+    expect(inner).not.toHaveBeenCalled();
+  });
+
   it('re-validates every redirect hop and rejects one pointing at an internal address', async () => {
     // A public host that 302s to cloud metadata — the classic redirect SSRF the initial check misses.
     const inner = vi.fn(

@@ -55,7 +55,10 @@ type PinnedLookup = (
 ) => void;
 
 const MAX_REDIRECTS = 3;
-/** Bound the DNS phase so a slow/hostile nameserver for a tenant's storeUrl can't hang the call. */
+/**
+ * Bound the DNS phase so a slow/hostile nameserver for a tenant's storeUrl can't hang the call.
+ * Applied PER HOP — a full redirect chain can spend up to (MAX_REDIRECTS + 1) × this in DNS.
+ */
 const DNS_TIMEOUT_MS = 5000;
 /** Credential-bearing headers stripped on a cross-origin redirect (Fetch-spec parity). */
 const CREDENTIAL_HEADER = /^(authorization|cookie|proxy-authorization)$/i;
@@ -152,9 +155,14 @@ function parseAndAssert(rawUrl: string): URL {
 /** Race the DNS lookup against a timeout so a stalled resolver fails fast instead of hanging. */
 async function lookupWithTimeout(host: string, lookupImpl: LookupFn): Promise<ResolvedAddress[]> {
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const lookupPromise = lookupImpl(host);
+  // If the timeout wins the race, the lookup promise may still reject later with nothing awaiting it.
+  // An unhandled rejection would crash the process (Node ≥15 default), so swallow a late loss here —
+  // a hostile/slow resolver must not be able to take the whole gateway down.
+  lookupPromise.catch(() => {});
   try {
     return await Promise.race([
-      lookupImpl(host),
+      lookupPromise,
       new Promise<never>((_, reject) => {
         timer = setTimeout(
           () => reject(new UnsafeHostError(`DNS resolution timed out for "${host}"`)),
