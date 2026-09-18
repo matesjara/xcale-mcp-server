@@ -78,6 +78,17 @@ describe('woocommerce provider — catalog surface', () => {
     expect(required).toContain('storeUrl');
   });
 
+  it('publishes storeUrl as format:uri — the cross-repo hint the consumer keys its SSRF handling on', () => {
+    const p = createWoocommerceProvider();
+    const props =
+      (p.contextSchema as { properties?: Record<string, { format?: string }> } | undefined)
+        ?.properties ?? {};
+    // xcale-backend's `urlContextKeys` classifies a URL context field by this exact hint, then runs
+    // `assertSafePublicUrl` + normalization at connect. Dropping it (e.g. z.string() instead of
+    // z.string().url()) would silently disable the backend's connect-time SSRF guard.
+    expect(props.storeUrl?.format).toBe('uri');
+  });
+
   it('names every tool under the mcp_woocommerce_ prefix', () => {
     const names = createWoocommerceProvider()
       .listTools()
