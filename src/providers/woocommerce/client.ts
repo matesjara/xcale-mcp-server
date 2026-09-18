@@ -17,7 +17,24 @@ export interface WoocommerceClient {
     ctx: WoocommerceContext,
     params?: QueryParams,
   ): Promise<RequestResult>;
+  post(
+    path: string,
+    body: unknown,
+    request: AuthedRequest,
+    ctx: WoocommerceContext,
+    params?: QueryParams,
+  ): Promise<RequestResult>;
+  put(
+    path: string,
+    body: unknown,
+    request: AuthedRequest,
+    ctx: WoocommerceContext,
+    params?: QueryParams,
+  ): Promise<RequestResult>;
 }
+
+/** WooCommerce accepts a JSON body on writes; the credential stays in the Basic header, never here. */
+const JSON_HEADERS = { 'content-type': 'application/json' } as const;
 
 /**
  * Build `${storeUrl}/wp-json/wc/v3/${path}?${params}`.
@@ -40,5 +57,19 @@ export function createWoocommerceClient(): WoocommerceClient {
   return {
     get: (path, request, ctx, params) =>
       request({ method: 'GET', url: buildUrl(ctx.storeUrl, path, params) }),
+    post: (path, body, request, ctx, params) =>
+      request({
+        method: 'POST',
+        url: buildUrl(ctx.storeUrl, path, params),
+        headers: JSON_HEADERS,
+        body: JSON.stringify(body),
+      }),
+    put: (path, body, request, ctx, params) =>
+      request({
+        method: 'PUT',
+        url: buildUrl(ctx.storeUrl, path, params),
+        headers: JSON_HEADERS,
+        body: JSON.stringify(body),
+      }),
   };
 }

@@ -246,6 +246,8 @@ export function createSafeFetch(
     const originalUrl = urlOf(input);
     let currentUrl = originalUrl;
     let headers = normalizeHeaders(init?.headers);
+    let method = init?.method;
+    let body = init?.body;
     let initialOrigin: string | undefined;
 
     for (let hop = 0; ; hop++) {
@@ -258,10 +260,7 @@ export function createSafeFetch(
         headers = stripCredentialHeaders(headers);
       }
       const pinned = await resolveAndCheck(url, doLookup);
-      // NOTE: method + body are resent unchanged. Inert today — the WooCommerce client is GET-only
-      // (`client.ts`). When a write tool (POST/PUT) is added, apply the Fetch-spec method/body
-      // downgrade here (303 → GET + drop body; 301/302 conventionally too) before it ships.
-      const hopInit = { ...init, headers, redirect: 'manual' as const };
+      const hopInit = { ...init, method, body, headers, redirect: 'manual' as const };
 
       let response: Response;
       if (injectedFetch) {
@@ -287,6 +286,16 @@ export function createSafeFetch(
       void response.body?.cancel().catch(() => {});
       if (hop >= MAX_REDIRECTS) {
         throw new UnsafeHostError(`Too many redirects fetching "${originalUrl}"`);
+      }
+      // Fetch-spec redirect method/body downgrade: 303 → GET (drop body); 301/302 downgrade a
+      // non-GET/HEAD method to GET (drop body); 307/308 preserve both.
+      const m = (method ?? 'GET').toUpperCase();
+      if (
+        response.status === 303 ||
+        ((response.status === 301 || response.status === 302) && m !== 'GET' && m !== 'HEAD')
+      ) {
+        method = 'GET';
+        body = undefined;
       }
       currentUrl = new URL(location, url).toString();
     }

@@ -190,3 +190,47 @@ describe('createSafeFetch', () => {
     expect(seen[1]).toBe('Basic c2VjcmV0'); // same origin (WP trailing-slash) → kept
   });
 });
+
+describe('createSafeFetch — redirect method/body downgrade (W4)', () => {
+  // Same-origin redirect so the credential strip doesn't interfere; we only assert method/body.
+  function twoHop(status: number) {
+    const calls: Array<{ method?: string; body?: unknown }> = [];
+    let n = 0;
+    const inner = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      calls.push({ method: init?.method, body: init?.body });
+      n += 1;
+      return n === 1
+        ? new Response(null, {
+            status,
+            headers: { location: 'https://store.example.com/after' },
+          })
+        : new Response('{}', { status: 200 });
+    });
+    return { inner, calls };
+  }
+
+  it('303 → downgrades a POST to GET and drops the body', async () => {
+    const { inner, calls } = twoHop(303);
+    const fetch = createSafeFetch({ lookupImpl: publicLookup, fetchImpl: inner });
+    await fetch('https://store.example.com/orders', { method: 'POST', body: '{"a":1}' });
+    expect(calls[0]?.method).toBe('POST');
+    expect(calls[1]?.method).toBe('GET');
+    expect(calls[1]?.body).toBeUndefined();
+  });
+
+  it('302 → downgrades a POST to GET and drops the body', async () => {
+    const { inner, calls } = twoHop(302);
+    const fetch = createSafeFetch({ lookupImpl: publicLookup, fetchImpl: inner });
+    await fetch('https://store.example.com/orders', { method: 'POST', body: '{"a":1}' });
+    expect(calls[1]?.method).toBe('GET');
+    expect(calls[1]?.body).toBeUndefined();
+  });
+
+  it('307 → preserves the POST method and body', async () => {
+    const { inner, calls } = twoHop(307);
+    const fetch = createSafeFetch({ lookupImpl: publicLookup, fetchImpl: inner });
+    await fetch('https://store.example.com/orders', { method: 'POST', body: '{"a":1}' });
+    expect(calls[1]?.method).toBe('POST');
+    expect(calls[1]?.body).toBe('{"a":1}');
+  });
+});
