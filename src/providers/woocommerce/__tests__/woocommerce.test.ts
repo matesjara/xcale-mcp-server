@@ -89,6 +89,21 @@ describe('woocommerce provider — catalog surface', () => {
     expect(props.storeUrl?.format).toBe('uri');
   });
 
+  it('the default transport blocks a store URL that targets an internal address (SSRF)', async () => {
+    // No fetchImpl injected → the provider defaults to its SSRF-safe egress. An internal IP literal
+    // is rejected before any socket opens, surfaced as a typed tool error, never a fetch to 169.254.
+    const p = createWoocommerceProvider();
+    const result = await p.callTool(
+      'mcp_woocommerce_list_products',
+      {},
+      {
+        credential: { secret: new SecretString('ck_test:cs_test') },
+        metadata: { storeUrl: 'https://169.254.169.254' },
+      },
+    );
+    expect(result.kind).toBe('error');
+  });
+
   it('names every tool under the mcp_woocommerce_ prefix', () => {
     const names = createWoocommerceProvider()
       .listTools()

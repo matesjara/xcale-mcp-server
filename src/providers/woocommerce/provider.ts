@@ -5,6 +5,7 @@ import { woocommerceAuth } from './auth';
 import { createWoocommerceClient } from './client';
 import { woocommerceContext } from './context';
 import { woocommerceManifest } from './manifest';
+import { createSafeFetch } from './safe-egress';
 import { buildWoocommerceTools } from './tools';
 
 export interface WoocommerceProviderDeps {
@@ -19,12 +20,15 @@ export interface WoocommerceProviderDeps {
  */
 export function createWoocommerceProvider(deps: WoocommerceProviderDeps = {}): IProvider {
   const client = createWoocommerceClient();
+  // The tenant supplies `storeUrl`, so the gateway must not fetch it blindly. Default to an
+  // SSRF-safe transport (https-only + DNS/blocklist per call); tests inject their own fetch.
+  const fetchImpl = deps.fetchImpl ?? createSafeFetch();
   return createProvider({
     manifest: woocommerceManifest,
     auth: woocommerceAuth,
     metadataSchema: woocommerceContext,
     tools: buildWoocommerceTools(client),
-    ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
+    fetchImpl,
   });
 }
 
