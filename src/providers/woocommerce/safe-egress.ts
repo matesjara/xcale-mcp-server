@@ -64,15 +64,29 @@ const DNS_TIMEOUT_MS = 5000;
 const CREDENTIAL_HEADER = /^(authorization|cookie|proxy-authorization)$/i;
 
 const blockList = new BlockList();
-// IPv4
-blockList.addSubnet('0.0.0.0', 8, 'ipv4'); // "this network"
-blockList.addSubnet('10.0.0.0', 8, 'ipv4'); // RFC1918
-blockList.addSubnet('100.64.0.0', 10, 'ipv4'); // CGNAT
-blockList.addSubnet('127.0.0.0', 8, 'ipv4'); // loopback
-blockList.addSubnet('169.254.0.0', 16, 'ipv4'); // link-local / cloud metadata
-blockList.addSubnet('172.16.0.0', 12, 'ipv4'); // RFC1918
-blockList.addSubnet('192.168.0.0', 16, 'ipv4'); // RFC1918
-// IPv6
+
+/** Internal IPv4 ranges — blocked natively AND via their IPv6 embeddings (see the loop below). */
+const PRIVATE_V4: ReadonlyArray<readonly [string, number]> = [
+  ['0.0.0.0', 8], // "this network"
+  ['10.0.0.0', 8], // RFC1918
+  ['100.64.0.0', 10], // CGNAT
+  ['127.0.0.0', 8], // loopback
+  ['169.254.0.0', 16], // link-local / cloud metadata
+  ['172.16.0.0', 12], // RFC1918
+  ['192.168.0.0', 16], // RFC1918
+];
+
+for (const [net, prefix] of PRIVATE_V4) {
+  blockList.addSubnet(net, prefix, 'ipv4');
+  // Block the same range when it arrives embedded in an IPv6 address, in ANY textual form (dotted or
+  // hex) — Node parses both to the same bytes, so one subnet per form covers all spellings:
+  //   - IPv4-mapped `::ffff:<v4>/96+p`
+  //   - NAT64 well-known prefix `64:ff9b::<v4>/96+p` (RFC 6052)
+  blockList.addSubnet(`::ffff:${net}`, 96 + prefix, 'ipv6');
+  blockList.addSubnet(`64:ff9b::${net}`, 96 + prefix, 'ipv6');
+}
+
+// IPv6-native ranges
 blockList.addAddress('::', 'ipv6'); // unspecified
 blockList.addAddress('::1', 'ipv6'); // loopback
 blockList.addSubnet('fc00::', 7, 'ipv6'); // unique local
@@ -85,10 +99,10 @@ function stripBrackets(host: string): string {
 /** True for any address in a blocked range (fail-closed on an unparseable value). */
 export function isBlockedIp(ip: string): boolean {
   let candidate = stripBrackets(ip).toLowerCase();
-  // Unwrap dotted IPv4-mapped IPv6 (::ffff:a.b.c.d) and re-check as IPv4 — the form real resolvers
-  // (inet_ntop) emit. NOTE (scope): NAT64 embedded-IPv4 (`64:ff9b::/96`) is NOT unwrapped and is only
-  // checked as a bare IPv6 address; not exploitable on our egress (DigitalOcean App Platform performs
-  // no NAT64 translation), so left as a documented limit rather than extra parsing.
+  // Fast path for dotted IPv4-mapped IPv6 (::ffff:a.b.c.d) — re-check as IPv4. Belt-and-suspenders:
+  // internal ranges embedded in IPv6 (IPv4-mapped `::ffff:` AND NAT64 `64:ff9b::`, dotted OR hex) are
+  // also covered by the blockList subnets above, which Node matches on canonical bytes across every
+  // textual spelling.
   if (candidate.startsWith('::ffff:') && candidate.includes('.')) {
     candidate = candidate.slice('::ffff:'.length);
   }

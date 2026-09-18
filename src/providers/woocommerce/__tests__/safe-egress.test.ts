@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createSafeFetch, UnsafeHostError } from '../safe-egress';
+import { createSafeFetch, isBlockedIp, UnsafeHostError } from '../safe-egress';
 
 /**
  * SSRF-safe egress for WooCommerce (ADR `mcp-credential-url-context-ssrf-validation`, backend side).
@@ -11,6 +11,31 @@ import { createSafeFetch, UnsafeHostError } from '../safe-egress';
 
 const publicLookup = async () => [{ address: '93.184.216.34', family: 4 }];
 const okResponse = () => new Response('{}', { status: 200 });
+
+describe('isBlockedIp — IPv4-mapped and NAT64 embedded addresses (W3)', () => {
+  it.each([
+    // IPv4-mapped: dotted AND hex forms of internal ranges
+    '::ffff:127.0.0.1',
+    '::ffff:7f00:1',
+    '::ffff:10.0.0.5',
+    '::ffff:169.254.169.254',
+    // NAT64 well-known prefix (RFC 6052): dotted AND hex forms
+    '64:ff9b::127.0.0.1',
+    '64:ff9b::7f00:1',
+    '64:ff9b::169.254.169.254',
+    '64:ff9b::a9fe:a9fe',
+    '64:ff9b::192.168.1.1',
+  ])('blocks embedded-internal %s', (ip) => {
+    expect(isBlockedIp(ip)).toBe(true);
+  });
+
+  it.each(['::ffff:8.8.8.8', '64:ff9b::8.8.8.8', '2606:4700:4700::1111'])(
+    'allows embedded/native public %s',
+    (ip) => {
+      expect(isBlockedIp(ip)).toBe(false);
+    },
+  );
+});
 
 describe('createSafeFetch', () => {
   it('rejects a non-https URL before touching the network', async () => {
