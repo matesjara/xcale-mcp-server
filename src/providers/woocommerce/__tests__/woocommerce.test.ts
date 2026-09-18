@@ -520,7 +520,11 @@ describe('woocommerce provider — reconcile_order (control-plane, S5)', () => {
       { orderReference: 'xco-7b1f2e' },
       CTX,
     );
+    // write-S0: WooCommerce `search` does NOT match meta_data, so reconcile fetches recent orders
+    // (not ?search=) and confirms the ref in the adapter.
     expect(calls[0]).toContain('https://store.example.com/wp-json/wc/v3/orders');
+    expect(calls[0]).toContain('per_page=100');
+    expect(calls[0]).not.toContain('search=');
     const data = successData(result) as { found: boolean; order?: { id: string } };
     expect(data.found).toBe(true);
     expect(data.order?.id).toBe('312');

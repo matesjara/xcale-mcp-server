@@ -601,12 +601,15 @@ export function buildWoocommerceTools(
       input: reconcileOrderInput,
       controlPlane: true,
       handler: async (args, ctx) => {
-        // WooCommerce REST has no native filter-orders-by-meta_data; narrow with `search`, then CONFIRM
-        // the match on meta_data in the adapter. If write-S0 finds `search` misses meta, switch to a
-        // bounded fetch-recent scan here (the meta-confirm stays identical). See api-contract Q-3.
+        // WooCommerce REST has no native filter-orders-by-meta_data, and write-S0 (2026-09-18) proved
+        // `?search=<ref>` does NOT match meta_data (returned 0 for a real order carrying the ref). So we
+        // fetch the most RECENT orders and confirm the match on meta_data in the adapter. Reconcile
+        // runs right after a failed create, so the order is among the newest — 100 desc is ample. See
+        // api-contract Q-3 (resolved).
         const res = await client.get('orders', ctx.request, ctx.metadata, {
-          search: args.orderReference,
-          per_page: 20,
+          per_page: 100,
+          orderby: 'date',
+          order: 'desc',
         });
         if (!res.ok) return wooError(res);
         const match = (res.data as RawOrderRef[]).find((o) => orderRef(o) === args.orderReference);
