@@ -6,12 +6,12 @@
 
 ## What was verified
 
-| # | Check | Result |
-|:--|:--|:--|
-| 1 | **create_order** — `POST orders` with `line_items` (variable product 14 / variation 20) + `meta_data:[{key:'_xcale_order_ref', value:<ref>}]` | ✅ Order **id 21** created, `status: pending`, `total: 150000`, and the `_xcale_order_ref` echoed back in `meta_data` |
-| 2 | **write authorization** — `PUT products/14/variations/20` (idempotent `{regular_price:"150000"}`) with the R/W key | ✅ `HTTP 200` (a Read-only key would have returned `401 woocommerce_rest_cannot_edit`) |
-| 3 | **reconcile query A** — `GET orders?search=<ref>` | ❌ **returned 0** — WooCommerce `search` does **NOT** match `meta_data` |
-| 4 | **reconcile query B** — `GET orders?per_page=20` + match `meta_data` in the adapter | ✅ found order 21 by its `_xcale_order_ref` |
+| #   | Check                                                                                                                                         | Result                                                                                                                |
+| :-- | :-------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------- |
+| 1   | **create_order** — `POST orders` with `line_items` (variable product 14 / variation 20) + `meta_data:[{key:'_xcale_order_ref', value:<ref>}]` | ✅ Order **id 21** created, `status: pending`, `total: 150000`, and the `_xcale_order_ref` echoed back in `meta_data` |
+| 2   | **write authorization** — `PUT products/14/variations/20` (idempotent `{regular_price:"150000"}`) with the R/W key                            | ✅ `HTTP 200` (a Read-only key would have returned `401 woocommerce_rest_cannot_edit`)                                |
+| 3   | **reconcile query A** — `GET orders?search=<ref>`                                                                                             | ❌ **returned 0** — WooCommerce `search` does **NOT** match `meta_data`                                               |
+| 4   | **reconcile query B** — `GET orders?per_page=20` + match `meta_data` in the adapter                                                           | ✅ found order 21 by its `_xcale_order_ref`                                                                           |
 
 ## Decision closed (api-contract Q-3)
 
@@ -42,3 +42,23 @@ Confirmed sound by the review: SSRF guard intact, credential never in the URL, n
 - Test order **id 21** (`pending`, total 150000) was left in the sandbox — a real but harmless QA record.
 - The idempotent PUT changed nothing (same price).
 - **Open follow-up**: write-S0 probe of `update_stock` against a `manage_stock:"parent"` variation (see the last review resolution above).
+
+## Round 2 — scope expansion (write-S0, 2026-09-19, live store via ngrok)
+
+New write tools verified against the real store:
+
+| Tool                           | Check                                               | Result                                                 |
+| :----------------------------- | :-------------------------------------------------- | :----------------------------------------------------- |
+| `update_order`                 | `PUT orders/22 {status:cancelled}`                  | ✅ order 22 → `status: cancelled` (the void primitive) |
+| `create_category`              | `POST products/categories {name, description}`      | ✅ category **id 16** created                          |
+| `update_category`              | `PUT products/categories/16 {description}`          | ✅ description updated                                 |
+| `create_customer`              | `POST customers {email, first_name, billing.phone}` | ✅ customer **id 2** (phone from billing)              |
+| `create_order` (customer link) | `POST orders {customer_id:2, line_items…}`          | ✅ order **24**, `customer_id: 2`, `pending`           |
+
+- **`get_product` `status`**: the curated product now carries `status` (publish/draft/private). The
+  404-vs-transient split needs no MCP core change — a GET-by-id 404 already maps to `PROVIDER_ERROR`
+  (the default bucket, since 400/422→INVALID_INPUT, 401/403→AUTH_EXPIRED, 429→RATE_LIMITED,
+  5xx→UNAVAILABLE), which the backend `catalogTruth` reads as `exists:false` while the transient codes
+  propagate to `needs-reconfirmation`.
+- Residual: test records left in the sandbox (category 16, customer 2, orders 22-cancelled/24) — real
+  but harmless QA data.
