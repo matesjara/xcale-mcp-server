@@ -379,9 +379,13 @@ const listOrdersInput = z
 const getOrderInput = z.object({ id: z.string().min(1) }).strict();
 
 // --- Write inputs (Phase 2) ---
+// ID-validation rule: a WRITE tool that targets an entity by id guards it as numeric (`/^\d+$/`) —
+// WooCommerce entity ids are always numeric, so failing fast here catches a bad id before it hits
+// the wrong path, and (where an id is `Number()`-coerced into a body) before it becomes NaN/exponent.
+// READ tools keep `min(1)`: a bad read id simply 404s → PROVIDER_ERROR, no mutation at risk.
 const updateProductInput = z
   .object({
-    id: z.string().min(1),
+    id: z.string().regex(/^\d+$/, 'id must be a numeric product id'),
     regularPrice: z.string().optional(),
     salePrice: z.string().optional(),
     status: z.enum(['publish', 'draft', 'private']).optional(),
@@ -446,8 +450,8 @@ function createProductBody(a: {
 
 const updateStockInput = z
   .object({
-    id: z.string().min(1),
-    productId: z.string().min(1).optional(),
+    id: z.string().regex(/^\d+$/, 'id must be a numeric product or variation id'),
+    productId: z.string().regex(/^\d+$/, 'productId must be a numeric product id').optional(),
     stockQuantity: z.number().int().optional(),
     stockStatus: z.enum(['instock', 'outofstock', 'onbackorder']).optional(),
   })
@@ -544,7 +548,9 @@ const reconcileOrderInput = z
     // window to the real uncertainty interval so a busy store (>100 orders since) can't push the
     // target order off page 1 and produce a false found:false → duplicate (the R-1 risk). Omitted
     // falls back to best-effort "100 newest", fine for a low-volume pilot.
-    after: z.string().optional(),
+    // ISO 8601 (the backend sends `Date.toISOString()`); validated so a malformed value fails fast
+    // here rather than round-tripping to WooCommerce as a 400. `offset: true` also accepts +hh:mm.
+    after: z.string().datetime({ offset: true }).optional(),
   })
   .strict();
 

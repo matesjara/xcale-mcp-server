@@ -826,6 +826,30 @@ describe('woocommerce provider — v1 scope expansion (round 2)', () => {
     expect(calls).toHaveLength(0);
   });
 
+  it('update_product rejects a non-numeric id as INVALID_INPUT, no network', async () => {
+    const { provider: p, calls } = provider(productGet);
+    const result = await p.callTool(
+      'mcp_woocommerce_update_product',
+      { id: 'abc', status: 'publish' },
+      CTX,
+    );
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe('PROVIDER_INVALID_INPUT');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('reconcile_order rejects a malformed (non-ISO) `after` as INVALID_INPUT, no network', async () => {
+    const { provider: p, calls } = provider({});
+    const result = await p.callTool(
+      'mcp_woocommerce_reconcile_order',
+      { orderReference: 'xco-1', after: 'not-a-date' },
+      CTX,
+    );
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe('PROVIDER_INVALID_INPUT');
+    expect(calls).toHaveLength(0);
+  });
+
   it('exposes the new tools in tools/list (update_order, category + customer writes, create_product)', () => {
     const names = createWoocommerceProvider()
       .listTools()
