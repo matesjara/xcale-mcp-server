@@ -150,6 +150,7 @@ describe('woocommerce provider — list_products', () => {
       stockStatus: 'instock',
       stockQuantity: 46,
       permalink: 'https://store.example.com/product/camiseta/',
+      status: 'publish',
     });
     // A product with manage_stock=false has no quantity — normalized to null, not omitted.
     expect(data.items[1]?.stockStatus).toBe('outofstock');
@@ -613,5 +614,151 @@ describe('woocommerce provider — reconcile_order (control-plane, S5)', () => {
     // target off page 1 (the R-1 duplicate risk).
     expect(calls[0]).toContain('after=');
     expect(calls[0]).toContain(encodeURIComponent('2026-09-18T12:00:00Z'));
+  });
+});
+
+describe('woocommerce provider — v1 scope expansion (round 2)', () => {
+  it('update_order PUTs the order status (cancel path)', async () => {
+    const {
+      provider: p,
+      calls,
+      sentMethods,
+      sentBodies,
+    } = provider(
+      { id: 23, number: '23', status: 'cancelled', total: '150000', meta_data: [] },
+      200,
+    );
+    const result = await p.callTool(
+      'mcp_woocommerce_update_order',
+      { id: '23', status: 'cancelled' },
+      CTX,
+    );
+    expect(calls[0]).toContain('https://store.example.com/wp-json/wc/v3/orders/23');
+    expect(sentMethods[0]).toBe('PUT');
+    expect(JSON.parse(sentBodies[0]!)).toEqual({ status: 'cancelled' });
+    expect(successData(result)).toMatchObject({ id: '23', status: 'cancelled' });
+  });
+
+  it('update_order rejects a non-numeric id as INVALID_INPUT, no network', async () => {
+    const { provider: p, calls } = provider({}, 200);
+    const result = await p.callTool(
+      'mcp_woocommerce_update_order',
+      { id: 'abc', status: 'cancelled' },
+      CTX,
+    );
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe('PROVIDER_INVALID_INPUT');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('create_order links a customer when customerId is given', async () => {
+    const { provider: p, sentBodies } = provider(
+      { id: 30, number: '30', status: 'pending', total: '150000', meta_data: [] },
+      201,
+    );
+    await p.callTool(
+      'mcp_woocommerce_create_order',
+      { orderReference: 'xco-c1', lineItems: [{ productId: '14', quantity: 1 }], customerId: '7' },
+      CTX,
+    );
+    expect(JSON.parse(sentBodies[0]!).customer_id).toBe(7);
+  });
+
+  it('create_category POSTs name/parent/description', async () => {
+    const {
+      provider: p,
+      calls,
+      sentMethods,
+      sentBodies,
+    } = provider({ id: 51, name: 'Camisetas', slug: 'camisetas', parent: 5, count: 0 }, 201);
+    const result = await p.callTool(
+      'mcp_woocommerce_create_category',
+      { name: 'Camisetas', parent: '5', description: 'ropa' },
+      CTX,
+    );
+    expect(calls[0]).toContain('https://store.example.com/wp-json/wc/v3/products/categories');
+    expect(sentMethods[0]).toBe('POST');
+    expect(JSON.parse(sentBodies[0]!)).toEqual({
+      name: 'Camisetas',
+      parent: 5,
+      description: 'ropa',
+    });
+    expect(successData(result)).toMatchObject({ id: '51', name: 'Camisetas', parent: '5' });
+  });
+
+  it('update_category rejects an id-only call (no mutable field) as INVALID_INPUT', async () => {
+    const { provider: p, calls } = provider({}, 200);
+    const result = await p.callTool('mcp_woocommerce_update_category', { id: '51' }, CTX);
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe('PROVIDER_INVALID_INPUT');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('create_customer POSTs email + name and threads phone into billing', async () => {
+    const {
+      provider: p,
+      calls,
+      sentMethods,
+      sentBodies,
+    } = provider(
+      { id: 7, email: 'b@e.com', first_name: 'Ana', last_name: 'P', billing: { phone: '+57300' } },
+      201,
+    );
+    const result = await p.callTool(
+      'mcp_woocommerce_create_customer',
+      { email: 'b@e.com', firstName: 'Ana', lastName: 'P', phone: '+57300' },
+      CTX,
+    );
+    expect(calls[0]).toContain('https://store.example.com/wp-json/wc/v3/customers');
+    expect(sentMethods[0]).toBe('POST');
+    const body = JSON.parse(sentBodies[0]!);
+    expect(body).toMatchObject({
+      email: 'b@e.com',
+      first_name: 'Ana',
+      billing: { phone: '+57300' },
+    });
+    expect(successData(result)).toEqual({
+      id: '7',
+      email: 'b@e.com',
+      firstName: 'Ana',
+      lastName: 'P',
+      phone: '+57300',
+    });
+  });
+
+  it('get_customer maps the curated customer (phone from billing)', async () => {
+    const { provider: p } = provider({ id: 7, email: 'b@e.com', billing: { phone: '+57300' } });
+    const result = await p.callTool('mcp_woocommerce_get_customer', { id: '7' }, CTX);
+    expect(successData(result)).toMatchObject({
+      id: '7',
+      email: 'b@e.com',
+      phone: '+57300',
+      firstName: null,
+    });
+  });
+
+  it('list_customers forwards search/email and returns curated items', async () => {
+    const { provider: p, calls } = provider([{ id: 7, email: 'b@e.com', billing: {} }]);
+    const result = await p.callTool('mcp_woocommerce_list_customers', { search: 'ana' }, CTX);
+    expect(calls[0]).toContain('customers');
+    expect(calls[0]).toContain('search=ana');
+    expect((successData(result) as { items: unknown[] }).items).toHaveLength(1);
+  });
+
+  it('exposes the new tools in tools/list (update_order, category + customer writes)', () => {
+    const names = createWoocommerceProvider()
+      .listTools()
+      .map((t) => t.name);
+    for (const n of [
+      'mcp_woocommerce_update_order',
+      'mcp_woocommerce_create_category',
+      'mcp_woocommerce_update_category',
+      'mcp_woocommerce_list_customers',
+      'mcp_woocommerce_get_customer',
+      'mcp_woocommerce_create_customer',
+      'mcp_woocommerce_update_customer',
+    ]) {
+      expect(names).toContain(n);
+    }
   });
 });

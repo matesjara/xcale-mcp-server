@@ -44,6 +44,9 @@ interface RawProduct {
   readonly stock_status: string;
   readonly stock_quantity: number | null;
   readonly permalink: string;
+  /** publish | draft | pending | private — a non-`publish` product is withdrawn from the catalogue. */
+  readonly status?: string;
+  readonly catalog_visibility?: string;
 }
 
 interface RawProductDetail extends RawProduct {
@@ -62,6 +65,12 @@ export interface WooProductSummary {
   readonly stockStatus: string;
   readonly stockQuantity: number | null;
   readonly permalink: string;
+  /**
+   * WooCommerce publish state (`publish`|`draft`|`pending`|`private`). A consumer reads a non-publish
+   * status as "withdrawn from the sellable catalogue" — a permanent condition, distinct from
+   * out-of-stock. Absent when WooCommerce omitted it.
+   */
+  readonly status: string | null;
 }
 
 /** Curated product detail. `description` is stripped to plain text; `variations` are ids to expand. */
@@ -81,6 +90,7 @@ function toProductSummary(p: RawProduct): WooProductSummary {
     stockStatus: p.stock_status,
     stockQuantity: p.stock_quantity ?? null,
     permalink: p.permalink,
+    status: p.status ?? null,
   };
 }
 
@@ -451,7 +461,27 @@ const createOrderInput = z
         phone: z.string().optional(),
       })
       .optional(),
+    // Optional link to an existing WooCommerce Customer. Numeric id only; absent ⇒ a guest order
+    // (billing inline). The consumer looks up / creates the customer (via the customer tools) and
+    // passes the id here to attribute the order to that customer.
+    customerId: z.string().regex(/^\d+$/, 'customerId must be a numeric id').optional(),
     status: z.enum(['pending', 'processing', 'on-hold']).default('pending'),
+  })
+  .strict();
+
+/** Order statuses a caller may set via update_order. `cancelled` is the one the void path needs. */
+const updateOrderInput = z
+  .object({
+    id: z.string().regex(/^\d+$/, 'id must be a numeric order id'),
+    status: z.enum([
+      'pending',
+      'processing',
+      'on-hold',
+      'completed',
+      'cancelled',
+      'refunded',
+      'failed',
+    ]),
   })
   .strict();
 
@@ -508,6 +538,115 @@ function toOrderCreated(r: RawOrderRef, orderReference: string): WooOrderCreated
 function orderRef(r: RawOrderRef): string | undefined {
   const found = (r.meta_data ?? []).find((m) => m.key === ORDER_REF_META_KEY);
   return typeof found?.value === 'string' ? found.value : undefined;
+}
+
+// --- Category writes (round 2) — reuse the RawCategory/WooCategory shapes above ---
+const createCategoryInput = z
+  .object({
+    name: z.string().min(1),
+    parent: z.string().regex(/^\d+$/, 'parent must be a numeric category id').optional(),
+    description: z.string().optional(),
+  })
+  .strict();
+
+const updateCategoryInput = z
+  .object({
+    id: z.string().regex(/^\d+$/, 'id must be a numeric category id'),
+    name: z.string().optional(),
+    parent: z.string().regex(/^\d+$/, 'parent must be a numeric category id').optional(),
+    description: z.string().optional(),
+  })
+  .strict()
+  .refine((a) => a.name !== undefined || a.parent !== undefined || a.description !== undefined, {
+    message: 'at least one mutable field (name, parent, description) is required',
+  });
+
+function categoryWriteBody(a: {
+  name?: string;
+  parent?: string;
+  description?: string;
+}): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  if (a.name !== undefined) body.name = a.name;
+  if (a.parent !== undefined) body.parent = Number(a.parent);
+  if (a.description !== undefined) body.description = a.description;
+  return body;
+}
+
+// ---------------------------------------------------------------------------
+// Customers (round 2) — store-side customer management (/customers)
+// ---------------------------------------------------------------------------
+
+const listCustomersInput = z
+  .object({ search: z.string().optional(), email: z.string().optional() })
+  .strict();
+const getCustomerInput = z.object({ id: z.string().min(1) }).strict();
+const createCustomerInput = z
+  .object({
+    email: z.string().email(),
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
+    phone: z.string().optional(),
+  })
+  .strict();
+const updateCustomerInput = z
+  .object({
+    id: z.string().regex(/^\d+$/, 'id must be a numeric customer id'),
+    email: z.string().email().optional(),
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
+    phone: z.string().optional(),
+  })
+  .strict()
+  .refine(
+    (a) =>
+      a.email !== undefined ||
+      a.firstName !== undefined ||
+      a.lastName !== undefined ||
+      a.phone !== undefined,
+    { message: 'at least one mutable field (email, firstName, lastName, phone) is required' },
+  );
+
+interface RawCustomer {
+  readonly id: number;
+  readonly email: string;
+  readonly first_name?: string;
+  readonly last_name?: string;
+  readonly billing?: { phone?: string };
+}
+
+/** Curated customer. `phone` comes from the billing block (WooCommerce has no top-level phone). */
+export interface WooCustomer {
+  readonly id: string;
+  readonly email: string;
+  readonly firstName: string | null;
+  readonly lastName: string | null;
+  readonly phone: string | null;
+}
+
+function toCustomer(c: RawCustomer): WooCustomer {
+  return {
+    id: String(c.id),
+    email: c.email,
+    firstName: c.first_name ?? null,
+    lastName: c.last_name ?? null,
+    phone: c.billing?.phone ?? null,
+  };
+}
+
+/** WooCommerce puts the phone on the billing block, so a write threads it there. */
+function customerWriteBody(a: {
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+}): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  if (a.email !== undefined) body.email = a.email;
+  if (a.firstName !== undefined) body.first_name = a.firstName;
+  if (a.lastName !== undefined) body.last_name = a.lastName;
+  if (a.phone !== undefined) body.billing = { phone: a.phone };
+  return body;
 }
 
 /**
@@ -625,6 +764,7 @@ export function buildWoocommerceTools(
             quantity: li.quantity,
           })),
           meta_data: [{ key: ORDER_REF_META_KEY, value: args.orderReference }],
+          ...(args.customerId !== undefined ? { customer_id: Number(args.customerId) } : {}),
         };
         if (args.customer !== undefined) {
           body.billing = {
@@ -653,6 +793,25 @@ export function buildWoocommerceTools(
         const res = await client.post('orders', body, ctx.request, ctx.metadata);
         if (!res.ok) return wooError(res);
         return ok(toOrderCreated(res.data as RawOrderRef, args.orderReference));
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_update_order`,
+      description:
+        "Update an order's status — notably to `cancelled` to void an order that will not be paid. " +
+        'Idempotent: setting the status it already has is a no-op at WooCommerce.',
+      input: updateOrderInput,
+      handler: async (args, ctx) => {
+        const res = await client.put(
+          `orders/${encodeURIComponent(args.id)}`,
+          { status: args.status },
+          ctx.request,
+          ctx.metadata,
+        );
+        if (!res.ok) return wooError(res);
+        const r = res.data as RawOrderRef;
+        return ok(toOrderCreated(r, orderRef(r) ?? ''));
       },
     }),
 
@@ -719,6 +878,104 @@ export function buildWoocommerceTools(
         if (!res.ok) return wooError(res);
         const items = (res.data as RawCategory[]).map(toCategory);
         return { ok: true, items };
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_create_category`,
+      description: 'Create a product category (name, optional parent category and description).',
+      input: createCategoryInput,
+      handler: async (args, ctx) => {
+        const res = await client.post(
+          'products/categories',
+          categoryWriteBody(args),
+          ctx.request,
+          ctx.metadata,
+        );
+        if (!res.ok) return wooError(res);
+        return ok(toCategory(res.data as RawCategory));
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_update_category`,
+      description:
+        'Update a product category (name, parent and/or description). Only the fields you pass change.',
+      input: updateCategoryInput,
+      handler: async (args, ctx) => {
+        const res = await client.put(
+          `products/categories/${encodeURIComponent(args.id)}`,
+          categoryWriteBody(args),
+          ctx.request,
+          ctx.metadata,
+        );
+        if (!res.ok) return wooError(res);
+        return ok(toCategory(res.data as RawCategory));
+      },
+    }),
+
+    definePaginatedList<typeof listCustomersInput, WooCustomer, WoocommerceContext>({
+      name: `mcp_${SLUG}_list_customers`,
+      description: "List or search the store's customers (name, email).",
+      input: listCustomersInput,
+      handler: async (args, ctx) => {
+        const res = await client.get('customers', ctx.request, ctx.metadata, {
+          per_page: args.pageSize,
+          page: args.page,
+          search: args.search,
+          email: args.email,
+        });
+        if (!res.ok) return wooError(res);
+        const items = (res.data as RawCustomer[]).map(toCustomer);
+        return { ok: true, items };
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_get_customer`,
+      description: 'Get one customer by id: email, name, and contact phone.',
+      input: getCustomerInput,
+      handler: async (args, ctx) => {
+        const res = await client.get(
+          `customers/${encodeURIComponent(args.id)}`,
+          ctx.request,
+          ctx.metadata,
+        );
+        if (!res.ok) return wooError(res);
+        return ok(toCustomer(res.data as RawCustomer));
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_create_customer`,
+      description:
+        'Create a customer (email required). Returns the customer id to link on create_order.',
+      input: createCustomerInput,
+      handler: async (args, ctx) => {
+        const res = await client.post(
+          'customers',
+          customerWriteBody(args),
+          ctx.request,
+          ctx.metadata,
+        );
+        if (!res.ok) return wooError(res);
+        return ok(toCustomer(res.data as RawCustomer));
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_update_customer`,
+      description: "Update a customer's email, name and/or phone. Only the fields you pass change.",
+      input: updateCustomerInput,
+      handler: async (args, ctx) => {
+        const res = await client.put(
+          `customers/${encodeURIComponent(args.id)}`,
+          customerWriteBody(args),
+          ctx.request,
+          ctx.metadata,
+        );
+        if (!res.ok) return wooError(res);
+        return ok(toCustomer(res.data as RawCustomer));
       },
     }),
 
