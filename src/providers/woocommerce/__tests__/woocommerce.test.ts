@@ -745,7 +745,88 @@ describe('woocommerce provider — v1 scope expansion (round 2)', () => {
     expect((successData(result) as { items: unknown[] }).items).toHaveLength(1);
   });
 
-  it('exposes the new tools in tools/list (update_order, category + customer writes)', () => {
+  it('create_product POSTs a simple product with curated fields and returns the detail', async () => {
+    const {
+      provider: p,
+      calls,
+      sentMethods,
+      sentBodies,
+    } = provider(
+      {
+        id: 88,
+        name: 'Camiseta',
+        price: '50000',
+        stock_status: 'instock',
+        stock_quantity: 10,
+        permalink: 'https://store.example.com/producto/camiseta',
+        status: 'draft',
+      },
+      201,
+    );
+    const result = await p.callTool(
+      'mcp_woocommerce_create_product',
+      {
+        name: 'Camiseta',
+        regularPrice: '50000',
+        description: 'Algodón',
+        categories: ['5'],
+        stockQuantity: 10,
+      },
+      CTX,
+    );
+    expect(calls[0]).toContain('https://store.example.com/wp-json/wc/v3/products');
+    expect(sentMethods[0]).toBe('POST');
+    expect(JSON.parse(sentBodies[0]!)).toEqual({
+      name: 'Camiseta',
+      type: 'simple',
+      status: 'draft',
+      regular_price: '50000',
+      description: 'Algodón',
+      categories: [{ id: 5 }],
+      manage_stock: true,
+      stock_quantity: 10,
+    });
+    expect(successData(result)).toMatchObject({ id: '88', name: 'Camiseta', status: 'draft' });
+  });
+
+  it('create_product defaults status to draft when omitted', async () => {
+    const { provider: p, sentBodies } = provider(
+      {
+        id: 89,
+        name: 'X',
+        price: '',
+        stock_status: 'instock',
+        stock_quantity: null,
+        permalink: '',
+        status: 'draft',
+      },
+      201,
+    );
+    await p.callTool('mcp_woocommerce_create_product', { name: 'X' }, CTX);
+    expect(JSON.parse(sentBodies[0]!)).toEqual({ name: 'X', type: 'simple', status: 'draft' });
+  });
+
+  it('create_product rejects an empty name as INVALID_INPUT, no network', async () => {
+    const { provider: p, calls } = provider({}, 201);
+    const result = await p.callTool('mcp_woocommerce_create_product', { name: '' }, CTX);
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe('PROVIDER_INVALID_INPUT');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('create_product rejects a non-numeric category id as INVALID_INPUT, no network', async () => {
+    const { provider: p, calls } = provider({}, 201);
+    const result = await p.callTool(
+      'mcp_woocommerce_create_product',
+      { name: 'X', categories: ['abc'] },
+      CTX,
+    );
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe('PROVIDER_INVALID_INPUT');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('exposes the new tools in tools/list (update_order, category + customer writes, create_product)', () => {
     const names = createWoocommerceProvider()
       .listTools()
       .map((t) => t.name);
@@ -757,6 +838,7 @@ describe('woocommerce provider — v1 scope expansion (round 2)', () => {
       'mcp_woocommerce_get_customer',
       'mcp_woocommerce_create_customer',
       'mcp_woocommerce_update_customer',
+      'mcp_woocommerce_create_product',
     ]) {
       expect(names).toContain(n);
     }

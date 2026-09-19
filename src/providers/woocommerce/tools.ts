@@ -392,6 +392,58 @@ const updateProductInput = z
     { message: 'at least one mutable field (regularPrice, salePrice, status) is required' },
   );
 
+/**
+ * Create a `simple` product. `name` is the only required field; everything else is optional so the
+ * agent can create a stub and fill it in later via update_product / update_stock. Mirrors
+ * shopify_create_product's shape (title/price/sku/status) plus WooCommerce-native fields (categories,
+ * stock). v1 does NOT set images — WooCommerce ingests images by URL and image handling is a
+ * separate, cross-provider capability (no provider in the stack uploads product images today).
+ */
+const createProductInput = z
+  .object({
+    name: z.string().min(1),
+    regularPrice: z.string().optional(),
+    salePrice: z.string().optional(),
+    description: z.string().optional(),
+    shortDescription: z.string().optional(),
+    sku: z.string().optional(),
+    categories: z.array(z.string().regex(/^\d+$/, 'category id must be numeric')).optional(),
+    stockQuantity: z.number().int().optional(),
+    stockStatus: z.enum(['instock', 'outofstock', 'onbackorder']).optional(),
+    // Defaults to draft, mirroring shopify_create_product: never auto-publish an unfinished product.
+    status: z.enum(['publish', 'draft', 'private']).default('draft'),
+  })
+  .strict();
+
+/** Build the WooCommerce product-create body. Creates a `simple` product; images are not set. */
+function createProductBody(a: {
+  name: string;
+  regularPrice?: string;
+  salePrice?: string;
+  description?: string;
+  shortDescription?: string;
+  sku?: string;
+  categories?: string[];
+  stockQuantity?: number;
+  stockStatus?: string;
+  status: string;
+}): Record<string, unknown> {
+  const body: Record<string, unknown> = { name: a.name, type: 'simple', status: a.status };
+  if (a.regularPrice !== undefined) body.regular_price = a.regularPrice;
+  if (a.salePrice !== undefined) body.sale_price = a.salePrice;
+  if (a.description !== undefined) body.description = a.description;
+  if (a.shortDescription !== undefined) body.short_description = a.shortDescription;
+  if (a.sku !== undefined) body.sku = a.sku;
+  if (a.categories !== undefined) body.categories = a.categories.map((id) => ({ id: Number(id) }));
+  if (a.stockQuantity !== undefined) {
+    // WooCommerce ignores stock_quantity unless manage_stock is on (mirrors update_stock).
+    body.manage_stock = true;
+    body.stock_quantity = a.stockQuantity;
+  }
+  if (a.stockStatus !== undefined) body.stock_status = a.stockStatus;
+  return body;
+}
+
 const updateStockInput = z
   .object({
     id: z.string().min(1),
@@ -691,6 +743,25 @@ export function buildWoocommerceTools(
       handler: async (args, ctx) => {
         const res = await client.get(
           `products/${encodeURIComponent(args.id)}`,
+          ctx.request,
+          ctx.metadata,
+        );
+        if (!res.ok) return wooError(res);
+        return ok(toProductDetail(res.data as RawProductDetail));
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_create_product`,
+      description:
+        'Create a simple product. `name` is required; optional regularPrice, salePrice, description, ' +
+        'shortDescription, sku, categories (ids), stockQuantity/stockStatus, and status (defaults to ' +
+        'draft). Does not set images.',
+      input: createProductInput,
+      handler: async (args, ctx) => {
+        const res = await client.post(
+          'products',
+          createProductBody(args),
           ctx.request,
           ctx.metadata,
         );

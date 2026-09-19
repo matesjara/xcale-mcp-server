@@ -62,3 +62,22 @@ New write tools verified against the real store:
   propagate to `needs-reconfirmation`.
 - Residual: test records left in the sandbox (category 16, customer 2, orders 22-cancelled/24) — real
   but harmless QA data.
+
+## Round 3 — `create_product` (write-S0, 2026-09-19, live store via ngrok)
+
+New write tool verified against the real store:
+
+| Tool             | Check                                                                                                                                              | Result                                                                                                               |
+| :--------------- | :------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------- |
+| `create_product` | `POST products {name, type:'simple', status:'draft', regular_price, short_description, categories:[{id:16}], manage_stock:true, stock_quantity:7}` | ✅ product **id 25** created; `categories` echoed as `[16]`, `manage_stock:true`, `stock_quantity:7`, `status:draft` |
+
+- **Field facts confirmed (the shape `create_product` assumes):** `type:'simple'` accepted; a category
+  is passed as `categories:[{id:<number>}]` and echoed back as `[<id>]`; `manage_stock:true` is required
+  for `stock_quantity` to stick (same rule as `update_stock`); `short_description` is a distinct field
+  from `description`; omitting `status` and sending `draft` both yield a draft (we default to `draft`,
+  mirroring `shopify_create_product` — never auto-publish an unfinished product).
+- **Images intentionally NOT set (Mateo/Sara call, 2026-09-19).** No provider in the stack uploads
+  product images today (`shopify_create_product` sets none; Toteat only reads Toteat's photo URLs), so
+  `create_product` v1 omits images. WooCommerce ingests images by URL (`images:[{src}]`); adding that —
+  and the "photo sent in chat → host → URL" pipeline — is a separate, cross-provider follow-up.
+- Residual: draft product **id 25** left in the sandbox — a real but harmless QA record.

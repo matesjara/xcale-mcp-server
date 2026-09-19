@@ -10,6 +10,7 @@
 > **Nature.** This is not a REST contract of xcale endpoints. The "endpoints" are **MCP tools** the provider publishes; each tool's `input` zod schema is the single source of truth (validates args AND generates the `tools/list` JSON Schema). The tables below give each tool's input, the WooCommerce REST call it makes, and its `ToolOutcome`.
 
 > **Evidence status (evidence-before-contract).**
+>
 > - **read shapes** (product/variation/order fields): confirmed in read-v1 **S0** (`docs/design/woocommerce-read-only-provider/sandbox-evidence.md`; real store `woo-sandbox-01`, product id 14 `type: variable`, `regular_price`/`sale_price`/`status`/`stock_quantity`/`stock_status`).
 > - **write fields**: from the WooCommerce REST API reference (stable, single-flavor) — https://woocommerce.github.io/woocommerce-rest-api-docs/. To be re-confirmed by **write-S0** (real writes against the live store during implementation).
 > - **`reconcile_order` query** (find order by `meta_data`): **OPEN** — WooCommerce REST has no native filter-orders-by-meta param. Best current shape below; the exact recovery query MUST be verified in write-S0.
@@ -19,12 +20,13 @@
 
 ## 1. Tool Surface
 
-| Tool | Published in `tools/list`? | WooCommerce REST call | Idempotent | Notes |
-|:--|:--|:--|:--|:--|
-| `mcp_woocommerce_update_product` | ✅ | `PUT products/{id}` | ✅ | Curated writable fields |
-| `mcp_woocommerce_update_stock` | ✅ | `PUT products/{id}` or `PUT products/{productId}/variations/{id}` | ✅ | Stock only |
-| `mcp_woocommerce_create_order` | ✅ | `POST orders` | ⚠️ via `orderReference` | Non-fiscal write; Toteat pattern |
-| `mcp_woocommerce_reconcile_order` | ❌ `controlPlane: true` (routable) | `GET orders?…` (recovery query — OPEN) | ✅ (read) | Never on the agent menu |
+| Tool                              | Published in `tools/list`?         | WooCommerce REST call                                             | Idempotent                            | Notes                                                  |
+| :-------------------------------- | :--------------------------------- | :---------------------------------------------------------------- | :------------------------------------ | :----------------------------------------------------- |
+| `mcp_woocommerce_create_product`  | ✅                                 | `POST products`                                                   | ⚠️ not idempotent (creates each call) | Simple product; `name` required; no images (see §2.2a) |
+| `mcp_woocommerce_update_product`  | ✅                                 | `PUT products/{id}`                                               | ✅                                    | Curated writable fields                                |
+| `mcp_woocommerce_update_stock`    | ✅                                 | `PUT products/{id}` or `PUT products/{productId}/variations/{id}` | ✅                                    | Stock only                                             |
+| `mcp_woocommerce_create_order`    | ✅                                 | `POST orders`                                                     | ⚠️ via `orderReference`               | Non-fiscal write; Toteat pattern                       |
+| `mcp_woocommerce_reconcile_order` | ❌ `controlPlane: true` (routable) | `GET orders?…` (recovery query — OPEN)                            | ✅ (read)                             | Never on the agent menu                                |
 
 - `requiredScopes`: **omitted** for all — WooCommerce is `basic` auth, no OAuth scope model (omitted ≠ `[]`; see `core/tool.ts`).
 - Auth/context unchanged from v1: HTTP Basic `ck:cs` (forwarded), `storeUrl` context, SSRF-safe egress.
@@ -38,11 +40,11 @@
 ```ts
 // input (zod → JSON Schema). Only curated writable fields; omitted fields are left unchanged (PUT-merge).
 input: z.object({
-  id: z.string(),                                  // product id, path-encoded
-  regularPrice: z.string().optional(),             // WC `regular_price` (string decimal, e.g. "150000")
-  salePrice: z.string().optional(),                // WC `sale_price` ("" clears the sale)
+  id: z.string(), // product id, path-encoded
+  regularPrice: z.string().optional(), // WC `regular_price` (string decimal, e.g. "150000")
+  salePrice: z.string().optional(), // WC `sale_price` ("" clears the sale)
   status: z.enum(['publish', 'draft', 'private']).optional(), // WC `status`
-}).strict()
+}).strict();
 // At least one mutable field required (refine): id-only is a no-op and rejected as INVALID_INPUT.
 ```
 
@@ -55,11 +57,11 @@ input: z.object({
 
 ```ts
 input: z.object({
-  id: z.string(),                                  // product OR variation id
-  productId: z.string().optional(),                // REQUIRED when `id` is a variation → PUT products/{productId}/variations/{id}
-  stockQuantity: z.number().int().optional(),      // WC `stock_quantity`; sets `manage_stock: true` implicitly
+  id: z.string(), // product OR variation id
+  productId: z.string().optional(), // REQUIRED when `id` is a variation → PUT products/{productId}/variations/{id}
+  stockQuantity: z.number().int().optional(), // WC `stock_quantity`; sets `manage_stock: true` implicitly
   stockStatus: z.enum(['instock', 'outofstock', 'onbackorder']).optional(), // WC `stock_status`
-}).strict()
+}).strict();
 // refine: at least one of stockQuantity/stockStatus; setting stockQuantity forces manage_stock: true.
 ```
 
@@ -68,28 +70,59 @@ input: z.object({
 - **Success `data`**: the curated updated product/variation with its new stock.
 - **Idempotent**.
 
+### 2.2a `create_product` — `POST products` (added round 3, 2026-09-19)
+
+```ts
+input: z.object({
+  name: z.string().min(1), // WC `name` — the only required field
+  regularPrice: z.string().optional(), // WC `regular_price` (string decimal)
+  salePrice: z.string().optional(), // WC `sale_price`
+  description: z.string().optional(), // WC `description`
+  shortDescription: z.string().optional(), // WC `short_description` (distinct field)
+  sku: z.string().optional(), // WC `sku`
+  categories: z.array(z.string().regex(/^\d+$/)).optional(), // → WC `categories:[{id:<number>}]`
+  stockQuantity: z.number().int().optional(), // WC `stock_quantity`; forces `manage_stock:true`
+  stockStatus: z.enum(['instock', 'outofstock', 'onbackorder']).optional(),
+  status: z.enum(['publish', 'draft', 'private']).default('draft'), // never auto-publish an unfinished product
+}).strict();
+```
+
+- **Body sent**: `{ name, type:'simple', status, regular_price?, sale_price?, description?, short_description?, sku?, categories?:[{id}], manage_stock:true+stock_quantity? , stock_status? }`.
+- **`type:'simple'`** is always sent — v1 creates simple products only (variable products need attributes/variations, out of scope). Category ids are `Number()`-coerced into `[{id}]`; a non-numeric id is rejected as `INVALID_INPUT` before any network call.
+- **Success `data`**: the curated created product (same shape as `get_product`).
+- **Not idempotent**: each call creates a new product. Unlike `create_order`, there is no reconciliation reference — a duplicate on retry is a harmless draft, not a double-charge, so no idempotency key is warranted for v1.
+- **No images** (Mateo/Sara, 2026-09-19): mirrors `shopify_create_product` (sets none) and the whole stack (no provider uploads product images). WooCommerce ingests images by URL (`images:[{src}]`); adding that field + a "photo-from-chat → host → URL" pipeline is a separate cross-provider follow-up.
+- **Live write-S0**: product **id 25** created against the real store (`write-s0-evidence.md` › Round 3).
+
 ### 2.3 `create_order` — `POST orders` (Toteat pattern, non-fiscal)
 
 ```ts
 input: z.object({
-  orderReference: z.string().min(1),               // caller-supplied reconciliation tag (the recovery key)
-  lineItems: z.array(z.object({
-    productId: z.string(),
-    variationId: z.string().optional(),
-    quantity: z.number().int().positive(),
-  })).min(1),
-  customer: z.object({                             // condensed; optional for a guest order
-    email: z.string().email().optional(),
-    firstName: z.string().optional(),
-    lastName: z.string().optional(),
-    phone: z.string().optional(),
-  }).optional(),
+  orderReference: z.string().min(1), // caller-supplied reconciliation tag (the recovery key)
+  lineItems: z
+    .array(
+      z.object({
+        productId: z.string(),
+        variationId: z.string().optional(),
+        quantity: z.number().int().positive(),
+      }),
+    )
+    .min(1),
+  customer: z
+    .object({
+      // condensed; optional for a guest order
+      email: z.string().email().optional(),
+      firstName: z.string().optional(),
+      lastName: z.string().optional(),
+      phone: z.string().optional(),
+    })
+    .optional(),
   status: z.enum(['pending', 'processing', 'on-hold']).default('pending'),
-}).strict()
+}).strict();
 ```
 
 - **Body sent**: `{ line_items: [{ product_id, variation_id?, quantity }], billing?: {...}, status, meta_data: [{ key: '_xcale_order_ref', value: orderReference }] }`.
-- **`meta_data`** carries the reconciliation tag (WC orders support arbitrary `meta_data`; leading `_` = hidden meta). This is the **primary recovery key** (CONTEXT.md: *Reconciliation reference tag*).
+- **`meta_data`** carries the reconciliation tag (WC orders support arbitrary `meta_data`; leading `_` = hidden meta). This is the **primary recovery key** (CONTEXT.md: _Reconciliation reference tag_).
 - **Success `data`**: the created order (id, number, status, total, line items, the echoed `meta_data` ref).
 - **No blind retry**: on a lost response the caller calls `reconcile_order` (§2.4), never re-POSTs.
 - **Non-fiscal write**: correctable in place (cancel/edit), no tax authority, no `Confirm signal` machinery at the MCP layer.
@@ -97,7 +130,7 @@ input: z.object({
 ### 2.4 `reconcile_order` — control-plane recovery (query OPEN)
 
 ```ts
-input: z.object({ orderReference: z.string().min(1) }).strict()
+input: z.object({ orderReference: z.string().min(1) }).strict();
 // controlPlane: true  → routable, withdrawn from tools/list (never an agent move)
 ```
 
@@ -115,13 +148,13 @@ input: z.object({ orderReference: z.string().min(1) }).strict()
 
 `core/http.ts` `mapHttpStatusToErrorCode` governs all writes — no new `ProviderErrorCode`.
 
-| WooCommerce response | HTTP | `ProviderErrorCode` | Consumer effect |
-|:--|:--|:--|:--|
-| `woocommerce_rest_cannot_edit` (Read-only key) | 401/403 | `PROVIDER_AUTH_EXPIRED` | Backend prompts **reconnect** (with a Read/Write key) |
-| Invalid/missing field, bad price | 400/422 | `PROVIDER_INVALID_INPUT` | Surface to agent; fix args |
-| Rate limited | 429 | `PROVIDER_RATE_LIMITED` | Consumer decides (no auto-retry) |
-| Provider error / down | 5xx / network | `PROVIDER_UNAVAILABLE` | No auto-retry |
-| Not found (bad id) | 404 | `PROVIDER_ERROR` | Surface |
+| WooCommerce response                           | HTTP          | `ProviderErrorCode`      | Consumer effect                                       |
+| :--------------------------------------------- | :------------ | :----------------------- | :---------------------------------------------------- |
+| `woocommerce_rest_cannot_edit` (Read-only key) | 401/403       | `PROVIDER_AUTH_EXPIRED`  | Backend prompts **reconnect** (with a Read/Write key) |
+| Invalid/missing field, bad price               | 400/422       | `PROVIDER_INVALID_INPUT` | Surface to agent; fix args                            |
+| Rate limited                                   | 429           | `PROVIDER_RATE_LIMITED`  | Consumer decides (no auto-retry)                      |
+| Provider error / down                          | 5xx / network | `PROVIDER_UNAVAILABLE`   | No auto-retry                                         |
+| Not found (bad id)                             | 404           | `PROVIDER_ERROR`         | Surface                                               |
 
 - zod validation failures are caught by the dispatcher **before** the call → `PROVIDER_INVALID_INPUT`, no network spent.
 - Error bodies are redacted (`redactQueryValues`) and never echo the credential.
@@ -152,7 +185,7 @@ input: z.object({ orderReference: z.string().min(1) }).strict()
   // Shipping address for a physical order (commerce-driven addition). address1 is required when
   // present — a shipping block with no street is not dispatchable.
   "shipping": { "address1": "Cra 7 #45-10", "city": "Bogota", "country": "CO" },
-  "status": "pending"
+  "status": "pending",
 }
 // → POST orders  body: { line_items:[{product_id:14,variation_id:20,quantity:2}],
 //    billing:{ email:"buyer@example.com", first_name:"Ana" },
@@ -165,10 +198,15 @@ input: z.object({ orderReference: z.string().min(1) }).strict()
 // paymentUrl/orderKey are WooCommerce's customer-facing pay handle for an unpaid order (commerce-
 // driven addition): the consumer hands paymentUrl to the buyer as the hosted checkout, or ignores
 // it for an offline/COD flow. Both null when WooCommerce issues no pay link.
-{ "id": "312", "number": "312", "status": "pending", "total": "300000",
+{
+  "id": "312",
+  "number": "312",
+  "status": "pending",
+  "total": "300000",
   "orderReference": "xco-7b1f2e",
   "paymentUrl": "https://store.example.com/checkout/order-pay/312/?pay_for_order=true&key=wc_order_abc",
-  "orderKey": "wc_order_abc" }
+  "orderKey": "wc_order_abc",
+}
 ```
 
 ```jsonc
@@ -187,19 +225,19 @@ input: z.object({ orderReference: z.string().min(1) }).strict()
 
 ## 6. Open Items → resolved in write-S0 / implementation
 
-| # | Item | Resolution path |
-|:--|:--|:--|
-| Q-1 | Exact curated writable field set for `update_product` | Confirm with Sara; verify accepted fields in write-S0 |
-| Q-2 | Whether `update_order_status` / `create_customer` join this phase | Driven by the backend checkout's needs (Mateo/Sara) |
+| #   | Item                                                                                | Resolution path                                                  |
+| :-- | :---------------------------------------------------------------------------------- | :--------------------------------------------------------------- |
+| Q-1 | Exact curated writable field set for `update_product`                               | Confirm with Sara; verify accepted fields in write-S0            |
+| Q-2 | Whether `update_order_status` / `create_customer` join this phase                   | Driven by the backend checkout's needs (Mateo/Sara)              |
 | Q-3 | **The `reconcile_order` recovery query** (search vs mirror-in-note vs bounded scan) | **write-S0** — pick the mechanism the live store proves reliable |
-| Q-4 | Variation vs simple product stock routing edge cases | write-S0 against a variable + a simple product |
+| Q-4 | Variation vs simple product stock routing edge cases                                | write-S0 against a variable + a simple product                   |
 
 ---
 
 ## 7. Roadmap
 
-| Phase | Scope | Contract impact |
-|:--|:--|:--|
-| **Phase 2 (this)** | WooCommerce write tools (MCP) | This contract |
-| **Next (backend)** | Commerce-vertical integration for `create_order` | Separate contract in xcale-backend (adapter, checkout) |
-| **Fast-follow** | `update_order_status`, `create_customer` if the checkout needs them | Additive to this contract |
+| Phase              | Scope                                                               | Contract impact                                        |
+| :----------------- | :------------------------------------------------------------------ | :----------------------------------------------------- |
+| **Phase 2 (this)** | WooCommerce write tools (MCP)                                       | This contract                                          |
+| **Next (backend)** | Commerce-vertical integration for `create_order`                    | Separate contract in xcale-backend (adapter, checkout) |
+| **Fast-follow**    | `update_order_status`, `create_customer` if the checkout needs them | Additive to this contract                              |
