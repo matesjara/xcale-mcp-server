@@ -418,8 +418,11 @@ const createOrderInput = z
     lineItems: z
       .array(
         z.object({
-          productId: z.string().min(1),
-          variationId: z.string().min(1).optional(),
+          // Numeric ids only: these are `Number()`-coerced into the WooCommerce body, and a
+          // non-numeric string ("abc" → NaN → JSON null) or exponent form ("1e2" → 100) would
+          // silently target the wrong product. Fail fast at the boundary instead.
+          productId: z.string().regex(/^\d+$/, 'productId must be a numeric id'),
+          variationId: z.string().regex(/^\d+$/, 'variationId must be a numeric id').optional(),
           quantity: z.number().int().positive(),
         }),
       )
@@ -436,7 +439,16 @@ const createOrderInput = z
   })
   .strict();
 
-const reconcileOrderInput = z.object({ orderReference: z.string().min(1) }).strict();
+const reconcileOrderInput = z
+  .object({
+    orderReference: z.string().min(1),
+    // The caller's create-attempt timestamp (ISO 8601). Strongly recommended: it bounds the recent
+    // window to the real uncertainty interval so a busy store (>100 orders since) can't push the
+    // target order off page 1 and produce a false found:false → duplicate (the R-1 risk). Omitted
+    // falls back to best-effort "100 newest", fine for a low-volume pilot.
+    after: z.string().optional(),
+  })
+  .strict();
 
 /** Curated result of a create/reconcile — the fields a caller needs to recognize its own order. */
 export interface WooOrderCreated {
@@ -546,8 +558,14 @@ export function buildWoocommerceTools(
       handler: async (args, ctx) => {
         const body: Record<string, unknown> = {};
         if (args.stockQuantity !== undefined) {
+          // WooCommerce ignores stock_quantity unless manage_stock is on. Caveat (write-S0,
+          // 2026-09-18): variations can report manage_stock:"parent" (stock owned by the parent).
+          // Forcing manage_stock:true here flips that variation to independent tracking — a real
+          // behavior change, not just a value set. Acceptable for v1 (the caller asked to set a
+          // per-variation quantity, which requires independent tracking), but a targeted write-S0
+          // probe on a parent-managed variation is a follow-up before we lean on this at volume.
           body.stock_quantity = args.stockQuantity;
-          body.manage_stock = true; // WooCommerce ignores stock_quantity unless manage_stock is on
+          body.manage_stock = true;
         }
         if (args.stockStatus !== undefined) body.stock_status = args.stockStatus;
         const path =
@@ -603,13 +621,15 @@ export function buildWoocommerceTools(
       handler: async (args, ctx) => {
         // WooCommerce REST has no native filter-orders-by-meta_data, and write-S0 (2026-09-18) proved
         // `?search=<ref>` does NOT match meta_data (returned 0 for a real order carrying the ref). So we
-        // fetch the most RECENT orders and confirm the match on meta_data in the adapter. Reconcile
-        // runs right after a failed create, so the order is among the newest — 100 desc is ample. See
+        // fetch the most RECENT orders and confirm the match on meta_data in the adapter. `after` (the
+        // caller's create-attempt time) bounds the window to the real uncertainty interval so volume
+        // can't scroll the target off page 1; without it we fall back to the 100 newest. See
         // api-contract Q-3 (resolved).
         const res = await client.get('orders', ctx.request, ctx.metadata, {
           per_page: 100,
           orderby: 'date',
           order: 'desc',
+          after: args.after,
         });
         if (!res.ok) return wooError(res);
         const match = (res.data as RawOrderRef[]).find((o) => orderRef(o) === args.orderReference);

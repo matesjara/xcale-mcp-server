@@ -246,8 +246,8 @@ export function createSafeFetch(
     const originalUrl = urlOf(input);
     let currentUrl = originalUrl;
     let headers = normalizeHeaders(init?.headers);
-    let method = init?.method;
-    let body = init?.body;
+    const method = init?.method;
+    const body = init?.body;
     let initialOrigin: string | undefined;
 
     for (let hop = 0; ; hop++) {
@@ -287,15 +287,18 @@ export function createSafeFetch(
       if (hop >= MAX_REDIRECTS) {
         throw new UnsafeHostError(`Too many redirects fetching "${originalUrl}"`);
       }
-      // Fetch-spec redirect method/body downgrade: 303 → GET (drop body); 301/302 downgrade a
-      // non-GET/HEAD method to GET (drop body); 307/308 preserve both.
+      // A redirect on a WRITE is never safe to auto-follow. Replaying the body (307/308) could
+      // double-apply a non-idempotent write like create_order — a second order carrying the SAME
+      // `_xcale_order_ref`, invisible to reconcile_order (it would report found:true for one and
+      // mask the duplicate). And silently downgrading the write to a bodyless GET (the Fetch spec's
+      // 301/302/303 behavior) would return ok() for a write that never happened. WooCommerce REST
+      // does not legitimately redirect a write, so fail closed and let the caller reconcile/retry
+      // deliberately. Reads (GET/HEAD, no body) follow redirects normally, re-validated per hop.
       const m = (method ?? 'GET').toUpperCase();
-      if (
-        response.status === 303 ||
-        ((response.status === 301 || response.status === 302) && m !== 'GET' && m !== 'HEAD')
-      ) {
-        method = 'GET';
-        body = undefined;
+      if (m !== 'GET' && m !== 'HEAD') {
+        throw new UnsafeHostError(
+          `Refusing to follow a ${response.status} redirect for a ${m} request to "${originalUrl}" — a redirected write cannot be replayed safely`,
+        );
       }
       currentUrl = new URL(location, url).toString();
     }

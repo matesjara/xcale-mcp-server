@@ -25,7 +25,20 @@
 - Order response carries `id` (number), `number`, `status`, `total` (string), and the echoed `meta_data`.
 - Variation 20/19 of product 14 report `manage_stock: "parent"` (stock managed on the parent) — relevant when targeting `update_stock` at a variation whose parent owns stock.
 
+## Review resolutions (2026-09-18, `code-reviewer` on the write diff)
+
+The write tools were reviewed after write-S0. Findings and how each was resolved:
+
+- **CRITICAL — a redirected write could double-apply.** The `safe-egress.ts` redirect loop followed 3xx for any method: a `307/308` on `create_order` would **replay the same body** (same `_xcale_order_ref`) to the redirect target → a duplicate order that `reconcile_order` can't distinguish (both carry the ref); and a `301/302/303` would silently **downgrade the write to a bodyless GET** → `ok()` for a write that never landed. **Design revised — supersedes the plan's "W4 downgrade":** a redirect (any 3xx-with-Location) on a **non-GET/HEAD** method now **fails closed** (`UnsafeHostError`). WooCommerce REST does not legitimately redirect a write; the caller reconciles/retries deliberately instead of the transport guessing. Reads (GET/HEAD) still follow redirects, re-validated per hop. Locked by tests (301/302/303/307/308 × POST/PUT reject; GET still follows).
+- **WARNING — reconcile window was volume-bound, not time-bound.** `reconcile_order` gained an optional **`after`** (the caller's create-attempt timestamp, ISO 8601), threaded into `GET orders?after=…&per_page=100&orderby=date&order=desc`. It bounds the scan to the real uncertainty interval so a busy store (>100 orders since) can't scroll the target off page 1 → false `found:false` → duplicate (R-1). Omitted falls back to "100 newest" (fine for the low-volume pilot). Matches api-contract §2.4.
+- **WARNING — 301/302 downgrade broader than spec + cross-origin write-body exfiltration.** Both subsumed by the fail-closed change above: writes never take a second hop, so a PUT is never silently GET'd and a `create_order` body (buyer PII) never travels to a redirect target.
+- **SUGGESTION — numeric-id coercion.** `create_order` `lineItems[].productId`/`variationId` were `Number()`-coerced; a non-numeric string (`"abc"`→NaN→null) or exponent (`"1e2"`→100) would silently target the wrong product. Now validated `z.string().regex(/^\d+$/)` — rejected as `PROVIDER_INVALID_INPUT` before any network call.
+- **SUGGESTION — `manage_stock:"parent"` variations.** `update_stock` forcing `manage_stock:true` on a parent-managed variation flips it to independent tracking (a behavior change, not just a value set). Documented inline; **follow-up**: a targeted write-S0 probe on a parent-managed variation before leaning on this at volume.
+
+Confirmed sound by the review: SSRF guard intact, credential never in the URL, no gateway retry, `controlPlane` withdrawal, Provider Self-Containment, id path-encoding, error mapping.
+
 ## Residual / cleanup
 
 - Test order **id 21** (`pending`, total 150000) was left in the sandbox — a real but harmless QA record.
 - The idempotent PUT changed nothing (same price).
+- **Open follow-up**: write-S0 probe of `update_stock` against a `manage_stock:"parent"` variation (see the last review resolution above).

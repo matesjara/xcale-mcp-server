@@ -191,46 +191,59 @@ describe('createSafeFetch', () => {
   });
 });
 
-describe('createSafeFetch — redirect method/body downgrade (W4)', () => {
-  // Same-origin redirect so the credential strip doesn't interfere; we only assert method/body.
-  function twoHop(status: number) {
+describe('createSafeFetch — a redirected WRITE fails closed (W4 / review CRITICAL)', () => {
+  // A redirect on a non-idempotent write is never safe to auto-follow: replaying the body (307/308)
+  // could double-POST create_order under the same _xcale_order_ref (invisible to reconcile), and
+  // downgrading to a bodyless GET (301/302/303) would report success for a write that never landed.
+  // So ANY 3xx-with-Location on a POST/PUT must throw before a second hop.
+  function redirectOnce(status: number) {
     const calls: Array<{ method?: string; body?: unknown }> = [];
-    let n = 0;
     const inner = vi.fn(async (_url: unknown, init?: RequestInit) => {
       calls.push({ method: init?.method, body: init?.body });
-      n += 1;
-      return n === 1
-        ? new Response(null, {
-            status,
-            headers: { location: 'https://store.example.com/after' },
-          })
-        : new Response('{}', { status: 200 });
+      return new Response(null, {
+        status,
+        headers: { location: 'https://store.example.com/after' },
+      });
     });
     return { inner, calls };
   }
 
-  it('303 → downgrades a POST to GET and drops the body', async () => {
-    const { inner, calls } = twoHop(303);
+  it.each([301, 302, 303, 307, 308])(
+    'rejects a %s redirect of a POST without a second hop',
+    async (status) => {
+      const { inner, calls } = redirectOnce(status);
+      const fetch = createSafeFetch({ lookupImpl: publicLookup, fetchImpl: inner });
+      await expect(
+        fetch('https://store.example.com/orders', { method: 'POST', body: '{"a":1}' }),
+      ).rejects.toBeInstanceOf(UnsafeHostError);
+      expect(inner).toHaveBeenCalledTimes(1); // the write was sent once, never replayed
+      expect(calls[0]?.body).toBe('{"a":1}'); // and never downgraded to a bodyless GET
+    },
+  );
+
+  it.each([301, 302, 307, 308])('rejects a %s redirect of a PUT', async (status) => {
+    const { inner } = redirectOnce(status);
     const fetch = createSafeFetch({ lookupImpl: publicLookup, fetchImpl: inner });
-    await fetch('https://store.example.com/orders', { method: 'POST', body: '{"a":1}' });
-    expect(calls[0]?.method).toBe('POST');
-    expect(calls[1]?.method).toBe('GET');
-    expect(calls[1]?.body).toBeUndefined();
+    await expect(
+      fetch('https://store.example.com/products/14', { method: 'PUT', body: '{"a":1}' }),
+    ).rejects.toBeInstanceOf(UnsafeHostError);
+    expect(inner).toHaveBeenCalledTimes(1);
   });
 
-  it('302 → downgrades a POST to GET and drops the body', async () => {
-    const { inner, calls } = twoHop(302);
+  it('still follows a redirect for a GET (reads are unaffected)', async () => {
+    let n = 0;
+    const inner = vi.fn(async () => {
+      n += 1;
+      return n === 1
+        ? new Response(null, {
+            status: 302,
+            headers: { location: 'https://store.example.com/after' },
+          })
+        : new Response('{}', { status: 200 });
+    });
     const fetch = createSafeFetch({ lookupImpl: publicLookup, fetchImpl: inner });
-    await fetch('https://store.example.com/orders', { method: 'POST', body: '{"a":1}' });
-    expect(calls[1]?.method).toBe('GET');
-    expect(calls[1]?.body).toBeUndefined();
-  });
-
-  it('307 → preserves the POST method and body', async () => {
-    const { inner, calls } = twoHop(307);
-    const fetch = createSafeFetch({ lookupImpl: publicLookup, fetchImpl: inner });
-    await fetch('https://store.example.com/orders', { method: 'POST', body: '{"a":1}' });
-    expect(calls[1]?.method).toBe('POST');
-    expect(calls[1]?.body).toBe('{"a":1}');
+    const res = await fetch('https://store.example.com/wp-json', { method: 'GET' });
+    expect(res.status).toBe(200);
+    expect(inner).toHaveBeenCalledTimes(2);
   });
 });

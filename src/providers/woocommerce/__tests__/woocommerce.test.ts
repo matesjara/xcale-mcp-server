@@ -494,6 +494,21 @@ describe('woocommerce provider — create_order (write, S4)', () => {
     expect(result.kind).toBe('error');
     if (result.kind === 'error') expect(result.code).toBe('PROVIDER_AUTH_EXPIRED');
   });
+
+  it.each(['abc', '1e2', '12.5', ''])(
+    'rejects a non-numeric productId (%s) as INVALID_INPUT, no network',
+    async (productId) => {
+      const { provider: p, calls } = provider(CREATED, 201);
+      const result = await p.callTool(
+        'mcp_woocommerce_create_order',
+        { orderReference: 'x', lineItems: [{ productId, quantity: 1 }] },
+        CTX,
+      );
+      expect(result.kind).toBe('error');
+      if (result.kind === 'error') expect(result.code).toBe('PROVIDER_INVALID_INPUT');
+      expect(calls).toHaveLength(0); // never reaches WooCommerce as NaN/null
+    },
+  );
 });
 
 describe('woocommerce provider — reconcile_order (control-plane, S5)', () => {
@@ -538,5 +553,18 @@ describe('woocommerce provider — reconcile_order (control-plane, S5)', () => {
       CTX,
     );
     expect(successData(result)).toEqual({ found: false });
+  });
+
+  it('bounds the recent window with `after` when the caller supplies its attempt time', async () => {
+    const { provider: p, calls } = provider([]);
+    await p.callTool(
+      'mcp_woocommerce_reconcile_order',
+      { orderReference: 'xco-7b1f2e', after: '2026-09-18T12:00:00Z' },
+      CTX,
+    );
+    // `after` bounds the window to the real uncertainty interval so volume can't scroll the
+    // target off page 1 (the R-1 duplicate risk).
+    expect(calls[0]).toContain('after=');
+    expect(calls[0]).toContain(encodeURIComponent('2026-09-18T12:00:00Z'));
   });
 });
