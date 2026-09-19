@@ -435,6 +435,22 @@ const createOrderInput = z
         phone: z.string().optional(),
       })
       .optional(),
+    // Shipping address for a physical order. When present, `address1` is required — a shipping block
+    // without a street is not an address the store can dispatch to. WooCommerce prices/fulfils from
+    // this; the buyer's identity (name/phone) still comes from `customer` (billing).
+    shipping: z
+      .object({
+        address1: z.string().min(1),
+        address2: z.string().optional(),
+        city: z.string().optional(),
+        state: z.string().optional(),
+        postcode: z.string().optional(),
+        country: z.string().optional(),
+        firstName: z.string().optional(),
+        lastName: z.string().optional(),
+        phone: z.string().optional(),
+      })
+      .optional(),
     status: z.enum(['pending', 'processing', 'on-hold']).default('pending'),
   })
   .strict();
@@ -450,19 +466,30 @@ const reconcileOrderInput = z
   })
   .strict();
 
-/** Curated result of a create/reconcile — the fields a caller needs to recognize its own order. */
+/**
+ * Curated result of a create/reconcile — the fields a caller needs to recognize its own order.
+ *
+ * `paymentUrl`/`orderKey` are WooCommerce's customer-facing pay handle for an unpaid order: the
+ * consumer's commerce layer hands `paymentUrl` to the buyer as the hosted checkout (Shopify-style),
+ * or ignores it for an offline/COD flow (the order is already terminal). Null when WooCommerce does
+ * not issue one (e.g. an already-paid order carries no pay link).
+ */
 export interface WooOrderCreated {
   readonly id: string;
   readonly number: string;
   readonly status: string;
   readonly total: string | null;
   readonly orderReference: string;
+  readonly paymentUrl: string | null;
+  readonly orderKey: string | null;
 }
 interface RawOrderRef {
   readonly id: number;
   readonly number?: string | number;
   readonly status?: string;
   readonly total?: string;
+  readonly payment_url?: string;
+  readonly order_key?: string;
   readonly meta_data?: ReadonlyArray<{ key: string; value: unknown }>;
 }
 function toOrderCreated(r: RawOrderRef, orderReference: string): WooOrderCreated {
@@ -472,6 +499,10 @@ function toOrderCreated(r: RawOrderRef, orderReference: string): WooOrderCreated
     status: r.status ?? 'unknown',
     total: r.total ?? null,
     orderReference,
+    // WooCommerce returns an empty string for `payment_url` on an order with nothing to pay; curate
+    // that to null so the consumer's "is there a pay link?" is a plain null check, not "" vs absent.
+    paymentUrl: r.payment_url ? r.payment_url : null,
+    orderKey: r.order_key ?? null,
   };
 }
 function orderRef(r: RawOrderRef): string | undefined {
@@ -603,6 +634,20 @@ export function buildWoocommerceTools(
               : {}),
             ...(args.customer.lastName !== undefined ? { last_name: args.customer.lastName } : {}),
             ...(args.customer.phone !== undefined ? { phone: args.customer.phone } : {}),
+          };
+        }
+        if (args.shipping !== undefined) {
+          const s = args.shipping;
+          body.shipping = {
+            address_1: s.address1,
+            ...(s.address2 !== undefined ? { address_2: s.address2 } : {}),
+            ...(s.city !== undefined ? { city: s.city } : {}),
+            ...(s.state !== undefined ? { state: s.state } : {}),
+            ...(s.postcode !== undefined ? { postcode: s.postcode } : {}),
+            ...(s.country !== undefined ? { country: s.country } : {}),
+            ...(s.firstName !== undefined ? { first_name: s.firstName } : {}),
+            ...(s.lastName !== undefined ? { last_name: s.lastName } : {}),
+            ...(s.phone !== undefined ? { phone: s.phone } : {}),
           };
         }
         const res = await client.post('orders', body, ctx.request, ctx.metadata);

@@ -456,10 +456,13 @@ describe('woocommerce provider — create_order (write, S4)', () => {
     number: '312',
     status: 'pending',
     total: '300000',
+    payment_url:
+      'https://store.example.com/checkout/order-pay/312/?pay_for_order=true&key=wc_order_abc',
+    order_key: 'wc_order_abc',
     meta_data: [{ key: '_xcale_order_ref', value: 'xco-7b1f2e' }],
   };
 
-  it('POSTs orders with line_items + the orderReference in meta_data, echoes the ref', async () => {
+  it('POSTs orders with line_items + the orderReference in meta_data, echoes the ref + pay handle', async () => {
     const { provider: p, calls, sentMethods, sentBodies } = provider(CREATED, 201);
     const result = await p.callTool(
       'mcp_woocommerce_create_order',
@@ -481,7 +484,51 @@ describe('woocommerce provider — create_order (write, S4)', () => {
       id: '312',
       status: 'pending',
       orderReference: 'xco-7b1f2e',
+      // the customer-facing pay handle for the hosted-checkout (pay-link) flow
+      paymentUrl: CREATED.payment_url,
+      orderKey: 'wc_order_abc',
     });
+  });
+
+  it('maps an empty payment_url to null (nothing to pay — terminal/COD)', async () => {
+    const { provider: p } = provider({ ...CREATED, payment_url: '', order_key: undefined }, 201);
+    const result = await p.callTool(
+      'mcp_woocommerce_create_order',
+      { orderReference: 'x', lineItems: [{ productId: '1', quantity: 1 }] },
+      CTX,
+    );
+    expect(successData(result)).toMatchObject({ paymentUrl: null, orderKey: null });
+  });
+
+  it('forwards a shipping address (address1 required) to WooCommerce shipping', async () => {
+    const { provider: p, sentBodies } = provider(CREATED, 201);
+    await p.callTool(
+      'mcp_woocommerce_create_order',
+      {
+        orderReference: 'xco-ship',
+        lineItems: [{ productId: '14', quantity: 1 }],
+        shipping: { address1: 'Cra 7 #45-10', city: 'Bogota', country: 'CO' },
+      },
+      CTX,
+    );
+    const body = JSON.parse(sentBodies[0]!);
+    expect(body.shipping).toEqual({ address_1: 'Cra 7 #45-10', city: 'Bogota', country: 'CO' });
+  });
+
+  it('rejects a shipping block without a street (address1) as INVALID_INPUT, no network', async () => {
+    const { provider: p, calls } = provider(CREATED, 201);
+    const result = await p.callTool(
+      'mcp_woocommerce_create_order',
+      {
+        orderReference: 'x',
+        lineItems: [{ productId: '1', quantity: 1 }],
+        shipping: { city: 'Bogota' },
+      },
+      CTX,
+    );
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe('PROVIDER_INVALID_INPUT');
+    expect(calls).toHaveLength(0);
   });
 
   it('maps a 401 to PROVIDER_AUTH_EXPIRED', async () => {

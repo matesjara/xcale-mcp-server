@@ -149,17 +149,26 @@ input: z.object({ orderReference: z.string().min(1) }).strict()
   "orderReference": "xco-7b1f2e",
   "lineItems": [{ "productId": "14", "variationId": "20", "quantity": 2 }],
   "customer": { "email": "buyer@example.com", "firstName": "Ana" },
+  // Shipping address for a physical order (commerce-driven addition). address1 is required when
+  // present — a shipping block with no street is not dispatchable.
+  "shipping": { "address1": "Cra 7 #45-10", "city": "Bogota", "country": "CO" },
   "status": "pending"
 }
 // → POST orders  body: { line_items:[{product_id:14,variation_id:20,quantity:2}],
-//    billing:{ email:"buyer@example.com", first_name:"Ana" }, status:"pending",
+//    billing:{ email:"buyer@example.com", first_name:"Ana" },
+//    shipping:{ address_1:"Cra 7 #45-10", city:"Bogota", country:"CO" }, status:"pending",
 //    meta_data:[{ key:"_xcale_order_ref", value:"xco-7b1f2e" }] }
 ```
 
 ```jsonc
 // create_order — success ToolOutcome.ok data
+// paymentUrl/orderKey are WooCommerce's customer-facing pay handle for an unpaid order (commerce-
+// driven addition): the consumer hands paymentUrl to the buyer as the hosted checkout, or ignores
+// it for an offline/COD flow. Both null when WooCommerce issues no pay link.
 { "id": "312", "number": "312", "status": "pending", "total": "300000",
-  "orderReference": "xco-7b1f2e", "lineItems": [ /* curated */ ] }
+  "orderReference": "xco-7b1f2e",
+  "paymentUrl": "https://store.example.com/checkout/order-pay/312/?pay_for_order=true&key=wc_order_abc",
+  "orderKey": "wc_order_abc" }
 ```
 
 ```jsonc
