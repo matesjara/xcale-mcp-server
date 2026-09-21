@@ -30,20 +30,20 @@ export const SALUDTOOLS_TOKEN_PATH = '/integration/authenticate/apikey/v1/';
  * and a golden test across the repos pins it, because a divergence otherwise surfaces only at runtime
  * as `missing credential value for field "X"`.
  *
- * ## `responseFields.expiry` is ABSENT, and that is a decision — not an omission
+ * ## `responseFields.expiry` — Observed 2026-09-21
  *
- * The documented mint response is `{"access_token": "<JWT>"}` and nothing else. The portal says the
- * token expires; the JWT's own `exp` claim carries when. But this descriptor is **strictly
- * declarative** by ADR 0010 — it reads a named JSON field, it does not parse a token — so there is no
- * honest value to put here until a real mint response is seen (Q2).
+ * The vendor's portal documents the mint response as `{"access_token": "<JWT>"}` and nothing else. It
+ * is not. A real mint against production returns
+ * `{access_token, expires_in, refresh_token, scope, token_type, jti}` — so `expires_in` is declared
+ * here, and Rail A caches against a real lifetime instead of re-minting after every 401.
  *
- * The consequence is bounded and safe: with no declared expiry, Rail A has no lifetime to cache
- * against, so a stale token surfaces as a 401 on the next data call, which `errors.ts` maps to
- * `PROVIDER_AUTH_EXPIRED` and the consumer answers by re-resolving. One wasted call per expiry
- * window. The alternative — teaching the descriptor to read a token's `exp` — widens a shared
- * contract and would need its own ADR; it is not worth it to save that one call.
+ * Measured on that response: `exp - iat` is **518400 seconds — 6 days**, far longer than Siigo's 24h.
+ * A token this long-lived is worth knowing about: it is why the expiry matters (a 401-driven re-mint
+ * would have been rare enough to look like it worked) and it raises the stakes on never logging one.
  *
- * **If the real response turns out to carry an `expires_in`, add it here and nowhere else.**
+ * `refresh_token` is deliberately NOT used. This descriptor mints from the durable ApiKey, which Rail
+ * A holds anyway, so a refresh flow would add a second credential to custody and buy nothing. It is
+ * recorded here because it is undocumented and the next reader will wonder.
  *
  * ## No `staticHeaders`
  *
@@ -56,6 +56,6 @@ export const saludtoolsAuth: ProviderAuthDescriptor = {
   tokenEndpoint: `${SALUDTOOLS_PRODUCTION_BASE_URL}${SALUDTOOLS_TOKEN_PATH}`,
   method: 'POST',
   bodyFields: { key: 'key', secret: 'secret' },
-  responseFields: { token: 'access_token' },
+  responseFields: { token: 'access_token', expiry: 'expires_in' },
   tokenPlacement: 'bearer_header',
 };

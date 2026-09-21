@@ -1,0 +1,50 @@
+[
+  {
+    "value": "CONVENTIONAL",
+    "name": "Convencional/Presencial"
+  },
+  {
+    "value": "TELEMEDICINE",
+    "name": "Telemedicina"
+  },
+  {
+    "value": "ASSISTED",
+    "name": "Asistida"
+  },
+  {
+    "value": "NO_APLICA",
+    "name": "No aplica"
+  },
+  {
+    "value": "INTRAMULAR",
+    "name": "Intramural"
+  },
+  {
+    "value": "EXTRAMURAL_MOBILE_UNIT",
+    "name": "Extramural unidad móvil"
+  },
+  {
+    "value": "EXTRAMURAL_HOME",
+    "name": "Extramural domiciliaria"
+  },
+  {
+    "value": "EXTRAMURAL_HEALTH_DAY",
+    "name": "Extramural jornada de salud"
+  },
+  {
+    "value": "TELEMEDICINE_INTERACTIVE",
+    "name": "Telemedicina interactiva"
+  },
+  {
+    "value": "TELEMEDICINE_NOT_INTERACTIVE",
+    "name": "Telemedicina no interactiva"
+  },
+  {
+    "value": "TELEMEDICINE_TELEEXPERTISE",
+    "name": "Telemedicina telexperticia"
+  },
+  {
+    "value": "TELEMEDICINE_TELEMONITORING",
+    "name": "Telemedicina telemonitoreo"
+  }
+]

@@ -1,0 +1,48 @@
+{
+  "content": [
+    {
+      "id": 1,
+      "name": "AREA 1"
+    },
+    {
+      "id": 2,
+      "name": "AREA 2"
+    },
+    {
+      "id": 3,
+      "name": "Ginecología"
+    },
+    {
+      "id": 4,
+      "name": "Obstetricia"
+    },
+    {
+      "id": 5,
+      "name": "Medicina General"
+    },
+    {
+      "id": 6,
+      "name": "Medicina Natural"
+    },
+    {
+      "id": 7,
+      "name": "Oftalmología"
+    },
+    {
+      "id": 8,
+      "name": "Ortopedia"
+    },
+    {
+      "id": 9,
+      "name": "Cardiología"
+    },
+    {
+      "id": 10,
+      "name": "Neumología"
+    }
+  ],
+  "pageNumber": 0,
+  "pageSize": 10,
+  "totalElements": 92,
+  "totalPages": 10
+}

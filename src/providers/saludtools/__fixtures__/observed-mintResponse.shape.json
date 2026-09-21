@@ -1,0 +1,8 @@
+{
+  "access_token": "<REDACTED — a real RS256 JWT, 735 chars>",
+  "token_type": "bearer",
+  "refresh_token": "<REDACTED>",
+  "expires_in": 518399,
+  "scope": ["role_admin", "role_superadmin"],
+  "jti": "<REDACTED — uuid>"
+}

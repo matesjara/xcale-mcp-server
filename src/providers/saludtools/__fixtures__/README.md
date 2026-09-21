@@ -1,12 +1,21 @@
 # SaludTools fixtures — provenance
 
-**These are NOT recordings.** Every file here is transcribed from a response example the vendor
-publishes on its own developer portal (`developer.saludtools.com`), captured 2026-09-21. No call has
-ever been made against SaludTools from this repo: there is no credential yet
-(`docs/design/saludtools-provider/grill-notes.md` §6 Q1).
+**Two kinds of file live here, and the difference is the `observed-` prefix.**
 
-`add-provider` requires **anonymized recordings, never invented ones**. These sit between the two, and
-the distinction matters enough to write down:
+- **`observed-*` — real recordings**, captured 2026-09-21 against SaludTools **production** with a live
+  clinic ApiKey. These are evidence.
+- **everything else — the vendor's published examples**, transcribed from its developer portal
+  (`developer.saludtools.com`). These are not evidence, and four of them turned out to be wrong; see
+  `__tests__/observed.test.ts`, which names each contradiction.
+
+Replacing the documented fixtures with recordings, one module at a time, is still outstanding — the
+recordings so far cover the mint, the catalogs and an empty agenda search, because those touch no
+patient's records. A patient read and a populated agenda were deliberately **not** recorded: the key is
+production, and the Ley 1581 question is Mateo's and still open.
+
+Why the documented ones are still here rather than deleted: they exercise shapes the recordings do not
+yet cover (a populated patient record, a populated agenda page), and they are the vendor's own bytes
+rather than a guess. But they are not proof, and the distinction matters enough to write down:
 
 - They are **not invented** — the field names, the envelope, the `code` values, the Spanish messages
   and the Spring page shape are the vendor's own bytes, not a guess at what it might return.
@@ -29,6 +38,18 @@ an inconvenience.
 | `errors/patientNotFound412.json`  | An unknown patient document    | Reported as `412`, the same code as a malformed request — the case `isPatientNotFound` exists for |
 | `errors/invalidEventType412.json` | A missing/wrong `eventType`    | `412` with `body: null`                                                                           |
 | `errors/unauthorized401.json`     | HTTP 401                       | The body is a **bare JSON string**, not an envelope                                               |
+
+Recorded against production (`observed-*`):
+
+| File                                     | What it proves                                                                                                                                                                                                              |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `observed-mintResponse.shape.json`       | The mint returns `expires_in`, `refresh_token`, `scope`, `token_type`, `jti` — the portal documents only `access_token`. **Token values are redacted**: a real one is a live 6-day credential and is never written to disk. |
+| `observed-attentionModalityCatalog.json` | Twelve modalities, and **no `DOMICILIARY`** — the documented three-value enum was wrong in both directions                                                                                                                  |
+| `observed-statesCatalog.json`            | Eleven appointment states, keyed on `value` not `id`, including `CANCELLED` and `RESCHEDULED` (which answers how to cancel)                                                                                                 |
+| `observed-specialtiesPagedCatalog.json`  | A paged catalog returns a bare FLATTENED page with no envelope `code` — the shape the first unwrap rejected                                                                                                                 |
+| `observed-clinicsCatalog.json`           | One site, a five-digit id, and a `company` field. **The clinic's name is anonymized** — the real response names a live customer.                                                                                            |
+| `observed-appointmentSearchEmpty.json`   | A date window with no doctor and no patient is accepted, and pagination goes in a nested `pageable`                                                                                                                         |
+| `errors/observed-mintInvalidKey412.json` | An invalid key yields **412**, not the 500 the docs claim                                                                                                                                                                   |
 
 `appointmentSearch.json` carries two of the three records its `totalElements` reports: the third was
 cut off when the page was captured. Left as it is on purpose — the totals are the vendor's, and a page

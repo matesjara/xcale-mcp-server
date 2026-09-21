@@ -81,13 +81,18 @@ describe('saludtools provider — published surface', () => {
       expect(p.auth.bodyFields).toEqual({ key: 'key', secret: 'secret' });
       expect(p.auth.tokenPlacement).toBe('bearer_header');
       /*
-       * NO expiry field, and that is the assertion — not an oversight the next person should "fix".
-       * The documented mint response is `{"access_token": "<JWT>"}` and nothing more; this descriptor
-       * is strictly declarative and does not parse a token's `exp`. When a real mint response is
-       * observed (Q2) and carries an expiry, this expectation is what tells whoever adds it that they
-       * are changing a decision, not filling a gap.
+       * `expires_in` is OBSERVED (2026-09-21, production), not documented — the portal shows only
+       * `access_token`. This assertion started life as its own opposite: it pinned the ABSENCE of an
+       * expiry and said that whoever added one after seeing a real mint response would be changing a
+       * decision rather than filling a gap. A real mint came back with
+       * `{access_token, token_type, refresh_token, expires_in, scope, jti}`, this test went red, and
+       * that is how the descriptor got corrected instead of quietly staying wrong for a week at a
+       * time — the token lives ~6 days, so nothing would have looked broken. See `observed.test.ts`.
        */
-      expect(p.auth.responseFields).toEqual({ token: 'access_token' });
+      expect(p.auth.responseFields).toEqual({
+        token: 'access_token',
+        expiry: 'expires_in',
+      });
       expect(p.auth.staticHeaders).toBeUndefined();
     }
   });

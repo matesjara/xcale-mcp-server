@@ -1,20 +1,28 @@
 # SaludTools — grill notes (pre feature-design)
 
-- **Status:** alignment (grill). Working notes on the branch — **no PR yet**. Mateo's instruction
-  (2026-09-21): build the whole integration, then ship it as **one** PR with everything in it.
+- **Status:** phases 1–2 built and green, verified against production for everything that touches no
+  patient. Working notes on the branch — **no PR yet**. Mateo's instruction (2026-09-21): build the whole
+  integration, then ship it as **one** PR with everything in it.
 - **Date:** 2026-09-21
 - **Code target repo:** `xcale-mcp-server` (MCP provider); credentials in `xcale-backend` (Rail A).
 - **Source:** SaludTools public developer portal (`https://developer.saludtools.com/`) and its published
-  Postman collection (`/assets/IntegracionSaludtools.postman_collection.json`), both read 2026-09-21.
+  Postman collection (`/assets/IntegracionSaludtools.postman_collection.json`), both read 2026-09-21 —
+  **plus calls made against production the same day** with a live clinic ApiKey (§6).
 - **Vendor:** CareCloud S.A.S. (Colombia). SaludTools is its cloud clinical-records and scheduling product.
 
 > Working document. Records what was verified in the vendor's wire documentation, the decisions that follow
 > from it, and the questions that must close before each phase is authorized.
 >
-> **Evidence discipline.** Everything in §2 is *Documented* — read from the vendor's own portal and
-> collection. Nothing here is *Observed*: no call has been made against SaludTools, because we hold no
-> credential (Q1). Per `add-provider`, an unobserved wire fact **defers the api-contract**; it does not
-> enter it provisionally. §2 is good enough to design against and **not** good enough to ship against.
+> **Evidence discipline.** §2 is _Documented_ — what the vendor's portal and collection say. §6 is
+> _Observed_ — what production actually answered on 2026-09-21. **Where they disagree, §6 wins**, and they
+> disagree about seven things, listed at the end of §6; three of the seven would have shipped as defects.
+>
+> §2 is left standing rather than corrected in place on purpose: the gap between the two columns is the
+> most useful thing this document records about SaludTools, and flattening it would hide how little the
+> portal can be trusted for the modules nobody has called yet (phases 3 and 4).
+>
+> What is still unproven: every read that touches a real patient. The key we hold is a production clinic's
+> and Q6 is open, so none was made.
 
 ---
 
@@ -31,7 +39,7 @@ never sees (D5). Completeness is the goal; it is reached in phases, and each pha
 evidence.
 
 What "complete" covers, from the collection: `PATIENT`, `APPOINTMENT`, `MEDICINE`, clinic history, exam
-prescriptions, exam results, paraclinics, disability certificates (*incapacidades*), patient documents,
+prescriptions, exam results, paraclinics, disability certificates (_incapacidades_), patient documents,
 gynaecological history, personal history, family history, and the ~33 parametric catalogs.
 
 ## 2. Recon findings (Documented 2026-09-21)
@@ -45,9 +53,8 @@ gynaecological history, personal history, family history, and the ~33 parametric
      enum fields — the same shape as HiMed's `accion` dispatch.
    - One exception in the collection: document **upload** posts to `/integration/sync/event/documents/v1/`.
      Every other document operation (search, download) goes through the ordinary event endpoint.
-2. **The auth response is a JWT.** `{"access_token": "<JWT>"}`. The token carries an `exp` claim and the
-   portal states it expires and must be re-minted. **Whether the JSON also carries an `expires_in` or
-   equivalent expiry field is not documented** — see Q2.
+2. **The auth response is a JWT.** `{"access_token": "<JWT>"}` — **wrong, see Q2**: production also
+   returns `expires_in`, `refresh_token`, `scope`, `token_type` and `jti`, and the token lives ~6 days.
 3. **Hosts are global, not per-clinic.** Production `https://saludtools.carecloud.com.co/`, QA
    `https://saludtools.qa.carecloud.com.co/`, dev `https://saludtools.dev.carecloud.com.co/` (the last two
    from the collection's variables). A clinic is identified by its credential, not by a subdomain — so a
@@ -55,20 +62,27 @@ gynaecological history, personal history, family history, and the ~33 parametric
 4. **Every response is wrapped, and the status lives inside the 200.**
 
    ```json
-   { "id": null, "code": 200, "message": "Se consulta la informacion de  id: 2593842",
-     "eventId": "3eb8d63a93be49d096c51f39b35d7bfd", "body": { } }
+   {
+     "id": null,
+     "code": 200,
+     "message": "Se consulta la informacion de  id: 2593842",
+     "eventId": "3eb8d63a93be49d096c51f39b35d7bfd",
+     "body": {}
+   }
    ```
 
    `code` is a field in the body of an HTTP 200. This is the Toteat shape — a provider whose HTTP status
    does not, on its own, tell you whether the call worked — and it is why this provider needs a real
    `errors.ts` (§5). `eventId` is a per-call correlation id and is worth keeping in logs.
+
 5. **SEARCH returns a Spring `Page`.** `body.content[]` plus `pageable`, `totalPages`, `totalElements`,
    `numberOfElements`, `first`, `last`, `size`, `number`, `empty`. `page` and `size` are **required**;
    omitting them is a 412. This maps cleanly onto `definePaginatedList`.
 6. **Appointments name people by document, never by internal id.** An appointment carries
    `patientDocumentType` + `patientDocumentNumber` and `doctorDocumentType` + `doctorDocumentNumber`, plus
    `startAppointment` / `endAppointment` (`yyyy-MM-dd HH:mm`), `modality`
-   (`CONVENTIONAL` / `TELEMEDICINE` / `DOMICILIARY`), `stateAppointment`, `notificationState`
+   (documented as `CONVENTIONAL` / `TELEMEDICINE` / `DOMICILIARY` — **wrong, see Q2's table**: twelve
+   values live, and no `DOMICILIARY`), `stateAppointment`, `notificationState`
    (`ATTEND` / `NOT_ATTEND` / `NOT_RESPOND`), `appointmentType` (a free-text string), `clinic` (a numeric
    id) and `comment`. The appointment's own `id` is returned and is what READ, UPDATE and DELETE take.
 7. **`appointment SEARCH` is a real filter.** It accepts any combination of the appointment fields,
@@ -78,8 +92,9 @@ gynaecological history, personal history, family history, and the ~33 parametric
    being contacted". The provider's own answer to a question our product has to ask before it messages
    anybody. See D4.
 9. **Parametric catalogs are plain authenticated GETs**, `GET {host}/integration/parametric/{name}/v1/`,
-   returning `[{id, name}]`. Some are paged (`?page=0`), and one takes a filter
-   (`atcconcentration/v1/?principleact=10`). The full list is in §4, phase 2.
+   returning `[{id, name}]` — **only sometimes**: `states` and `attentionModality` key on a string
+   `value`, and a paged catalog returns a bare flattened page with no envelope `code` at all. Some are
+   paged (`?page=0`), and one takes a filter (`atcconcentration/v1/?principleact=10`). Full list in §4.
 10. **There is no doctor directory and no availability endpoint.** Nothing in the portal or the collection
     lists the clinic's doctors, their schedules, their working hours, or free slots. This is the finding
     that shapes the whole design — see D3.
@@ -88,8 +103,9 @@ gynaecological history, personal history, family history, and the ~33 parametric
     update and delete — choosing the HTTP method, the destination URL, and optional URL params and headers.
     **There is no API to register or list them, and the payload shape is not documented** (Q5).
 12. **Documented HTTP codes:** 200, 400, 401 (invalid or absent token), 404, 405, 412 (Precondition Failed —
-    this is what validation errors use), 500. Notably, **the auth endpoint answers 500 for an invalid key
-    or secret**, not 401 (§5).
+    this is what validation errors use), 500. The docs claim the auth endpoint answers **500** for an
+    invalid key or secret — **wrong, it answers 412** — and they never mention **429**, which production
+    emits under a modest burst (§6).
 13. **Nothing about SaludTools exists in any xcale repo today** — greenfield; no slug, no toolbox entry, no
     leftovers.
 
@@ -112,9 +128,9 @@ gynaecological history, personal history, family history, and the ~33 parametric
   adapter that is supposed to be thin — and fixing a business rule that two clinics would answer
   differently and both be right. So:
   - the provider exposes **`get_agenda`**: the booked intervals for a window, optionally narrowed by doctor
-    or clinic — the *truth*;
+    or clinic — the _truth_;
   - the clinic's working hours, slot length and booking rules live in **that tenant's** agent instructions
-    and knowledge base — the *policy*;
+    and knowledge base — the _policy_;
   - the agent reasons over the two and proposes a time.
 
   This is the platform boundary applied literally, and it is also what keeps `client.ts` an adapter.
@@ -124,10 +140,10 @@ gynaecological history, personal history, family history, and the ~33 parametric
 
 - **D5 — Complete coverage, but an agent does not hold a scalpel.** Every SaludTools operation gets built
   (§1). What differs is **who may call it**:
-  - **Agent tools** — the agenda loop, the patient lookup, the catalogs, and the clinical *reads* a service
+  - **Agent tools** — the agenda loop, the patient lookup, the catalogs, and the clinical _reads_ a service
     conversation can legitimately need.
   - **Control-plane operations** (`controlPlane: true`, ADR 0013 — dispatched by `tools/call`, **withdrawn
-    from `tools/list`**) — the clinical *writes*: a clinic-history entry, a prescription, an exam result, a
+    from `tools/list`**) — the clinical _writes_: a clinic-history entry, a prescription, an exam result, a
     disability certificate, a medicine, a deleted patient. These exist in the API for system-to-system
     sync, not so a language model can decide to write in someone's medical record. The consumer performs
     them; the agent never chooses them.
@@ -138,8 +154,8 @@ gynaecological history, personal history, family history, and the ~33 parametric
 
 - **D6 — Field projection is per tool, allow-list, at author time.** Every tool returns the named fields its
   job needs and drops everything else, so a field SaludTools adds tomorrow does not leak by default. This is
-  the control HiMed's grill recommended and never got to apply; it is permitted by *Fidelity over
-  Unification* (ADR 0009) because what is dropped is not signal for the job, and it is what makes D7 work.
+  the control HiMed's grill recommended and never got to apply; it is permitted by _Fidelity over
+  Unification_ (ADR 0009) because what is dropped is not signal for the job, and it is what makes D7 work.
 
 - **D7 — `get_agenda` carries no patient identity at all.** Its projection keeps `startAppointment`,
   `endAppointment`, `doctorDocumentNumber`, `clinic`, `stateAppointment` and the appointment `id`, and drops
@@ -170,20 +186,20 @@ Each phase is independently shippable and carries its own evidence. They all lan
 
 All over `POST /integration/sync/event/v1/`.
 
-| Tool | eventType / actionType | Type | identityPolicy |
-|---|---|---|---|
-| `mcp_saludtools_get_patient` | `PATIENT` / `READ` | read | `subject-bound` (`documentType`, `documentNumber`) |
-| `mcp_saludtools_create_patient` | `PATIENT` / `CREATE` | **write** | `subject-bound` |
-| `mcp_saludtools_update_patient` | `PATIENT` / `UPDATE` | **write** | `subject-bound` |
-| `mcp_saludtools_get_agenda` | `APPOINTMENT` / `SEARCH` | read (paginated) | *(none — D7)* |
-| `mcp_saludtools_list_patient_appointments` | `APPOINTMENT` / `SEARCH` | read (paginated) | `subject-bound` (`patientDocumentNumber`) |
-| `mcp_saludtools_get_appointment` | `APPOINTMENT` / `READ` | read | `subject-bound` |
-| `mcp_saludtools_create_appointment` | `APPOINTMENT` / `CREATE` | **write** | `subject-bound` |
-| `mcp_saludtools_update_appointment` | `APPOINTMENT` / `UPDATE` | **write** | `subject-bound` |
-| `mcp_saludtools_cancel_appointment` | `APPOINTMENT` / `UPDATE` or `DELETE` (Q4) | **write** | `subject-bound` |
-| `mcp_saludtools_search_patients` | `PATIENT` / `SEARCH` | **control-plane** (D9) | `subject-scoped` |
-| `mcp_saludtools_delete_patient` | `PATIENT` / `DELETE` | **control-plane** | `subject-bound` |
-| `mcp_saludtools_delete_appointment` | `APPOINTMENT` / `DELETE` | **control-plane** | `subject-bound` |
+| Tool                                       | eventType / actionType                    | Type                   | identityPolicy                                     |
+| ------------------------------------------ | ----------------------------------------- | ---------------------- | -------------------------------------------------- |
+| `mcp_saludtools_get_patient`               | `PATIENT` / `READ`                        | read                   | `subject-bound` (`documentType`, `documentNumber`) |
+| `mcp_saludtools_create_patient`            | `PATIENT` / `CREATE`                      | **write**              | `subject-bound`                                    |
+| `mcp_saludtools_update_patient`            | `PATIENT` / `UPDATE`                      | **write**              | `subject-bound`                                    |
+| `mcp_saludtools_get_agenda`                | `APPOINTMENT` / `SEARCH`                  | read (paginated)       | _(none — D7)_                                      |
+| `mcp_saludtools_list_patient_appointments` | `APPOINTMENT` / `SEARCH`                  | read (paginated)       | `subject-bound` (`patientDocumentNumber`)          |
+| `mcp_saludtools_get_appointment`           | `APPOINTMENT` / `READ`                    | read                   | `subject-bound`                                    |
+| `mcp_saludtools_create_appointment`        | `APPOINTMENT` / `CREATE`                  | **write**              | `subject-bound`                                    |
+| `mcp_saludtools_update_appointment`        | `APPOINTMENT` / `UPDATE`                  | **write**              | `subject-bound`                                    |
+| `mcp_saludtools_cancel_appointment`        | `APPOINTMENT` / `UPDATE` or `DELETE` (Q4) | **write**              | `subject-bound`                                    |
+| `mcp_saludtools_search_patients`           | `PATIENT` / `SEARCH`                      | **control-plane** (D9) | `subject-scoped`                                   |
+| `mcp_saludtools_delete_patient`            | `PATIENT` / `DELETE`                      | **control-plane**      | `subject-bound`                                    |
+| `mcp_saludtools_delete_appointment`        | `APPOINTMENT` / `DELETE`                  | **control-plane**      | `subject-bound`                                    |
 
 - `get_agenda` and `list_patient_appointments` are the **same** provider call with different curation and a
   different identity policy. That is the point of D7, and it is worth the second tool.
@@ -265,75 +281,68 @@ Errors — the provider misreports twice, and `errors.ts` has to know both:
 
 ## 6. Open questions
 
-- **Q1 — BLOCKING THE BUILD · access. IN PROGRESS (2026-09-21).** Two tracks, both running:
-  1. **A real tenant's user is being arranged** — a clinic with a SaludTools account that can mint its own
-     ApiKey. This is the HiMed answer applied again: the clinic pays, xcale integrates.
-  2. **A sandbox user is being requested from CareCloud by email** — the QA host
-     (`saludtools.qa.carecloud.com.co`) is public and referenced throughout the vendor's own collection, so
-     a QA-only key would unblock the whole build without touching a production clinic, and lets us keep
-     recording fixtures after the tenant's key is in use. Draft: `sandbox-access-request.md` in this folder.
+> **A production ApiKey arrived 2026-09-21** (a real clinic's, `role_admin`/`role_superadmin`), and it
+> closed Q1, Q2, Q4, Q7, Q8 and Q9 and corrected four documented "facts". What it did **not** unlock is
+> any read of a real patient: the key is production and Q6 is still Mateo's. Verification stayed to
+> calls that touch nobody — the mint, the catalogs, an empty agenda window, and error probes.
 
-  Until one of them lands, nothing can be recorded, no fixture is legitimate, and `add-provider`'s
-  round-trip proof cannot be run. **Designed, not buildable.**
-- **Q2 — blocking the contract · wire.** Does the auth response carry an expiry field beside `access_token`?
-  If not, `responseFields.expiry` is omitted and Rail A has no declared lifetime to cache against. The JWT's
-  own `exp` claim is right there, but the descriptor is *strictly declarative* by ADR 0010 and does not
-  parse tokens. Decide: omit expiry and let a 401 drive the re-mint, or teach the descriptor an expiry
-  source. **The second option touches shared code and would need its own ADR** — prefer the first if the
-  re-mint cost is one extra call per expiry window.
-- **Q3 — PARTLY ANSWERED (2026-09-21, from the vendor's own response examples).** The envelope's `code`
-  **mirrors the HTTP status**: a failed call shows `{"code": 412, "message": "...", "body": null}`, and
-  the vendor's documented failures are all `412`. So the shared status policy is the honest classifier
-  and no invented code table is needed — with one re-classification, `412 → PROVIDER_INVALID_INPUT`,
-  which the core's map does not make.
+- **Q1 — ANSWERED (2026-09-21). A production key, not a sandbox.** It mints on
+  `saludtools.carecloud.com.co`; **QA rejects it** (`412`, "La llave es invalida para generar el
+  token"), so `saludtools.qa.carecloud.com.co` needs its own credential and the sandbox request
+  (`sandbox-access-request.md`) is **still worth sending** — arguably more so now, because the only key
+  we hold is a live clinic's with admin scope.
+  - The JWT's `client_id` names the tenant and its `scope` is `role_admin` + `role_superadmin`. **There
+    is no read-only scope on offer**, so the credential a clinic hands us can do anything its staff can.
+    That is an argument for the control-plane withdrawals (D5) carrying real weight rather than being
+    tidiness: the gateway is the only thing standing between an agent and a delete.
+- **Q2 — ANSWERED. The mint returns far more than the docs say.**
+  `{access_token, token_type, refresh_token, expires_in, scope, jti}`, and the token lives **~6 days**
+  (`exp - iat` = 518400s). `responseFields.expiry` is now `expires_in` in both repos. No ADR was needed
+  after all (§10 holds). `refresh_token` is deliberately unused — Rail A already holds the ApiKey.
+- **Q3 — ANSWERED. The envelope `code` mirrors the HTTP status**, and the vendor uses `412` for every
+  input problem, an unknown patient included. Plus two statuses its docs do not list at all: **`429`**
+  (seven catalog reads in quick succession — the rate ceiling is real and undiscoverable from the docs)
+  and the `412` on the mint. A 401 answers with a bare JSON string, not an envelope.
+- **Q4 — ANSWERED. Cancel is an UPDATE.** The live `states` catalog carries `CANCELLED`,
+  `CANCELLED_BY_DOCTOR` and `RESCHEDULED`, so a cancellation is recorded rather than erased.
+  `delete_appointment` stays control-plane: a deleted appointment is a fact the clinic can no longer
+  audit, and it never needed to be the way to cancel.
+- **Q5 — still open · webhooks.** Configured by hand in the clinic's own SaludTools UI, payload
+  undocumented. Phases 1–4 stay pull-only.
+- **Q6 — STILL OPEN, AND NOW THE BINDING ONE · security and legal.** It stopped being theoretical the
+  moment a production key of a real clinic arrived. Patient names, documents, phone numbers, birth
+  dates and EPS would enter the LLM context and the stored conversation; Ley 1581 treats health data as
+  _sensitive_ and a US-hosted model raises consent and residency questions. D6 and D7 shrink the
+  surface; they do not answer it. **No patient record has been read.** This is Mateo's call, it is the
+  same item HiMed's grill raised and never closed, and one answer covers both.
+- **Q7 — ANSWERED for this tenant.** One ApiKey = one `company` (18662 here) which may hold several
+  sites; this clinic has exactly one, id `17688` — a five-digit id, not the docs' example `8`. `clinic`
+  stays an explicit tool argument, which is what a multi-site clinic will need anyway.
+- **Q8 — ANSWERED, and D3 stands.** `APPOINTMENT/SEARCH` accepts a date window with **no doctor and no
+  patient**. `get_agenda` is possible exactly as designed.
+- **Q9 — ANSWERED. The nested `pageable` is correct**; the top-level `page`/`size` on the vendor's
+  _Buscar citas_ page is wrong. The Postman collection won, which is the general lesson: where the
+  prose and the executable artifact disagree, believe the artifact — then verify it.
+- **Q10 — still open · `EXAM_RESULTS` vs `EXAMS_RESULTS`.** Untested; both carried as the vendor wrote
+  them. Phase 3 territory.
+- **Q11 — still open · the personal-history `eventType`** has no collection entry and cannot be
+  transcribed. Ask CareCloud, or read it off a real call.
 
-  Three things came out of the same examples, and one of them changed the design:
-  1. **An unknown patient is reported as `412`** — the same code as a malformed request. Left alone
-     that tells the agent it built a bad call, when the right next move is to offer to register the
-     person. `get_patient` now answers `{found: false}` for it, matching the vendor's documented
-     sentence (`errors.ts` › `isPatientNotFound`). Ugly, necessary, and precedented by `toteat`.
-  2. **A 401 answers with a bare JSON string**, `"No tiene permisos para acceder al servidor"` — not
-     the envelope every other response uses.
-  3. **The patient record carries an `address` field the vendor's own attribute table never lists.**
-     Exactly the case the allow-list projection (D6) exists for: it did not leak, and nothing had to
-     anticipate it.
+### What the documentation got wrong, in one place
 
-  Still open: whether a failure ever arrives as HTTP 200 with a non-200 `code` (both paths are handled),
-  and what a rejected write reports.
-- **Q4 — product and wire.** Cancel by `DELETE`, or by `UPDATE` to a cancelled state? Needs the `states`
-  catalog (is there a cancelled state at all?) and a clinic's opinion on whether a cancelled appointment
-  should survive in the record. Leaning `UPDATE` — a deleted appointment is a lost fact — but Q1 gates it.
-- **Q5 — gates phase 5 · webhooks.** Webhooks are configured by hand in the clinic's own SaludTools UI and
-  their payload is undocumented (finding 11). Two consequences: **onboarding a clinic includes a human
-  clicking through twelve steps**, and we cannot design a receiver against an unknown body. Phases 1–4 are
-  **pull-only** — the agent reads when it needs to. Reminders are the use case that will want phase 5.
-- **Q6 — gates phase 3 · security and legal, and not solved by code.** Patient names, documents, phone
-  numbers, birth dates and EPS already enter the LLM context in phase 1; phase 3 adds diagnoses,
-  medications and exam results. Ley 1581 (Colombian habeas data) treats health data as *sensitive*, and
-  sending it to a US-hosted model has consent and residency implications. D6 and D7 shrink the surface;
-  they do not answer the question. **This is Mateo's call, and it is the same open item HiMed's grill raised
-  (its Q4) and never closed** — one answer should cover both, and it must come before phase 3 is written.
-- **Q7 — wire.** Does one API key span several clinics? The appointment's numeric `clinic` field and the
-  `clinics` catalog both suggest yes. If it does, `clinic` is an explicit tool argument (Explicit Context,
-  ADR 0009) rather than ambient context — but `accountContextKeys` and the connect form depend on the
-  answer.
-- **Q8 — wire.** Does `appointment SEARCH` accept a date window with no doctor and no patient? `get_agenda`
-  (D3) is built on the assumption that it does. If it does not, the agent must pass a doctor — and then it
-  needs a doctor directory the API does not have (finding 10), which the tenant would have to supply as
-  configuration. **The design does not fall over, but D3 gets noticeably worse.** Test this first.
+Worth keeping as a list, because it sets how much the rest of the portal is worth:
 
-- **Q9 — blocking the contract · wire.** The vendor contradicts itself about how `appointment SEARCH`
-  is paginated. Its *Buscar citas* page lists `page` and `size` as **top-level body parameters**; its
-  Postman collection sends `"pageable": {"page": 0, "size": 20}` **nested**. The code follows the
-  collection — an executable artifact beats a prose table — and every search tool would break in the
-  same place if that is wrong. **One call settles it; test it first.**
-- **Q10 — wire · the vendor's own inconsistency.** Exam results are `EXAM_RESULTS` (singular) on READ
-  and `EXAMS_RESULTS` (plural) on SEARCH in the same collection. One is presumably a typo. Both are
-  carried, each used where the vendor used it, until a call says which exists (`client.ts`).
-- **Q11 — wire · a documentation gap, not an ambiguity.** The personal-history module has
-  documentation pages (`/antecedentPersonal*`) but **no entry in the collection**, so its `eventType`
-  string is unknown. It is the one module whose dispatch value cannot be transcribed, and guessing it
-  is guessing the only thing that matters. Ask CareCloud, or read it off a real call.
+| The docs say                                               | Production says                                                                       |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Mint returns `{access_token}`                              | Also `expires_in`, `refresh_token`, `scope`, `token_type`, `jti`                      |
+| Invalid key → `500`                                        | `412`, with a readable envelope message                                               |
+| `modality` ∈ {CONVENTIONAL, TELEMEDICINE, **DOMICILIARY**} | Twelve values, and **no `DOMICILIARY`**                                               |
+| Appointment search paginates with top-level `page`/`size`  | Nested `pageable: {page, size}`                                                       |
+| Catalogs return `[{id, name}]`                             | Some return `[{value, name}]`; paged ones return a bare flattened page with no `code` |
+| Statuses: 200/400/401/404/405/500                          | Also `412` for all input errors and `429` for rate limiting                           |
+| Patient has 13 attributes                                  | Also `address`, and an internal `id`                                                  |
+
+Three of those seven would have shipped as defects. Two did, and only the tests caught them (§12).
 
 ## 7. Environments
 
@@ -361,11 +370,11 @@ Filed as a consumer issue by URL, through `/cross-repo` — **provider before co
 
 ## 9. Dependencies
 
-| Dependency | Where | Why it blocks |
-|---|---|---|
-| **xcale-mcp-server#101** — *a tool publishes whose data it can reach* | open PR against `dev` | D8. Without `identityPolicy`, every patient tool ships unguarded. Must merge before this work does; if it is still open when the code is ready, this branch merges it in and says so. |
-| **xcale-backend#1020** — *an agent serves the person writing to it* | open PR | The consumer half. Nothing enforces D8 until this lands. Its own description names #101 as merging first. |
-| **Q1** — a credential | external, in progress | No evidence, no contract, no fixtures, no round-trip proof. |
+| Dependency                                                            | Where                 | Why it blocks                                                                                                                                                                         |
+| --------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **xcale-mcp-server#101** — _a tool publishes whose data it can reach_ | open PR against `dev` | D8. Without `identityPolicy`, every patient tool ships unguarded. Must merge before this work does; if it is still open when the code is ready, this branch merges it in and says so. |
+| **xcale-backend#1020** — _an agent serves the person writing to it_   | open PR               | The consumer half. Nothing enforces D8 until this lands. Its own description names #101 as merging first.                                                                             |
+| **Q1** — a credential                                                 | external, in progress | No evidence, no contract, no fixtures, no round-trip proof.                                                                                                                           |
 
 ## 10. ADRs
 
@@ -374,17 +383,17 @@ placement, no signed auth and no core change: `credential_exchange` + `reference
 exist and are proven by Siigo. The provider should land inside the `add-provider` golden rule, touching only
 `src/providers/saludtools/` plus the asset and the generic config.
 
-Two things *could* force one: Q2, if we decide the descriptor must learn to read a token's expiry (prefer
+Two things _could_ force one: Q2, if we decide the descriptor must learn to read a token's expiry (prefer
 the answer that does not); and phase 5, if the webhook receiver needs a shape the backend does not have.
 
 ## 11. CONTEXT.md
 
-No new glossary terms. *Clinic*, *patient*, *appointment* and *agenda* are either already in the domain
+No new glossary terms. _Clinic_, _patient_, _appointment_ and _agenda_ are either already in the domain
 vocabulary or are the provider's own words, used as such.
 
 ## 12. Build status (2026-09-21)
 
-**Built, green, and not yet proven against the provider.**
+**Built, green, and verified against production for everything that touches no patient.**
 
 - `src/providers/saludtools/` — manifest, auth descriptor, client, `errors.ts`, `projections.ts`,
   `catalogs.ts`, `tools.ts`, provider factory, one line in `src/providers/index.ts`, plus
@@ -398,9 +407,17 @@ vocabulary or are the provider's own words, used as such.
   response body for them, and the clinical writes cannot be typed because their request bodies exist
   as single nested examples (5.4 KB for a clinical history) with no field table saying what is
   required. Both unblock with Q1 and one recorded round trip per module.
-- **Tests:** 57 across two files, green; the repo's full suite is 356/356 green with this branch in.
-  `tsc --noEmit` clean, Prettier clean.
-- **Two things the tests caught that a reviewer would not have:**
+- **Tests:** 67 across three files, green — including `__tests__/observed.test.ts`, which pins each
+  place production contradicted the documentation so a future "cleanup" toward the tidier documented
+  version goes red. The repo's full suite is 366/366 with this branch in. `tsc --noEmit` clean, Prettier
+  clean.
+- **Verified live (2026-09-21, production, zero patient records read):** the mint and its real response
+  shape; a wrong key’s status; six catalogs; a paged catalog; an appointment search over an empty window
+  with nested pagination and no doctor filter; and the rate ceiling, found by hitting it.
+- **Four defects were found, three of them only because a real call was made:** the documented
+  `modality` enum (would have rejected every modality a real clinic uses), the paged-catalog unwrap
+  (every paged catalog read failed), the missing `expires_in`, and the mint’s status. Plus two the tests
+  caught on their own:
   1. A transport failure never reached the envelope. The core hands a non-2xx back as an unparsed
      `body` string rather than `data`, so the first `unwrapSaludtools` returned early — and since an
      unknown patient arrives as a **real HTTP 412** carrying the envelope, the whole `{found: false}`
@@ -418,11 +435,17 @@ vocabulary or are the provider's own words, used as such.
 
 ## 13. Next step
 
-1. **Q1, both tracks** — send the sandbox request to CareCloud (`sandbox-access-request.md`), and follow the
-   tenant clinic's ApiKey.
-2. Put **Q6** in front of Mateo together with HiMed's Q4 — one decision, two providers, and it gates
-   phase 3.
-3. With a key in hand: record Q2, Q3, Q4, Q7 and Q8 against QA, then the feature-design, then the
-   api-contract on observed responses only.
-4. Build phases 1 → 4 on this branch, `/tdd` per slice, merging #101 in when it is needed.
+1. **Q6 in front of Mateo — now the only thing between this and a working integration.** Everything that
+   does not touch a patient is verified; every read that does is blocked on his answer. Put it to him with
+   HiMed's Q4: one decision, two providers.
+2. **Send the sandbox request anyway** (`sandbox-access-request.md`). The QA host rejects the key we have,
+   and the only credential we hold is a live clinic's with `role_admin`/`role_superadmin` — which is not a
+   thing to keep testing against.
+3. Once Q6 lands: record a patient read and a populated agenda page against QA (or, with his say-so, one
+   consented patient in production), replace the documented fixtures, and run the round-trip proof.
+4. Then the api-contract, then phases 3–4 on observed responses — and only then the xcale-backend catalog
+   entry becomes something a clinic should see.
 5. One PR with everything (Mateo, 2026-09-21).
+
+**Not to be done from this session:** any write. The key carries admin scope on a real clinic's records,
+so a "test" appointment is a real appointment in a real doctor’s diary.

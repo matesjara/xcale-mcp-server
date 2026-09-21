@@ -12,7 +12,7 @@ import {
   type CatalogDescriptor,
 } from './catalogs';
 import type { SaludtoolsClient } from './client';
-import { isPatientNotFound, unwrapSaludtools } from './errors';
+import { isPatientNotFound, unwrapSaludtools, unwrapSaludtoolsCatalog } from './errors';
 import { SLUG } from './manifest';
 import {
   AGENDA_FIELDS,
@@ -75,8 +75,30 @@ const localDateTime = z
     'expected "yyyy-MM-dd HH:mm" in the clinic\'s local time',
   );
 
-/** The three documented consultation modalities. */
-const modality = z.enum(['CONVENTIONAL', 'TELEMEDICINE', 'DOMICILIARY']);
+/**
+ * The consultation modality, as a STRING validated against the live catalog — deliberately not an
+ * enum, and this is a correction, not a shortcut.
+ *
+ * The vendor's portal documents exactly three values: `CONVENTIONAL`, `TELEMEDICINE`, `DOMICILIARY`.
+ * The live `parametric/attentionModality` catalog (Observed 2026-09-21, production) returns at least
+ * twelve — `ASSISTED`, `NO_APLICA`, `INTRAMULAR`, `EXTRAMURAL_MOBILE_UNIT`, `EXTRAMURAL_HOME`,
+ * `EXTRAMURAL_HEALTH_DAY`, four `TELEMEDICINE_*` variants — and **`DOMICILIARY` is not among them.**
+ * The documented enum was wrong in both directions: it would have rejected every modality a real
+ * clinic actually uses and accepted one the provider does not know.
+ *
+ * So the catalog is the source of truth and the agent is told to read it. A closed list here is a
+ * hard-coded guess about a set the vendor extends and each clinic enables differently — and when the
+ * guess is wrong the cost lands on a patient who cannot be booked, which is the wrong way to lose a
+ * tie. An unknown value fails at the provider, with the provider's own reason; a value this adapter
+ * rejects fails with ours, and ours would have been mistaken.
+ */
+const modality = z
+  .string()
+  .min(1)
+  .describe(
+    'Consultation modality — a `value` from the `attentionModalities` catalog (e.g. CONVENTIONAL, ' +
+      'TELEMEDICINE, EXTRAMURAL_HOME). Read the catalog; do not guess, the list is longer than it looks',
+  );
 
 function toOutcome(result: ReturnType<typeof unwrapSaludtools>): ToolOutcome {
   return result.ok ? ok(result.data) : err(result.code, result.message);
@@ -439,7 +461,17 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
           modality,
           clinic: z.number().int().positive(),
           stateAppointment: z.string().min(1).optional(),
-          notificationState: z.enum(['ATTEND', 'NOT_ATTEND', 'NOT_RESPOND']).optional(),
+          // A string, for the same reason `modality` is one: the vendor documents three values
+          // (ATTEND / NOT_ATTEND / NOT_RESPOND) and publishes no catalog to confirm them, and its
+          // documented `stateAppointment` list turned out to have eleven entries, not the handful
+          // implied. An unverified closed list is a guess that fails on the patient's side.
+          notificationState: z
+            .string()
+            .min(1)
+            .optional()
+            .describe(
+              "The patient's confirmation: ATTEND, NOT_ATTEND or NOT_RESPOND per the vendor's docs",
+            ),
           appointmentType: z.string().min(1).optional(),
           comment: z.string().optional(),
         })
@@ -478,7 +510,9 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
         .strict(),
       handler: async (args, ctx) =>
         toOutcome(
-          unwrapSaludtools(
+          // The CATALOG unwrap, not the event one: this surface has no envelope, and a paged catalog
+          // answers with a bare flattened page that the event unwrap rejects outright.
+          unwrapSaludtoolsCatalog(
             await readCatalog(
               client,
               AGENT_CATALOGS[args.catalog],
@@ -516,7 +550,7 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
       controlPlane: true,
       handler: async (args, ctx) =>
         toOutcome(
-          unwrapSaludtools(
+          unwrapSaludtoolsCatalog(
             await readCatalog(
               client,
               REFERENCE_CATALOGS[args.catalog],

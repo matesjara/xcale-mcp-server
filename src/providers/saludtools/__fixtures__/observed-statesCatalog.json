@@ -1,0 +1,46 @@
+[
+  {
+    "value": "EXECUTE",
+    "name": "Realizada"
+  },
+  {
+    "value": "PENDING",
+    "name": "Pendiente"
+  },
+  {
+    "value": "IN_ROOM",
+    "name": "En Sala"
+  },
+  {
+    "value": "MEDICAL_CARE",
+    "name": "En Atención"
+  },
+  {
+    "value": "NOT_PRESENTEE",
+    "name": "No Presentado"
+  },
+  {
+    "value": "CANCELLED",
+    "name": "Cancelado"
+  },
+  {
+    "value": "WAIT_PAYMENT",
+    "name": "Esperando Pago"
+  },
+  {
+    "value": "IN_VIRTUAL_ROOM",
+    "name": "En Sala Virtual"
+  },
+  {
+    "value": "CANCELLED_BY_DOCTOR",
+    "name": "Cancelado por el médico"
+  },
+  {
+    "value": "RESCHEDULED",
+    "name": "Reprogramado"
+  },
+  {
+    "value": "INCOMPLETE",
+    "name": "Atención incompleta"
+  }
+]

@@ -32,14 +32,28 @@ import { mapHttpStatusToErrorCode, type RequestResult } from '../../core/http';
  * tells the caller it can fix the call, `PROVIDER_ERROR` tells it to give up. This is the one
  * re-classification this adapter makes.
  *
- * ## The 500-means-bad-credentials quirk is NOT handled here
+ * ## The mint's bad-credential status is 412, not the 500 the portal claims
  *
- * The vendor's **mint** endpoint answers `500` for an invalid `key`/`secret` rather than `401`. That
- * endpoint is never called by this server: minting lives in Rail A (`credentialDelivery: 'reference'`),
- * so the quirk has to be handled in xcale-backend, and it is recorded in the design notes as a
- * cross-repo fact for exactly that reason. **A 500 on a DATA call is a real server error** and is
- * classified as one — mapping it to `PROVIDER_AUTH_EXPIRED` here would tell a clinic to reconnect a
- * perfectly good ApiKey every time SaludTools has a bad minute.
+ * The vendor's docs say an invalid `key`/`secret` yields `500 Internal Server Error`. Observed
+ * 2026-09-21: it yields **`412`**, with the envelope
+ * `{"code": 412, "message": "La llave es invalida para generar el token"}`. Worth correcting rather
+ * than shrugging at, because the two lead opposite ways — a 500 reads as "the provider is down, try
+ * later", a 412 as "that credential is wrong, paste it again", and only one of those gets a clinic
+ * connected.
+ *
+ * Either way it is not handled here: minting lives in Rail A (`credentialDelivery: 'reference'`), so
+ * this server never calls that endpoint and the correction belongs to xcale-backend's pinned entry.
+ *
+ * **A 500 on a DATA call is a real server error** and is classified as one — mapping it to
+ * `PROVIDER_AUTH_EXPIRED` would tell a clinic to reconnect a perfectly good ApiKey every time
+ * SaludTools has a bad minute.
+ *
+ * ## SaludTools rate-limits, and documents nothing about it
+ *
+ * Observed 2026-09-21: seven catalog reads in quick succession returned **`429` with an empty body**.
+ * The portal's status table does not mention 429 at all. The shared map already sends it to
+ * `PROVIDER_RATE_LIMITED`, so nothing is needed here — but the ceiling is real, it is undiscoverable
+ * from the docs, and an agent that fans out reads per turn will find it.
  *
  * ## The vendor's `message` never reaches a tool result
  *
@@ -50,7 +64,51 @@ import { mapHttpStatusToErrorCode, type RequestResult } from '../../core/http';
  * patient data.
  */
 
-/** The envelope every event and parametric response is wrapped in. */
+/**
+ * The catalog surface does NOT use the envelope, and it does not use one shape either.
+ *
+ * Observed 2026-09-21 against production, and none of it matches what the portal implies:
+ * - an unpaged catalog answers with a **bare array** — `[{id, name}]` for `documents` and `genders`,
+ *   but `[{value, name}]` for `states` and `attentionModality` (a string key, not a numeric id), and
+ *   `encounterreasontype` carries a third field, `ripsCode`;
+ * - a paged catalog (`treatmenareatype`) answers with a **bare, FLATTENED page** —
+ *   `{content, pageNumber, pageSize, totalElements, totalPages}` — with no `code`, and not the full
+ *   Spring page the event searches return.
+ *
+ * `unwrapSaludtools` requires an envelope with a numeric `code`, so it classified that paged catalog
+ * as `PROVIDER_ERROR`: every paged catalog read failed. Hence a second unwrap rather than teaching the
+ * first one to sniff shapes — the catalog surface genuinely has a different contract, and a function
+ * that guesses which contract it is looking at will guess wrong the day a real payload is ambiguous.
+ *
+ * Nothing is reshaped: both forms travel verbatim (Fidelity over Unification). Two catalogs keying on
+ * `value` instead of `id` is the vendor's business, and an adapter that "helpfully" unified them would
+ * be inventing ids that no appointment accepts.
+ */
+export function unwrapSaludtoolsCatalog(res: RequestResult, operation: string): Unwrapped {
+  if (!res.ok) {
+    return {
+      ok: false,
+      code: classifySaludtoolsStatus(res.status),
+      message: `SaludTools ${operation} failed (HTTP ${res.status})`,
+    };
+  }
+
+  if (Array.isArray(res.data)) return { ok: true, data: res.data };
+
+  // A flattened page: `content` is the catalog, the rest is paging metadata the caller may want.
+  if (res.data !== null && typeof res.data === 'object') {
+    const page = res.data as { readonly content?: unknown };
+    if (Array.isArray(page.content)) return { ok: true, data: res.data };
+  }
+
+  return {
+    ok: false,
+    code: ProviderErrorCode.PROVIDER_ERROR,
+    message: `SaludTools ${operation} returned neither a catalog nor a page (HTTP ${res.status})`,
+  };
+}
+
+/** The envelope every event response is wrapped in. */
 interface SaludtoolsEnvelope {
   readonly id?: unknown;
   readonly code?: unknown;
@@ -170,8 +228,9 @@ export function unwrapSaludtools(res: RequestResult, operation: string): Unwrapp
     };
   }
 
-  // A parametric catalog answers with a bare array, not an envelope (Documented: `[{id, name}]`).
-  // That is a complete, self-evident success and there is no `code` to check.
+  // Kept as a safety net, not as the catalog path: catalogs go through `unwrapSaludtoolsCatalog`.
+  // An event response has never been observed as a bare array, and if one ever is, a top-level array
+  // is a self-evident success with no `code` to check — better passed through than called an error.
   if (Array.isArray(res.data)) {
     return { ok: true, data: res.data };
   }
