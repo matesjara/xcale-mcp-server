@@ -1,0 +1,24 @@
+{
+  "id": null,
+  "code": 200,
+  "message": "Se consulta la informacion de el paciente id: 215178",
+  "eventId": "7d972fc0d40447e1a22bb68f502699bf",
+  "body": {
+    "id": 215178,
+    "pageable": null,
+    "firstName": "Prueba",
+    "secondName": "Andres",
+    "firstLastName": "Gutierrez",
+    "secondLastName": "Gamez",
+    "birthDate": "1967-12-05",
+    "gender": 2,
+    "documentType": 1,
+    "documentNumber": "177400432",
+    "phone": "3144780243",
+    "cellPhone": "3144780243",
+    "email": "paciente.prueba@example.com",
+    "address": null,
+    "eps": 3,
+    "habeasData": true
+  }
+}

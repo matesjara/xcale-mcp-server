@@ -1,0 +1,22 @@
+{
+  "id": null,
+  "code": 200,
+  "message": "Se consulta la informacion de  id: 2593842",
+  "eventId": "3eb8d63a93be49d096c51f39b35d7bfd",
+  "body": {
+    "id": 2593842,
+    "pageable": null,
+    "startAppointment": "2021-05-04 08:00",
+    "endAppointment": "2021-05-04 08:30",
+    "patientDocumentType": 1,
+    "patientDocumentNumber": "1414141",
+    "doctorDocumentType": 1,
+    "doctorDocumentNumber": "11111",
+    "modality": "CONVENTIONAL",
+    "stateAppointment": "PENDING",
+    "notificationState": "ATTEND",
+    "appointmentType": "CITADEPRUEBA",
+    "clinic": 8,
+    "comment": null
+  }
+}

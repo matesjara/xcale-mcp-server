@@ -1,0 +1,67 @@
+{
+  "id": null,
+  "code": 200,
+  "message": "Se filtra informacion de ",
+  "eventId": "735614fb7f934c38bad39c414b6c94a2",
+  "body": {
+    "content": [
+      {
+        "id": 2593841,
+        "pageable": null,
+        "startAppointment": "2021-04-30 08:00",
+        "endAppointment": "2021-04-30 08:30",
+        "patientDocumentType": 1,
+        "patientDocumentNumber": "1414141",
+        "doctorDocumentType": 1,
+        "doctorDocumentNumber": "11111",
+        "modality": "CONVENTIONAL",
+        "stateAppointment": "PENDING",
+        "notificationState": "ATTEND",
+        "appointmentType": "CITADEPRUEBA",
+        "clinic": 8,
+        "comment": null
+      },
+      {
+        "id": 2593842,
+        "pageable": null,
+        "startAppointment": "2021-05-04 08:00",
+        "endAppointment": "2021-05-04 08:30",
+        "patientDocumentType": 1,
+        "patientDocumentNumber": "1414141",
+        "doctorDocumentType": 1,
+        "doctorDocumentNumber": "11111",
+        "modality": "CONVENTIONAL",
+        "stateAppointment": "PENDING",
+        "notificationState": "ATTEND",
+        "appointmentType": "CITADEPRUEBA",
+        "clinic": 8,
+        "comment": null
+      }
+    ],
+    "pageable": {
+      "sort": {
+        "sorted": false,
+        "unsorted": true,
+        "empty": true
+      },
+      "pageNumber": 0,
+      "pageSize": 20,
+      "offset": 0,
+      "unpaged": false,
+      "paged": true
+    },
+    "totalPages": 1,
+    "totalElements": 3,
+    "last": true,
+    "sort": {
+      "sorted": false,
+      "unsorted": true,
+      "empty": true
+    },
+    "numberOfElements": 3,
+    "first": true,
+    "size": 20,
+    "number": 0,
+    "empty": false
+  }
+}

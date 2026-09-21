@@ -1,0 +1,7 @@
+{
+  "id": null,
+  "code": 412,
+  "message": "Para los datos enviados como filtros, no se ha encontrado un paciente en nuestra base de datos, para consultar un paciente envie el identificador o el tipo y numero de documento",
+  "eventId": "662878c34dea4b9cada70f105479de07",
+  "body": null
+}

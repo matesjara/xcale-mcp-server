@@ -1,0 +1,209 @@
+import { ProviderErrorCode } from '../../core/errors';
+import { mapHttpStatusToErrorCode, type RequestResult } from '../../core/http';
+
+/**
+ * SaludTools error shaping. Read this before touching anything that branches on a SaludTools response.
+ *
+ * ## The HTTP status is only half the answer
+ *
+ * Every SaludTools response — success or failure — arrives wrapped:
+ *
+ * ```json
+ * { "id": null, "code": 200, "message": "Se consulta la informacion de  id: 2593842",
+ *   "eventId": "3eb8d63a93be49d096c51f39b35d7bfd", "body": { } }
+ * ```
+ *
+ * `code` is a field **inside the body of an HTTP 200**. This is the Toteat lesson again: a client that
+ * trusts `res.ok` alone will report a failure as a successful call with a meaningless payload. So every
+ * call is classified on the transport status AND on the envelope.
+ *
+ * Unlike Toteat, SaludTools' inner `code` appears to reuse HTTP's own numbers (the documented failures
+ * are 400, 401, 404, 405, 412, 500), so the shared status policy is the honest classifier for it and no
+ * per-provider table is invented. **Which `code` values actually appear inside a 200 is Q3 — only
+ * `200` has ever been seen.** That is why an unrecognized envelope is a failure here rather than a
+ * pass-through: if the field is missing or is not a number, we do not know that the call worked, and
+ * "we do not know" is not success.
+ *
+ * ## 412 is this provider's validation error, and the shared map does not know that
+ *
+ * The vendor documents `412 Precondition Failed` for every input problem: a missing `eventType`, a
+ * wrong `actionType`, absent pagination. The core's `mapHttpStatusToErrorCode` sends 412 to
+ * `PROVIDER_ERROR` — correct in general, wrong here, and the difference matters: `PROVIDER_INVALID_INPUT`
+ * tells the caller it can fix the call, `PROVIDER_ERROR` tells it to give up. This is the one
+ * re-classification this adapter makes.
+ *
+ * ## The 500-means-bad-credentials quirk is NOT handled here
+ *
+ * The vendor's **mint** endpoint answers `500` for an invalid `key`/`secret` rather than `401`. That
+ * endpoint is never called by this server: minting lives in Rail A (`credentialDelivery: 'reference'`),
+ * so the quirk has to be handled in xcale-backend, and it is recorded in the design notes as a
+ * cross-repo fact for exactly that reason. **A 500 on a DATA call is a real server error** and is
+ * classified as one — mapping it to `PROVIDER_AUTH_EXPIRED` here would tell a clinic to reconnect a
+ * perfectly good ApiKey every time SaludTools has a bad minute.
+ *
+ * ## The vendor's `message` never reaches a tool result
+ *
+ * `message` is Spanish operator prose that interpolates record ids ("Se consulta la informacion de id:
+ * 2593842"). It is provider body text, and provider body text does not go into an error message that
+ * reaches an agent's prompt and a patient's chat. `eventId` does travel: it is an opaque correlation
+ * id, it identifies the call in the vendor's own logs when we have to ask them, and it carries no
+ * patient data.
+ */
+
+/** The envelope every event and parametric response is wrapped in. */
+interface SaludtoolsEnvelope {
+  readonly id?: unknown;
+  readonly code?: unknown;
+  readonly message?: unknown;
+  readonly eventId?: unknown;
+  readonly body?: unknown;
+}
+
+export type Unwrapped =
+  | { readonly ok: true; readonly data: unknown }
+  | {
+      readonly ok: false;
+      readonly code: ProviderErrorCode;
+      readonly message: string;
+      /**
+       * The vendor's own `message`, for INTERNAL classification only — never forwarded to a caller
+       * (see the header: it is Spanish operator prose carrying record ids).
+       *
+       * It exists because SaludTools reports one thing this adapter has to tell apart from a real
+       * failure: **a patient who is not registered comes back as a `412` like a malformed request
+       * does** (see `isPatientNotFound`). Nothing else may branch on this field; if a second case
+       * needs it, give that case its own predicate here rather than matching prose at a call site.
+       */
+      readonly detail?: string;
+    };
+
+/**
+ * Does this failure mean "that person is not in the clinic's records"?
+ *
+ * SaludTools answers a patient lookup for an unknown document with `code: 412` and the message
+ * *"Para los datos enviados como filtros, no se ha encontrado un paciente en nuestra base de datos…"* —
+ * the same code it uses for a missing `eventType` or an unsupported HTTP verb. Left alone, that maps
+ * to `PROVIDER_INVALID_INPUT`, which tells the caller it built a bad request.
+ *
+ * It did not. The request was fine and the answer is "nobody by that document". For the agent those
+ * are opposite situations: one means fix the call, the other means offer to register the patient. An
+ * agent told "invalid input" about a perfectly good lookup is an agent that will either retry the
+ * same call or invent an explanation for the user — and the closed error set has no NOT_FOUND code to
+ * carry the difference, so the distinction has to be made here.
+ *
+ * Matching the vendor's prose is not something to enjoy, and it is the only signal offered; the
+ * precedent is `toteat/errors.ts`, which classifies the same way for the same reason. It is
+ * deliberately narrow: two anchors from the documented sentence, accent- and case-insensitive. If the
+ * vendor rewords it, the marker stops matching and the call degrades to `PROVIDER_INVALID_INPUT` —
+ * the behaviour we have today, not a new failure. A test pins the documented sentence.
+ */
+export function isPatientNotFound(result: Unwrapped): boolean {
+  if (result.ok || result.detail === undefined) return false;
+  const text = result.detail.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return text.includes('no se ha encontrado un paciente');
+}
+
+/**
+ * SaludTools' status policy: the shared map, plus the one thing it cannot know — that this provider
+ * reports every input problem as `412`.
+ *
+ * Applied to both the transport status and the envelope's inner `code`, because the vendor uses the
+ * same numbers in both places.
+ */
+export function classifySaludtoolsStatus(status: number): ProviderErrorCode {
+  if (status === 412) return ProviderErrorCode.INVALID_INPUT;
+  return mapHttpStatusToErrorCode(status);
+}
+
+/**
+ * Best-effort parse of an error body into the envelope. Returns `null` for anything that is not a
+ * JSON object — a bare string (the documented 401), HTML from a gateway, a truncated body (the core
+ * caps an error body at 500 characters, and a rejected clinical payload could exceed that).
+ */
+function parseEnvelope(body: string): SaludtoolsEnvelope | null {
+  try {
+    const parsed: unknown = JSON.parse(body);
+    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as SaludtoolsEnvelope)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** `eventId` if it is a usable string — the only part of the envelope safe to quote back. */
+function correlation(env: SaludtoolsEnvelope | null): string {
+  return typeof env?.eventId === 'string' && env.eventId.length > 0
+    ? ` [eventId ${env.eventId}]`
+    : '';
+}
+
+/**
+ * The single unwrap every SaludTools tool goes through.
+ *
+ * `operation` is a stable label (the tool's verb). On success the caller gets the envelope's inner
+ * `body` verbatim — the envelope is transport, the `body` is the record, and the record is never
+ * reshaped (Fidelity over Unification, ADR 0009). Per-tool field curation happens in `tools.ts`, where
+ * each tool decides what its job needs; it is not this function's business.
+ */
+export function unwrapSaludtools(res: RequestResult, operation: string): Unwrapped {
+  if (!res.ok) {
+    /*
+     * A transport failure still carries the envelope — and reading it is not optional.
+     *
+     * The core hands a non-2xx back as `body: string` (unparsed) rather than `data`, so the first
+     * version of this function stopped here and never looked inside. That quietly broke the one
+     * distinction this adapter exists to make: SaludTools answers an unknown patient with a REAL
+     * HTTP 412 whose body is the envelope, so `isPatientNotFound` had nothing to match on and
+     * `get_patient` reported "invalid input" for a perfectly good lookup. The tests caught it; a
+     * reviewer would not have.
+     *
+     * The status is still the classifier — the envelope's `code` mirrors it — and the parse is
+     * best-effort, because a 401 answers with a bare JSON string and a gateway may answer with HTML.
+     */
+    const env = parseEnvelope(res.body);
+    return {
+      ok: false,
+      code: classifySaludtoolsStatus(res.status),
+      message: `SaludTools ${operation} failed (HTTP ${res.status})${correlation(env)}`,
+      ...(typeof env?.message === 'string' ? { detail: env.message } : {}),
+    };
+  }
+
+  // A parametric catalog answers with a bare array, not an envelope (Documented: `[{id, name}]`).
+  // That is a complete, self-evident success and there is no `code` to check.
+  if (Array.isArray(res.data)) {
+    return { ok: true, data: res.data };
+  }
+
+  const env = (typeof res.data === 'object' ? res.data : null) as SaludtoolsEnvelope | null;
+  if (env === null) {
+    return {
+      ok: false,
+      code: ProviderErrorCode.PROVIDER_ERROR,
+      message: `SaludTools ${operation} returned an unrecognized response shape (HTTP ${res.status})`,
+    };
+  }
+
+  const code = env.code;
+  if (typeof code !== 'number') {
+    // No inner code at all. Not classifiable as success — see the header.
+    return {
+      ok: false,
+      code: ProviderErrorCode.PROVIDER_ERROR,
+      message: `SaludTools ${operation} returned no status code in its envelope (HTTP ${res.status})${correlation(env)}`,
+    };
+  }
+
+  if (code < 200 || code > 299) {
+    return {
+      ok: false,
+      code: classifySaludtoolsStatus(code),
+      message: `SaludTools ${operation} was rejected (code ${code})${correlation(env)}`,
+      // Internal only — see `Unwrapped.detail`. It never reaches `message`.
+      ...(typeof env.message === 'string' ? { detail: env.message } : {}),
+    };
+  }
+
+  return { ok: true, data: env.body };
+}

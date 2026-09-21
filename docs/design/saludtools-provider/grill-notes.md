@@ -281,8 +281,25 @@ Errors — the provider misreports twice, and `errors.ts` has to know both:
   parse tokens. Decide: omit expiry and let a 401 drive the re-mint, or teach the descriptor an expiry
   source. **The second option touches shared code and would need its own ADR** — prefer the first if the
   re-mint cost is one extra call per expiry window.
-- **Q3 — blocking the contract · wire.** Which `code` values does the envelope use for failures inside a
-  200? Only `200` has been seen. The whole error mapping rests on this.
+- **Q3 — PARTLY ANSWERED (2026-09-21, from the vendor's own response examples).** The envelope's `code`
+  **mirrors the HTTP status**: a failed call shows `{"code": 412, "message": "...", "body": null}`, and
+  the vendor's documented failures are all `412`. So the shared status policy is the honest classifier
+  and no invented code table is needed — with one re-classification, `412 → PROVIDER_INVALID_INPUT`,
+  which the core's map does not make.
+
+  Three things came out of the same examples, and one of them changed the design:
+  1. **An unknown patient is reported as `412`** — the same code as a malformed request. Left alone
+     that tells the agent it built a bad call, when the right next move is to offer to register the
+     person. `get_patient` now answers `{found: false}` for it, matching the vendor's documented
+     sentence (`errors.ts` › `isPatientNotFound`). Ugly, necessary, and precedented by `toteat`.
+  2. **A 401 answers with a bare JSON string**, `"No tiene permisos para acceder al servidor"` — not
+     the envelope every other response uses.
+  3. **The patient record carries an `address` field the vendor's own attribute table never lists.**
+     Exactly the case the allow-list projection (D6) exists for: it did not leak, and nothing had to
+     anticipate it.
+
+  Still open: whether a failure ever arrives as HTTP 200 with a non-200 `code` (both paths are handled),
+  and what a rejected write reports.
 - **Q4 — product and wire.** Cancel by `DELETE`, or by `UPDATE` to a cancelled state? Needs the `states`
   catalog (is there a cancelled state at all?) and a clinic's opinion on whether a cancelled appointment
   should survive in the record. Leaning `UPDATE` — a deleted appointment is a lost fact — but Q1 gates it.
@@ -304,6 +321,19 @@ Errors — the provider misreports twice, and `errors.ts` has to know both:
   (D3) is built on the assumption that it does. If it does not, the agent must pass a doctor — and then it
   needs a doctor directory the API does not have (finding 10), which the tenant would have to supply as
   configuration. **The design does not fall over, but D3 gets noticeably worse.** Test this first.
+
+- **Q9 — blocking the contract · wire.** The vendor contradicts itself about how `appointment SEARCH`
+  is paginated. Its *Buscar citas* page lists `page` and `size` as **top-level body parameters**; its
+  Postman collection sends `"pageable": {"page": 0, "size": 20}` **nested**. The code follows the
+  collection — an executable artifact beats a prose table — and every search tool would break in the
+  same place if that is wrong. **One call settles it; test it first.**
+- **Q10 — wire · the vendor's own inconsistency.** Exam results are `EXAM_RESULTS` (singular) on READ
+  and `EXAMS_RESULTS` (plural) on SEARCH in the same collection. One is presumably a typo. Both are
+  carried, each used where the vendor used it, until a call says which exists (`client.ts`).
+- **Q11 — wire · a documentation gap, not an ambiguity.** The personal-history module has
+  documentation pages (`/antecedentPersonal*`) but **no entry in the collection**, so its `eventType`
+  string is unknown. It is the one module whose dispatch value cannot be transcribed, and guessing it
+  is guessing the only thing that matters. Ask CareCloud, or read it off a real call.
 
 ## 7. Environments
 
@@ -352,7 +382,41 @@ the answer that does not); and phase 5, if the webhook receiver needs a shape th
 No new glossary terms. *Clinic*, *patient*, *appointment* and *agenda* are either already in the domain
 vocabulary or are the provider's own words, used as such.
 
-## 12. Next step
+## 12. Build status (2026-09-21)
+
+**Built, green, and not yet proven against the provider.**
+
+- `src/providers/saludtools/` — manifest, auth descriptor, client, `errors.ts`, `projections.ts`,
+  `catalogs.ts`, `tools.ts`, provider factory, one line in `src/providers/index.ts`, plus
+  `assets/saludtools.svg`. Inside the `add-provider` golden rule: **no file under `src/core`,
+  `src/protocol` or `src/auth` was touched**, so no exceptional ADR is owed (§10 holds).
+- **Phases 1 and 2 are implemented**: the nine agent tools of the agenda loop and the catalog read,
+  plus four control-plane operations (`search_patients`, `delete_patient`, `delete_appointment`,
+  `get_reference_catalog`).
+- **Phases 3 and 4 are not**, and the reason is evidence, not effort — the file header of `tools.ts`
+  says it in place: the clinical reads cannot be field-projected because the vendor documents no
+  response body for them, and the clinical writes cannot be typed because their request bodies exist
+  as single nested examples (5.4 KB for a clinical history) with no field table saying what is
+  required. Both unblock with Q1 and one recorded round trip per module.
+- **Tests:** 57 across two files, green; the repo's full suite is 356/356 green with this branch in.
+  `tsc --noEmit` clean, Prettier clean.
+- **Two things the tests caught that a reviewer would not have:**
+  1. A transport failure never reached the envelope. The core hands a non-2xx back as an unparsed
+     `body` string rather than `data`, so the first `unwrapSaludtools` returned early — and since an
+     unknown patient arrives as a **real HTTP 412** carrying the envelope, the whole `{found: false}`
+     distinction silently did not work. Two tests went red; that is the only reason it was found.
+  2. `definePaginatedList` does not forward `controlPlane`. It re-declares its own parameter type and
+     forwards `requiredScopes` and `identityPolicy` only, so **a paginated tool cannot be a
+     control-plane tool**. TypeScript rejects the field rather than dropping it, which is the good
+     version of that failure — the same helper silently dropped `identityPolicy` until #101 caught it.
+     `search_patients` therefore takes explicit `page`/`size` and returns the provider's own page;
+     fixing the helper means editing `src/core`, and widening shared infra for one withdrawn tool is
+     not a trade worth making here. Belongs with matesjara/xcale-harness#20.
+- **What is NOT done and must be before this ships:** the round-trip proof (`server/discover` →
+  `tools/list` → `tools/call` against QA, plus a forced auth failure), re-recording every fixture
+  against a real response, the api-contract, and the xcale-backend registration (§8).
+
+## 13. Next step
 
 1. **Q1, both tracks** — send the sandbox request to CareCloud (`sandbox-access-request.md`), and follow the
    tenant clinic's ApiKey.
