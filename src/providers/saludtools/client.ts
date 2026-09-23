@@ -16,14 +16,16 @@ export type QueryParams = Readonly<Record<string, string | number | undefined>>;
  * documents are `PATIENT_FILES`, the gynaecological history is `GYNECOOBS_HISTORY` and the family
  * history is `FAMILY_HISTORY`. A plausible guess is wrong for four of the twelve.
  *
- * Two are the vendor's inconsistencies, kept as it published them rather than unified (Q10):
- * - `EXAM_RESULTS` (singular) appears on the exam-result READ; `EXAMS_RESULTS` (plural) on its
- *   SEARCH. One of the two is probably a typo in the collection. Until a call proves which, both are
- *   here and each is used exactly where the vendor used it.
- *
- * `ANTECEDENT_PERSONAL` is deliberately ABSENT: the personal-history module has documentation pages
- * but **no entry in the collection**, so its `eventType` string is unknown. Guessing it would be
- * guessing the one thing this type exists to pin down (Q11).
+ * Two of them were settled by asking production directly (2026-09-22), with identifiers that cannot
+ * match a record — the dispatcher's own error text says whether it knows a value, and no record comes
+ * back either way:
+ * - **`EXAM_RESULTS` (singular) does not exist.** The vendor's collection uses it on the exam-result
+ *   READ and `EXAMS_RESULTS` (plural) on the SEARCH; production answers the singular with "No se ha
+ *   enviado un tipo de evento valido". Only the plural is real, and it is the only one listed here.
+ * - **`ANTECEDENT_PERSONAL` does exist**, though the vendor's collection has no entry for it at all.
+ *   Production answers it with "El evento read requiere en id", which is a complaint about the body
+ *   and therefore a confirmation of the eventType. `PERSONAL_HISTORY` and `PERSONAL_ANTECEDENT`, the
+ *   two other plausible spellings, are both rejected as unknown.
  */
 export type EventType =
   | 'PATIENT'
@@ -31,13 +33,13 @@ export type EventType =
   | 'MEDICINE'
   | 'CLINIC_HISTORY'
   | 'EXAMS_PRESCRIPTION'
-  | 'EXAM_RESULTS'
   | 'EXAMS_RESULTS'
   | 'PARACLINICS'
   | 'INABILITYWORK'
   | 'PATIENT_FILES'
   | 'GYNECOOBS_HISTORY'
-  | 'FAMILY_HISTORY';
+  | 'FAMILY_HISTORY'
+  | 'ANTECEDENT_PERSONAL';
 
 /**
  * The five documented actions. There is **no `READ_LAST`**: "read the patient's last medicine" is

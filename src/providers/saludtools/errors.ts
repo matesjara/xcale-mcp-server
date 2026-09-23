@@ -186,7 +186,12 @@ export function isPatientNotFound(result: Unwrapped): boolean {
   // matched rather than one clever anchor — a narrower match fails silently and tells an agent it
   // made a bad call.
   return (
-    text.includes('no se ha encontrado un paciente') || text.includes('no se encontro un paciente')
+    text.includes('no se ha encontrado un paciente') ||
+    text.includes('no se encontro un paciente') ||
+    // A third wording, from the clinical modules (Observed 2026-09-22): "No existe paciente con ese
+    // tipo y numero de documentacion en la compañia". Three sentences for one condition is the
+    // vendor's habit, not an accident, so this list grows rather than getting cleverer.
+    text.includes('no existe paciente')
   );
 }
 

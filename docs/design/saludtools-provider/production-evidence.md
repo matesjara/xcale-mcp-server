@@ -124,6 +124,62 @@ Three defects, none of which any unit test could have caught, because each lived
    `PROVIDER_ERROR`. The signal is structural now (a success with an empty body); the prose is the
    fallback, and it matches both sentences.
 
+## Read-only exploration, 2026-09-22
+
+A second pass, still touching no patient record: every documented catalog path, and every clinical
+`eventType`, called with identifiers that cannot match anything. The dispatcher's own error text is
+the answer — "recognised" vs "no such event type" — and no record comes back either way.
+
+### All 32 catalog paths
+
+Twenty-eight answered `200`. The other four did not, and three of them are a structural finding:
+
+| Path                   | Answer                                                        | What it means                                            |
+| ---------------------- | ------------------------------------------------------------- | -------------------------------------------------------- |
+| `encountercommonid`    | `412 Required String parameter 'documentType' is not present` | **Not a catalog.** A per-patient read on a catalog's URL |
+| `remissioncontainerid` | same                                                          | **Not a catalog**                                        |
+| `antecedentspersonal`  | same                                                          | **Not a catalog**                                        |
+| `atcconcentration`     | `412 Required Long parameter 'principleact' is not present`   | A catalog, but its filter is mandatory                   |
+
+The three per-patient ones are removed from the enum: left in, they would have been dead options
+offered to an agent, every call a 412. They belong to phase 3, gated on Q6. `atcconcentration` now
+refuses locally with a message naming the field, rather than spending a round trip to be told.
+
+Shapes, which are more varied than the docs suggest: `[{id,name}]` for most, `[{value,name}]` for
+`states`, `attentionModality`, `examprescriptiontype`, `medicalexamtype` and `evaluationenum`,
+`[{code,name}]` for `diagnosticcie10`, and a third field (`description`, `ripsCode`, `active`) on
+five more. Sizes worth knowing before an agent is let near them: `commercialname` 219,777 entries and
+`diagnosticcie10` 12,618, both paged ten at a time — which is why they are control-plane.
+
+### The clinical eventTypes
+
+| eventType                                                                                                                                                   | Verdict                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `MEDICINE`, `CLINIC_HISTORY`, `EXAMS_PRESCRIPTION`, `EXAMS_RESULTS`, `PARACLINICS`, `INABILITYWORK`, `PATIENT_FILES`, `GYNECOOBS_HISTORY`, `FAMILY_HISTORY` | recognised                                                                                                 |
+| **`EXAM_RESULTS`** (singular)                                                                                                                               | **does not exist** — "No se ha enviado un tipo de evento valido"                                           |
+| **`ANTECEDENT_PERSONAL`**                                                                                                                                   | **exists** — "El evento read requiere en id", a complaint about the body, so the dispatcher knows the type |
+| `PERSONAL_HISTORY`, `PERSONAL_ANTECEDENT`                                                                                                                   | do not exist                                                                                               |
+
+That closes **Q10** (the vendor's collection has a typo: only the plural `EXAMS_RESULTS` is real) and
+**Q11** (the personal-history module's eventType is `ANTECEDENT_PERSONAL`, despite having no entry in
+the collection at all). Both are settled in `client.ts`.
+
+### Two more things to carry into phase 3
+
+- **A `402` in the envelope means "not found".** `INABILITYWORK` and `PATIENT_FILES` both answer a
+  missing record with `code: 402` — HTTP's "Payment Required", used as a not-found marker. The shared
+  status map sends 402 to `PROVIDER_ERROR`, so **a phase-3 tool that does not handle it will report a
+  missing record as a provider malfunction** — the exact defect already fixed once for patients.
+  Recorded here rather than coded now, because no tool calls those modules yet.
+- **A third wording for "no such patient":** "No existe paciente con ese tipo y numero de
+  documentacion en la compañia", used by the clinical modules. Added to the marker, which now matches
+  all three sentences the vendor uses for one condition.
+
+### Rate limiting, measured
+
+The first pass hit `429` after roughly 35 calls in 40 seconds, and the mint itself was throttled for
+about a minute afterwards. At 3.5s between calls nothing was refused. There is no `Retry-After`.
+
 ## What it did NOT prove
 
 - **Any read that returns a real patient.** Not run, on purpose (Q6).

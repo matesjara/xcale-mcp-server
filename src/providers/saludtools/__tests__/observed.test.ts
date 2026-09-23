@@ -4,6 +4,7 @@ import { ProviderErrorCode } from '../../../core/errors';
 import { SecretString } from '../../../core/secret-string';
 import type { ProviderCallContext, ToolResult } from '../../../core/types';
 import { saludtoolsAuth } from '../auth';
+import { AGENT_CATALOGS, REFERENCE_CATALOGS } from '../catalogs';
 import { createSaludtoolsProvider } from '../provider';
 
 import observedAppointmentSearchEmpty from '../__fixtures__/observed-appointmentSearchEmpty.json';
@@ -289,5 +290,60 @@ describe('observed — the round-trip proof found three defects the unit tests c
     const { provider: p } = provider({ code: 200, eventId: 'x', body: 'not-a-record' });
     const result = await p.callTool('mcp_saludtools_get_appointment', { id: '1' }, CTX);
     expect(result.kind).toBe('error');
+  });
+});
+
+describe('observed — read-only exploration of the catalogs and the clinical eventTypes', () => {
+  /*
+   * All 32 documented catalog paths and every clinical eventType were called against production on
+   * 2026-09-22, with identifiers that cannot match a record. No patient data was read and nothing
+   * was written; the dispatcher's own error text is the whole answer.
+   */
+
+  it.each(['encountercommonid', 'remissioncontainerid', 'antecedentspersonal'])(
+    'does not publish %s as a catalog — it is a per-patient read wearing a catalog URL',
+    (name) => {
+      /*
+       * Each sits on `/integration/parametric/` and reads like reference data. Each answers
+       * `412 "Required String parameter 'documentType' is not present"`. An encounter belongs to
+       * somebody; so does a personal-history entry. Left in the enum they would have been dead
+       * options offered to an agent, every call a 412.
+       */
+      const names = Object.values({ ...AGENT_CATALOGS, ...REFERENCE_CATALOGS }).map((c) => c.name);
+      expect(names).not.toContain(name);
+    },
+  );
+
+  it('publishes only catalogs that answered 200', () => {
+    // 8 agent-facing + 21 reference = 29, which is what production served. The other three are the
+    // per-patient reads above, and `atcconcentration` needs its filter (next test).
+    expect(Object.keys(AGENT_CATALOGS)).toHaveLength(8);
+    expect(Object.keys(REFERENCE_CATALOGS)).toHaveLength(21);
+  });
+
+  it('refuses a concentration lookup with no active principle, without a round trip', async () => {
+    // Production answers `412 "Required Long parameter 'principleact' is not present"`. Correct, and
+    // a network round trip to learn something the tool already knew — and the caller gets a message
+    // naming the field instead of the provider's.
+    const { provider: p, calls } = provider([]);
+    const result = await p.callTool(
+      'mcp_saludtools_get_reference_catalog',
+      { catalog: 'atcConcentrations' },
+      CTX,
+    );
+    if (result.kind !== 'error') throw new Error('expected an error');
+    expect(result.code).toBe(ProviderErrorCode.INVALID_INPUT);
+    expect(result.message).toContain('principleAct');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('still calls the concentration catalog when the principle is given', async () => {
+    const { provider: p, calls } = provider([{ id: 1, name: '500mg' }]);
+    await p.callTool(
+      'mcp_saludtools_get_reference_catalog',
+      { catalog: 'atcConcentrations', principleAct: 10 },
+      CTX,
+    );
+    expect(calls[0]?.url).toContain('principleact=10');
   });
 });

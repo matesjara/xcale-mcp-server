@@ -585,19 +585,24 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
       // active principles, concentrations. An agent paging a national diagnosis codebook is not a
       // move it should be able to choose.
       controlPlane: true,
-      handler: async (args, ctx) =>
-        toOutcome(
+      handler: async (args, ctx) => {
+        const descriptor: CatalogDescriptor = REFERENCE_CATALOGS[args.catalog];
+        // Checked here so the caller is told which field is missing. Sent without it, production
+        // answers 412 "Required Long parameter 'principleact' is not present" — correct, and a
+        // round trip to learn something we already knew.
+        if (descriptor.filterRequired === true && args.principleAct === undefined) {
+          return err(
+            ProviderErrorCode.INVALID_INPUT,
+            `SaludTools catalog ${args.catalog} requires principleAct`,
+          );
+        }
+        return toOutcome(
           unwrapSaludtoolsCatalog(
-            await readCatalog(
-              client,
-              REFERENCE_CATALOGS[args.catalog],
-              ctx.request,
-              args.page,
-              args.principleAct,
-            ),
+            await readCatalog(client, descriptor, ctx.request, args.page, args.principleAct),
             `get reference catalog ${args.catalog}`,
           ),
-        ),
+        );
+      },
     }),
 
     defineTool({

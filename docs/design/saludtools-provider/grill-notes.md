@@ -323,10 +323,20 @@ Errors — the provider misreports twice, and `errors.ts` has to know both:
 - **Q9 — ANSWERED. The nested `pageable` is correct**; the top-level `page`/`size` on the vendor's
   _Buscar citas_ page is wrong. The Postman collection won, which is the general lesson: where the
   prose and the executable artifact disagree, believe the artifact — then verify it.
-- **Q10 — still open · `EXAM_RESULTS` vs `EXAMS_RESULTS`.** Untested; both carried as the vendor wrote
-  them. Phase 3 territory.
-- **Q11 — still open · the personal-history `eventType`** has no collection entry and cannot be
-  transcribed. Ask CareCloud, or read it off a real call.
+- **Q10 — ANSWERED (2026-09-22). Only `EXAMS_RESULTS` (plural) exists.** Production rejects the
+  singular with "No se ha enviado un tipo de evento valido", so the vendor's collection has a typo on
+  its exam-result READ. Settled in `client.ts`.
+- **Q11 — ANSWERED (2026-09-22). It is `ANTECEDENT_PERSONAL`.** Production answers it with "El evento
+  read requiere en id" — a complaint about the body, so the dispatcher knows the type; `PERSONAL_HISTORY`
+  and `PERSONAL_ANTECEDENT` are both rejected as unknown. Asked with a document that cannot exist, so
+  no record was read.
+- **Q12 — NEW, gates phase 3 · a `402` means "not found".** `INABILITYWORK` and `PATIENT_FILES` report a
+  missing record with envelope `code: 402`. The shared map sends 402 to `PROVIDER_ERROR`, so a phase-3
+  tool that ignores it will call a missing record a provider malfunction — the defect already fixed once
+  for patients. Recorded, not coded: no tool reaches those modules yet.
+- **Q13 — NEW · three of the documented "catalogs" are per-patient reads.** `encountercommonid`,
+  `remissioncontainerid` and `antecedentspersonal` all demand a `documentType`. Removed from the catalog
+  enum and moved to phase 3, where they belong.
 
 ### What the documentation got wrong, in one place
 

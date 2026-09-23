@@ -15,10 +15,27 @@
  * the document types, the appointment states, the specialties, the modalities and the reason types,
  * and to register a patient it needs the genders and the EPS list.
  *
- * The other twenty-three exist so the clinical write payloads are fillable — CIE-10 diagnoses, active
+ * The other twenty-one exist so the clinical write payloads are fillable — CIE-10 diagnoses, active
  * principles, commercial drug names, concentrations, intake methods, eye types, diabetes types. An
- * agent has no business paging the CIE-10 catalog, and publishing twenty-three more tools would bury
- * the six that matter. They stay reachable by name as control-plane reads (ADR 0013).
+ * agent has no business paging the CIE-10 catalog (12,618 entries) or the commercial drug names
+ * (219,777, ten at a time), and publishing twenty-one more tools would bury the eight that matter.
+ * They stay reachable by name as control-plane reads (ADR 0013).
+ *
+ * All twenty-nine were called against production on 2026-09-22 and answered; the four that did not
+ * are accounted for above and below.
+ */
+
+/*
+ * THREE DOCUMENTED "CATALOGS" ARE NOT CATALOGS, and are deliberately absent below.
+ *
+ * `encountercommonid`, `remissioncontainerid` and `antecedentspersonal` sit on the same
+ * `/integration/parametric/` path and read like reference data. They are not: each answers
+ * `412 "Required String parameter 'documentType' is not present"` (Observed 2026-09-22). They are
+ * per-PATIENT reads wearing a catalog's URL — an encounter belongs to somebody, and so does a
+ * personal-history entry.
+ *
+ * That puts them in phase 3 (clinical reads, gated on Q6), not here. Left in this list they would
+ * have been dead entries: every call a 412, published to an agent as if it were a catalog.
  */
 
 /** One catalog: its wire name and what the caller needs to know to read it. */
@@ -34,6 +51,8 @@ export interface CatalogDescriptor {
    * takes `?principleact=<id>`. The value is the query-parameter name.
    */
   readonly filterParam?: string;
+  /** The filter is mandatory: the endpoint 412s without it. */
+  readonly filterRequired?: boolean;
 }
 
 /** The catalogs a patient conversation needs. Published as an agent tool. */
@@ -62,14 +81,17 @@ export const REFERENCE_CATALOGS = {
   principleActs: { name: 'principleact', label: 'drug active principles', paged: true },
   commercialNames: { name: 'commercialname', label: 'commercial drug names', paged: true },
   atcConcentrations: {
+    // The filter is NOT optional: without `?principleact=` production answers
+    // `412 "Required Long parameter 'principleact' is not present"` (Observed 2026-09-22). The tool
+    // checks for it before calling, so the caller gets a message naming the field.
     name: 'atcconcentration',
-    label: 'concentrations of an active principle',
+    label: 'concentrations of an active principle (requires `principleAct`)',
     filterParam: 'principleact',
+    filterRequired: true,
   },
   intakeMethods: { name: 'intakemethod', label: 'medication intake methods' },
   frequencyUnits: { name: 'frequencyunit', label: 'dosing frequency units' },
   durationUnits: { name: 'durationunit', label: 'treatment duration units' },
-  encounterCommonIds: { name: 'encountercommonid', label: 'encounter (attention) ids' },
   clinicHistoryConfigurations: {
     name: 'configurationclinichistoryid',
     label: 'clinical-history configuration ids',
@@ -77,7 +99,6 @@ export const REFERENCE_CATALOGS = {
   },
   examPrescriptionTypes: { name: 'examprescriptiontype', label: 'exam prescription types' },
   medicalExamTypes: { name: 'medicalexamtype', label: 'medical exam types', paged: true },
-  remissionContainerIds: { name: 'remissioncontainerid', label: 'exam prescription container ids' },
   externalCauses: { name: 'externalcause', label: 'external causes of consultation' },
   diagnosesCie10: { name: 'diagnosticcie10', label: 'CIE-10 diagnosis codes', paged: true },
   diagnosisClassifications: {
@@ -95,7 +116,6 @@ export const REFERENCE_CATALOGS = {
     name: 'personalantecedentsgroup',
     label: 'personal-history groups',
   },
-  personalAntecedents: { name: 'antecedentspersonal', label: 'personal-history entries' },
   familiarRelationshipTypes: {
     name: 'familiarRelationshipType',
     label: 'family relationship types',
