@@ -156,24 +156,25 @@ export function buildMewsTools(client: MewsClient) {
     tool({
       name: `mcp_${SLUG}_list_services`,
       description:
-        'List the hotel’s active bookable Mews services (a stay, parking, a restaurant…), nightly ' +
-        'services first and then in the hotel’s own order, with each service’s id, name and when ' +
-        'its nights start and end. Used to pick which service is the accommodation.',
+        'List the hotel’s active Mews services that are sold by the night (rooms, apartments…), in ' +
+        'the hotel’s own order, with each service’s id, name and when its nights start and end. ' +
+        'Used to pick which service is the accommodation.',
       input: NO_ARGS,
       handler: async (_args, ctx) => {
         const res = await call('services/getAll', { Limitation: { Count: 1000 } }, ctx.request);
         if (!res.ok) return asOutcome(res);
         const services = ((res.data as { Services?: ServiceShape[] }).Services ?? [])
-          .filter((s) => s.IsActive === true && s.Data?.Discriminator === 'Bookable')
-          // Nightly services first: a stay is sold by the night, so an hourly service (a restaurant,
-          // parking, a tour) is never the default binding. In the demo the restaurant has Ordering 0
-          // and the accommodation 666 — by Ordering alone, discovery would bind the restaurant.
-          .sort(
-            (a, b) =>
-              Number(b.Data?.Value?.TimeUnitPeriod === 'Day') -
-                Number(a.Data?.Value?.TimeUnitPeriod === 'Day') ||
-              (a.Ordering ?? 0) - (b.Ordering ?? 0),
+          // Nightly bookable services only: a stay is sold by the night, so an hourly service (a
+          // restaurant, a tour) can never be the accommodation. Listing it would let discovery bind
+          // it (the demo's restaurant has Ordering 0, the accommodation 666) and would make a hotel
+          // with rooms and a restaurant read as "two accounts" to the consumer's ambiguity warning.
+          .filter(
+            (s) =>
+              s.IsActive === true &&
+              s.Data?.Discriminator === 'Bookable' &&
+              s.Data?.Value?.TimeUnitPeriod === 'Day',
           )
+          .sort((a, b) => (a.Ordering ?? 0) - (b.Ordering ?? 0))
           .map((s) => ({
             Id: s.Id,
             Name: s.Name,

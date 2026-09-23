@@ -179,7 +179,7 @@ describe('mews provider — credentials on the wire', () => {
 });
 
 describe('mews provider — list_services (discovery)', () => {
-  it('returns only active bookable services, nightly first, so discovery never binds a restaurant', async () => {
+  it('returns only active NIGHTLY bookable services, so discovery never binds a restaurant and an hourly one never reads as a second account', async () => {
     const { provider, sent } = mews({ 'services/getAll': { body: services } });
 
     const result = data(await provider.callTool('mcp_mews_list_services', {}, CTX)) as Array<{
@@ -188,8 +188,9 @@ describe('mews provider — list_services (discovery)', () => {
       TimeUnitPeriod: string;
     }>;
 
-    // Observed: the restaurant is Bookable with Ordering 0, the accommodation has Ordering 666.
-    expect(result.map((s) => s.Name)).toEqual(['Accommodation (real)', 'Restaurant']);
+    // Observed: the restaurant is Bookable with Ordering 0 and hourly units; the accommodation has
+    // Ordering 666 and nightly units. A stay is sold by the night, so the restaurant is not a candidate.
+    expect(result.map((s) => s.Name)).toEqual(['Accommodation (real)']);
     expect(result[0]).toMatchObject({ Id: SERVICE_ID, TimeUnitPeriod: 'Day' });
     expect(result.some((s) => s.Name === 'Trivec POS')).toBe(false);
     expect(sent[0]?.body).not.toHaveProperty('ServiceIds');
