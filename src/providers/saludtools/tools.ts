@@ -12,7 +12,12 @@ import {
   type CatalogDescriptor,
 } from './catalogs';
 import type { SaludtoolsClient } from './client';
-import { isPatientNotFound, unwrapSaludtools, unwrapSaludtoolsCatalog } from './errors';
+import {
+  isPatientNotFound,
+  isRecordAbsent,
+  unwrapSaludtools,
+  unwrapSaludtoolsCatalog,
+} from './errors';
 import { SLUG } from './manifest';
 import {
   AGENDA_FIELDS,
@@ -123,16 +128,32 @@ function projected(
 }
 
 /**
- * SaludTools paginates the Spring way: **`page` is 0-based**, and it travels inside a `pageable`
- * object. The core's `paginationInput` is 1-based (`page` is a positive integer), which is the
- * contract every other provider publishes — so the translation happens here, once, and `page: 1`
- * from a caller means the first page everywhere in the gateway.
+ * SaludTools refuses a page larger than 20, and the gateway's default is 25 — so **every paginated
+ * call failed** until this clamp existed.
  *
- * Getting this backwards silently skips the first page of every search, which is the kind of bug that
- * looks like "the clinic has no appointments tomorrow".
+ * Observed 2026-09-21: `{"code": 412, "message": "La cantidad maxima de elementos a consultar debe
+ * ser menor a 20"}`. The message is off by one — `size: 20` is accepted, `size: 25` is not — so the
+ * ceiling is 20 inclusive, measured rather than read.
+ *
+ * Clamped rather than rejected. A caller asking for 25 gets 20 records instead of an error, which is
+ * the right trade for a limit that is the provider's and not the caller's business; the uniform
+ * envelope echoes the requested `pageSize`, so a page may carry fewer items than it asked for. Siigo
+ * documents the same asymmetry from the other direction (it rounds a small page size up).
+ */
+const MAX_PROVIDER_PAGE_SIZE = 20;
+
+/**
+ * Translate the gateway's pagination into SaludTools' own.
+ *
+ * Two mismatches, both silent if you get them wrong:
+ * - **`page` is 0-based here, 1-based in the gateway** (`core/pagination`), which every other
+ *   provider publishes. Off by one and every search skips its first page — a bug that presents as
+ *   "the clinic has no appointments tomorrow", which is a sentence a patient would believe.
+ * - **`size` is capped at 20** (see above), and it travels inside a nested `pageable` object rather
+ *   than at the top level, whatever the vendor's *Buscar citas* page says.
  */
 function pageable(page: number, pageSize: number): { page: number; size: number } {
-  return { page: page - 1, size: pageSize };
+  return { page: page - 1, size: Math.min(pageSize, MAX_PROVIDER_PAGE_SIZE) };
 }
 
 /**
@@ -221,7 +242,12 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
          * `found` names which one it is, so the agent never has to infer it from an absence — the
          * shape of mistake that has cost us real production bugs.
          */
-        if (isPatientNotFound(result)) return ok({ found: false });
+        /*
+         * Structural signal first, prose second. Production answers an unknown document with a
+         * SUCCESS carrying a null body (`{"code": 200, "body": null}`); the vendor's docs show a 412
+         * with a different sentence. Both mean the same thing and both are handled.
+         */
+        if (isRecordAbsent(result) || isPatientNotFound(result)) return ok({ found: false });
         if (!result.ok) return err(result.code, result.message);
         const patient = project(result.data, PATIENT_FIELDS);
         if (patient === null) {
@@ -395,20 +421,31 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
 
     defineTool({
       name: `mcp_${SLUG}_get_appointment`,
-      description: 'Read one appointment by its SaludTools id.',
+      description:
+        'Read one appointment by its SaludTools id. Returns `{found: true, appointment}`, or ' +
+        '`{found: false}` when no appointment carries that id — an answer, not an error.',
       input: z.object({ id: z.string().min(1) }).strict(),
       // The id names no person, but the RESULT is one patient's appointment — so the tool reaches a
       // person's record without taking their identifier, which is what `subject-scoped` means.
       identityPolicy: { mode: 'subject-scoped' },
-      handler: async (args, ctx) =>
-        projected(
-          unwrapSaludtools(
-            await client.event('APPOINTMENT', 'READ', { id: args.id }, ctx.request),
-            'get appointment',
-          ),
-          APPOINTMENT_FIELDS,
+      handler: async (args, ctx) => {
+        const result = unwrapSaludtools(
+          await client.event('APPOINTMENT', 'READ', { id: args.id }, ctx.request),
           'get appointment',
-        ),
+        );
+        // Same shape as `get_patient`, for the same reason: an id that matches nothing is an answer.
+        // Reported as PROVIDER_ERROR it would read as "SaludTools is broken" to the agent.
+        if (isRecordAbsent(result)) return ok({ found: false });
+        if (!result.ok) return err(result.code, result.message);
+        const appointment = project(result.data, APPOINTMENT_FIELDS);
+        if (appointment === null) {
+          return err(
+            ProviderErrorCode.PROVIDER_ERROR,
+            'SaludTools get appointment returned no record in its envelope body',
+          );
+        }
+        return ok({ found: true, appointment });
+      },
     }),
 
     defineTool({

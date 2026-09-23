@@ -1,0 +1,7 @@
+{
+  "id": null,
+  "code": 412,
+  "message": "La cantidad maxima de elementos a consultar debe ser menor a 20",
+  "eventId": "f7b48de16ff14017ae2357cede9bae71",
+  "body": null
+}

@@ -136,6 +136,29 @@ export type Unwrapped =
     };
 
 /**
+ * Did SaludTools succeed and hand back nothing — i.e. "the record you asked for does not exist"?
+ *
+ * **This is the primary not-found signal, and it is structural.** Observed 2026-09-21 against
+ * production: a lookup for an unregistered document answers `HTTP 200` with
+ * `{"code": 200, "message": "No se encontro un paciente con los datos suministrados", "body": null}`.
+ * A success. With nothing in it.
+ *
+ * That is not what the vendor's own documentation shows — its example is a `412` with a different
+ * sentence ("Para los datos enviados como filtros, no se ha encontrado un paciente…"). Both are
+ * handled, because we have now seen the docs be wrong often enough not to bet on either alone, but
+ * the structural one leads: it needs no Spanish prose to match, so it keeps working when the vendor
+ * rewords a message, and the two real sentences are already different from each other.
+ *
+ * Before this existed, a missing patient became `PROVIDER_ERROR` ("returned no record in its envelope
+ * body") — the tool telling the agent that SaludTools had malfunctioned, when in fact it had answered
+ * the question. The unit tests could not catch it: they were written against the vendor's documented
+ * 412, which production does not send.
+ */
+export function isRecordAbsent(result: Unwrapped): boolean {
+  return result.ok && (result.data === null || result.data === undefined);
+}
+
+/**
  * Does this failure mean "that person is not in the clinic's records"?
  *
  * SaludTools answers a patient lookup for an unknown document with `code: 412` and the message
@@ -158,7 +181,13 @@ export type Unwrapped =
 export function isPatientNotFound(result: Unwrapped): boolean {
   if (result.ok || result.detail === undefined) return false;
   const text = result.detail.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  return text.includes('no se ha encontrado un paciente');
+  // TWO sentences, because the vendor uses two for the same condition: the one its docs show on a
+  // 412, and the one production actually sends on a 200. They share no useful substring, so both are
+  // matched rather than one clever anchor — a narrower match fails silently and tells an agent it
+  // made a bad call.
+  return (
+    text.includes('no se ha encontrado un paciente') || text.includes('no se encontro un paciente')
+  );
 }
 
 /**

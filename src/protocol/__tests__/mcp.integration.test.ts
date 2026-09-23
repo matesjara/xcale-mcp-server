@@ -57,6 +57,52 @@ describe('MCP protocol (e2e over Streamable HTTP, stateless)', () => {
     await client.close();
   });
 
+  it('tools/list carries each tool’s identityPolicy onto the WIRE', async () => {
+    /*
+     * REGRESSION, and the field's whole reason to exist.
+     *
+     * #101 added `identityPolicy` to `ToolDefinition`, forwarded it through `provider-factory` and
+     * `definePaginatedList`, and pinned it with tests that read `provider.listTools()` — the
+     * in-process object. The protocol mapping, the only place a tool becomes something a consumer can
+     * see, dropped it. Every declaration was true and none of it left the building; a PHI provider's
+     * round-trip proof is what noticed.
+     *
+     * Asserted over RAW JSON-RPC on purpose. The SDK's own `ToolSchema` is a plain `z.object`, so its
+     * typed client strips any field the spec does not name — a test written through `client.listTools()`
+     * would report this absent even once it is present, and "fixing" that would mean deleting the fix.
+     * xcale-backend reads raw JSON (`modules/mcp/mcp-client.ts`), which is the view that matters.
+     */
+    const res = await app.inject({
+      method: 'POST',
+      url: '/mcp',
+      headers: {
+        authorization: `Bearer ${SECRET}`,
+        'x-provider-token': 'provider-token',
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+      },
+      payload: { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} },
+    });
+
+    const sse = res.body.match(/data: (\{[\s\S]*\})/);
+    const body = JSON.parse(sse ? sse[1]! : res.body) as {
+      result: { tools: Array<{ name: string; identityPolicy?: { mode: string } }> };
+    };
+    const byName = new Map(body.result.tools.map((t) => [t.name, t]));
+
+    // A tool that reaches a named person says so.
+    expect(byName.get('mcp_cloudbeds_search_guests')?.identityPolicy).toEqual({
+      mode: 'subject-bound',
+      identityFields: expect.any(Array),
+    });
+    // A tool that returns other people's records without taking an identifier says that instead.
+    expect(byName.get('mcp_cloudbeds_list_reservations')?.identityPolicy).toEqual({
+      mode: 'subject-scoped',
+    });
+    // And the majority, which reach nobody, still publish nothing — absence is meaningful.
+    expect(byName.get('mcp_echo_say')?.identityPolicy).toBeUndefined();
+  });
+
   it('tools/call executes a tool and returns a success result', async () => {
     const client = await connect();
     const res = await client.callTool({ name: 'mcp_echo_say', arguments: { message: 'hola' } });

@@ -5,8 +5,8 @@
 - **`observed-*` — real recordings**, captured 2026-09-21 against SaludTools **production** with a live
   clinic ApiKey. These are evidence.
 - **everything else — the vendor's published examples**, transcribed from its developer portal
-  (`developer.saludtools.com`). These are not evidence, and four of them turned out to be wrong; see
-  `__tests__/observed.test.ts`, which names each contradiction.
+  (`developer.saludtools.com`). These are not evidence: the portal contradicts production in ten places
+  (`docs/design/saludtools-provider/grill-notes.md` §6), and `__tests__/observed.test.ts` names each one.
 
 Replacing the documented fixtures with recordings, one module at a time, is still outstanding — the
 recordings so far cover the mint, the catalogs and an empty agenda search, because those touch no
@@ -25,9 +25,10 @@ rather than a guess. But they are not proof, and the distinction matters enough 
   field that the vendor's own attribute table does not list.
 
 So they are good enough to drive tests of **our** logic — the unwrap, the classification, the
-projections, the pagination translation — and they are not the round-trip proof. When a key arrives
-(Q1), each one is re-recorded against the QA host and replaced; a diff at that point is a finding, not
-an inconvenience.
+projections, the pagination translation — and they are not the round-trip proof, which ran separately
+(`docs/design/saludtools-provider/production-evidence.md`). Each one still gets replaced by a recording
+as soon as the call behind it can be made without reading somebody's medical record; a diff at that
+point is a finding, not an inconvenience.
 
 | File                              | What it shows                  | Why it is here                                                                                    |
 | --------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------- |
@@ -41,15 +42,17 @@ an inconvenience.
 
 Recorded against production (`observed-*`):
 
-| File                                     | What it proves                                                                                                                                                                                                              |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `observed-mintResponse.shape.json`       | The mint returns `expires_in`, `refresh_token`, `scope`, `token_type`, `jti` — the portal documents only `access_token`. **Token values are redacted**: a real one is a live 6-day credential and is never written to disk. |
-| `observed-attentionModalityCatalog.json` | Twelve modalities, and **no `DOMICILIARY`** — the documented three-value enum was wrong in both directions                                                                                                                  |
-| `observed-statesCatalog.json`            | Eleven appointment states, keyed on `value` not `id`, including `CANCELLED` and `RESCHEDULED` (which answers how to cancel)                                                                                                 |
-| `observed-specialtiesPagedCatalog.json`  | A paged catalog returns a bare FLATTENED page with no envelope `code` — the shape the first unwrap rejected                                                                                                                 |
-| `observed-clinicsCatalog.json`           | One site, a five-digit id, and a `company` field. **The clinic's name is anonymized** — the real response names a live customer.                                                                                            |
-| `observed-appointmentSearchEmpty.json`   | A date window with no doctor and no patient is accepted, and pagination goes in a nested `pageable`                                                                                                                         |
-| `errors/observed-mintInvalidKey412.json` | An invalid key yields **412**, not the 500 the docs claim                                                                                                                                                                   |
+| File                                       | What it proves                                                                                                                                                                                                              |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `observed-mintResponse.shape.json`         | The mint returns `expires_in`, `refresh_token`, `scope`, `token_type`, `jti` — the portal documents only `access_token`. **Token values are redacted**: a real one is a live 6-day credential and is never written to disk. |
+| `observed-attentionModalityCatalog.json`   | Twelve modalities, and **no `DOMICILIARY`** — the documented three-value enum was wrong in both directions                                                                                                                  |
+| `observed-statesCatalog.json`              | Eleven appointment states, keyed on `value` not `id`, including `CANCELLED` and `RESCHEDULED` (which answers how to cancel)                                                                                                 |
+| `observed-specialtiesPagedCatalog.json`    | A paged catalog returns a bare FLATTENED page with no envelope `code` — the shape the first unwrap rejected                                                                                                                 |
+| `observed-clinicsCatalog.json`             | One site, a five-digit id, and a `company` field. **The clinic's name is anonymized** — the real response names a live customer.                                                                                            |
+| `observed-appointmentSearchEmpty.json`     | A date window with no doctor and no patient is accepted, and pagination goes in a nested `pageable`                                                                                                                         |
+| `errors/observed-mintInvalidKey412.json`   | An invalid key yields **412**, not the 500 the docs claim                                                                                                                                                                   |
+| `observed-patientNotFound200.json`         | An unregistered document answers **HTTP 200 with `body: null`** — a success with nothing in it, not the `412` the docs show                                                                                                 |
+| `errors/observed-pageSizeTooLarge412.json` | A page of 25 (the gateway's default) is refused; the ceiling is 20                                                                                                                                                          |
 
 `appointmentSearch.json` carries two of the three records its `totalElements` reports: the third was
 cut off when the page was captured. Left as it is on purpose — the totals are the vendor's, and a page

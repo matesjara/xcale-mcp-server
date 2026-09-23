@@ -1,7 +1,7 @@
 # SaludTools — grill notes (pre feature-design)
 
-- **Status:** phases 1–2 built and green, verified against production for everything that touches no
-  patient. Working notes on the branch — **no PR yet**. Mateo's instruction (2026-09-21): build the whole
+- **Status:** phases 1–2 built and green, and **the round-trip proof passes against production**
+  (`production-evidence.md`) for everything that touches no patient. Working notes — **no PR yet**. Mateo's instruction (2026-09-21): build the whole
   integration, then ship it as **one** PR with everything in it.
 - **Date:** 2026-09-21
 - **Code target repo:** `xcale-mcp-server` (MCP provider); credentials in `xcale-backend` (Rail A).
@@ -14,15 +14,15 @@
 > from it, and the questions that must close before each phase is authorized.
 >
 > **Evidence discipline.** §2 is _Documented_ — what the vendor's portal and collection say. §6 is
-> _Observed_ — what production actually answered on 2026-09-21. **Where they disagree, §6 wins**, and they
-> disagree about seven things, listed at the end of §6; three of the seven would have shipped as defects.
+> _Observed_ — what production actually answered. **Where they disagree, §6 wins**, and they disagree
+> about ten things, listed at the end of §6; five of the ten would have shipped as defects.
 >
 > §2 is left standing rather than corrected in place on purpose: the gap between the two columns is the
 > most useful thing this document records about SaludTools, and flattening it would hide how little the
 > portal can be trusted for the modules nobody has called yet (phases 3 and 4).
 >
-> What is still unproven: every read that touches a real patient. The key we hold is a production clinic's
-> and Q6 is open, so none was made.
+> What is still unproven: every read that returns a real patient, and every write. The key we hold is a
+> production clinic's with `role_admin`, and Q6 is open, so neither was attempted.
 
 ---
 
@@ -332,17 +332,28 @@ Errors — the provider misreports twice, and `errors.ts` has to know both:
 
 Worth keeping as a list, because it sets how much the rest of the portal is worth:
 
-| The docs say                                               | Production says                                                                       |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Mint returns `{access_token}`                              | Also `expires_in`, `refresh_token`, `scope`, `token_type`, `jti`                      |
-| Invalid key → `500`                                        | `412`, with a readable envelope message                                               |
-| `modality` ∈ {CONVENTIONAL, TELEMEDICINE, **DOMICILIARY**} | Twelve values, and **no `DOMICILIARY`**                                               |
-| Appointment search paginates with top-level `page`/`size`  | Nested `pageable: {page, size}`                                                       |
-| Catalogs return `[{id, name}]`                             | Some return `[{value, name}]`; paged ones return a bare flattened page with no `code` |
-| Statuses: 200/400/401/404/405/500                          | Also `412` for all input errors and `429` for rate limiting                           |
-| Patient has 13 attributes                                  | Also `address`, and an internal `id`                                                  |
+| The docs say                                               | Production says                                                                                         |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Mint returns `{access_token}`                              | Also `expires_in`, `refresh_token`, `scope`, `token_type`, `jti`                                        |
+| Invalid key → `500`                                        | `412`, with a readable envelope message                                                                 |
+| `modality` ∈ {CONVENTIONAL, TELEMEDICINE, **DOMICILIARY**} | Twelve values, and **no `DOMICILIARY`**                                                                 |
+| Appointment search paginates with top-level `page`/`size`  | Nested `pageable: {page, size}`                                                                         |
+| Catalogs return `[{id, name}]`                             | Some return `[{value, name}]`; paged ones return a bare flattened page with no `code`                   |
+| Statuses: 200/400/401/404/405/500                          | Also `412` for all input errors and `429` for rate limiting                                             |
+| Patient has 13 attributes                                  | Also `address`, and an internal `id`                                                                    |
+| Nothing about a page-size limit                            | **A page over 20 is refused** (`412`), and the gateway's default is 25 — so every paginated call failed |
+| An unknown patient is a `412`                              | **HTTP 200, `code: 200`, `body: null`** — a success with nothing in it, and a different sentence        |
+| QA and production share credentials                        | QA **rejects** this production key (`412`), so the sandbox needs its own                                |
 
-Three of those seven would have shipped as defects. Two did, and only the tests caught them (§12).
+Ten now, and **five would have shipped as defects**. Two were caught by the unit tests; three more
+only by running the thing end to end against the real provider (`production-evidence.md`) — including
+one that was not the vendor's fault at all: `identityPolicy` never reached the wire, so the PHI
+protection this whole design leans on was declared and never published.
+
+The pattern is worth naming, because it will repeat on the next provider: **every defect that
+survived the unit tests lived in a seam** — between the documented shape and the real one, between
+the core's pagination defaults and the provider's ceiling, between a provider's `listTools()` and the
+protocol's serialisation of it. A test that mocks the other side of a seam cannot see the seam.
 
 ## 7. Environments
 
@@ -391,9 +402,11 @@ the answer that does not); and phase 5, if the webhook receiver needs a shape th
 No new glossary terms. _Clinic_, _patient_, _appointment_ and _agenda_ are either already in the domain
 vocabulary or are the provider's own words, used as such.
 
-## 12. Build status (2026-09-21)
+## 12. Build status (2026-09-22)
 
-**Built, green, and verified against production for everything that touches no patient.**
+**Built, green, and PROVEN end to end** — `add-provider`'s Definition of Done is met for the phases that
+exist: `server/discover` → `tools/list` → `tools/call` against the real provider, plus both forced
+auth-failure paths, all passing. Transcript and caveats: `production-evidence.md`.
 
 - `src/providers/saludtools/` — manifest, auth descriptor, client, `errors.ts`, `projections.ts`,
   `catalogs.ts`, `tools.ts`, provider factory, one line in `src/providers/index.ts`, plus
@@ -407,45 +420,60 @@ vocabulary or are the provider's own words, used as such.
   response body for them, and the clinical writes cannot be typed because their request bodies exist
   as single nested examples (5.4 KB for a clinical history) with no field table saying what is
   required. Both unblock with Q1 and one recorded round trip per module.
-- **Tests:** 67 across three files, green — including `__tests__/observed.test.ts`, which pins each
+- **Tests:** 82 across four files (three provider, one protocol), green — including `__tests__/observed.test.ts`, which pins each
   place production contradicted the documentation so a future "cleanup" toward the tidier documented
   version goes red. The repo's full suite is 366/366 with this branch in. `tsc --noEmit` clean, Prettier
-  clean.
-- **Verified live (2026-09-21, production, zero patient records read):** the mint and its real response
-  shape; a wrong key’s status; six catalogs; a paged catalog; an appointment search over an empty window
-  with nested pagination and no doctor filter; and the rate ceiling, found by hitting it.
-- **Four defects were found, three of them only because a real call was made:** the documented
-  `modality` enum (would have rejected every modality a real clinic uses), the paged-catalog unwrap
-  (every paged catalog read failed), the missing `expires_in`, and the mint’s status. Plus two the tests
-  caught on their own:
-  1. A transport failure never reached the envelope. The core hands a non-2xx back as an unparsed
-     `body` string rather than `data`, so the first `unwrapSaludtools` returned early — and since an
-     unknown patient arrives as a **real HTTP 412** carrying the envelope, the whole `{found: false}`
-     distinction silently did not work. Two tests went red; that is the only reason it was found.
-  2. `definePaginatedList` does not forward `controlPlane`. It re-declares its own parameter type and
-     forwards `requiredScopes` and `identityPolicy` only, so **a paginated tool cannot be a
-     control-plane tool**. TypeScript rejects the field rather than dropping it, which is the good
-     version of that failure — the same helper silently dropped `identityPolicy` until #101 caught it.
-     `search_patients` therefore takes explicit `page`/`size` and returns the provider's own page;
-     fixing the helper means editing `src/core`, and widening shared infra for one withdrawn tool is
-     not a trade worth making here. Belongs with matesjara/xcale-harness#20.
-- **What is NOT done and must be before this ships:** the round-trip proof (`server/discover` →
-  `tools/list` → `tools/call` against QA, plus a forced auth failure), re-recording every fixture
-  against a real response, the api-contract, and the xcale-backend registration (§8).
+  clean; the repo's full suite 373/373.
+- **Verified live (production, zero patient records read, nothing written):** the mint and its real
+  response shape; a wrong key’s status; six catalogs; a paged catalog; an appointment search over an
+  empty window with nested pagination and no doctor filter; the rate ceiling, found by hitting it; and
+  the whole `reference` credential path end to end, including both ways it can fail.
+- **One thing the proof needed that the repo cannot do:** `scripts/contract-probe.mjs` builds the app
+  with `credentialResolveUrl: ''`, so it cannot drive ANY `reference` provider past credential
+  resolution — not this one, not Siigo. The proof ran on a scratch harness with a stub Credential
+  Authority. A `--resolve-url` flag would close it; filed for matesjara/xcale-harness#20, not done here
+  because `scripts/` is outside this provider's blast radius.
+- **Five defects were found, and where each hid is the lesson.** Two by the unit tests (an unwrap that
+  never read the envelope on a transport failure; `definePaginatedList` not forwarding `controlPlane`).
+  Three more only by running it end to end: the documented `modality` enum, which would have rejected
+  every modality a real clinic uses; the page-size ceiling, which broke **every** paginated call; and a
+  missing patient reported as a provider malfunction. Plus one that was not this provider's at all —
+  `identityPolicy` never reached the wire, so the protection this design leans on was declared and
+  unpublished. **Every one of them lived in a seam**, which is exactly where a mocked test cannot look.
+- **It TOUCHES `src/protocol`**, against the add-provider golden rule and deliberately: the wire mapping
+  had to grow one line for `identityPolicy` to reach a consumer. That is the other half of
+  xcale-mcp-server#101, which took the same exception for `src/core` and recorded it in its commit
+  rather than an ADR; this follows that precedent. Nothing else changes — a consumer that ignores the
+  field sees the menu it always saw (additive, ADR 0001). **Say it out loud in the PR**: a reviewer
+  scanning for the golden rule should find the reasoning, not the violation.
+- **The consumer half is still missing.** xcale-backend's `McpToolDef` has no `identityPolicy` field and
+  nothing reads one; that is PR #1020. Until it merges, the declarations travel and nobody acts on them.
+- **What is NOT done and must be before this ships:** phases 3–4 (blocked on Q6 and on shapes that can
+  only be seen by reading real clinical records), the api-contract, and a patient-facing read proven
+  against anything.
 
 ## 13. Next step
 
-1. **Q6 in front of Mateo — now the only thing between this and a working integration.** Everything that
-   does not touch a patient is verified; every read that does is blocked on his answer. Put it to him with
-   HiMed's Q4: one decision, two providers.
-2. **Send the sandbox request anyway** (`sandbox-access-request.md`). The QA host rejects the key we have,
-   and the only credential we hold is a live clinic's with `role_admin`/`role_superadmin` — which is not a
-   thing to keep testing against.
-3. Once Q6 lands: record a patient read and a populated agenda page against QA (or, with his say-so, one
-   consented patient in production), replace the documented fixtures, and run the round-trip proof.
-4. Then the api-contract, then phases 3–4 on observed responses — and only then the xcale-backend catalog
-   entry becomes something a clinic should see.
-5. One PR with everything (Mateo, 2026-09-21).
+The build is no longer the blocker. What is left is one decision and one credential.
 
-**Not to be done from this session:** any write. The key carries admin scope on a real clinic's records,
-so a "test" appointment is a real appointment in a real doctor’s diary.
+1. **Q6 to Mateo — the only thing between this and a shippable integration.** Everything that touches no
+   patient is built, green and proven against production. Every read that returns a patient is blocked
+   on his answer, and so is phase 3. Put it to him with HiMed's Q4: one decision, two providers.
+2. **Send the sandbox request** (`sandbox-access-request.md`). QA rejects the key we have, and the only
+   credential we hold is a live clinic's with `role_admin` — not a thing to keep a test suite pointed at.
+3. **When Q6 lands:** record a patient read and a populated agenda page (QA if the sandbox arrives,
+   otherwise one consented patient with his say-so), replace the documented fixtures with recordings,
+   and re-run the proof with those calls added.
+4. **Then** the api-contract on observed responses, then phases 3–4, then the feature-design if it still
+   earns its place beside these notes.
+5. **Chase #101 and #1020.** This branch carries the wire half of #101; the consumer half is #1020 and
+   neither has merged. A PHI provider that ships before them publishes declarations nobody enforces.
+6. One PR with everything (Mateo, 2026-09-21).
+
+**Standing constraints for anyone picking this up:**
+
+- **No writes against this key.** `role_admin` on a real clinic — a "test" appointment is a real
+  appointment in a real doctor's diary.
+- **No patient reads until Q6.** The safe probes are the four in `production-evidence.md`.
+- **The credential belongs in Doppler**, not in a file, a fixture or a commit. The one we were handed
+  arrived over chat and should be rotated once it is in real use.

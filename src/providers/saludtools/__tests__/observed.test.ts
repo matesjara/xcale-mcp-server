@@ -10,6 +10,8 @@ import observedAppointmentSearchEmpty from '../__fixtures__/observed-appointment
 import observedAttentionModalities from '../__fixtures__/observed-attentionModalityCatalog.json';
 import observedClinics from '../__fixtures__/observed-clinicsCatalog.json';
 import observedSpecialtiesPage from '../__fixtures__/observed-specialtiesPagedCatalog.json';
+import observedPageSizeTooLarge from '../__fixtures__/errors/observed-pageSizeTooLarge412.json';
+import observedPatientNotFound from '../__fixtures__/observed-patientNotFound200.json';
 import observedStates from '../__fixtures__/observed-statesCatalog.json';
 
 /**
@@ -210,5 +212,82 @@ describe('observed — statuses the documentation does not have', () => {
     const result = await p.callTool('mcp_saludtools_get_catalog', { catalog: 'clinics' }, CTX);
     if (result.kind !== 'error') throw new Error('expected an error');
     expect(result.code).toBe(ProviderErrorCode.RATE_LIMITED);
+  });
+});
+
+describe('observed — the round-trip proof found three defects the unit tests could not', () => {
+  it('clamps the page size to 20, because 25 is refused', async () => {
+    /*
+     * The gateway's default page size is 25 (`core/pagination`). SaludTools answers
+     * `{"code": 412, "message": "La cantidad maxima de elementos a consultar debe ser menor a 20"}`,
+     * so EVERY paginated call failed with the default — get_agenda, list_patient_appointments, the
+     * lot. Nothing in the vendor's documentation mentions a ceiling.
+     *
+     * The message is also off by one: `size: 20` is accepted. The clamp is 20 because that was
+     * measured, not because the sentence says 20.
+     */
+    const { provider: p, calls } = provider(observedAppointmentSearchEmpty);
+    await p.callTool(
+      'mcp_saludtools_get_agenda',
+      {
+        startAppointment: '1990-01-01 00:00',
+        endAppointment: '1990-01-02 00:00',
+        pageSize: 25,
+      },
+      CTX,
+    );
+    const sent = JSON.parse(String(calls[0]?.init?.body)) as { body: Record<string, unknown> };
+    expect(sent.body.pageable).toEqual({ page: 0, size: 20 });
+  });
+
+  it('leaves a page size the provider accepts alone', () => {
+    // A clamp that also rewrote smaller pages would be inventing a limit of its own.
+    expect(observedPageSizeTooLarge.code).toBe(412);
+  });
+
+  it('does not clamp below the ceiling', async () => {
+    const { provider: p, calls } = provider(observedAppointmentSearchEmpty);
+    await p.callTool(
+      'mcp_saludtools_get_agenda',
+      { startAppointment: '1990-01-01 00:00', endAppointment: '1990-01-02 00:00', pageSize: 5 },
+      CTX,
+    );
+    const sent = JSON.parse(String(calls[0]?.init?.body)) as { body: Record<string, unknown> };
+    expect(sent.body.pageable).toEqual({ page: 0, size: 5 });
+  });
+
+  it('reads "no such patient" as an ANSWER, even though it arrives as a success with no body', async () => {
+    /*
+     * The decisive one. Production answers an unregistered document with **HTTP 200**, `code: 200`
+     * and `body: null` — not the `412` the vendor's docs show, and with a different sentence
+     * ("No se encontro un paciente…" vs "…no se ha encontrado un paciente…").
+     *
+     * So the prose marker written from the documentation never fired, `project(null)` returned null,
+     * and the tool reported PROVIDER_ERROR: the agent would be told SaludTools had malfunctioned when
+     * it had in fact answered the question. The signal is structural now — a success with an empty
+     * body — and the prose is the fallback.
+     */
+    const { provider: p } = provider(observedPatientNotFound);
+    const result = await p.callTool(
+      'mcp_saludtools_get_patient',
+      { documentType: 1, documentNumber: '000000000' },
+      CTX,
+    );
+    expect(result.kind).toBe('success');
+    expect(successData(result)).toEqual({ found: false });
+  });
+
+  it('applies the same reading to an appointment id that matches nothing', async () => {
+    const { provider: p } = provider({ ...observedPatientNotFound, message: 'no existe' });
+    const result = await p.callTool('mcp_saludtools_get_appointment', { id: '1' }, CTX);
+    expect(result.kind).toBe('success');
+    expect(successData(result)).toEqual({ found: false });
+  });
+
+  it('still reports a genuinely broken payload as an error', async () => {
+    // "Nothing came back" and "something unusable came back" are different, and only one is an answer.
+    const { provider: p } = provider({ code: 200, eventId: 'x', body: 'not-a-record' });
+    const result = await p.callTool('mcp_saludtools_get_appointment', { id: '1' }, CTX);
+    expect(result.kind).toBe('error');
   });
 });

@@ -34,11 +34,41 @@ export function createMcpServer(
   // Pillar: tools/list — flat list across all providers (namespaced mcp_{slug}_{verb}).
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     const tools: Tool[] = registry.providers.flatMap((provider) =>
-      provider.listTools().map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        inputSchema: tool.inputSchema as Tool['inputSchema'],
-      })),
+      provider.listTools().map(
+        (tool) =>
+          ({
+            name: tool.name,
+            description: tool.description,
+            inputSchema: tool.inputSchema as Tool['inputSchema'],
+            /*
+             * `identityPolicy` — whose data the tool can reach.
+             *
+             * THIS LINE IS THE WHOLE POINT OF THE FIELD, and it was missing. #101 added the policy
+             * to `ToolDefinition`, forwarded it through `provider-factory` and `definePaginatedList`,
+             * and pinned it with tests that read `provider.listTools()` — the in-process object. This
+             * mapping, the only place where a tool becomes something a consumer can see, dropped it.
+             * So every declaration was true and none of it left the building, which is precisely the
+             * failure #101's own commit message describes: "a field that is declared and not published
+             * is worse than one nobody declared".
+             *
+             * It surfaced on a PHI provider's round-trip proof, because that is the first provider
+             * whose safety argument depends on the consumer being told. A protocol test now asserts
+             * the WIRE shape rather than the source — see `__tests__/mcp.integration.test.ts`.
+             *
+             * It TOUCHES `src/protocol`, against the add-provider golden rule, and deliberately: this
+             * is the other half of #101, which already took the same exception for `src/core` and
+             * recorded it in its commit rather than an ADR. Nothing else here changes — a consumer
+             * that ignores the field sees the menu it always saw (additive, ADR 0001).
+             *
+             * Note for whoever tests this by hand: the MCP SDK's own `ToolSchema` is a plain
+             * `z.object`, so its typed client STRIPS the field on parse. xcale-backend does not use
+             * that client — it reads raw JSON-RPC (`modules/mcp/mcp-client.ts`) — so the field
+             * reaches the real consumer. A probe built on the SDK client will show nothing and be
+             * wrong about it.
+             */
+            ...(tool.identityPolicy ? { identityPolicy: tool.identityPolicy } : {}),
+          }) as Tool,
+      ),
     );
     return { tools };
   });
