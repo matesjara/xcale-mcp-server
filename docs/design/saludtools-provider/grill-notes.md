@@ -9,6 +9,9 @@
   Postman collection (`/assets/IntegracionSaludtools.postman_collection.json`), both read 2026-09-21 —
   **plus calls made against production the same day** with a live clinic ApiKey (§6).
 - **Vendor:** CareCloud S.A.S. (Colombia). SaludTools is its cloud clinical-records and scheduling product.
+- **Tracker:** epic [xcale-backend#1054](https://github.com/matesjara/xcale-backend/issues/1054), a sibling of
+  the integrations board's #1053 (HiMed) and #1039 (Dentalink). The blocking decision is
+  [#1055](https://github.com/matesjara/xcale-backend/issues/1055), which gates all three.
 
 > Working document. Records what was verified in the vendor's wire documentation, the decisions that follow
 > from it, and the questions that must close before each phase is authorized.
@@ -309,7 +312,7 @@ Errors — the provider misreports twice, and `errors.ts` has to know both:
   audit, and it never needed to be the way to cancel.
 - **Q5 — still open · webhooks.** Configured by hand in the clinic's own SaludTools UI, payload
   undocumented. Phases 1–4 stay pull-only.
-- **Q6 — STILL OPEN, AND NOW THE BINDING ONE · security and legal.** It stopped being theoretical the
+- **Q6 — STILL OPEN, AND NOW THE BINDING ONE · security and legal. Filed as [xcale-backend#1055](https://github.com/matesjara/xcale-backend/issues/1055).** It stopped being theoretical the
   moment a production key of a real clinic arrived. Patient names, documents, phone numbers, birth
   dates and EPS would enter the LLM context and the stored conversation; Ley 1581 treats health data as
   _sensitive_ and a US-hosted model raises consent and residency questions. D6 and D7 shrink the
@@ -479,9 +482,11 @@ auth-failure paths, all passing. Transcript and caveats: `production-evidence.md
 
 The build is no longer the blocker. What is left is one decision and one credential.
 
-1. **Q6 to Mateo — the only thing between this and a shippable integration.** Everything that touches no
-   patient is built, green and proven against production. Every read that returns a patient is blocked
-   on his answer, and so is phase 3. Put it to him with HiMed's Q4: one decision, two providers.
+1. **[#1055](https://github.com/matesjara/xcale-backend/issues/1055) to Mateo — the only thing between
+   this and a shippable integration.** Everything that touches no patient is built, green and proven
+   against production. Every read that returns a patient waits on his answer, and so does phase 3. Filed
+   as one decision covering SaludTools, HiMed (#1053) and Dentalink (#1039), because HiMed's grill asked
+   the same thing in September and nobody answered it three times over.
 2. **Send the sandbox request** (`sandbox-access-request.md`). QA rejects the key we have, and the only
    credential we hold is a live clinic's with `role_admin` — not a thing to keep a test suite pointed at.
 3. **When Q6 lands:** record a patient read and a populated agenda page (QA if the sandbox arrives,
