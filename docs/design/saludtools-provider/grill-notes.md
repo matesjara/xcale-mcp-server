@@ -379,13 +379,26 @@ Small, and already anticipated by the code:
 
 Filed as a consumer issue by URL, through `/cross-repo` — **provider before consumer**.
 
-## 9. Dependencies
+## 9. Dependencies — resolved in-branch, not waiting
 
-| Dependency                                                            | Where                 | Why it blocks                                                                                                                                                                         |
-| --------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **xcale-mcp-server#101** — _a tool publishes whose data it can reach_ | open PR against `dev` | D8. Without `identityPolicy`, every patient tool ships unguarded. Must merge before this work does; if it is still open when the code is ready, this branch merges it in and says so. |
-| **xcale-backend#1020** — _an agent serves the person writing to it_   | open PR               | The consumer half. Nothing enforces D8 until this lands. Its own description names #101 as merging first.                                                                             |
-| **Q1** — a credential                                                 | external, in progress | No evidence, no contract, no fixtures, no round-trip proof.                                                                                                                           |
+Both halves of the PHI protection were open PRs, and neither could merge on our timetable (Mateo,
+2026-09-22). Waiting would have meant shipping a provider whose safety argument was a promise, so both
+were **merged into these branches** rather than waited on.
+
+| Dependency                                                            | Where it is now                                                                                                    |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **xcale-mcp-server#101** — _a tool publishes whose data it can reach_ | Merged into `docs/saludtools-integration`. Its wire half was missing entirely and is fixed here (§12).             |
+| **xcale-backend#1020** — _an agent serves the person writing to it_   | Merged into `feat/saludtools-connect`, plus a test pinning SaludTools' real published policies through its loader. |
+
+**Merged, not reimplemented** — on purpose. Copying the few lines we needed would have put the same fix
+in two branches, which is how one bug gets fixed twice and then conflicts. A merge shares ancestry, so
+whichever lands first the other reconciles by itself.
+
+The cost is stated plainly for the reviewer: `feat/saludtools-connect` carries #1020's 49 files, and
+`docs/saludtools-integration` carries #101's. Ours are the SaludTools module, the protocol line, and the
+two registration data entries.
+
+Still external, still blocking: **Q1's sandbox key** (QA rejects the production one) and **Q6**.
 
 ## 10. ADRs
 
@@ -466,9 +479,8 @@ The build is no longer the blocker. What is left is one decision and one credent
    and re-run the proof with those calls added.
 4. **Then** the api-contract on observed responses, then phases 3–4, then the feature-design if it still
    earns its place beside these notes.
-5. **Chase #101 and #1020.** This branch carries the wire half of #101; the consumer half is #1020 and
-   neither has merged. A PHI provider that ships before them publishes declarations nobody enforces.
-6. One PR with everything (Mateo, 2026-09-21).
+5. One PR with everything (Mateo, 2026-09-21) — and say in its body that it carries #101 and #1020,
+   so a reviewer knows which diff is ours (§9).
 
 **Standing constraints for anyone picking this up:**
 

@@ -107,9 +107,10 @@ Three defects, none of which any unit test could have caught, because each lived
    true and none of it left the building, which is exactly the failure #101's own commit message
    describes. **Fixed here**, with a protocol test that asserts the wire shape.
 
-   Still outstanding, in xcale-backend: `McpToolDef` (`modules/mcp/entities.ts`) has no `identityPolicy`
-   field and nothing reads one. That half is PR #1020's, which is unmerged. Until both land, the
-   declarations travel and nobody acts on them.
+   The consumer half — `McpToolDef` carrying the field and the loader validating it — is PR #1020's,
+   which cannot merge on our timetable. It is **merged into `feat/saludtools-connect`** instead, with a
+   test there that pins these exact published policies through the loader using the bytes below. The
+   chain is complete across the two branches; neither is waiting on the other.
 
 2. **Every paginated call failed.** The gateway's default page size is 25; SaludTools refuses anything
    over 20 (`"La cantidad maxima de elementos a consultar debe ser menor a 20"` — a 412 the docs never
