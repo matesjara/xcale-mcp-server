@@ -392,6 +392,37 @@ Small, and already anticipated by the code:
 
 Filed as a consumer issue by URL, through `/cross-repo` — **provider before consumer**.
 
+## 8b. Which axis it couples to — the HEALTH vertical
+
+Found by asking the question rather than assuming the answer: **a provider with no registered vertical
+scope is connectable and inert.** xcale-backend resolves a per-turn scope from a registry keyed on
+`(vertical, providerSlug)`; a connection with no projection yields `null`, and every tool the provider
+publishes goes unused. Nothing throws and nothing logs on the everyday path. Booking spent months in
+exactly that state with `toBookingTurnScope` written and never called.
+
+**SaludTools registers a new `health` axis**, shared by every clinic integration — HiMed
+([#1053](https://github.com/matesjara/xcale-backend/issues/1053)) and Dentalink
+([#1039](https://github.com/matesjara/xcale-backend/issues/1039)) join it as further `(health, slug)`
+pairs. One axis per vertical, not one per vendor.
+
+**Why not `booking`.** A consultation is structurally a booking, and reusing that axis was the cheap
+answer. The axis is not a taxonomy of what a business sells, though — it is what the agent gets told
+about the turn, and `booking`'s pending-work provider reads `propertyKey` and says _"They have an
+unfinished reservation … with a room already chosen"_. That sentence must never reach a patient. A
+clinic declaring `booking` now binds nothing and fails closed, with a test pinning it, because that is
+the mistake somebody will make.
+
+**Why its execution context is empty.** Commerce injects `shopDomain`, Booking injects `propertyID`;
+Health injects nothing. One ApiKey authenticates a _company_ that may hold several clinic SITES, so
+there is no single site to inject and choosing one would book every patient into whichever came first.
+The site travels as an explicit `clinic` argument (D3, Explicit Context). What the scope is for here is
+the binding itself.
+
+**No ADR.** The registry's own docblock calls a third axis an entry in the composition root — this is
+the documented extension point, not a departure from it, and the reasoning lives in
+`resolve-turn-scope.ts` beside the projection. It would be an ADR if we had folded clinics into
+`booking`; declining to is the conservative direction.
+
 ## 9. Dependencies — resolved in-branch, not waiting
 
 Both halves of the PHI protection were open PRs, and neither could merge on our timetable (Mateo,
