@@ -276,10 +276,11 @@ export function buildMewsTools(client: MewsClient) {
         'Availability of every room type of the connected service for each night of a stay. ' +
         'TimeUnitStartsUtc lists the nights in order, from checkIn to the night before checkOut ' +
         '(UTC instants of the hotel’s local midnight), and each metric array has one value per night. ' +
-        'UsableResources are the rooms that can be sold, Occupied those already booked, ' +
-        'OutOfOrderBlocks those closed for maintenance, and PublicAvailabilityAdjustment the hotel’s ' +
-        'own adjustment to what it shows publicly. A room type is sold out on a night when nothing ' +
-        'usable is left after the occupied and closed ones.',
+        'In Mews’ own words: UsableResources are the rooms not out of order (out-of-order rooms are ' +
+        'already excluded — do not subtract OutOfOrderBlocks again), Occupied the reservations and ' +
+        'blocks assigned, and PublicAvailabilityAdjustment the hotel’s manual adjustments. Mews ' +
+        'defines no single "sellable" figure: UsableResources minus Occupied is the free capacity, ' +
+        'and a booking Mews cannot sell is refused when it is created.',
       input: z.object(stay).strict(),
       handler: async (args, ctx) => {
         let first: string;
