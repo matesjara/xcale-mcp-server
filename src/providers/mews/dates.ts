@@ -41,6 +41,11 @@ function wallClock(utcMs: number, timeZone: string): number {
 function localToUtc(wallMs: number, timeZone: string): number {
   let utc = wallMs - (wallClock(wallMs, timeZone) - wallMs);
   utc = wallMs - (wallClock(utc, timeZone) - utc);
+  // A wall time the clocks skip (Santiago's midnight on 2026-09-06: 23:59:59 is followed by 01:00)
+  // has no instant. The passes above land before the gap, on the previous day; the right answer is
+  // the first instant after it. Gaps start and end on quarter hours, and none is longer than a few
+  // hours, so a bounded walk finds it.
+  for (let i = 0; i < 24 && wallClock(utc, timeZone) < wallMs; i++) utc += 15 * 60_000;
   return utc;
 }
 

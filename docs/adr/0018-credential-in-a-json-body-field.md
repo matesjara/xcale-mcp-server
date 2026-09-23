@@ -26,11 +26,15 @@ workaround would have the adapter read the credential, which the credential boun
    is never sent unauthenticated, the same rule `custom_header` follows.
 3. The client never writes the credential's key into the body. If the key is already there, the materializer
    **throws** rather than overwrite it: a client that pre-fills the credential field is a bug to see.
-4. The credential still travels only from the materializer to the transport. The transport's redaction covers
-   request bodies it echoes. Error results carry the provider's **response** body, never the request, so the
-   secret cannot reach a tool result.
-5. The consumer needs nothing new: `placement` is opaque to xcale-backend, which sends the secret in
-   `X-Provider-Token` as for every `api_key` provider.
+4. The credential still travels only from the materializer to the transport, and the request is never
+   returned. **The transport does not redact a JSON credential in a response body:** `redactQueryValues`
+   masks only `key=value` query pairs. A provider whose error answer could echo the request body must not
+   return `RequestResult.body` as it is. It parses the fields it needs, the way the Mews unwrap takes only
+   `Message` and `RequestId`, and it pins that with a test in which the echo carries the secret.
+5. xcale-backend needs nothing new: it treats `placement` as an opaque string and sends the secret in
+   `X-Provider-Token`, as for every `api_key` provider. The change is additive to the published union. A
+   third-party consumer that parses `placement` as a closed enum would still reject the new value, and
+   that is the cost of any additive enum value (ADR 0001).
 
 ## Consequences
 

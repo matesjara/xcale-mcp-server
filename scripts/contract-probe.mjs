@@ -35,7 +35,7 @@ process.env.VITEST ??= '1';
 
 /** Mutating verbs. Matched against the tool's verb segment, so a read tool never trips it. */
 const WRITE_VERBS =
-  /_(create|update|patch|delete|remove|cancel|void|refund|charge|pay|post|send|assign|close|check_in|check_out)(_|$)/;
+  /_(create|add|update|patch|delete|remove|cancel|void|refund|charge|pay|post|send|assign|close|check_in|check_out)(_|$)/;
 
 const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
 const { StreamableHTTPClientTransport } = await import(

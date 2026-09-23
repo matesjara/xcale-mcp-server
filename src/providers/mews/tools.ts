@@ -34,7 +34,12 @@ const cursor = z
   .min(1)
   .optional()
   .describe('The `Cursor` of the previous page, to read the next one.');
-const limit = z.number().int().min(1).max(100).default(100);
+const limit = z.number().int().min(1).max(100).default(100).describe('Page size (1-100).');
+const categoryId = uuid.describe('A room type id, from mcp_mews_list_resource_categories.');
+const rateId = uuid.describe('A rate id, from mcp_mews_list_rates (active and enabled).');
+const customerId = uuid.describe(
+  'A guest id, from mcp_mews_search_customers or mcp_mews_add_customer.',
+);
 
 const stay = {
   checkIn: localDate.describe('First night, in the hotel’s local calendar (YYYY-MM-DD).'),
@@ -185,8 +190,8 @@ export function buildMewsTools(client: MewsClient) {
     tool({
       name: `mcp_${SLUG}_get_configuration`,
       description:
-        'The hotel as Mews knows it: name, timezone, languages, currencies, address, contact details ' +
-        'and whether its prices are gross or net.',
+        'The hotel as Mews knows it: name, timezone, default language, currencies, address, contact ' +
+        'details and whether its prices are gross or net.',
       input: NO_ARGS,
       handler: async (_args, ctx) => {
         const res = await call('configuration/get', {}, ctx.request);
@@ -199,7 +204,6 @@ export function buildMewsTools(client: MewsClient) {
             ...pick('Name'),
             ...pick('TimeZoneIdentifier'),
             ...pick('DefaultLanguageCode'),
-            ...pick('LanguageCodes'),
             ...pick('Currencies'),
             ...pick('Pricing'),
             ...pick('Address'),
@@ -269,9 +273,13 @@ export function buildMewsTools(client: MewsClient) {
     tool({
       name: `mcp_${SLUG}_get_availability`,
       description:
-        'Availability of every room type of the connected service for each night of a stay. Per ' +
-        'category and night Mews reports UsableResources, Occupied, OutOfOrderBlocks, ActiveResources ' +
-        'and PublicAvailabilityAdjustment; TimeUnitStartsUtc lists the nights in order.',
+        'Availability of every room type of the connected service for each night of a stay. ' +
+        'TimeUnitStartsUtc lists the nights in order, from checkIn to the night before checkOut ' +
+        '(UTC instants of the hotel’s local midnight), and each metric array has one value per night. ' +
+        'UsableResources are the rooms that can be sold, Occupied those already booked, ' +
+        'OutOfOrderBlocks those closed for maintenance, and PublicAvailabilityAdjustment the hotel’s ' +
+        'own adjustment to what it shows publicly. A room type is sold out on a night when nothing ' +
+        'usable is left after the occupied and closed ones.',
       input: z.object(stay).strict(),
       handler: async (args, ctx) => {
         let first: string;
@@ -315,7 +323,7 @@ export function buildMewsTools(client: MewsClient) {
       description:
         'Nightly prices of one rate for every room type, for each night of a stay, in the rate’s ' +
         'currency (CategoryPrices[].AmountPrices, one per night).',
-      input: z.object({ rateId: uuid, ...stay }).strict(),
+      input: z.object({ rateId, ...stay }).strict(),
       handler: async (args, ctx) => {
         try {
           assertStay(args.checkIn, args.checkOut);
@@ -347,7 +355,7 @@ export function buildMewsTools(client: MewsClient) {
       description:
         'The exact total Mews would charge for one candidate stay (room type, rate, dates, guests), ' +
         'before booking it. This is the quote to give a guest.',
-      input: z.object({ categoryId: uuid, rateId: uuid, ...stay, personCounts }).strict(),
+      input: z.object({ categoryId, rateId, ...stay, personCounts }).strict(),
       handler: async (args, ctx) => {
         try {
           assertStay(args.checkIn, args.checkOut);
@@ -424,8 +432,21 @@ export function buildMewsTools(client: MewsClient) {
           firstName: z.string().min(1).max(255).optional(),
           email: z.string().email().optional(),
           phone: z.string().min(3).max(50).optional(),
-          languageCode: z.string().min(2).max(10).optional(),
-          nationalityCode: z.string().length(2).optional(),
+          languageCode: z
+            .string()
+            .regex(/^[a-z]{2}-[A-Z]{2}$/, 'expected a culture code such as es-ES')
+            .optional()
+            .describe(
+              'The language Mews writes to the guest in: a culture code such as es-ES or en-US (the ' +
+                'hotel’s own is the DefaultLanguageCode of mcp_mews_get_configuration).',
+            ),
+          nationalityCode: z
+            .string()
+            .regex(/^[A-Z]{2}$/, 'expected an ISO 3166-1 alpha-2 country code such as CO')
+            .optional()
+            .describe(
+              'The guest’s nationality, as an ISO 3166-1 alpha-2 country code (CO, US, ES).',
+            ),
         })
         .strict(),
       handler: async (args, ctx) =>
@@ -491,9 +512,9 @@ export function buildMewsTools(client: MewsClient) {
         'idempotency key, so look the guest’s reservations up first.',
       input: z
         .object({
-          customerId: uuid,
-          categoryId: uuid,
-          rateId: uuid,
+          customerId,
+          categoryId,
+          rateId,
           ...stay,
           personCounts,
           state: z
@@ -556,8 +577,19 @@ export function buildMewsTools(client: MewsClient) {
         .object({
           reservationId: uuid,
           reason: z.string().min(1).max(1000),
-          postCancellationFee: z.boolean().optional(),
-          sendEmail: z.boolean().optional(),
+          postCancellationFee: z
+            .boolean()
+            .optional()
+            .describe(
+              'Whether Mews charges the rate’s cancellation fee to the guest’s bill. Omitted: the hotel’s ' +
+                'Mews set-up decides.',
+            ),
+          sendEmail: z
+            .boolean()
+            .optional()
+            .describe(
+              'Whether Mews emails the guest about the cancellation. Omitted: Mews’ own default.',
+            ),
         })
         .strict(),
       handler: async (args, ctx) =>

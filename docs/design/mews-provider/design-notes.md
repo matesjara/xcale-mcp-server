@@ -36,6 +36,8 @@ anonymized). A fact read only in the docs is marked **[docs]**; everything else 
 | E18 | In the demo, the `Restaurant` service is `Bookable` with `Ordering` 0 and hourly units, and the accommodation has `Ordering` 666. [observed]                                                                                                                                                                                                                                                        | Discovery binds `0.Id`, so `list_services` puts nightly services first. By `Ordering` alone it would bind the restaurant.                              |
 | E19 | No resource category in the demo has an image (`ImageIds` is empty on all of them). [observed]                                                                                                                                                                                                                                                                                                      | `images/getUrls` could not be observed, so it is left out of v1 (§7).                                                                                  |
 | E20 | **The provider's own code**, run against the demo on 2026-09-23: all 11 read tools answered. A write round trip created reservation `130491` (`StartUtc 2027-01-12T14:00:00Z`, which is 15:00 in Budapest in winter), a duplicate was refused as `PROVIDER_ERROR` with Mews' reason, the cancel hit E17 once and then passed, and a bad `AccessToken` came back `PROVIDER_AUTH_EXPIRED`. [observed] | The fixtures are recordings of the same calls the tools make.                                                                                          |
+| E21 | A bad **`ClientToken`** (ours) answers **exactly the same 401** as a bad `AccessToken`: "Cannot perform operation or session has expired." A missing token answers `400` "ClientToken or AccessToken is missing or empty". [observed]                                                                                                                                                               | From one call the provider cannot tell whose token failed (§5).                                                                                        |
+| E22 | `configuration/get` has `DefaultLanguageCode` (`en-GB`) and no list of languages. [observed]                                                                                                                                                                                                                                                                                                        | `add_customer.languageCode` points to `DefaultLanguageCode`, and `get_configuration` does not project an invented `LanguageCodes`.                     |
 
 ## 2. Tools
 
@@ -101,6 +103,15 @@ decided here.
 | `400`                       | `PROVIDER_INVALID_INPUT` | A malformed call (E6, E15).                                                                                                                                |
 | `408`, `429`                | `PROVIDER_RATE_LIMITED`  | Mews documents 408 as "the request demanded too many resources", and it is retryable after backoff like 429 (E12).                                         |
 | `5xx`, transport            | `PROVIDER_UNAVAILABLE`   | The core default.                                                                                                                                          |
+
+**The 401 is ambiguous, and we keep it `PROVIDER_AUTH_EXPIRED` on purpose (E21).** A bad `ClientToken`
+returns the same 401 and the same message as a bad `AccessToken`. Of the two, a hotel revoking or rotating
+its token is the common case, and only a reconnect fixes it. The other case is a wrong or rotated
+`ClientToken` in this deployment, which is a deployment incident: it flags every Mews connection at once.
+It is caught before a hotel is, by the smoke test after a deploy that changes `MEWS_*` (one read call with
+our demo property). If it ever happens, fix the deployment config; the hotels' tokens are fine. Downgrading
+every 401 to `PROVIDER_ERROR` instead would leave a hotel whose token really is dead broken without ever
+being told why.
 
 **The error message carries Mews' `Message` and `RequestId`.** Mews' messages are short, fixed operator English
 ("no availability for the selected dates", "Please provide reason.") and carry no guest data in anything we
