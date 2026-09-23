@@ -111,6 +111,32 @@ describe('saludtools provider — published surface', () => {
   });
 });
 
+describe('saludtools provider — which host it calls', () => {
+  it('calls production when no deployment override is set', async () => {
+    /*
+     * SaludTools serves every clinic from one production host, so an unset override is a live
+     * clinic's records. That is the right DEFAULT — production is where real tenants are — but it
+     * is also why the override has to exist: without it a dev or staging deployment of this server
+     * would have called a real clinic, since a tenant's credential reaches us identically in every
+     * environment.
+     */
+    const { impl, calls } = fakeFetch(gendersCatalog);
+    const p = createSaludtoolsProvider({ fetchImpl: impl });
+    await p.callTool('mcp_saludtools_get_catalog', { catalog: 'genders' }, CTX);
+    expect(calls[0]?.url.startsWith('https://saludtools.carecloud.com.co')).toBe(true);
+  });
+
+  it('honours the deployment override, so dev and staging can point at QA', async () => {
+    const { impl, calls } = fakeFetch(gendersCatalog);
+    const p = createSaludtoolsProvider({
+      fetchImpl: impl,
+      baseUrl: 'https://saludtools.qa.carecloud.com.co',
+    });
+    await p.callTool('mcp_saludtools_get_catalog', { catalog: 'genders' }, CTX);
+    expect(calls[0]?.url.startsWith('https://saludtools.qa.carecloud.com.co')).toBe(true);
+  });
+});
+
 describe('saludtools provider — the agent menu and the control plane', () => {
   const p = createSaludtoolsProvider();
   const published = p.listTools().map((t) => t.name);

@@ -29,6 +29,24 @@ export interface Config {
    * calls will fail `400 header_required` — a deployment misconfiguration caught at smoke-test.
    */
   readonly siigoPartnerId: string;
+  /**
+   * SaludTools host override. **OPTIONAL, and absent means production** — which is the whole reason
+   * it exists.
+   *
+   * SaludTools has exactly one production host serving every clinic, and until this field the
+   * provider hard-coded it. That meant a dev or staging deployment of this server would have called a
+   * real clinic's live records: not a hypothetical, since a tenant's credential reaches us the same
+   * way in every environment.
+   *
+   * Set it to `https://saludtools.qa.carecloud.com.co` in Doppler `dev`/`stg` and leave it unset in
+   * `prd`. A DEPLOYMENT value, never per-tenant and never read from the catalog: the same host is
+   * pinned in xcale-backend for the mint, and a network-sourced host is precisely the repointing
+   * attack that pinning exists to stop.
+   *
+   * Optional on purpose (`add-provider`, known gaps): a new REQUIRED `Config` field breaks every
+   * `Config` literal in the protocol tests.
+   */
+  readonly saludtoolsBaseUrl?: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -40,5 +58,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     credentialResolveUrl: env.CREDENTIAL_RESOLVE_URL ?? '',
     credentialResolveSecret: env.CREDENTIAL_RESOLVE_SECRET ?? '',
     siigoPartnerId: env.SIIGO_PARTNER_ID ?? '',
+    ...(env.SALUDTOOLS_BASE_URL ? { saludtoolsBaseUrl: env.SALUDTOOLS_BASE_URL } : {}),
   };
 }

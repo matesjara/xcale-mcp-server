@@ -485,7 +485,12 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
       name: `mcp_${SLUG}_update_appointment`,
       description:
         'Move or change an existing appointment — its time, doctor, site, modality, state, or the ' +
-        "patient's confirmation (`notificationState`). Identified by its SaludTools id.",
+        "patient's confirmation (`notificationState`). Identified by its SaludTools id. " +
+        '**Send the whole appointment, not just what changed**: read it first with `get_appointment` ' +
+        'or `list_patient_appointments`, then resend every field with your edits applied. ' +
+        '**To cancel, this is the tool** — set `stateAppointment` to the cancelled value from the ' +
+        '`appointmentStates` catalog. Cancelling this way keeps the appointment in the record; ' +
+        'deleting it does not, and the clinic can no longer audit what happened.',
       input: z
         .object({
           id: z.string().min(1),

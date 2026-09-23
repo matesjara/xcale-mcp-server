@@ -38,6 +38,13 @@
 | QA          | `https://saludtools.qa.carecloud.com.co`  | **Rejects our production key** (`412`); needs its own credential |
 | Dev         | `https://saludtools.dev.carecloud.com.co` | _Documented-only_ (collection variable)                          |
 
+**One host serves every clinic**, so the environment is a deployment choice and nothing else. The
+provider reads `SALUDTOOLS_BASE_URL` (optional; unset = production) — set it to the QA host in Doppler
+`dev`/`stg` and leave it unset in `prd`. Without it a non-production deployment calls a real clinic's
+live records, because a tenant's credential reaches this server identically in every environment. It
+is a DEPLOYMENT value, never per-tenant and never catalog-sourced: the same host is pinned in
+xcale-backend for the mint, and a network-sourced host is the repointing attack pinning exists to stop.
+
 Two endpoints carry everything in scope:
 
 - `POST /integration/authenticate/apikey/v1/` — the mint.
@@ -198,6 +205,12 @@ Input rules:
   and those call for opposite behaviour. A default would silently pick one.
 - Pagination is the gateway's uniform 1-based `page`/`pageSize`, translated to SaludTools' 0-based
   `pageable` and clamped to 20.
+- **`update_appointment` takes the WHOLE appointment**, not a patch: read it first, then resend every
+  field with the edit applied. Whether a partial body is accepted is untested — settling it needs an
+  UPDATE call, which is a write, and no write has been made against a live clinic.
+- **Cancelling is `update_appointment`** with the cancelled `stateAppointment` from the catalog, not
+  `delete_appointment` (which is control-plane). A cancelled appointment stays auditable; a deleted
+  one does not.
 
 ### C.2 Output
 

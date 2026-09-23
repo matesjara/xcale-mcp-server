@@ -1,3 +1,4 @@
+import { loadConfig } from '../../config';
 import type { FetchLike } from '../../core/http';
 import { createProvider } from '../../core/provider-factory';
 import type { IProvider } from '../../core/provider-port';
@@ -10,8 +11,9 @@ export interface SaludtoolsProviderDeps {
   /** Injectable transport for deterministic tests (default: global fetch). */
   readonly fetchImpl?: FetchLike;
   /**
-   * Base host override — production SaludTools by default. A non-production deployment points this at
-   * `https://saludtools.qa.carecloud.com.co`, and the tests point it at a local double.
+   * Base host override. Defaults to deployment config (`SALUDTOOLS_BASE_URL`), and to production when
+   * that is unset. A non-production deployment points it at `https://saludtools.qa.carecloud.com.co`;
+   * the tests point it at a local double.
    */
   readonly baseUrl?: string;
 }
@@ -24,8 +26,11 @@ export interface SaludtoolsProviderDeps {
  * `Bearer` header; this client only shapes the request. No credential passes through this file.
  */
 export function createSaludtoolsProvider(deps: SaludtoolsProviderDeps = {}): IProvider {
+  // Deployment config decides the host, so a dev or staging deployment does not call a live clinic.
+  // Absent everywhere = production, which is the only host that serves real tenants.
+  const baseUrl = deps.baseUrl ?? loadConfig().saludtoolsBaseUrl;
   const client = createSaludtoolsClient({
-    ...(deps.baseUrl ? { baseUrl: deps.baseUrl } : {}),
+    ...(baseUrl ? { baseUrl } : {}),
   });
   return createProvider({
     manifest: saludtoolsManifest,
