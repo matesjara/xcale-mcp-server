@@ -23,5 +23,7 @@ export const mewsManifest: ProviderManifest = {
     key: 'serviceId',
     tool: `mcp_${SLUG}_list_services`,
     resultPath: '0.Id',
+    // The service name, so the owner is told WHICH service was bound, not its GUID.
+    labelPath: '0.Name',
   },
 };

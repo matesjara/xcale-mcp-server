@@ -123,6 +123,7 @@ describe('mews provider — catalog surface', () => {
       key: 'serviceId',
       tool: 'mcp_mews_list_services',
       resultPath: '0.Id',
+      labelPath: '0.Name',
     });
   });
 

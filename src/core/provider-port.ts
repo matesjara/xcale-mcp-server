@@ -107,6 +107,11 @@ export interface ProviderManifest {
     readonly tool: string;
     /** Dot-path into the tool's success `data` where the value lives (e.g. `0.propertyID`). */
     readonly resultPath: string;
+    /**
+     * Optional dot-path to a human name for the same entity (e.g. `0.Name`), so a consumer can show
+     * the owner WHICH account was bound instead of an opaque id. Additive: absent means no name.
+     */
+    readonly labelPath?: string;
   };
   /**
    * How a consumer can PROVE a credential before persisting a connection, without knowing anything

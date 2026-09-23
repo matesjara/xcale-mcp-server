@@ -33,6 +33,8 @@ export interface CatalogEntry {
     readonly key: string;
     readonly tool: string;
     readonly resultPath: string;
+    /** Optional dot-path to a human name for the bound entity (additive). */
+    readonly labelPath?: string;
   };
   /**
    * A no-argument tool a consumer can call to PROVE a credential before persisting a connection.
