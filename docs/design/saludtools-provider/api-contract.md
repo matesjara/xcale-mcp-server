@@ -121,7 +121,7 @@ Other `eventType` values exist (`MEDICINE`, `CLINIC_HISTORY`, `EXAMS_PRESCRIPTIO
 
 ### A.6 Catalogs — Observed, and not one shape
 
-`GET /integration/parametric/{name}/v1/` answers with **no envelope**, in one of two shapes:
+`GET /integration/parametric/{name}/v1/` answers with **no envelope**, in one of three shapes:
 
 | Shape                       | Catalogs                                                        | Example                                                                           |
 | --------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------- |
