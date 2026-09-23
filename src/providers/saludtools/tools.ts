@@ -116,12 +116,28 @@ function toOutcome(result: ReturnType<typeof unwrapSaludtools>): ToolOutcome {
  *
  * Projecting `body` here, as the reads do, turned a successful registration into `PROVIDER_ERROR`
  * with the patient already created — and an agent told its call failed creates a duplicate on retry.
- * So a write reports what a write actually produces: that it happened, and the id if there is one.
+ * So a write reports what a write actually produces: WHICH thing happened (`created` / `updated`)
+ * and the id when there is one. Not `{ok: true}` — the result envelope already says the call
+ * succeeded, and a second `ok` nested inside the payload invites an agent to read meaning into a
+ * field that has none.
+ *
+ * The id is informational, not a handle: `create_appointment` identifies a patient by DOCUMENT, not
+ * by the id a create returns, so nothing needs to thread it through. It is there for a human reading
+ * a log.
+ *
+ * **Unknown, and worth finding out before this runs unattended:** what SaludTools does when a create
+ * repeats a document that already exists. Never observed — the production run created, deleted, and
+ * created again, so the duplicate path was never taken. If it silently creates a second record, an
+ * agent retrying after a timeout duplicates a patient.
  */
-function written(result: ReturnType<typeof unwrapSaludtools>, idKey: string): ToolOutcome {
+function written(
+  result: ReturnType<typeof unwrapSaludtools>,
+  outcome: 'created' | 'updated',
+  idKey: string,
+): ToolOutcome {
   if (!result.ok) return err(result.code, result.message);
   return ok({
-    ok: true,
+    [outcome]: true,
     ...(result.recordId !== undefined ? { [idKey]: result.recordId } : {}),
   });
 }
@@ -302,6 +318,7 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
             await client.event('PATIENT', 'CREATE', args, ctx.request),
             'create patient',
           ),
+          'created',
           'patientId',
         ),
     }),
@@ -335,6 +352,7 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
             await client.event('PATIENT', 'UPDATE', args, ctx.request),
             'update patient',
           ),
+          'updated',
           'patientId',
         ),
     }),
@@ -473,6 +491,7 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
             await client.event('APPOINTMENT', 'CREATE', args, ctx.request),
             'create appointment',
           ),
+          'created',
           'appointmentId',
         ),
     }),
@@ -521,6 +540,7 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
             await client.event('APPOINTMENT', 'UPDATE', args, ctx.request),
             'update appointment',
           ),
+          'updated',
           'appointmentId',
         ),
     }),

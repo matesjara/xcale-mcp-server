@@ -386,7 +386,7 @@ describe('observed — the write path, run against production and undone', () =>
     );
 
     expect(result.kind).toBe('success');
-    expect(successData(result)).toEqual({ ok: true, patientId: 6923470 });
+    expect(successData(result)).toEqual({ created: true, patientId: 6923470 });
   });
 
   it('round-trips habeasData, and the read carries neither address nor pageable', async () => {
