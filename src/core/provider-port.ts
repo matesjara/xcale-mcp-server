@@ -20,7 +20,11 @@ export type ProviderAuthDescriptor =
       readonly fields: ReadonlyArray<{
         readonly key: string;
         readonly label: string;
-        readonly placement: 'header' | 'query';
+        /**
+         * `json_body`: a top-level property of the JSON object body the client built (ADR 0018 —
+         * Mews authenticates in the body). Meaningful for `api_key` only; `bearer` ignores it.
+         */
+        readonly placement: 'header' | 'query' | 'json_body';
       }>;
     }
   | {

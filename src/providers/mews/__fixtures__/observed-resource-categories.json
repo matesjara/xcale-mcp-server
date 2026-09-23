@@ -1,0 +1,78 @@
+{
+  "ResourceCategories": [
+    {
+      "Id": "773d5e42-de1e-43a0-9ce6-f940faf2303f",
+      "EnterpriseId": "851df8c8-90f2-4c4a-8e01-a4fc46b25178",
+      "ServiceId": "bd26d8db-86da-4f96-9efc-e5a4654a4a94",
+      "IsActive": true,
+      "Type": "Room",
+      "Classification": null,
+      "Names": {
+        "en-GB": "AAAAA",
+        "en-US": "Queen Double Room"
+      },
+      "ShortNames": {
+        "en-US": "Queen Double Room"
+      },
+      "Descriptions": {},
+      "Ordering": 1,
+      "Capacity": 1,
+      "ExtraCapacity": 0,
+      "ExternalIdentifier": null,
+      "AccountingCategoryId": "d86b62de-4158-462d-8d78-b18100ecc496"
+    },
+    {
+      "Id": "c71d3e9b-03bd-425b-9dde-f63018e94a4e",
+      "EnterpriseId": "851df8c8-90f2-4c4a-8e01-a4fc46b25178",
+      "ServiceId": "bd26d8db-86da-4f96-9efc-e5a4654a4a94",
+      "IsActive": true,
+      "Type": "TeamArea",
+      "Classification": "SuperiorDouble",
+      "Names": {
+        "en-GB": "King Double Room",
+        "es-ES": "King Double Room",
+        "et-EE": "King Double Room",
+        "en-US": "King Double Room FR"
+      },
+      "ShortNames": {
+        "en-GB": "KDR",
+        "nl-NL": "KD",
+        "en-US": "KD"
+      },
+      "Descriptions": {},
+      "Ordering": 9,
+      "Capacity": 1,
+      "ExtraCapacity": 0,
+      "ExternalIdentifier": null,
+      "AccountingCategoryId": null
+    },
+    {
+      "Id": "e785b1c6-5ffa-490c-b146-ebd8a6e19fa9",
+      "EnterpriseId": "851df8c8-90f2-4c4a-8e01-a4fc46b25178",
+      "ServiceId": "bd26d8db-86da-4f96-9efc-e5a4654a4a94",
+      "IsActive": true,
+      "Type": "Suite",
+      "Classification": "SuperiorDouble",
+      "Names": {
+        "en-GB": "Double Room(E)",
+        "es-ES": "Double room",
+        "nl-NL": "Double room",
+        "en-US": "TN-Standard"
+      },
+      "ShortNames": {
+        "en-GB": "DRE",
+        "nl-NL": "Double room",
+        "en-US": "TN-STD"
+      },
+      "Descriptions": {
+        "en-US": "TN Standard Room"
+      },
+      "Ordering": -5,
+      "Capacity": 4,
+      "ExtraCapacity": 1,
+      "ExternalIdentifier": "Double Room",
+      "AccountingCategoryId": "0cf7aa90-736f-43e9-a7dc-787704548d86"
+    }
+  ],
+  "Cursor": "230c0fe2-849b-4cee-894d-ab0a00e86675"
+}

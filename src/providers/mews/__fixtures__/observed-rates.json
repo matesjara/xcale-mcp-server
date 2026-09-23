@@ -1,0 +1,91 @@
+{
+  "Rates": [
+    {
+      "Id": "f5823498-34f3-4b0a-9852-fea5c4c05864",
+      "GroupId": "a0b27e5f-0db9-487b-87b4-30e6d544ccd1",
+      "ServiceId": "bd26d8db-86da-4f96-9efc-e5a4654a4a94",
+      "BaseRateId": "8ac2cd8c-d38c-4f12-96cd-3f300d350f5c",
+      "IsBaseRate": false,
+      "BusinessSegmentId": null,
+      "IsActive": false,
+      "IsEnabled": false,
+      "IsPublic": true,
+      "IsDefault": false,
+      "Type": "Public",
+      "Name": "ThisIsATestRate",
+      "Names": {
+        "en-GB": "ThisIsATestRate"
+      },
+      "ShortName": "T",
+      "UpdatedUtc": "2019-02-25T16:05:06Z",
+      "ExternalNames": {},
+      "Description": {},
+      "ExternalIdentifier": null,
+      "Options": {
+        "HidePriceFromGuest": false,
+        "IsBonusPointsEligible": false
+      },
+      "Pricing": {
+        "Discriminator": "DependentRatePricing",
+        "BaseRatePricing": null,
+        "DependentRatePricing": {
+          "BaseRateId": "8ac2cd8c-d38c-4f12-96cd-3f300d350f5c",
+          "RelativeAdjustment": 0E-8,
+          "AbsoluteAdjustment": 10.00000000
+        }
+      },
+      "TaxExemptionReason": null,
+      "TaxExemptionLegalReference": null
+    },
+    {
+      "Id": "1312c636-2947-429b-bec9-b4ad00f374b0",
+      "GroupId": "c8b866b3-be2e-4a47-9486-034318e9f393",
+      "ServiceId": "bd26d8db-86da-4f96-9efc-e5a4654a4a94",
+      "BaseRateId": null,
+      "IsBaseRate": true,
+      "BusinessSegmentId": null,
+      "IsActive": true,
+      "IsEnabled": true,
+      "IsPublic": true,
+      "IsDefault": false,
+      "Type": "Public",
+      "Name": "Zexovo Test Rate",
+      "Names": {
+        "en-GB": "Zexovo Test Rate"
+      },
+      "ShortName": "ZTR",
+      "UpdatedUtc": "2026-09-07T14:04:49Z",
+      "ExternalNames": {},
+      "Description": {},
+      "ExternalIdentifier": null,
+      "Options": {
+        "HidePriceFromGuest": false,
+        "IsBonusPointsEligible": false
+      },
+      "Pricing": {
+        "Discriminator": "BaseRatePricing",
+        "BaseRatePricing": {
+          "Amount": {
+            "Currency": "GBP",
+            "NetValue": 100.00,
+            "GrossValue": 100.00,
+            "TaxValues": [],
+            "Breakdown": {
+              "Items": [
+                {
+                  "TaxRateCode": null,
+                  "NetValue": 100.00,
+                  "TaxValue": 0.0
+                }
+              ]
+            }
+          }
+        },
+        "DependentRatePricing": null
+      },
+      "TaxExemptionReason": null,
+      "TaxExemptionLegalReference": null
+    }
+  ],
+  "Cursor": "b00d49e9-7479-49a4-8e8a-b42d014fa8e1"
+}

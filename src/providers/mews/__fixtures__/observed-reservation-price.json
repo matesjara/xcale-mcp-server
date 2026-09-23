@@ -1,0 +1,1 @@
+{"ReservationPrices":[{"Identifier":"q1","TotalAmount":{"Currency":"GBP","NetValue":200.00,"GrossValue":200.00,"TaxValues":[],"Breakdown":{"Items":[{"TaxRateCode":null,"NetValue":200.00,"TaxValue":0.0}]}},"Total":{"Currency":"GBP","Value":200.00,"Net":null,"Tax":null,"TaxRate":null}}]}

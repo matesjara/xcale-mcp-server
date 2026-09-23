@@ -35,6 +35,53 @@ describe('AuthenticationMaterializer', () => {
     expect(req.url).toContain('api_key=a%20b');
   });
 
+  describe('api_key json_body placement (ADR 0018)', () => {
+    const auth: ProviderAuthDescriptor = {
+      type: 'api_key',
+      fields: [{ key: 'AccessToken', label: 'Access token', placement: 'json_body' }],
+    };
+    const post = (body: RequestSpec['body']): RequestSpec => ({
+      method: 'POST',
+      url: 'https://api.test/op',
+      headers: { 'content-type': 'application/json' },
+      ...(body !== undefined ? { body } : {}),
+    });
+
+    it('sets the secret as a top-level property of the JSON body, keeping every other field', () => {
+      const req = materialize(
+        auth,
+        resolved(),
+        post(JSON.stringify({ ServiceId: 's1', Limit: 5 })),
+      );
+      expect(JSON.parse(String(req.body))).toEqual({
+        ServiceId: 's1',
+        Limit: 5,
+        AccessToken: 'SEC',
+      });
+      expect(req.url).toBe('https://api.test/op');
+      expect(req.headers.authorization).toBeUndefined();
+      expect(req.headers['content-type']).toBe('application/json');
+    });
+
+    it('throws rather than send unauthenticated when there is no body', () => {
+      expect(() => materialize(auth, resolved(), post(undefined))).toThrow(/JSON object body/);
+    });
+
+    it('throws on a body that is not a JSON object', () => {
+      expect(() => materialize(auth, resolved(), post('[1,2]'))).toThrow(/JSON object body/);
+      expect(() => materialize(auth, resolved(), post('not json'))).toThrow(/JSON object body/);
+      expect(() => materialize(auth, resolved(), post(new URLSearchParams({ a: '1' })))).toThrow(
+        /JSON object body/,
+      );
+    });
+
+    it('throws instead of overwriting a credential field the client already filled', () => {
+      expect(() =>
+        materialize(auth, resolved(), post(JSON.stringify({ AccessToken: 'from-client' }))),
+      ).toThrow(/already carries/);
+    });
+  });
+
   it('oauth2 bearer_header → Authorization: Bearer <token>', () => {
     const auth: ProviderAuthDescriptor = {
       type: 'oauth2',

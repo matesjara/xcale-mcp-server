@@ -22,6 +22,7 @@ export function materialize(
 ): HttpRequest {
   const headers: Record<string, string> = { ...(spec.headers ?? {}) };
   let url = spec.url;
+  let body = spec.body;
   const secret = resolved.secret.reveal(); // ← the ONLY reveal in the runtime
 
   switch (auth.type) {
@@ -38,6 +39,8 @@ export function materialize(
       }
       if (field.placement === 'header') {
         headers[field.key] = secret;
+      } else if (field.placement === 'json_body') {
+        body = setJsonBodyField(spec.body, field.key, secret);
       } else {
         url = appendQueryParam(url, field.key, secret);
       }
@@ -61,8 +64,29 @@ export function materialize(
     method: spec.method,
     url,
     headers,
-    ...(spec.body !== undefined ? { body: spec.body } : {}),
+    ...(body !== undefined ? { body } : {}),
   };
+}
+
+/**
+ * ADR 0018: the secret becomes a top-level property of the client's JSON object body. Anything else
+ * is a client or descriptor bug and throws — never a request sent without its credential. A key the
+ * client already filled throws too: overwriting it would hide the bug that put it there.
+ */
+function setJsonBodyField(body: RequestSpec['body'], key: string, secret: string): string {
+  let parsed: unknown;
+  try {
+    parsed = typeof body === 'string' ? JSON.parse(body) : undefined;
+  } catch {
+    parsed = undefined;
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('json_body credential placement needs a JSON object body');
+  }
+  if (Object.prototype.hasOwnProperty.call(parsed, key)) {
+    throw new Error(`request body already carries the credential field "${key}"`);
+  }
+  return JSON.stringify({ ...(parsed as Record<string, unknown>), [key]: secret });
 }
 
 function appendQueryParam(url: string, key: string, value: string): string {

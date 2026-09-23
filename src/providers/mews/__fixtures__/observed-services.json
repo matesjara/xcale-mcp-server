@@ -1,0 +1,114 @@
+{
+  "Services": [
+    {
+      "Id": "6cda24c8-c70e-46a1-ae5a-fdacf80aa3ee",
+      "EnterpriseId": "851df8c8-90f2-4c4a-8e01-a4fc46b25178",
+      "IsActive": false,
+      "Name": "Trivec POS",
+      "Names": {
+        "en-US": "Trivec POS"
+      },
+      "StartTime": null,
+      "EndTime": null,
+      "Options": {
+        "BillAsPackage": false
+      },
+      "Promotions": {
+        "BeforeCheckIn": false,
+        "AfterCheckIn": false,
+        "DuringStay": false,
+        "BeforeCheckOut": false,
+        "AfterCheckOut": false,
+        "DuringCheckOut": false
+      },
+      "Type": "Orderable",
+      "Ordering": 0,
+      "Data": {
+        "Discriminator": "Additional",
+        "Value": {
+          "Promotions": {
+            "BeforeCheckIn": false,
+            "AfterCheckIn": false,
+            "DuringStay": false,
+            "BeforeCheckOut": false,
+            "AfterCheckOut": false,
+            "DuringCheckOut": false
+          }
+        }
+      },
+      "ExternalIdentifier": null,
+      "CreatedUtc": "2017-10-13T12:37:40Z",
+      "UpdatedUtc": "2019-08-26T11:43:14Z"
+    },
+    {
+      "Id": "bd26d8db-86da-4f96-9efc-e5a4654a4a94",
+      "EnterpriseId": "851df8c8-90f2-4c4a-8e01-a4fc46b25178",
+      "IsActive": true,
+      "Name": "Accommodation (real)",
+      "Names": {
+        "cs-CZ": "Connector API Hotel (Gross Pricing)",
+        "de-DE": "Hotel ERS",
+        "en-GB": "Accommodation (real)",
+        "es-ES": "Accommodations (real)",
+        "et-EE": "Accomodation (real)",
+        "fr-FR": "nuit",
+        "nl-NL": "Connector API Hotel (Gross Pricing)",
+        "en-US": "Accommodation (real)"
+      },
+      "StartTime": "P0M0DT15H0M0S",
+      "EndTime": "P0M0DT11H46M0S",
+      "Options": {
+        "BillAsPackage": true
+      },
+      "Promotions": null,
+      "Type": "Reservable",
+      "Ordering": 666,
+      "Data": {
+        "Discriminator": "Bookable",
+        "Value": {
+          "StartOffset": "P0M0DT15H0M0S",
+          "EndOffset": "P0M0DT11H46M0S",
+          "OccupancyStartOffset": "P0M0DT15H0M0S",
+          "OccupancyEndOffset": "P0M0DT10H0M0S",
+          "TimeUnit": "Day",
+          "TimeUnitPeriod": "Day"
+        }
+      },
+      "ExternalIdentifier": "Accommodation",
+      "CreatedUtc": "2015-07-07T13:33:18Z",
+      "UpdatedUtc": "2026-05-15T17:54:50Z"
+    },
+    {
+      "Id": "d9b3720a-faba-4292-95fe-b2e900cbe332",
+      "EnterpriseId": "851df8c8-90f2-4c4a-8e01-a4fc46b25178",
+      "IsActive": true,
+      "Name": "Restaurant",
+      "Names": {
+        "en-GB": "Restaurant"
+      },
+      "StartTime": "P0M0DT0H0M0S",
+      "EndTime": "P0M0DT0H0M0S",
+      "Options": {
+        "BillAsPackage": false
+      },
+      "Promotions": null,
+      "Type": "Reservable",
+      "Ordering": 0,
+      "Data": {
+        "Discriminator": "Bookable",
+        "Value": {
+          "StartOffset": "P0M0DT0H0M0S",
+          "EndOffset": "P0M0DT0H0M0S",
+          "OccupancyStartOffset": "P0M0DT0H0M0S",
+          "OccupancyEndOffset": "P0M0DT0H0M0S",
+          "TimeUnit": "Hour",
+          "TimeUnitPeriod": "Hour"
+        }
+      },
+      "ExternalIdentifier": null,
+      "CreatedUtc": "2025-05-26T12:22:19Z",
+      "UpdatedUtc": "2025-12-23T18:16:44Z"
+    }
+  ],
+  "Cursor": "4ffcafa0-fe14-46e6-ad12-b24a00d80cd8"
+}

@@ -29,6 +29,17 @@ export interface Config {
    * calls will fail `400 header_required` — a deployment misconfiguration caught at smoke-test.
    */
   readonly siigoPartnerId: string;
+  /**
+   * Mews: xcale's `ClientToken` (the integration's identity, issued by Mews to the partner), the
+   * `Client` name sent with it, and the API host (`https://api.mews-demo.com` or
+   * `https://api.mews.com`). The hotel's `AccessToken` is the connection's credential and never
+   * lives here. Kept as a secret in Doppler — Mews calls it a token — though alone it opens no
+   * enterprise. Empty token = every Mews call fails closed before any request (design-notes §3).
+   * Optional so existing `Config` literals keep compiling.
+   */
+  readonly mewsClientToken?: string;
+  readonly mewsClientName?: string;
+  readonly mewsBaseUrl?: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -40,5 +51,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     credentialResolveUrl: env.CREDENTIAL_RESOLVE_URL ?? '',
     credentialResolveSecret: env.CREDENTIAL_RESOLVE_SECRET ?? '',
     siigoPartnerId: env.SIIGO_PARTNER_ID ?? '',
+    mewsClientToken: env.MEWS_CLIENT_TOKEN ?? '',
+    mewsClientName: env.MEWS_CLIENT_NAME ?? 'xcale 1.0.0',
+    mewsBaseUrl: env.MEWS_BASE_URL ?? 'https://api.mews.com',
   };
 }

@@ -1,0 +1,32 @@
+{
+  "NowUtc": "2026-09-23T13:34:29Z",
+  "Enterprise": {
+    "Id": "851df8c8-90f2-4c4a-8e01-a4fc46b25178",
+    "Name": "API Hotel Gross Pricing (DO NOT CHANGE THE NAME)",
+    "TimeZoneIdentifier": "Europe/Budapest",
+    "DefaultLanguageCode": "en-GB",
+    "Pricing": "Gross",
+    "Currencies": [
+      {
+        "Currency": "NZD",
+        "IsDefault": false,
+        "IsEnabled": true
+      },
+      {
+        "Currency": "AUD",
+        "IsDefault": false,
+        "IsEnabled": true
+      },
+      {
+        "Currency": "GBP",
+        "IsDefault": true,
+        "IsEnabled": true
+      },
+      {
+        "Currency": "PLN",
+        "IsDefault": false,
+        "IsEnabled": true
+      }
+    ]
+  }
+}

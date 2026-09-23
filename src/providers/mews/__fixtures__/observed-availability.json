@@ -1,0 +1,99 @@
+{
+  "TimeUnitStartsUtc": [
+    "2026-10-14T22:00:00Z",
+    "2026-10-15T22:00:00Z",
+    "2026-10-16T22:00:00Z"
+  ],
+  "ResourceCategoryAvailabilities": [
+    {
+      "ResourceCategoryId": "6ebb4101-3e4f-46c7-96b2-0b76f112fe57",
+      "Metrics": {
+        "ActiveResources": [
+          1,
+          1,
+          1
+        ],
+        "Occupied": [
+          0,
+          0,
+          0
+        ],
+        "OutOfOrderBlocks": [
+          0,
+          0,
+          0
+        ],
+        "UsableResources": [
+          1,
+          1,
+          1
+        ],
+        "PublicAvailabilityAdjustment": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "ResourceCategoryId": "a8a8aeb9-3926-453e-aacf-1b1bf8bfc829",
+      "Metrics": {
+        "ActiveResources": [
+          2,
+          2,
+          2
+        ],
+        "Occupied": [
+          0,
+          0,
+          0
+        ],
+        "OutOfOrderBlocks": [
+          0,
+          0,
+          0
+        ],
+        "UsableResources": [
+          2,
+          2,
+          2
+        ],
+        "PublicAvailabilityAdjustment": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "ResourceCategoryId": "810e43e1-e2cd-44e3-88da-345a0d34ae24",
+      "Metrics": {
+        "ActiveResources": [
+          18,
+          18,
+          18
+        ],
+        "Occupied": [
+          3,
+          1,
+          1
+        ],
+        "OutOfOrderBlocks": [
+          0,
+          0,
+          0
+        ],
+        "UsableResources": [
+          18,
+          18,
+          18
+        ],
+        "PublicAvailabilityAdjustment": [
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  ]
+}

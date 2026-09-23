@@ -1,0 +1,60 @@
+{
+  "Reservations": [
+    {
+      "Identifier": "xcale-probe-1",
+      "Reservation": {
+        "Id": "0a3d14b4-81a0-46c6-990f-b4ce00e202d1",
+        "ServiceId": "bd26d8db-86da-4f96-9efc-e5a4654a4a94",
+        "GroupId": "49e508f9-fcdb-45be-8d94-b4ce00e202b3",
+        "Number": "130489",
+        "ChannelNumber": null,
+        "ChannelManagerNumber": null,
+        "ChannelManagerGroupNumber": null,
+        "ChannelManager": null,
+        "State": "Confirmed",
+        "Origin": "Connector",
+        "OriginDetails": null,
+        "Purpose": null,
+        "CreatedUtc": "2026-09-23T13:42:52Z",
+        "UpdatedUtc": "2026-09-23T13:42:54Z",
+        "CancelledUtc": null,
+        "StartUtc": "2026-10-15T13:00:00Z",
+        "EndUtc": "2026-10-17T09:46:00Z",
+        "ReleasedUtc": null,
+        "RequestedCategoryId": "6ebb4101-3e4f-46c7-96b2-0b76f112fe57",
+        "AssignedSpaceId": "9b44ce4a-2b1d-44d8-8a28-aada00b83670",
+        "AssignedSpaceLocked": false,
+        "AssignedResourceId": "9b44ce4a-2b1d-44d8-8a28-aada00b83670",
+        "AssignedResourceLocked": false,
+        "BusinessSegmentId": null,
+        "CompanyId": null,
+        "TravelAgencyId": null,
+        "AvailabilityBlockId": null,
+        "RateId": "1312c636-2947-429b-bec9-b4ad00f374b0",
+        "VoucherId": null,
+        "CreditCardId": null,
+        "CancellationReason": null,
+        "AdultCount": 2,
+        "ChildCount": 0,
+        "PersonCounts": [
+          {
+            "AgeCategoryId": "c202559b-c900-48f9-b8ba-ade8008e4070",
+            "Count": 2
+          }
+        ],
+        "OwnerId": "00000000-0000-0000-0000-000000000001",
+        "CustomerId": "00000000-0000-0000-0000-000000000001",
+        "BookerId": null,
+        "CompanionIds": [
+          "00000000-0000-0000-0000-000000000001"
+        ],
+        "ChannelManagerId": null,
+        "Options": {
+          "OwnerCheckedIn": false,
+          "AllCompanionsCheckedIn": false,
+          "AnyCompanionCheckedIn": false
+        }
+      }
+    }
+  ]
+}

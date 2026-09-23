@@ -1,0 +1,119 @@
+{
+  "Currency": "GBP",
+  "TimeUnitStartsUtc": [
+    "2026-10-14T22:00:00Z",
+    "2026-10-15T22:00:00Z"
+  ],
+  "BaseAmountPrices": [
+    {
+      "Currency": "GBP",
+      "NetValue": 100.00,
+      "GrossValue": 100.00,
+      "TaxValues": [],
+      "Breakdown": {
+        "Items": [
+          {
+            "TaxRateCode": null,
+            "NetValue": 100.00,
+            "TaxValue": 0.0
+          }
+        ]
+      }
+    },
+    {
+      "Currency": "GBP",
+      "NetValue": 100.00,
+      "GrossValue": 100.00,
+      "TaxValues": [],
+      "Breakdown": {
+        "Items": [
+          {
+            "TaxRateCode": null,
+            "NetValue": 100.00,
+            "TaxValue": 0.0
+          }
+        ]
+      }
+    }
+  ],
+  "CategoryPrices": [
+    {
+      "CategoryId": "6ebb4101-3e4f-46c7-96b2-0b76f112fe57",
+      "Prices": [
+        100.00,
+        100.00
+      ],
+      "AmountPrices": [
+        {
+          "Currency": "GBP",
+          "NetValue": 100.00,
+          "GrossValue": 100.00,
+          "TaxValues": [],
+          "Breakdown": {
+            "Items": [
+              {
+                "TaxRateCode": null,
+                "NetValue": 100.00,
+                "TaxValue": 0.0
+              }
+            ]
+          }
+        },
+        {
+          "Currency": "GBP",
+          "NetValue": 100.00,
+          "GrossValue": 100.00,
+          "TaxValues": [],
+          "Breakdown": {
+            "Items": [
+              {
+                "TaxRateCode": null,
+                "NetValue": 100.00,
+                "TaxValue": 0.0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "CategoryId": "a8a8aeb9-3926-453e-aacf-1b1bf8bfc829",
+      "Prices": [
+        100.00,
+        100.00
+      ],
+      "AmountPrices": [
+        {
+          "Currency": "GBP",
+          "NetValue": 100.00,
+          "GrossValue": 100.00,
+          "TaxValues": [],
+          "Breakdown": {
+            "Items": [
+              {
+                "TaxRateCode": null,
+                "NetValue": 100.00,
+                "TaxValue": 0.0
+              }
+            ]
+          }
+        },
+        {
+          "Currency": "GBP",
+          "NetValue": 100.00,
+          "GrossValue": 100.00,
+          "TaxValues": [],
+          "Breakdown": {
+            "Items": [
+              {
+                "TaxRateCode": null,
+                "NetValue": 100.00,
+                "TaxValue": 0.0
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
