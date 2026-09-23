@@ -331,11 +331,15 @@ describe('mews provider — writes', () => {
       'mcp_mews_create_reservation',
       {
         customerId: CUSTOMER,
-        categoryId: CATEGORY,
-        rateId: RATE,
         checkIn: '2026-10-15',
         checkOut: '2026-10-17',
-        personCounts: [{ ageCategoryId: ADULT, count: 2 }],
+        rooms: [
+          {
+            categoryId: CATEGORY,
+            rateId: RATE,
+            personCounts: [{ ageCategoryId: ADULT, count: 2 }],
+          },
+        ],
       },
       CTX,
     );
@@ -366,11 +370,15 @@ describe('mews provider — writes', () => {
       'mcp_mews_create_reservation',
       {
         customerId: CUSTOMER,
-        categoryId: CATEGORY,
-        rateId: RATE,
         checkIn: '2026-10-15',
         checkOut: '2026-10-17',
-        personCounts: [{ ageCategoryId: ADULT, count: 2 }],
+        rooms: [
+          {
+            categoryId: CATEGORY,
+            rateId: RATE,
+            personCounts: [{ ageCategoryId: ADULT, count: 2 }],
+          },
+        ],
         sendConfirmationEmail: false,
       },
       CTX,
@@ -381,12 +389,58 @@ describe('mews provider — writes', () => {
     });
   });
 
+  it('books several rooms in ONE call, so Mews takes all of them or none (E24)', async () => {
+    const { provider, sent } = mews({
+      ...STAY_ROUTES,
+      'reservations/add': { body: reservationAdd },
+    });
+    const TWIN = '00000000-0000-0000-0000-0000000000c2';
+
+    await provider.callTool(
+      'mcp_mews_create_reservation',
+      {
+        customerId: CUSTOMER,
+        checkIn: '2026-10-15',
+        checkOut: '2026-10-17',
+        rooms: [
+          {
+            categoryId: CATEGORY,
+            rateId: RATE,
+            personCounts: [{ ageCategoryId: ADULT, count: 2 }],
+          },
+          { categoryId: TWIN, rateId: RATE, personCounts: [{ ageCategoryId: ADULT, count: 1 }] },
+        ],
+      },
+      CTX,
+    );
+
+    const adds = sent.filter((s) => s.operation === 'reservations/add');
+    expect(adds).toHaveLength(1);
+    const reservations = adds[0]?.body.Reservations as Array<Record<string, unknown>>;
+    expect(reservations.map((r) => r.RequestedCategoryId)).toEqual([CATEGORY, TWIN]);
+    expect(reservations.every((r) => r.CustomerId === CUSTOMER)).toBe(true);
+    expect(reservations.every((r) => r.StartUtc === '2026-10-15T13:00:00Z')).toBe(true);
+  });
+
+  it('refuses an empty room list before calling Mews', async () => {
+    const { provider, sent } = mews(STAY_ROUTES);
+
+    const result = await provider.callTool(
+      'mcp_mews_create_reservation',
+      { customerId: CUSTOMER, checkIn: '2026-10-15', checkOut: '2026-10-17', rooms: [] },
+      CTX,
+    );
+
+    expect(failure(result).code).toBe(ProviderErrorCode.INVALID_INPUT);
+    expect(sent).toHaveLength(0);
+  });
+
   it('cancels with the reason Mews requires', async () => {
     const { provider, sent } = mews({ 'reservations/cancel': { body: reservationCancel } });
 
     const result = await provider.callTool(
       'mcp_mews_cancel_reservation',
-      { reservationId: '0a3d14b4-81a0-46c6-990f-b4ce00e202d1', reason: 'Guest asked to cancel' },
+      { reservationIds: ['0a3d14b4-81a0-46c6-990f-b4ce00e202d1'], reason: 'Guest asked to cancel' },
       CTX,
     );
 
@@ -455,11 +509,15 @@ describe('mews provider — error classification (design-notes §5)', () => {
         'mcp_mews_create_reservation',
         {
           customerId: CUSTOMER,
-          categoryId: CATEGORY,
-          rateId: RATE,
           checkIn: '2026-10-15',
           checkOut: '2026-10-17',
-          personCounts: [{ ageCategoryId: ADULT, count: 2 }],
+          rooms: [
+            {
+              categoryId: CATEGORY,
+              rateId: RATE,
+              personCounts: [{ ageCategoryId: ADULT, count: 2 }],
+            },
+          ],
         },
         CTX,
       ),

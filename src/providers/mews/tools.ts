@@ -508,16 +508,19 @@ export function buildMewsTools(client: MewsClient) {
     tool({
       name: `mcp_${SLUG}_create_reservation`,
       description:
-        'Book one stay in the hotel’s Mews for an existing guest. Mews checks availability and the ' +
-        'rate itself and refuses what it cannot sell. Never retry a create blindly: Mews has no ' +
-        'idempotency key, so look the guest’s reservations up first.',
+        'Book a stay of one or more rooms in the hotel’s Mews for an existing guest, in ONE call: ' +
+        'Mews books every room or none, and the rooms share one GroupId. Mews checks availability ' +
+        'and the rate itself and refuses what it cannot sell. Never retry a create blindly: Mews has ' +
+        'no idempotency key, so look the guest’s reservations up first.',
       input: z
         .object({
           customerId,
-          categoryId,
-          rateId,
           ...stay,
-          personCounts,
+          rooms: z
+            .array(z.object({ categoryId, rateId, personCounts }).strict())
+            .min(1)
+            .max(10)
+            .describe('One entry per room, each with its room type, rate and guests.'),
           state: z
             .enum(['Confirmed', 'Optional', 'Inquired', 'Requested'])
             .default('Confirmed')
@@ -551,17 +554,17 @@ export function buildMewsTools(client: MewsClient) {
               ...(args.sendConfirmationEmail !== undefined
                 ? { SendConfirmationEmail: args.sendConfirmationEmail }
                 : {}),
-              Reservations: [
-                {
-                  State: args.state,
-                  ...instants,
-                  CustomerId: args.customerId,
-                  RequestedCategoryId: args.categoryId,
-                  RateId: args.rateId,
-                  PersonCounts: toPersonCounts(args.personCounts),
-                  ...(args.notes ? { Notes: args.notes } : {}),
-                },
-              ],
+              // All rooms in one call: an availability refusal takes none of them (E24), so a
+              // multi-room stay can never be left half-booked.
+              Reservations: args.rooms.map((room) => ({
+                State: args.state,
+                ...instants,
+                CustomerId: args.customerId,
+                RequestedCategoryId: room.categoryId,
+                RateId: room.rateId,
+                PersonCounts: toPersonCounts(room.personCounts),
+                ...(args.notes ? { Notes: args.notes } : {}),
+              })),
             },
             ctx.request,
           ),
@@ -572,11 +575,17 @@ export function buildMewsTools(client: MewsClient) {
     tool({
       name: `mcp_${SLUG}_cancel_reservation`,
       description:
-        'Cancel one reservation, with the reason Mews requires. Whether a cancellation fee is posted ' +
+        'Cancel one or more reservations, with the reason Mews requires. Whether a cancellation fee is posted ' +
         'follows the hotel’s Mews set-up unless postCancellationFee says otherwise.',
       input: z
         .object({
-          reservationId: uuid,
+          reservationIds: z
+            .array(uuid)
+            .min(1)
+            .max(10)
+            .describe(
+              'The reservation ids to cancel, e.g. every room of one booking (they share a GroupId).',
+            ),
           reason: z.string().min(1).max(1000),
           postCancellationFee: z
             .boolean()
@@ -598,7 +607,7 @@ export function buildMewsTools(client: MewsClient) {
           await call(
             'reservations/cancel',
             {
-              ReservationIds: [args.reservationId],
+              ReservationIds: args.reservationIds,
               Notes: args.reason,
               ...(args.postCancellationFee !== undefined
                 ? { PostCancellationFee: args.postCancellationFee }
