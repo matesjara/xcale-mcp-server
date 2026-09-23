@@ -14,6 +14,9 @@ import observedSpecialtiesPage from '../__fixtures__/observed-specialtiesPagedCa
 import observedPageSizeTooLarge from '../__fixtures__/errors/observed-pageSizeTooLarge412.json';
 import observedPatientNotFound from '../__fixtures__/observed-patientNotFound200.json';
 import observedStates from '../__fixtures__/observed-statesCatalog.json';
+import observedAppointmentNoDoctor from '../__fixtures__/errors/observed-appointmentNoDoctor412.json';
+import observedPatientCreated from '../__fixtures__/observed-patientCreated200.json';
+import observedPatientReadBack from '../__fixtures__/observed-patientReadBack200.json';
 
 /**
  * OBSERVED, 2026-09-21 — the only tests in this module backed by real responses.
@@ -345,5 +348,92 @@ describe('observed — read-only exploration of the catalogs and the clinical ev
       CTX,
     );
     expect(calls[0]?.url).toContain('principleact=10');
+  });
+});
+
+describe('observed — the write path, run against production and undone', () => {
+  /*
+   * A real patient was created, read back, and deleted on 2026-09-22, with the deletion verified by
+   * reading the document again and by searching the surname: zero matches, and zero appointments in
+   * the window used. The clinic is exactly as it was found. Synthetic data throughout, so nothing
+   * here is anybody's PHI.
+   */
+
+  it('reports a creation as a SUCCESS, with the id the envelope carries', async () => {
+    /*
+     * THE DEFECT THIS RUN FOUND. A create answers `{"id": 6923470, "code": 200, "body": null}` — the
+     * new id in the ENVELOPE, the body empty. The mirror image of a read.
+     *
+     * The write tools projected `body` exactly like the reads do, got null, and returned
+     * PROVIDER_ERROR: a successful registration reported as a provider malfunction, with the patient
+     * already created. An agent told its call failed retries — and creates a duplicate patient in a
+     * real clinic. No unit test caught it because none covered a create response at all.
+     */
+    const { provider: p } = provider(observedPatientCreated);
+    const result = await p.callTool(
+      'mcp_saludtools_create_patient',
+      {
+        firstName: 'PRUEBA',
+        firstLastName: 'XCALE',
+        birthDate: '1990-01-01',
+        gender: 3,
+        documentType: 1,
+        documentNumber: '999999901',
+        eps: 3,
+        habeasData: false,
+      },
+      CTX,
+    );
+
+    expect(result.kind).toBe('success');
+    expect(successData(result)).toEqual({ ok: true, patientId: 6923470 });
+  });
+
+  it('round-trips habeasData, and the read carries neither address nor pageable', async () => {
+    // The vendor's documented example shows both. The real record has neither, which is why the
+    // projection is an allow-list: a field that comes and goes cannot break it either way.
+    const { provider: p } = provider(observedPatientReadBack);
+    const data = successData(
+      await p.callTool(
+        'mcp_saludtools_get_patient',
+        { documentType: 1, documentNumber: '999999901' },
+        CTX,
+      ),
+    );
+    const patient = data.patient as Record<string, unknown>;
+    expect(data.found).toBe(true);
+    expect(patient.habeasData).toBe(false);
+    expect(patient).not.toHaveProperty('address');
+    expect(patient).not.toHaveProperty('id');
+  });
+
+  it('a booking with an unknown doctor is a caller-fixable error', async () => {
+    /*
+     * Observed: booking needs BOTH the patient and the doctor to already exist, and the doctor must
+     * be "registrado o activo". SaludTools publishes no doctor directory, so **a clinic has to supply
+     * its doctors' identity documents as configuration** — there is no way to discover them. That is
+     * an onboarding requirement, not a code change, and it is why the booking write could not be
+     * exercised: the account we hold has zero appointments in three years, so there was no doctor to
+     * learn from either.
+     */
+    const { provider: p } = provider(observedAppointmentNoDoctor, 412);
+    const result = await p.callTool(
+      'mcp_saludtools_create_appointment',
+      {
+        startAppointment: '2030-03-15 09:00',
+        endAppointment: '2030-03-15 09:30',
+        patientDocumentType: 1,
+        patientDocumentNumber: '999999901',
+        doctorDocumentType: 1,
+        doctorDocumentNumber: '999999902',
+        modality: 'CONVENTIONAL',
+        clinic: 17688,
+      },
+      CTX,
+    );
+    if (result.kind !== 'error') throw new Error('expected an error');
+    expect(result.code).toBe(ProviderErrorCode.INVALID_INPUT);
+    // And the vendor's prose stays out of it, as always.
+    expect(result.message).not.toContain('medico');
   });
 });

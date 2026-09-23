@@ -109,22 +109,21 @@ function toOutcome(result: ReturnType<typeof unwrapSaludtools>): ToolOutcome {
   return result.ok ? ok(result.data) : err(result.code, result.message);
 }
 
-/** Project a single record out of an unwrapped result. */
-function projected(
-  result: ReturnType<typeof unwrapSaludtools>,
-  fields: readonly string[],
-  operation: string,
-): ToolOutcome {
+/**
+ * The outcome of a WRITE. Observed 2026-09-22: SaludTools answers a create with the new id in the
+ * ENVELOPE (`{"id": 6923470, …, "body": null}`) — the mirror image of a read, where the record is in
+ * `body` and the envelope id is null.
+ *
+ * Projecting `body` here, as the reads do, turned a successful registration into `PROVIDER_ERROR`
+ * with the patient already created — and an agent told its call failed creates a duplicate on retry.
+ * So a write reports what a write actually produces: that it happened, and the id if there is one.
+ */
+function written(result: ReturnType<typeof unwrapSaludtools>, idKey: string): ToolOutcome {
   if (!result.ok) return err(result.code, result.message);
-  const record = project(result.data, fields);
-  if (record === null) {
-    // A success whose payload is not a record is not a success we can hand to an agent.
-    return err(
-      ProviderErrorCode.PROVIDER_ERROR,
-      `SaludTools ${operation} returned no record in its envelope body`,
-    );
-  }
-  return ok(record);
+  return ok({
+    ok: true,
+    ...(result.recordId !== undefined ? { [idKey]: result.recordId } : {}),
+  });
 }
 
 /**
@@ -298,13 +297,12 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
         .strict(),
       identityPolicy: { mode: 'subject-bound', identityFields: ['documentNumber'] },
       handler: async (args, ctx) =>
-        projected(
+        written(
           unwrapSaludtools(
             await client.event('PATIENT', 'CREATE', args, ctx.request),
             'create patient',
           ),
-          PATIENT_FIELDS,
-          'create patient',
+          'patientId',
         ),
     }),
 
@@ -332,13 +330,12 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
         .strict(),
       identityPolicy: { mode: 'subject-bound', identityFields: ['documentNumber'] },
       handler: async (args, ctx) =>
-        projected(
+        written(
           unwrapSaludtools(
             await client.event('PATIENT', 'UPDATE', args, ctx.request),
             'update patient',
           ),
-          PATIENT_FIELDS,
-          'update patient',
+          'patientId',
         ),
     }),
 
@@ -471,13 +468,12 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
         .strict(),
       identityPolicy: { mode: 'subject-bound', identityFields: ['patientDocumentNumber'] },
       handler: async (args, ctx) =>
-        projected(
+        written(
           unwrapSaludtools(
             await client.event('APPOINTMENT', 'CREATE', args, ctx.request),
             'create appointment',
           ),
-          APPOINTMENT_FIELDS,
-          'create appointment',
+          'appointmentId',
         ),
     }),
 
@@ -520,13 +516,12 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
         .strict(),
       identityPolicy: { mode: 'subject-bound', identityFields: ['patientDocumentNumber'] },
       handler: async (args, ctx) =>
-        projected(
+        written(
           unwrapSaludtools(
             await client.event('APPOINTMENT', 'UPDATE', args, ctx.request),
             'update appointment',
           ),
-          APPOINTMENT_FIELDS,
-          'update appointment',
+          'appointmentId',
         ),
     }),
 

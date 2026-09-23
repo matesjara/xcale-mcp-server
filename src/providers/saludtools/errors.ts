@@ -118,7 +118,24 @@ interface SaludtoolsEnvelope {
 }
 
 export type Unwrapped =
-  | { readonly ok: true; readonly data: unknown }
+  | {
+      readonly ok: true;
+      readonly data: unknown;
+      /**
+       * The envelope's own `id` — **where a write puts the record it just created**, and the reason
+       * this field exists at all.
+       *
+       * Observed 2026-09-22 against production: `PATIENT`/`CREATE` answers
+       * `{"id": 6923470, "code": 200, "message": "Se registra el paciente id: 6923470", "body": null}`.
+       * The new id is in the ENVELOPE and `body` is null — the opposite of a read, where the record is
+       * in `body` and the envelope's `id` is null.
+       *
+       * Before this, the write tools projected `body` like the reads do, got `null`, and returned
+       * `PROVIDER_ERROR`: **a successful registration reported as a provider malfunction**, with the
+       * patient actually created. The agent would have retried and created a duplicate.
+       */
+      readonly recordId?: string | number;
+    }
   | {
       readonly ok: false;
       readonly code: ProviderErrorCode;
@@ -298,5 +315,9 @@ export function unwrapSaludtools(res: RequestResult, operation: string): Unwrapp
     };
   }
 
-  return { ok: true, data: env.body };
+  return {
+    ok: true,
+    data: env.body,
+    ...(typeof env.id === 'number' || typeof env.id === 'string' ? { recordId: env.id } : {}),
+  };
 }

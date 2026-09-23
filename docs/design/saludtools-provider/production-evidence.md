@@ -180,6 +180,57 @@ the collection at all). Both are settled in `client.ts`.
 The first pass hit `429` after roughly 35 calls in 40 seconds, and the mint itself was throttled for
 about a minute afterwards. At 3.5s between calls nothing was refused. There is no `Retry-After`.
 
+## The write path, run and undone — 2026-09-22
+
+Authorised on the condition that every write be reversible, and run **step by step by hand rather than
+by script**, so the exact inventory was known at every moment. The ladder: prove the undo on the
+cheapest object before risking anything else.
+
+| #   | Call                                                         | Result                                                         |
+| --- | ------------------------------------------------------------ | -------------------------------------------------------------- |
+| 1   | `PATIENT/READ` doc `999999901`                               | absent — **the document was free before anything was created** |
+| 2   | `PATIENT/CREATE`                                             | `{"id": 6923470, "code": 200, "body": null}`                   |
+| 3   | `PATIENT/READ`                                               | the full record back, `habeasData` intact                      |
+| 4   | `PATIENT/DELETE` → `READ`                                    | **verified gone** — the undo works                             |
+| 5   | `APPOINTMENT/SEARCH` 2024–2026                               | **0 appointments in three years**                              |
+| 6   | `APPOINTMENT/CREATE`, patient absent                         | refused: the patient must exist first                          |
+| 7   | `PATIENT/CREATE` → `APPOINTMENT/CREATE`                      | refused: **no such doctor**                                    |
+| 8   | `PATIENT/DELETE` → `READ` → `SEARCH` surname → `SEARCH` 2030 | **0, 0, 0**                                                    |
+
+**The clinic is exactly as it was found.** Nothing created survived, and the final sweep says so from
+three directions.
+
+### The defect this found
+
+**A successful creation was being reported as a provider malfunction.** A create answers with the new
+id in the **envelope** and `body: null` — the mirror image of a read, where the record is in `body` and
+the envelope id is null. All four write tools projected `body` exactly like the reads do, got null, and
+returned `PROVIDER_ERROR` with the patient already created. An agent told its call failed retries, and
+**creates a duplicate patient in a real clinic**.
+
+No unit test caught it because none covered a create response at all — the fixtures were reads.
+
+### The finding that matters more than the test
+
+**Booking needs a doctor's identity document, and SaludTools publishes no way to discover one.** A
+create is refused with _"No se ha encontrado ningun medico … revisa que el usuario se encuentre
+registrado o activo"_. There is no doctor directory endpoint, and the agenda — the only other place a
+doctor's document appears — is **empty for this account across three years**.
+
+So: **a clinic must supply its doctors' identity documents as configuration.** That is an onboarding
+requirement nobody had written down, it applies to HiMed and Dentalink if their APIs are shaped the
+same way, and it is a precondition for the booking loop working at all — not a code change.
+
+It is also why the booking write remains unproven: not permission, and not effort. There was no doctor
+to book with.
+
+### Two more wordings for "no such patient"
+
+A fourth and fifth: _"No se ha encontrado ningun paciente en saludtools con el tipo y número de
+documento enviado"_ (from `APPOINTMENT/CREATE`) and the doctor equivalent. Deliberately **not** added to
+`isPatientNotFound`: on a booking these are genuine caller-fixable input errors, not an answer, and
+`412 → PROVIDER_INVALID_INPUT` is already right.
+
 ## What it did NOT prove
 
 - **Any read that returns a real patient.** Not run, on purpose (Q6).

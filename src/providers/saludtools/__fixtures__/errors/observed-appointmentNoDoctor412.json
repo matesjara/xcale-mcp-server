@@ -1,0 +1,7 @@
+{
+  "id": null,
+  "code": 412,
+  "message": "No se ha encontrado ningun medico en saludtools con el tipo y número de documento enviado, revisa que el usuario se encuentre registrado o activo",
+  "eventId": "a27ea6d63dae4744b1054766071e83bf",
+  "body": null
+}
