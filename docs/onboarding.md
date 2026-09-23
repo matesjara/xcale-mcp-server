@@ -10,6 +10,7 @@ catalog. It owns **provider knowledge** (auth, tools, error mapping, how to call
 xcale-backend stays a **generic consumer** of capabilities and the **custodian of credentials**.
 
 Read in this order:
+
 1. **`docs/foundation.md`** — vision & principles (the founding pillar).
 2. **`docs/architecture-review.md`** — the target architecture, the alternatives weighed, the
    responsibility split, and **principle #1: Provider Self-Containment** (§0).
@@ -22,14 +23,14 @@ Read in this order:
 ## The two principles that govern everything
 
 > **#1 Provider Self-Containment.** Adding a provider means working almost exclusively in
-> `src/providers/{slug}/`. The only permitted touch on a consumer is *generic config* (secrets
-> / env vars) or *business policy* — never provider-specific code. If you need a `switch`, an
+> `src/providers/{slug}/`. The only permitted touch on a consumer is _generic config_ (secrets
+> / env vars) or _business policy_ — never provider-specific code. If you need a `switch`, an
 > `if`, or per-provider logic in a consumer to support a standard provider, the architecture is
 > incomplete (justify any exception with an ADR).
 
 > **#2 Consumer-Agnostic Reusability.** xcale-backend is the **first** consumer, not the reason
 > this server exists. Public contracts carry no consumer-specific concepts (no tenant/plan/xcale
-> entities) — only *which token* and *which tool*. Any MCP-compatible client could consume it.
+> entities) — only _which token_ and _which tool_. Any MCP-compatible client could consume it.
 
 ## Adding a provider (the mechanical recipe)
 
@@ -40,8 +41,20 @@ the adapter never touches a credential. The recipe — file layout, helpers, err
 the Definition of done — is the xcale layer's **`add-provider`** skill
 ([xcale-harness](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/add-provider/SKILL.md));
 it is not restated here. Start from the closest real provider: `echo` (minimal), `siigo` (credential
-exchange), `toteat` (call context), `cloudbeds` (OAuth with scopes derived from the tools). Backend side:
-generic config only (the provider's secrets in Doppler). **No backend code.**
+exchange), `toteat` (call context), `cloudbeds` (OAuth with scopes derived from the tools),
+`saludtools` (a provider that answers inside an envelope, curates what each tool returns, and hides
+the operations an agent must never choose). Backend side: generic config only (the provider's secrets
+in Doppler). **No backend code.**
+
+**One habit worth copying from `saludtools`, whatever you are integrating:** its
+`docs/design/saludtools-provider/production-evidence.md` records what the provider actually answered,
+next to what its documentation claimed. The two disagreed in ten places and five of those would have
+shipped as defects — a documented enum the live catalog contradicts, a page-size ceiling nobody
+mentions that broke every paginated call, a "not found" that arrives as a success with an empty body,
+and a create that returns its new id in the envelope rather than the body. **Make one real call per
+shape before you believe it**, and write down where the vendor was wrong: the next person integrating
+the same vendor, or one built on the same stack, is going to need that list more than they need your
+code.
 
 ## Dev workflow
 

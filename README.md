@@ -1,8 +1,9 @@
 # xcale-mcp-server — "Composio LATAM"
 
 > **Status:** in production. Deployed on DigitalOcean App Platform from `main`
-> (`deploy_on_push`), consumed by `xcale-backend` as an MCP client. Four providers are
-> registered — `cloudbeds`, `toteat`, `siigo`, and the `echo` stub — publishing 73 tools.
+> (`deploy_on_push`), consumed by `xcale-backend` as an MCP client. Five providers are
+> registered — `cloudbeds`, `toteat`, `siigo`, `saludtools`, and the `echo` stub — publishing 82
+> tools (94 routable: the difference is the control-plane operations, withdrawn from `tools/list`).
 > Decisions live in [`docs/adr/`](docs/adr/README.md); what runs where in
 > [`docs/deploy.md`](docs/deploy.md).
 
@@ -50,11 +51,14 @@ xcale-backend (MCP client)  ──/discover · tools/list · tools/call──▶
 - **Credentials never live here.** Two delivery strategies (ADR 0010): `forwarded` — the
   backend sends the usable credential in `X-Provider-Token` on every call (`echo`, `cloudbeds`,
   `toteat`); `reference` — the backend sends a single-use nonce and this server resolves it
-  back at the backend's Credential Authority (`siigo`; needs `CREDENTIAL_RESOLVE_URL` and
-  `CREDENTIAL_RESOLVE_SECRET`, plus `SIIGO_PARTNER_ID`). Routing context (`propertyID`,
-  Toteat's `xir/xil/xiu`) travels in `X-Provider-Metadata`.
+  back at the backend's Credential Authority (`siigo`, `saludtools`; needs
+  `CREDENTIAL_RESOLVE_URL` and `CREDENTIAL_RESOLVE_SECRET`, plus `SIIGO_PARTNER_ID`).
+  **A high-risk provider must use `reference`** — ADR 0003's hard gate covers financial data and,
+  by the same reading, a patient's medical records. Routing context (`propertyID`, Toteat's
+  `xir/xil/xiu`) travels in `X-Provider-Metadata`; SaludTools needs none, since a clinic site is an
+  explicit tool argument.
 - **Discovery.** `/discover` publishes the capability catalog derived from the registry —
-  auth *blueprints*, connection probes, context discovery — never secrets. `tools/list` is a flat
+  auth _blueprints_, connection probes, context discovery — never secrets. `tools/list` is a flat
   namespaced list (`mcp_{slug}_{verb}`); `tools/call` routes by name.
 - **Control-plane tools** (webhook subscriptions, app state, email templates…) are routable but
   withdrawn from `tools/list`, so an agent can never choose them (ADR 0013).
@@ -71,7 +75,7 @@ xcale-mcp-server/
 │   ├── protocol/               ← MCP JSON-RPC over stateless Streamable HTTP
 │   ├── core/                   ← registry, catalog, provider port, credential resolvers,
 │   │                              closed error codes, scopes, secret handling
-│   └── providers/              ← cloudbeds · toteat · siigo · echo (explicit list in index.ts)
+│   └── providers/              ← cloudbeds · toteat · siigo · saludtools · echo (list in index.ts)
 ├── docs/                       ← deploy.md, adr/, design/<slug>/, foundation.md, security/
 ├── scripts/ · assets/          ← tooling; logos served at /assets
 └── Dockerfile · doppler.yaml   ← runs `src/server.ts` under tsx, no build step
