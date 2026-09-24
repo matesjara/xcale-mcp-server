@@ -24,6 +24,26 @@ import { mapHttpStatusToErrorCode, type RequestResult } from '../../core/http';
  * pass-through: if the field is missing or is not a number, we do not know that the call worked, and
  * "we do not know" is not success.
  *
+ * ## 402 is a validation error too, and it is in no documentation anywhere
+ *
+ * Observed 2026-09-24: `EXAMS_RESULTS`/`READ` without an id answers **`HTTP 402`** with
+ * `{"code": 402, "message": "Se esperaba un id"}`. The vendor's status table lists 200, 400, 401, 404,
+ * 405, 412 and 500 — 402 is not among them, any more than the 429 production also emits.
+ *
+ * "Payment Required" is what 402 means in HTTP and it is plainly not what it means here: the message
+ * says a field is missing. Left to the shared map it becomes `PROVIDER_ERROR`, which tells the caller
+ * to give up on a call it could fix by adding one field.
+ *
+ * Seen on **two** surfaces in the same pass — `EXAMS_RESULTS` and `INABILITYWORK`, same status, same
+ * sentence — which is what makes it a rule of this API rather than one endpoint's quirk.
+ *
+ * The residual risk is still worth naming: if SaludTools ever uses 402 for
+ * its nominal meaning — a lapsed subscription — an agent would be told "bad input" and would retry
+ * variations of a call that can never work. Two things make that unlikely enough to accept. The
+ * message shape is a validator's, and a billing failure on a data endpoint would be far more likely to
+ * arrive as a 401/403 through the same auth layer that already answers those. If a 402 ever turns up
+ * carrying something other than a missing-field message, this is the line to revisit.
+ *
  * ## 412 is this provider's validation error, and the shared map does not know that
  *
  * The vendor documents `412 Precondition Failed` for every input problem: a missing `eventType`, a
@@ -267,7 +287,7 @@ export function isPatientNotFound(result: Unwrapped): boolean {
  * same numbers in both places.
  */
 export function classifySaludtoolsStatus(status: number): ProviderErrorCode {
-  if (status === 412) return ProviderErrorCode.INVALID_INPUT;
+  if (status === 412 || status === 402) return ProviderErrorCode.INVALID_INPUT;
   return mapHttpStatusToErrorCode(status);
 }
 

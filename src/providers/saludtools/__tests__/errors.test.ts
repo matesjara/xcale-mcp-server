@@ -209,3 +209,43 @@ describe('patientAlreadyExists', () => {
     expect(patientAlreadyExists(unwrapSaludtools(failed(500), 'create patient'))).toBe(undefined);
   });
 });
+
+describe('classifySaludtoolsStatus — 402, observed and undocumented', () => {
+  it('treats 402 as a caller-fixable input error, not a provider malfunction', () => {
+    /*
+     * Observed 2026-09-24 against production: `EXAMS_RESULTS`/`READ` with no id answers
+     * `HTTP 402 {"code": 402, "message": "Se esperaba un id"}`. 402 appears in no SaludTools
+     * documentation, exactly like the 429 production also emits.
+     *
+     * The shared map sends it to PROVIDER_ERROR, which tells a caller to give up on a call it could
+     * fix by adding one field. That is the same defect 412 had, on a status nobody knew existed.
+     */
+    expect(classifySaludtoolsStatus(402)).toBe(ProviderErrorCode.INVALID_INPUT);
+  });
+
+  it('classifies it the same way whether it arrives on the transport or in the envelope', () => {
+    // The envelope reuses HTTP's numbers, so a 402 inside a 200 has to land in the same place --
+    // otherwise the same condition would read as fixable or fatal depending on where it was written.
+    const inEnvelope = unwrapSaludtools(
+      ok200({ id: null, code: 402, message: 'Se esperaba un id', body: null }),
+      'read exam results',
+    );
+    const onTransport = unwrapSaludtools(failed(402), 'read exam results');
+
+    expect(inEnvelope.ok).toBe(false);
+    expect(onTransport.ok).toBe(false);
+    if (!inEnvelope.ok && !onTransport.ok) {
+      expect(inEnvelope.code).toBe(ProviderErrorCode.INVALID_INPUT);
+      expect(onTransport.code).toBe(ProviderErrorCode.INVALID_INPUT);
+    }
+  });
+
+  it('leaves the statuses around it alone', () => {
+    // 402 is carved out because it was observed, not because a range was guessed at.
+    expect(classifySaludtoolsStatus(401)).toBe(ProviderErrorCode.AUTH_EXPIRED);
+    expect(classifySaludtoolsStatus(404)).toBe(ProviderErrorCode.PROVIDER_ERROR);
+    expect(classifySaludtoolsStatus(405)).toBe(ProviderErrorCode.PROVIDER_ERROR);
+    expect(classifySaludtoolsStatus(429)).toBe(ProviderErrorCode.RATE_LIMITED);
+    expect(classifySaludtoolsStatus(500)).toBe(ProviderErrorCode.PROVIDER_UNAVAILABLE);
+  });
+});
