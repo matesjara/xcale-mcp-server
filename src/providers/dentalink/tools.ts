@@ -86,6 +86,37 @@ function eqFilter(column: string, value: string): string {
 }
 
 /**
+ * Pull the first matching patient's id out of a Dentalink `GET /pacientes?q=` list response — and
+ * NOTHING else. Curating to the id is what keeps a patient's personal fields off the channel: the
+ * document resolves the writer's OWN ficha for the booking flow (feature-design AD-4 / grill CQ2), and
+ * existence + id is all the agent needs. There is no third-party PII to leak because there is no
+ * personal field in the result at all.
+ *
+ * ⏳ The list envelope and the id field name are unverified (api-contract §8). This reads the common
+ * shapes defensively and returns `undefined` when it cannot find one (⇒ `exists: false`) — the
+ * safe direction, since the worst case is a missed match, never a leak.
+ */
+function firstPatientId(data: unknown): string | undefined {
+  const c = data as {
+    objects?: unknown;
+    data?: unknown;
+    results?: unknown;
+  };
+  const list = Array.isArray(data)
+    ? data
+    : Array.isArray(c.objects)
+      ? c.objects
+      : Array.isArray(c.data)
+        ? c.data
+        : Array.isArray(c.results)
+          ? c.results
+          : [];
+  const first = list[0] as { id?: unknown; id_paciente?: unknown } | undefined;
+  const id = first?.id ?? first?.id_paciente;
+  return id === undefined || id === null ? undefined : String(id);
+}
+
+/**
  * The Dentalink tool set. v1 = read + additive reserve path (feature-design §5). Result shapes are
  * returned **verbatim** (Fidelity over Unification) and every wire field name mapped below is
  * PROVISIONAL until verified against the real API with a token (no sandbox — api-contract §8).
@@ -197,19 +228,24 @@ export function buildDentalinkTools(
     defineTool({
       name: `mcp_${SLUG}_find_patient`,
       description:
-        "Look a patient up by their identity document (cédula/RUT). Returns Dentalink's matching " +
-        'patient record(s) verbatim; an empty result means no patient with that document exists yet ' +
-        '(the consumer then creates one). The document is the identity key — never match by phone.',
+        'Check whether a patient with a given identity document (cédula/RUT) exists in the clinic. ' +
+        "Returns only `{ exists, id_paciente? }` — never the patient's personal data — so the booking " +
+        'flow can reuse an existing ficha or create one. Empty ⇒ no such patient yet.',
       input: findPatientInput,
-      handler: async (args, ctx) =>
-        toOutcome(
-          unwrapDentalink(
-            await client.get('pacientes', ctx.request, {
-              q: eqFilter(PATIENT_DOCUMENT_COLUMN, args.documento),
-            }),
-            'find patient',
-          ),
-        ),
+      handler: async (args, ctx) => {
+        const res = unwrapDentalink(
+          await client.get('pacientes', ctx.request, {
+            q: eqFilter(PATIENT_DOCUMENT_COLUMN, args.documento),
+          }),
+          'find patient',
+        );
+        if (!res.ok) return { ok: false, code: res.code, message: res.message };
+        // Curate to id-only: NEVER surface the patient's personal fields to the channel (data-privacy).
+        const idPaciente = firstPatientId(res.data);
+        return ok(
+          idPaciente !== undefined ? { exists: true, id_paciente: idPaciente } : { exists: false },
+        );
+      },
     }),
     defineTool({
       name: `mcp_${SLUG}_create_patient`,

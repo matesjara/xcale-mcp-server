@@ -179,6 +179,29 @@ describe('dentalink provider — v1 tool surface (S2/S3)', () => {
     expect(JSON.parse(queryOf(url, 'q')!)).toEqual({ rut: { eq: '11111111-1' } });
   });
 
+  it('find_patient curates to id-only and never surfaces the patient PII', async () => {
+    // Dentalink returns the full record; we curate to existence + id so no personal field reaches the
+    // channel (data-privacy). The document resolves the writer's own ficha for the booking flow.
+    const { provider: p } = provider({
+      objects: [
+        { id: 42, nombre: 'Juan', rut: '11111111-1', celular: '3001234567', email: 'j@x.com' },
+      ],
+    });
+    const result = await p.callTool(`mcp_${SLUG}_find_patient`, { documento: '11111111-1' }, CTX);
+    const data = successData(result);
+    expect(data).toEqual({ exists: true, id_paciente: '42' });
+    const asText = JSON.stringify(data);
+    expect(asText).not.toContain('Juan');
+    expect(asText).not.toContain('3001234567');
+    expect(asText).not.toContain('j@x.com');
+  });
+
+  it('find_patient reports exists:false when no patient matches', async () => {
+    const { provider: p } = provider({ objects: [] });
+    const result = await p.callTool(`mcp_${SLUG}_find_patient`, { documento: '999' }, CTX);
+    expect(successData(result)).toEqual({ exists: false });
+  });
+
   it('create_patient POSTs to /pacientes with the basic fields and the Token header', async () => {
     const { provider: p, calls } = provider({ id: 42 });
     await p.callTool(
