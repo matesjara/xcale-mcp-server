@@ -485,6 +485,70 @@ describe('mews provider — writes', () => {
     expect(sent[0]?.body).toMatchObject({ Emails: ['guest@example.com'] });
   });
 
+  describe('room photos on the room types', () => {
+    const categories = {
+      ResourceCategories: [{ Id: CATEGORY, Names: { 'en-GB': 'Lodge' } }],
+    };
+    const IMAGE = '800734cc-e3c3-47bc-ab79-b2eb0072a30c';
+
+    it('attaches the public URL of every photo the hotel assigned to a room type', async () => {
+      const { provider, sent } = mews({
+        'resourceCategories/getAll': { body: categories },
+        'resourceCategoryImageAssignments/getAll': {
+          body: {
+            ResourceCategoryImageAssignments: [
+              { CategoryId: CATEGORY, ImageId: IMAGE, IsActive: true },
+              // A retired assignment is not a photo of the room any more.
+              { CategoryId: CATEGORY, ImageId: 'retired', IsActive: false },
+            ],
+          },
+        },
+        'images/getUrls': {
+          body: {
+            ImageUrls: [
+              { ImageId: IMAGE, Url: `https://cdn.mews-demo.com/Media/Image/${IMAGE}?Mode=Fit` },
+            ],
+          },
+        },
+      });
+
+      const result = await provider.callTool('mcp_mews_list_resource_categories', {}, CTX);
+
+      expect(data(result)).toMatchObject({
+        ResourceCategories: [
+          { Id: CATEGORY, ImageUrls: [`https://cdn.mews-demo.com/Media/Image/${IMAGE}?Mode=Fit`] },
+        ],
+      });
+      const urlsCall = sent.find((s) => s.operation === 'images/getUrls');
+      expect(urlsCall?.body).toMatchObject({ Images: [{ ImageId: IMAGE, ResizeMode: 'Fit' }] });
+    });
+
+    it('asks for no URL when the hotel assigned no photo, as on the demo', async () => {
+      const { provider, sent } = mews({
+        'resourceCategories/getAll': { body: categories },
+        'resourceCategoryImageAssignments/getAll': {
+          body: { ResourceCategoryImageAssignments: [], Cursor: null },
+        },
+      });
+
+      const result = await provider.callTool('mcp_mews_list_resource_categories', {}, CTX);
+
+      expect(data(result)).toMatchObject({ ResourceCategories: [{ Id: CATEGORY, ImageUrls: [] }] });
+      expect(sent.some((s) => s.operation === 'images/getUrls')).toBe(false);
+    });
+
+    it('still returns the room types when the photo read fails — photos enrich, never break', async () => {
+      const { provider } = mews({
+        'resourceCategories/getAll': { body: categories },
+        'resourceCategoryImageAssignments/getAll': { status: 500, body: { Message: 'boom' } },
+      });
+
+      const result = await provider.callTool('mcp_mews_list_resource_categories', {}, CTX);
+
+      expect(data(result)).toMatchObject({ ResourceCategories: [{ Id: CATEGORY, ImageUrls: [] }] });
+    });
+  });
+
   it('requires a filter to list reservations', async () => {
     const { provider, sent } = mews({});
 

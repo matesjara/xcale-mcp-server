@@ -64,6 +64,13 @@ const NOT_CONFIGURED: Unwrapped = {
 
 type Fields = Readonly<Record<string, unknown>>;
 
+/** A photo assigned to a room type — Mews' documented shape (see `photosOf`). */
+interface ImageAssignment {
+  CategoryId?: string;
+  ImageId?: string;
+  IsActive?: boolean;
+}
+
 function asOutcome(u: Unwrapped): ToolOutcome {
   return u.ok ? ok(u.data) : err(u.code, u.message);
 }
@@ -88,6 +95,63 @@ export function buildMewsTools(client: MewsClient) {
   ): Promise<Unwrapped> {
     if (!client.configured) return NOT_CONFIGURED;
     return unwrapMews(await client.call(operation, fields, request), operation);
+  }
+
+  /**
+   * The photos a hotel assigned to its room types, as public URLs, by category id.
+   *
+   * Categories carry no image ids in this API version: photos are assigned through
+   * `resourceCategoryImageAssignments/getAll`, and an image id becomes a URL through
+   * `images/getUrls`, which answers a public CDN link (observed on the demo, 2026-09-24: the
+   * enterprise's cover image resolved and downloaded as image/png; the demo's rooms have no
+   * assignments, so the assignment fields `CategoryId`/`ImageId`/`IsActive` are Mews' documented
+   * shape, not yet an observed one).
+   *
+   * Photos enrich a catalog read; they never fail it. If either call fails, the room types come
+   * back without photos rather than not at all.
+   */
+  async function photosOf(
+    categoryIds: string[],
+    request: AuthedRequest,
+  ): Promise<Map<string, string[]>> {
+    const byCategory = new Map<string, string[]>();
+    if (categoryIds.length === 0) return byCategory;
+    const assigned = await call(
+      'resourceCategoryImageAssignments/getAll',
+      { ResourceCategoryIds: categoryIds, Limitation: { Count: 1000 } },
+      request,
+    );
+    if (!assigned.ok) return byCategory;
+    const assignments = (
+      (assigned.data as { ResourceCategoryImageAssignments?: ImageAssignment[] })
+        .ResourceCategoryImageAssignments ?? []
+    ).filter((a) => a.IsActive !== false && a.CategoryId && a.ImageId);
+    if (assignments.length === 0) return byCategory;
+
+    const urls = await call(
+      'images/getUrls',
+      {
+        Images: [...new Set(assignments.map((a) => a.ImageId!))].map((ImageId) => ({
+          ImageId,
+          Width: 1024,
+          Height: 768,
+          ResizeMode: 'Fit',
+        })),
+      },
+      request,
+    );
+    if (!urls.ok) return byCategory;
+    const urlOf = new Map(
+      ((urls.data as { ImageUrls?: Array<{ ImageId?: string; Url?: string }> }).ImageUrls ?? [])
+        .filter((u) => u.ImageId && u.Url)
+        .map((u) => [u.ImageId!, u.Url!]),
+    );
+    for (const a of assignments) {
+      const url = urlOf.get(a.ImageId!);
+      if (!url) continue;
+      byCategory.set(a.CategoryId!, [...(byCategory.get(a.CategoryId!) ?? []), url]);
+    }
+    return byCategory;
   }
 
   async function timeZoneOf(request: AuthedRequest): Promise<Unwrapped> {
@@ -222,20 +286,35 @@ export function buildMewsTools(client: MewsClient) {
       name: `mcp_${SLUG}_list_resource_categories`,
       description:
         'The room types (resource categories) of the connected service: names and descriptions per ' +
-        'language, type, capacity and extra capacity. Use their ids for availability and prices.',
+        'language, type, capacity and extra capacity, and `ImageUrls` — the photos the hotel ' +
+        'assigned to each room type, as public URLs (empty when it assigned none). Use their ids for ' +
+        'availability and prices.',
       input: z.object({ cursor, limit }).strict(),
-      handler: async (args, ctx) =>
-        asOutcome(
-          await call(
-            'resourceCategories/getAll',
-            {
-              ServiceIds: [ctx.metadata.serviceId],
-              ActivityStates: ['Active'],
-              Limitation: { Count: args.limit, ...(args.cursor ? { Cursor: args.cursor } : {}) },
-            },
-            ctx.request,
-          ),
-        ),
+      handler: async (args, ctx) => {
+        const res = await call(
+          'resourceCategories/getAll',
+          {
+            ServiceIds: [ctx.metadata.serviceId],
+            ActivityStates: ['Active'],
+            Limitation: { Count: args.limit, ...(args.cursor ? { Cursor: args.cursor } : {}) },
+          },
+          ctx.request,
+        );
+        if (!res.ok) return asOutcome(res);
+        const data = res.data as { ResourceCategories?: Array<{ Id?: string }> };
+        const categories = data.ResourceCategories ?? [];
+        const photos = await photosOf(
+          categories.map((c) => c.Id).filter((id): id is string => typeof id === 'string'),
+          ctx.request,
+        );
+        return ok({
+          ...data,
+          ResourceCategories: categories.map((c) => ({
+            ...c,
+            ImageUrls: (c.Id && photos.get(c.Id)) || [],
+          })),
+        });
+      },
     }),
 
     tool({
