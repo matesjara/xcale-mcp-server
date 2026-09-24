@@ -311,6 +311,90 @@ Three fixtures were recorded from this run — `observed-patientDuplicate412.jso
 `observed-patientUpdated200.json`, `observed-patientDeleted200.json` — and the first two are the only
 tests in the module that exercise a write refusal and an update at all.
 
+## The clinical surfaces, probed read-only — 2026-09-24
+
+Ten `READ` calls, one per clinical event type, each bound to a document that **cannot exist**
+(`99999999999999` — fourteen digits, longer than any Colombian cédula). No write, and no living
+patient could match, so this read nobody's record.
+
+**The first pass asked the wrong question, and the mistake is worth recording** because it nearly
+became a design decision. It sent `{search: {documentType, documentNumber}}`. Nine surfaces answered
+`412 "El cuerpo del evento esta mal conformado"` and `MEDICINE` answered `412 "No existe paciente …
+en la compañia"` — past body validation, failing on the lookup.
+
+The tempting reading was: only `MEDICINE` can be addressed by patient document, so most clinical
+records are unreachable from a conversation, so phase 3 has to be redesigned. That reading is
+**wrong**, and one glance at our own working code says so: `get_patient` sends
+`{documentType, documentNumber}` at the **root**, not nested under `search`. The nested form is
+`MEDICINE`'s documented "read last" variant, which `client.ts` already describes. So nine surfaces
+rejected a body that is simply not the shape this API uses, and the probe learned almost nothing
+about them.
+
+What it does establish, and all it establishes:
+
+- **`MEDICINE/READ` accepts the nested `{search: {…}}` body**, confirming the documented read-last
+  variant against production rather than against the portal.
+- **"No clinical data" is a `412` with a message, not a `200` with `body: null`.** For a patient who
+  exists and has no prescriptions, `MEDICINE/READ` answers `412 "No se ha encontrado una prescripcion
+en nuestra base de datos con los valores de búsqueda ingresados."` (observed on the synthetic
+  patient, below). That is a **different** structure from the patient read, where absence is a success
+  with an empty body — so phase 3 cannot reuse `isRecordAbsent` and will need its own absence
+  predicate per surface. Worth knowing before writing a line of it.
+- **A sixth wording for "no such patient"**: `MEDICINE` says _"No existe paciente con ese tipo y numero
+  de documentacion en la compañia"_. Deliberately **not** added to `isPatientNotFound` — on a clinical
+  read the agent already has a patient it found, so an unknown document there is a genuine
+  caller-fixable error. The count matters though: **six distinct sentences for one condition** is why
+  the structural signal leads and prose-matching is only ever the fallback.
+
+**The real question is still open**: how the other nine surfaces are addressed. Re-running with a
+root-level body is the obvious next step and it needs a quota this key does not currently have — five
+calls in two minutes was enough to be throttled. It is one more reason phase 3 waits for a sandbox
+(#1057) rather than being designed around a guess.
+
+### The third write cycle, and how the clinic was checked afterwards
+
+One synthetic patient (`999999902`), created only to ask a clinical surface about somebody who exists
+and has no clinical data, and deleted in a `finally` that would have retried for fifteen minutes
+through the throttling rather than leave a person in a live clinic.
+
+| #   | Call                                  | Result                                                                                 |
+| --- | ------------------------------------- | -------------------------------------------------------------------------------------- |
+| 1   | `PATIENT/CREATE`                      | `{"id": 6931541, "code": 200}`                                                         |
+| 2   | `MEDICINE/READ` (patient has no meds) | `412 "No se ha encontrado una prescripcion … con los valores de búsqueda ingresados."` |
+| 3   | `PATIENT/DELETE`                      | `{"code": 200, "message": "Se elimina el paciente id: 6931541"}`                       |
+
+**Then it was verified properly, which took a second run.** The checks inside the cycle were worthless
+— one used the malformed body described above, and the other printed the page's field names without
+its count. "The provider said it deleted" is not verification, and a run that only looks verified is
+worse than one that admits it is not.
+
+Re-checked with the body shape `get_patient` actually uses:
+
+| Check                                     | Result                               |
+| ----------------------------------------- | ------------------------------------ |
+| `PATIENT/READ` doc `999999902` (this run) | `200`, `body: null` — not registered |
+| `PATIENT/READ` doc `999999901` (09-22/24) | `200`, `body: null` — not registered |
+| `PATIENT/SEARCH` surname `XCALE`          | `totalElements: 0`, `empty: true`    |
+
+**The clinic is clean**, across all three write runs, checked by document and by surname.
+
+Incidentally: `PATIENT/SEARCH` returns the full Spring page — `content`, `pageable`, `sort`, `first`,
+`last`, `empty`, `number`, `numberOfElements`, `size`, `totalElements`, `totalPages` — which is what
+`toPage` already narrows to `content` plus the two totals.
+
+### The probe's own safety check was wrong, and got away with it
+
+Before creating anything, the run verified the document was free by reading it and checking for an
+empty body. That read came back `412 "el cuerpo … mal conformado"` — which **also** has `body: null`.
+The guard passed on a malformed call, not on an answer, and the patient was created on a document
+whose freeness had never actually been established.
+
+No harm done, and only by luck of a guarantee measured hours earlier: SaludTools enforces uniqueness on
+the document, so a `200` on the create proves retroactively that nothing held it. The lesson is the
+one this integration keeps re-learning — **an absent value has more than one cause.** `body: null` means
+"no record" _and_ "your call was malformed", and a check that cannot tell them apart is not a check.
+A guard on a live clinic has to assert the shape it expects, not the absence it hopes for.
+
 ## What it did NOT prove
 
 - **Any read that returns a real patient.** Not run, on purpose (Q6).
