@@ -22,6 +22,7 @@ export const siteminderManifest: ProviderManifest = {
   slug: SLUG,
   displayName: 'SiteMinder',
   category: 'hospitality',
+  logoUrl: '/assets/siteminder.svg',
   schemaVersion: '2026-09-24',
   providerVersion: '0.1.0',
   capabilities: { pagination: true },
