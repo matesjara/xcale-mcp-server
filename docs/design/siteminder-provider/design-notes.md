@@ -87,14 +87,15 @@ The one piece that is not a single HTTP call, kept in `stay.ts` as pure function
 | Status | Code | Why |
 |---|---|---|
 | 401 | `PROVIDER_AUTH_EXPIRED` | The key is revoked or wrong (E1, E2); only a new key fixes it |
-| 403 | `PROVIDER_ERROR` | A key that works but may not see this property, or an inactive Direct Booking subscription: a reconnect with the same key fixes neither |
+| 403 | `PROVIDER_AUTH_EXPIRED` | Core default (ADR 0007). Documented as `AccessDenied` (a key that cannot see this property, or no Direct Booking subscription), never observed, and how a *revoked* key answers is unknown: hiding a revocation behind `PROVIDER_ERROR` would leave the agent silently broken. Narrow it on the observed identifier once Q2 records a live 403 |
 | 400 | `PROVIDER_INVALID_INPUT` | core default |
 | 404 | `PROVIDER_ERROR` | core default |
 | 429 | `PROVIDER_RATE_LIMITED` | the consumer decides whether to retry a read (ADR 0009) |
 | 5xx, transport | `PROVIDER_UNAVAILABLE` | core default |
 
 The message carries the operation, the status and SiteMinder's error identifier (`errors[0].name` or
-`.code`, or the flat `name`/`error`), accepted only if it looks like an identifier. SiteMinder's own
+`.code`, or the flat `name`/`error`), accepted only if it is letters alone (≤ 40), so nothing shaped like
+a key or a uuid can reach it. SiteMinder's own
 `message` never reaches it ("Do not surface raw API error messages to guests", D9's page).
 
 ## 6. Open — what only a hotel's key or SiteMinder can answer

@@ -17,11 +17,27 @@ const NO_ARGS = z.object({}).strict();
 const MAX_PER_PAGE = 50;
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD');
+const checkIn = isoDate.describe('Arrival date (YYYY-MM-DD).');
+const checkOut = isoDate.describe('Departure date (YYYY-MM-DD) — the morning the guest leaves.');
 const roomTypeUuid = z
   .string()
-  .min(1)
+  .uuid()
   .describe('A room type id (`uuid`) from mcp_siteminder_list_room_types.');
 const occupants = z.number().int().min(0).max(50);
+const childrenInput = occupants.describe(
+  "Children in the party. Who counts as a child or an infant is the hotel's rule; " +
+    "mcp_siteminder_list_room_types gives each room's maximum for adults, children and infants.",
+);
+const infantsInput = occupants.describe('Infants in the party (see `children`).');
+const promoCodeInput = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .describe('A promo code the guest gave, exactly as they gave it.');
+
+/** Said in the list descriptions: the published `pageSize` ceiling is the core's (100), not SiteMinder's. */
+const PAGE_NOTE = ` At most ${MAX_PER_PAGE} per page (\`pageSize\`).`;
 
 function toOutcome(result: Unwrapped): ToolOutcome {
   return result.ok ? ok(result.data) : err(result.code, result.message);
@@ -174,7 +190,8 @@ export function buildSiteminderTools(
       description:
         'The room types the hotel sells: name, description, category, size, bathrooms, and maximum ' +
         'occupancy in total and for adults, children and infants. Quotes name a room type only by its ' +
-        '`uuid` (`roomTypeUuid`); this is where that uuid gets its name.',
+        '`uuid` (`roomTypeUuid`); this is where that uuid gets its name.' +
+        PAGE_NOTE,
       client,
     }),
 
@@ -185,7 +202,8 @@ export function buildSiteminderTools(
         'The rates the hotel sells, each for one room type (`roomTypeUuid`): name, description, the ' +
         "hotel's cancellation policy in its own words (`cancellationPolicy`, free text), and " +
         '`promotionOnly` — a rate offered only with a promo code. Quotes name a rate only by its ' +
-        '`uuid` (`roomRateUuid`); this is where that uuid gets its name and its conditions.',
+        '`uuid` (`roomRateUuid`); this is where that uuid gets its name and its conditions.' +
+        PAGE_NOTE,
       client,
     }),
 
@@ -223,16 +241,17 @@ export function buildSiteminderTools(
         'come from mcp_siteminder_list_room_types and mcp_siteminder_list_room_rates), ' +
         '`availability` (rooms left for the whole stay), and `price` for the whole stay: `gross` ' +
         '(with taxes and service charge), `net`, `tax` and `serviceCharge`, in the currency of ' +
-        'mcp_siteminder_get_property. An empty list means nothing can be booked for that stay. ' +
+        'mcp_siteminder_get_property. An empty list means SiteMinder offered no rate for that stay ' +
+        'and party. ' +
         `At most ${MAX_QUOTE_NIGHTS} nights per request. A quote holds no room and reserves nothing.`,
       input: z
         .object({
-          checkIn: isoDate,
-          checkOut: isoDate,
-          adults: occupants.min(1),
-          children: occupants.optional(),
-          infants: occupants.optional(),
-          promoCode: z.string().trim().min(1).max(64).optional(),
+          checkIn,
+          checkOut,
+          adults: occupants.min(1).describe('Adults in the party — the price depends on it.'),
+          children: childrenInput.optional(),
+          infants: infantsInput.optional(),
+          promoCode: promoCodeInput.optional(),
           withBreakdown: z
             .boolean()
             .optional()
@@ -268,13 +287,13 @@ export function buildSiteminderTools(
         'booked. The rate cannot be pre-selected.',
       input: z
         .object({
-          checkIn: isoDate,
-          checkOut: isoDate,
-          adults: occupants.min(1),
-          children: occupants.default(0),
-          infants: occupants.default(0),
-          rooms: z.number().int().min(1).max(20).default(1),
-          promoCode: z.string().trim().min(1).max(64).optional(),
+          checkIn,
+          checkOut,
+          adults: occupants.min(1).describe('Adults in the party.'),
+          children: childrenInput.default(0),
+          infants: infantsInput.default(0),
+          rooms: z.number().int().min(1).max(20).default(1).describe('How many rooms.'),
+          promoCode: promoCodeInput.optional(),
           locale: z
             .string()
             .regex(/^[a-z]{2}$/, 'expected an ISO 639-1 language code, e.g. "es"')
@@ -285,7 +304,9 @@ export function buildSiteminderTools(
             .regex(/^[A-Z]{3}$/, 'expected an ISO 4217 currency code, e.g. "COP"')
             .optional()
             .describe(
-              "The currency prices are shown in on the engine; the hotel's own when omitted.",
+              "The currency the engine shows prices in; the hotel's own when omitted. Leave it out " +
+                "unless the guest asks: quotes are in the hotel's currency, and another one shows the " +
+                'guest a different number than the one you quoted.',
             ),
         })
         .strict(),

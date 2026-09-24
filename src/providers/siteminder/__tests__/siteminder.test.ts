@@ -143,11 +143,25 @@ describe('siteminder provider — request shaping', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('encodes a room type id from the model as one path segment', async () => {
+  it.each(['..', '../quotes?x=1', 'deluxe'])(
+    'refuses a room type id that is not a uuid (%s), before any request',
+    async (roomTypeUuid) => {
+      const { provider: p, calls } = provider({ body: [] });
+      const result = await p.callTool('mcp_siteminder_get_room_type_photos', { roomTypeUuid }, CTX);
+      expect(failure(result).code).toBe(ProviderErrorCode.INVALID_INPUT);
+      expect(calls).toHaveLength(0);
+    },
+  );
+
+  it('asks for one room type under the property', async () => {
     const { provider: p, calls } = provider({ body: [] });
-    await p.callTool('mcp_siteminder_get_room_type_photos', { roomTypeUuid: '../quotes?x=1' }, CTX);
+    await p.callTool(
+      'mcp_siteminder_get_room_type_photos',
+      { roomTypeUuid: '403950b4-0919-4396-afa1-3957a38a83f8' },
+      CTX,
+    );
     expect(calls[0]!.url).toBe(
-      `${BASE}/properties/${PROPERTY}/room-types/..%2Fquotes%3Fx%3D1/photos`,
+      `${BASE}/properties/${PROPERTY}/room-types/403950b4-0919-4396-afa1-3957a38a83f8/photos`,
     );
   });
 });
@@ -352,10 +366,10 @@ describe('siteminder provider — errors', () => {
     expect(f.message).toBe(`SiteMinder get property failed (HTTP 401, ${name})`);
   });
 
-  it('keeps a 403 away from AUTH_EXPIRED — a working key that cannot see this property', async () => {
+  it('maps a 403 to AUTH_EXPIRED until a live 403 says otherwise (ADR 0007, design-notes Q2)', async () => {
     const { provider: p } = provider({ body: accessDenied, status: 403 });
     const f = failure(await p.callTool('mcp_siteminder_get_property', {}, CTX));
-    expect(f.code).toBe(ProviderErrorCode.PROVIDER_ERROR);
+    expect(f.code).toBe(ProviderErrorCode.AUTH_EXPIRED);
     expect(f.message).toContain('AccessDenied');
   });
 
@@ -406,6 +420,16 @@ describe('siteminder provider — credential containment', () => {
       body: { errors: [{ name: 'NotAuthorised', message: `bad key ${KEY}` }] },
       status: 401,
     });
+    const result = await p.callTool('mcp_siteminder_get_property', {}, CTX);
+    expect(JSON.stringify(result)).not.toContain(KEY);
+  });
+
+  it.each([
+    ['a flat error', { error: KEY }],
+    ['an error code', { errors: [{ code: KEY }] }],
+    ['an error name', { errors: [{ name: KEY }] }],
+  ])('keeps a key echoed into %s out of the result', async (_l, body) => {
+    const { provider: p } = provider({ body, status: 401 });
     const result = await p.callTool('mcp_siteminder_get_property', {}, CTX);
     expect(JSON.stringify(result)).not.toContain(KEY);
   });

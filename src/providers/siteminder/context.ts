@@ -9,7 +9,13 @@ import { z } from 'zod';
  */
 export const siteminderContext = z
   .object({
-    propertyUuid: z.string().uuid(),
+    propertyUuid: z
+      .string()
+      .uuid()
+      .describe(
+        'The Property ID SiteMinder shows next to the key (Direct Booking › API Integration, or ' +
+          "Little Hotelier's API integration tab).",
+      ),
   })
   .strict();
 
