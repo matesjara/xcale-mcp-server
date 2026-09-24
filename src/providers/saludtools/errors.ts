@@ -170,6 +170,20 @@ export type Unwrapped =
  * body") — the tool telling the agent that SaludTools had malfunctioned, when in fact it had answered
  * the question. The unit tests could not catch it: they were written against the vendor's documented
  * 412, which production does not send.
+ *
+ * **It does NOT generalize to the clinical surfaces, and phase 3 must not reuse it.** Observed
+ * 2026-09-24: `MEDICINE/READ` for a patient who exists and has no prescriptions answers
+ * `412 "No se ha encontrado una prescripcion en nuestra base de datos con los valores de busqueda
+ * ingresados."` — a failure with prose, not a success with an empty body. So absence is shaped one
+ * way on the patient read and another way on a clinical read, and the two cannot share a predicate.
+ * Each clinical surface needs its own, written against an observed response; the only one observed so
+ * far is `MEDICINE`.
+ *
+ * Do not assume the remaining nine match it either. They have not been read successfully yet
+ * (`docs/design/saludtools-provider/production-evidence.md` › *The clinical surfaces, probed
+ * read-only*), and this provider's record on "the other endpoints will be shaped like this one" is
+ * poor: two catalogs key on `value` instead of `id`, one returns a flattened page, and a write puts
+ * its id somewhere a read does not.
  */
 export function isRecordAbsent(result: Unwrapped): boolean {
   return result.ok && (result.data === null || result.data === undefined);
