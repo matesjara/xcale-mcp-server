@@ -38,6 +38,14 @@ function headerOf(init: RequestInit | undefined, name: string): string | null {
   return new Headers(init?.headers).get(name);
 }
 
+function queryOf(url: string, key: string): string | null {
+  return new URL(url).searchParams.get(key);
+}
+
+function bodyOf(init: RequestInit | undefined): Record<string, unknown> {
+  return JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+}
+
 describe('dentalink provider — conformance', () => {
   it('satisfies the generic provider contract', async () => {
     await runProviderConformance(createDentalinkProvider());
@@ -89,5 +97,113 @@ describe('dentalink provider — list_branches (tracer)', () => {
     // The token never appears in the surfaced message (Credential-in-Transit-Only).
     if (result.kind === 'error') expect(result.message).not.toContain(TOKEN);
     expect(calls).toHaveLength(1);
+  });
+});
+
+describe('dentalink provider — v1 tool surface (S2/S3)', () => {
+  it('publishes the 9 v1 tools, all namespaced and Token-authenticated', () => {
+    const names = createDentalinkProvider().routableToolNames();
+    expect(names).toEqual(
+      expect.arrayContaining(
+        [
+          'list_branches',
+          'list_specialties',
+          'list_professionals',
+          'list_treatments',
+          'list_services',
+          'list_available_slots',
+          'find_patient',
+          'create_patient',
+          'create_appointment',
+        ].map((v) => `mcp_${SLUG}_${v}`),
+      ),
+    );
+    expect(names).toHaveLength(9);
+  });
+
+  it('list_services (no specialty) reads the global reasons catalog', async () => {
+    const { provider: p, calls } = provider([]);
+    await p.callTool(`mcp_${SLUG}_list_services`, {}, CTX);
+    expect(calls[0]!.url).toBe(
+      'https://api.dentalink.healthatom.com/api/v1/motivosAtencionEspecialidad',
+    );
+  });
+
+  it('list_services (with specialty) scopes to that specialty', async () => {
+    const { provider: p, calls } = provider([]);
+    await p.callTool(`mcp_${SLUG}_list_services`, { idEspecialidad: '5' }, CTX);
+    expect(calls[0]!.url).toBe(
+      'https://api.dentalink.healthatom.com/api/v1/especialidades/5/motivos',
+    );
+  });
+
+  it('list_available_slots passes the documented GET /agendas params', async () => {
+    const { provider: p, calls } = provider([]);
+    await p.callTool(
+      `mcp_${SLUG}_list_available_slots`,
+      { idSucursal: '1', duracion: 30, fecha: '2026-10-01', idDentista: '7' },
+      CTX,
+    );
+    const url = calls[0]!.url;
+    expect(url).toContain('/agendas?');
+    expect(queryOf(url, 'id_sucursal')).toBe('1');
+    expect(queryOf(url, 'duracion')).toBe('30');
+    expect(queryOf(url, 'fecha')).toBe('2026-10-01');
+    expect(queryOf(url, 'id_dentista')).toBe('7');
+  });
+
+  it('find_patient builds the JSON q filter on the document, not the phone', async () => {
+    const { provider: p, calls } = provider([]);
+    await p.callTool(`mcp_${SLUG}_find_patient`, { documento: '11111111-1' }, CTX);
+    const url = calls[0]!.url;
+    expect(url).toContain('/pacientes?');
+    expect(JSON.parse(queryOf(url, 'q')!)).toEqual({ rut: { eq: '11111111-1' } });
+  });
+
+  it('create_patient POSTs to /pacientes with the basic fields and the Token header', async () => {
+    const { provider: p, calls } = provider({ id: 42 });
+    await p.callTool(
+      `mcp_${SLUG}_create_patient`,
+      { nombre: 'Juan', apellidos: 'Pérez', documento: '11111111-1', celular: '3001234567' },
+      CTX,
+    );
+    expect(calls[0]!.init?.method).toBe('POST');
+    expect(calls[0]!.url).toBe('https://api.dentalink.healthatom.com/api/v1/pacientes');
+    expect(headerOf(calls[0]!.init, 'Authorization')).toBe(`Token ${TOKEN}`);
+    const body = bodyOf(calls[0]!.init);
+    expect(body).toMatchObject({
+      nombre: 'Juan',
+      apellidos: 'Pérez',
+      rut: '11111111-1',
+      celular: '3001234567',
+    });
+  });
+
+  it('create_appointment POSTs the booking body to /citas', async () => {
+    const { provider: p, calls } = provider({ id: 99 });
+    await p.callTool(
+      `mcp_${SLUG}_create_appointment`,
+      {
+        idPaciente: '42',
+        idDentista: '7',
+        idSucursal: '1',
+        fecha: '2026-10-01',
+        horaInicio: '10:00',
+        duracion: 30,
+        idMotivo: '3',
+      },
+      CTX,
+    );
+    expect(calls[0]!.init?.method).toBe('POST');
+    expect(calls[0]!.url).toBe('https://api.dentalink.healthatom.com/api/v1/citas');
+    expect(bodyOf(calls[0]!.init)).toMatchObject({
+      id_paciente: '42',
+      id_dentista: '7',
+      id_sucursal: '1',
+      fecha: '2026-10-01',
+      hora_inicio: '10:00',
+      duracion: 30,
+      id_motivo: '3',
+    });
   });
 });

@@ -211,8 +211,8 @@ Comandos reales del repo (MCP, no backend `localhost:3200`):
 
 - [x] S0 core scheme prefix + mutación
 - [x] S1 scaffold provider + registro + `list_branches` tracer (base URL is a client constant, no config change)
-- [ ] S2 read tools (build)
-- [ ] S3 patient + booking tools (build)
+- [x] S2 read tools (build — specialties, professionals, treatments, services, available_slots)
+- [x] S3 patient + booking tools (build — find_patient, create_patient, create_appointment)
 - [ ] S4 backend wiring (toolboxes + i18n)
 - [ ] GATE verificación con token real (§8 api-contract)
 - [ ] S5 errors + fixtures + conformance (post-token)
