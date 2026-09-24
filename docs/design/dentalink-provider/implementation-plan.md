@@ -210,7 +210,7 @@ Comandos reales del repo (MCP, no backend `localhost:3200`):
 **Checkboxes (se tildan al construir):**
 
 - [x] S0 core scheme prefix + mutación
-- [ ] S1 scaffold provider + registro + config
+- [x] S1 scaffold provider + registro + `list_branches` tracer (base URL is a client constant, no config change)
 - [ ] S2 read tools (build)
 - [ ] S3 patient + booking tools (build)
 - [ ] S4 backend wiring (toolboxes + i18n)
