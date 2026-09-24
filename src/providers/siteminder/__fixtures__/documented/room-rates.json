@@ -1,0 +1,13 @@
+{
+  "results": [
+    {
+      "uuid": "9b1f3c2e-5a47-4d0e-8c11-2f6b7d9e0a01",
+      "roomTypeUuid": "403950b4-0919-4396-afa1-3957a38a83f8",
+      "name": "Best Available Rate",
+      "description": null,
+      "cancellationPolicy": "Free cancellation up to 48 hours before arrival.",
+      "promotionOnly": false
+    }
+  ],
+  "pagination": { "page": 1, "perPage": 10, "total": 1, "totalPages": 1 }
+}
