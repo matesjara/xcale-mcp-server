@@ -180,10 +180,29 @@ the collection at all). Both are settled in `client.ts`.
   documentacion en la compañia", used by the clinical modules. Added to the marker, which now matches
   all three sentences the vendor uses for one condition.
 
-### Rate limiting, measured
+### Rate limiting, measured — and re-measured, much lower
 
 The first pass hit `429` after roughly 35 calls in 40 seconds, and the mint itself was throttled for
 about a minute afterwards. At 3.5s between calls nothing was refused. There is no `Retry-After`.
+
+**That ceiling was wrong, and optimistic.** On 2026-09-24 a read-only probe was refused after **seven
+calls spaced four seconds apart** — one mint and six reads, about 24 seconds of traffic. Spacing does
+not buy what the first measurement suggested, so whatever the limit counts, it is not a simple
+per-second rate.
+
+Worse for planning: **the mint came back `429` on a fresh attempt minutes later, before this session
+had made any call at all.** It did so again on a second run. The only reading that fits is that the
+quota is shared and something else is spending it — the clinic's own integrations, most likely, since
+this is a live clinic's ApiKey and we are not its only consumer.
+
+Two consequences, and neither is a code change here:
+
+- **An agent that fans out reads in one turn will be refused.** Reading the eight agent-facing catalogs
+  is already eight calls. The catalogs are per-clinic configuration that changes rarely, so the place
+  to hold them is the consumer's cache, not a retry loop in a stateless gateway.
+- **A shared ceiling is not ours to raise.** `PROVIDER_RATE_LIMITED` is the honest answer and the
+  adapter should keep giving it. Asking CareCloud what the limit actually is belongs with the sandbox
+  request (#1057) — it is the same conversation and the same silence so far.
 
 ## The write path, run and undone — 2026-09-22
 

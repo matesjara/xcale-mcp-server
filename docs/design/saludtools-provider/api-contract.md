@@ -247,8 +247,13 @@ nested inside the payload invites a reader to find meaning in a field that has n
 
 ### C.3 Consumer guidance
 
-- **Read the catalogs first.** `clinic`, `documentType`, `gender`, `eps`, `modality` and
-  `stateAppointment` are all catalog values, and the catalogs are per-clinic configuration.
+- **Read the catalogs first, and cache them.** `clinic`, `documentType`, `gender`, `eps`, `modality`
+  and `stateAppointment` are all catalog values, and the catalogs are per-clinic configuration.
+  **Reading all eight in one turn will be rate-limited**: production refused the seventh call of a
+  run spaced four seconds apart (2026-09-24), and the quota looks shared with whatever else uses that
+  clinic's ApiKey — the mint itself answered `429` before this session had made a single call. These
+  values change rarely, so they belong in the consumer's cache. There is no `Retry-After`, and this
+  gateway is stateless: it reports `PROVIDER_RATE_LIMITED` and does not retry for you.
 - **SaludTools publishes no availability and no doctor directory.** `get_agenda` returns what is
   _booked_. Opening hours, appointment length and which doctors take new patients are the tenant's own
   configuration and belong in its agent instructions — not in this contract and not in the adapter.
