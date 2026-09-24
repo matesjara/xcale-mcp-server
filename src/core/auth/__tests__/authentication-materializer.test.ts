@@ -26,6 +26,17 @@ describe('AuthenticationMaterializer', () => {
     expect(req.headers.authorization).toBeUndefined();
   });
 
+  it('api_key header with a scheme prefix → Authorization: <scheme> <secret>', () => {
+    // Dentalink: `Authorization: Token <token>` — the generic scheme prefix (ADR
+    // api-key-header-scheme-prefix). Dropping the prefix in the materializer turns this red.
+    const auth: ProviderAuthDescriptor = {
+      type: 'api_key',
+      fields: [{ key: 'Authorization', label: 'API Token', placement: 'header', scheme: 'Token' }],
+    };
+    const req = materialize(auth, resolved(), spec);
+    expect(req.headers['Authorization']).toBe('Token SEC');
+  });
+
   it('api_key query placement → the secret is appended as a query param (encoded)', () => {
     const auth: ProviderAuthDescriptor = {
       type: 'api_key',

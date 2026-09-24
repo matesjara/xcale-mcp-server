@@ -37,7 +37,10 @@ export function materialize(
         throw new Error('api_key auth descriptor declares no fields');
       }
       if (field.placement === 'header') {
-        headers[field.key] = secret;
+        // Optional scheme prefix (e.g. Dentalink `Authorization: Token <token>`); absent ⇒ raw
+        // secret, unchanged. The scheme is a descriptor value, used verbatim. ADR
+        // api-key-header-scheme-prefix.
+        headers[field.key] = field.scheme ? `${field.scheme} ${secret}` : secret;
       } else {
         url = appendQueryParam(url, field.key, secret);
       }

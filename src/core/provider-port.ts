@@ -21,6 +21,13 @@ export type ProviderAuthDescriptor =
         readonly key: string;
         readonly label: string;
         readonly placement: 'header' | 'query';
+        /**
+         * Optional auth scheme prefix for `placement: 'header'` — the header value becomes
+         * `<scheme> <secret>` (e.g. Dentalink's `Authorization: Token <token>`). Absent ⇒ the raw
+         * secret is placed, unchanged. Ignored for `placement: 'query'`. Used VERBATIM, never
+         * interpolated. See ADR api-key-header-scheme-prefix.
+         */
+        readonly scheme?: string;
       }>;
     }
   | {
