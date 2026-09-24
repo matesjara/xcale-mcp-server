@@ -33,6 +33,13 @@ const findPatientInput = z
   .object({ documento: z.string().min(1) }) // cédula/RUT — the dedup key (feature-design AD-6)
   .strict();
 
+const listProfessionalsInput = z
+  .object({
+    idSucursal: z.string().optional(),
+    idEspecialidad: z.string().optional(),
+  })
+  .strict();
+
 // ⏳ Required fields unverified — confirm against POST /pacientes before freezing (api-contract §8).
 const createPatientInput = z
   .object({
@@ -65,6 +72,13 @@ const createAppointmentInput = z
  * against the live API (api-contract §8, Q-5): `rut` vs `documento` vs `numero_documento`.
  */
 const PATIENT_DOCUMENT_COLUMN = 'rut';
+
+/**
+ * Dentalink `q` filter columns for scoping the dentists list. ⏳ Unverified — api-contract §8 must
+ * confirm whether `/dentistas` is `q`-filterable and by which columns.
+ */
+const PROFESSIONAL_BRANCH_COLUMN = 'id_sucursal';
+const PROFESSIONAL_SPECIALTY_COLUMN = 'id_especialidad';
 
 /** Build Dentalink's JSON `q` filter: `{"<column>":{"eq":"<value>"}}` (confirmed syntax, doc). */
 function eqFilter(column: string, value: string): string {
@@ -107,15 +121,21 @@ export function buildDentalinkTools(
     defineTool({
       name: `mcp_${SLUG}_list_professionals`,
       description:
-        "List the clinic's dentists/professionals (dentistas). Returns records verbatim; each carries " +
-        '`id` (the `id_dentista` used for availability and booking) and `nombre`. Resolving which ' +
-        'dentist serves a specialty is a consumer-side step (list here, filter by the specialty the ' +
-        'patient chose).',
-      input: noArgs,
-      handler: async (_args, ctx) =>
-        toOutcome(
-          unwrapDentalink(await client.get('dentistas', ctx.request), 'list professionals'),
-        ),
+        "List the clinic's dentists/professionals (dentistas). Optionally scope by `idSucursal` and/or " +
+        '`idEspecialidad` (server-side via the `q` filter). Returns records verbatim; each carries `id` ' +
+        '(the `id_dentista` used for availability and booking) and `nombre`.',
+      input: listProfessionalsInput,
+      handler: async (args, ctx) => {
+        // ⏳ Filter columns unverified — see PROFESSIONAL_*_COLUMN (api-contract §8).
+        const filter: Record<string, { eq: string }> = {};
+        if (args.idSucursal) filter[PROFESSIONAL_BRANCH_COLUMN] = { eq: args.idSucursal };
+        if (args.idEspecialidad)
+          filter[PROFESSIONAL_SPECIALTY_COLUMN] = { eq: args.idEspecialidad };
+        const params = Object.keys(filter).length > 0 ? { q: JSON.stringify(filter) } : undefined;
+        return toOutcome(
+          unwrapDentalink(await client.get('dentistas', ctx.request, params), 'list professionals'),
+        );
+      },
     }),
     defineTool({
       name: `mcp_${SLUG}_list_treatments`,
@@ -138,6 +158,9 @@ export function buildDentalinkTools(
       handler: async (args, ctx) =>
         toOutcome(
           unwrapDentalink(
+            // Vendor docs expose BOTH endpoints: `GET /motivosAtencionEspecialidad` (all) and
+            // `GET /especialidades/{id_especialidad}/motivos` (per specialty). ⏳ Both are doc-derived
+            // and unverified live — api-contract §1.2/§8.
             await client.get(
               args.idEspecialidad
                 ? `especialidades/${encodeURIComponent(args.idEspecialidad)}/motivos`

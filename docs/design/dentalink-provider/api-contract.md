@@ -68,9 +68,9 @@ generated). No tool takes the credential as an argument.
 |:--|:--|:--|:--|
 | `mcp_dentalink_list_branches` | `GET /sucursales` | `{}` | active branches; **also the `connectionProbe`** |
 | `mcp_dentalink_list_specialties` | `GET /especialidades` | `{}` | specialties |
-| `mcp_dentalink_list_professionals` | `GET /dentistas` | `{ idSucursal?, idEspecialidad? }` | dentists; filters via `q` ⏳ (confirm filterable columns) |
+| `mcp_dentalink_list_professionals` | `GET /dentistas` | `{ idSucursal?, idEspecialidad? }` | dentists; scoped via `q` (`id_sucursal`/`id_especialidad` — ⏳ confirm these columns are filterable) |
 | `mcp_dentalink_list_treatments` | `GET /prestaciones` | `{}` | billing catalog (prestaciones) |
-| `mcp_dentalink_list_services` | `GET /motivosAtencionEspecialidad` | `{ idEspecialidad? }` | appointment reasons (what the patient picks); distinct from `prestaciones` |
+| `mcp_dentalink_list_services` | `GET /motivosAtencionEspecialidad` (all) **or** `GET /especialidades/{id}/motivos` (per specialty) | `{ idEspecialidad? }` | appointment reasons (what the patient picks); distinct from `prestaciones`. Both endpoints are doc-derived — ⏳ verify live |
 | `mcp_dentalink_list_available_slots` | `GET /agendas` | `{ idSucursal, duracion, fecha?, idDentista? }` | free time-blocks; `idDentista` omitted ⇒ online-enabled dentists |
 | `mcp_dentalink_find_patient` | `GET /pacientes?q=…` | `{ documento }` | lookup by document (builds the `q` filter, §1.3) |
 | `mcp_dentalink_create_patient` | `POST /pacientes` | `{ …required ⏳ }` | basic record |
@@ -288,6 +288,9 @@ real agenda without explicit sign-off), **observe and fix** in this contract (re
 4. **`create_appointment`**: the exact required body (`hora_fin` vs `duracion`; `id_motivo` vs
    `id_tratamiento`; the appointment `estado` set).
 5. **`find_patient`**: the real filterable column for the document in the `q` filter.
+5b. **`list_professionals`**: whether `/dentistas` is `q`-filterable and by which columns
+   (`id_sucursal`/`id_especialidad` are provisional); and **`list_services`**: whether the per-specialty
+   read is the nested `/especialidades/{id}/motivos` or a filter on `/motivosAtencionEspecialidad`.
 6. **`list_available_slots`**: real params/response of `GET /agendas`; where `duracion` comes from
    (reason/treatment).
 7. **Timezone**: whether the account/branch declares one; how slot/appointment times are expressed.

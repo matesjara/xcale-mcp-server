@@ -137,6 +137,25 @@ describe('dentalink provider — v1 tool surface (S2/S3)', () => {
     );
   });
 
+  it('list_professionals with no args reads /dentistas unfiltered', async () => {
+    const { provider: p, calls } = provider([]);
+    await p.callTool(`mcp_${SLUG}_list_professionals`, {}, CTX);
+    expect(calls[0]!.url).toBe('https://api.dentalink.healthatom.com/api/v1/dentistas');
+  });
+
+  it('list_professionals scopes by branch/specialty via the q filter', async () => {
+    const { provider: p, calls } = provider([]);
+    await p.callTool(
+      `mcp_${SLUG}_list_professionals`,
+      { idSucursal: '1', idEspecialidad: '5' },
+      CTX,
+    );
+    expect(JSON.parse(queryOf(calls[0]!.url, 'q')!)).toEqual({
+      id_sucursal: { eq: '1' },
+      id_especialidad: { eq: '5' },
+    });
+  });
+
   it('list_available_slots passes the documented GET /agendas params', async () => {
     const { provider: p, calls } = provider([]);
     await p.callTool(
