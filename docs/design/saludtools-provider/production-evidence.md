@@ -323,33 +323,61 @@ became a design decision. It sent `{search: {documentType, documentNumber}}`. Ni
 en la compañia"` — past body validation, failing on the lookup.
 
 The tempting reading was: only `MEDICINE` can be addressed by patient document, so most clinical
-records are unreachable from a conversation, so phase 3 has to be redesigned. That reading is
-**wrong**, and one glance at our own working code says so: `get_patient` sends
-`{documentType, documentNumber}` at the **root**, not nested under `search`. The nested form is
-`MEDICINE`'s documented "read last" variant, which `client.ts` already describes. So nine surfaces
-rejected a body that is simply not the shape this API uses, and the probe learned almost nothing
-about them.
+records are unreachable from a conversation, so phase 3 has to be redesigned. Before writing that
+down it was worth checking against our own working code — and `get_patient` sends
+`{documentType, documentNumber}` at the **root**, not nested. The nested form is `MEDICINE`'s
+documented read-last variant, which `client.ts` already describes. So the pass had asked nine
+surfaces a question in a grammar this API does not use.
 
-What it does establish, and all it establishes:
+A second pass asked again, at the root. Both together:
 
-- **`MEDICINE/READ` accepts the nested `{search: {…}}` body**, confirming the documented read-last
-  variant against production rather than against the portal.
+| Event type            | `{search: {documentType, documentNumber}}` | `{documentType, documentNumber}` (root) |
+| --------------------- | ------------------------------------------ | --------------------------------------- |
+| `MEDICINE`            | **accepted** — "No existe paciente…"       | malformed                               |
+| `EXAMS_RESULTS`       | malformed                                  | **`402 "Se esperaba un id"`**           |
+| `INABILITYWORK`       | malformed                                  | **`402 "Se esperaba un id"`**           |
+| `CLINIC_HISTORY`      | malformed                                  | malformed                               |
+| `EXAMS_PRESCRIPTION`  | malformed                                  | malformed                               |
+| `PARACLINICS`         | malformed                                  | malformed                               |
+| `PATIENT_FILES`       | malformed                                  | not run — throttled out                 |
+| `GYNECOOBS_HISTORY`   | malformed                                  | not run — throttled out                 |
+| `FAMILY_HISTORY`      | malformed                                  | not run — throttled out                 |
+| `ANTECEDENT_PERSONAL` | malformed                                  | not run — throttled out                 |
+
+The run was stopped with four surfaces unasked, deliberately: the quota is shared with the clinic's
+own systems, and there is a point past which probing a customer's production integration is taking
+something that is not ours.
+
+### What the two passes settle
+
+- **`MEDICINE` is reachable from a patient document**, through the nested read-last body. It is the
+  one clinical surface a conversation can address with what it holds.
+- **`EXAMS_RESULTS` and `INABILITYWORK` read by record id**, and say so in as many words. They are
+  the reason `402` is now classified as a caller-fixable input error rather than a provider
+  malfunction (see `errors.ts`).
+- **Four surfaces reject both shapes** and their grammar is still unknown.
 - **"No clinical data" is a `412` with a message, not a `200` with `body: null`.** For a patient who
   exists and has no prescriptions, `MEDICINE/READ` answers `412 "No se ha encontrado una prescripcion
-en nuestra base de datos con los valores de búsqueda ingresados."` (observed on the synthetic
-  patient, below). That is a **different** structure from the patient read, where absence is a success
-  with an empty body — so phase 3 cannot reuse `isRecordAbsent` and will need its own absence
-  predicate per surface. Worth knowing before writing a line of it.
+en nuestra base de datos con los valores de búsqueda ingresados."` That is a **different** structure
+  from the patient read, where absence is a success with an empty body — so phase 3 cannot reuse
+  `isRecordAbsent` and needs its own absence predicate per surface. `errors.ts` now says so at the
+  predicate itself, where someone would otherwise reach for it.
 - **A sixth wording for "no such patient"**: `MEDICINE` says _"No existe paciente con ese tipo y numero
   de documentacion en la compañia"_. Deliberately **not** added to `isPatientNotFound` — on a clinical
   read the agent already has a patient it found, so an unknown document there is a genuine
-  caller-fixable error. The count matters though: **six distinct sentences for one condition** is why
-  the structural signal leads and prose-matching is only ever the fallback.
+  caller-fixable error. Six distinct sentences for one condition is why the structural signal leads
+  and prose-matching is only ever the fallback.
 
-**The real question is still open**: how the other nine surfaces are addressed. Re-running with a
-root-level body is the obvious next step and it needs a quota this key does not currently have — five
-calls in two minutes was enough to be throttled. It is one more reason phase 3 waits for a sandbox
-(#1057) rather than being designed around a guess.
+### The question this leaves for phase 3
+
+**Where does an agent get a clinical record id?** It has a patient, not ids, and nothing observed
+hands one out — the same gap as the missing doctor directory, one layer down.
+
+The likely answer is already in the collection: `EXAMS_RESULTS` and `FAMILY_HISTORY` document a
+**`SEARCH`** action, and `APPOINTMENT/SEARCH` is the most useful read in the whole API. If the
+clinical searches filter by patient the way the appointment search does, that is the path — read by
+search, then by id. **Untested**, and testing it costs several calls on a throttled shared key, so it
+waits for the sandbox (#1057) rather than being designed around.
 
 ### The third write cycle, and how the clinic was checked afterwards
 

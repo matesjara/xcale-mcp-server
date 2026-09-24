@@ -273,14 +273,17 @@ nested inside the payload invites a reader to find meaning in a field that has n
 | Invalid/absent token on a data call                   | HTTP 401 (bare JSON string body)         | `PROVIDER_AUTH_EXPIRED`                                  |
 | Rail A reports the durable credential revoked         | resolve → 422                            | `PROVIDER_AUTH_EXPIRED`                                  |
 | Any input problem                                     | `412` (transport **or** envelope `code`) | `PROVIDER_INVALID_INPUT`                                 |
+| A required `id` is missing                            | `402` — **in no vendor documentation**   | `PROVIDER_INVALID_INPUT`                                 |
 | Rate limited                                          | `429`, empty body                        | `PROVIDER_RATE_LIMITED`                                  |
 | Server error on a data call                           | `5xx`                                    | `PROVIDER_UNAVAILABLE`                                   |
 | 200 with no envelope `code`, or an unrecognized shape | —                                        | `PROVIDER_ERROR`                                         |
 | **200 with `body: null` on a READ**                   | —                                        | **not an error** → `{found: false}`                      |
 | **`412 "Ya existe un paciente … Id:N"` on a CREATE**  | `412`                                    | **not an error** → `{alreadyExists: true, patientId: N}` |
 
-`412` is the one re-classification this adapter makes: the shared status map sends it to
-`PROVIDER_ERROR`, which tells a caller to give up on a call it could have fixed.
+`412` and `402` are the two re-classifications this adapter makes: the shared status map sends both to
+`PROVIDER_ERROR`, which tells a caller to give up on a call it could have fixed. **`402` is not in the
+vendor's status table at all** — it was found on 2026-09-24 by reading two clinical surfaces without an
+id, which both answered `402 "Se esperaba un id"`.
 
 **Two of SaludTools' `412`s are not errors at all**, and both are cases where the provider answered the
 question and only the status code disagrees: an unregistered patient on a read, and an already-registered
