@@ -101,7 +101,7 @@ describe('dentalink provider — list_branches (tracer)', () => {
 });
 
 describe('dentalink provider — v1 tool surface (S2/S3)', () => {
-  it('publishes the 9 v1 tools, all namespaced and Token-authenticated', () => {
+  it('publishes the 10 tools, all namespaced and Token-authenticated', () => {
     const names = createDentalinkProvider().routableToolNames();
     expect(names).toEqual(
       expect.arrayContaining(
@@ -115,10 +115,11 @@ describe('dentalink provider — v1 tool surface (S2/S3)', () => {
           'find_patient',
           'create_patient',
           'create_appointment',
+          'list_appointments',
         ].map((v) => `mcp_${SLUG}_${v}`),
       ),
     );
-    expect(names).toHaveLength(9);
+    expect(names).toHaveLength(10);
   });
 
   it('list_services (no specialty) reads the global reasons catalog', async () => {
@@ -218,6 +219,21 @@ describe('dentalink provider — v1 tool surface (S2/S3)', () => {
       apellidos: 'Pérez',
       rut: '11111111-1',
       celular: '3001234567',
+    });
+  });
+
+  it('list_appointments GETs a branch agenda window with the date q filter (server-side)', async () => {
+    const { provider: p, calls } = provider({ objects: [] });
+    await p.callTool(
+      `mcp_${SLUG}_list_appointments`,
+      { idSucursal: '1', fechaInicio: '2026-10-01', fechaFin: '2026-10-07' },
+      CTX,
+    );
+    const url = calls[0]!.url;
+    expect(url).toContain('/sucursales/1/citas?');
+    expect(headerOf(calls[0]!.init, 'Authorization')).toBe(`Token ${TOKEN}`);
+    expect(JSON.parse(queryOf(url, 'q')!)).toEqual({
+      fecha: { gte: '2026-10-01', lte: '2026-10-07' },
     });
   });
 

@@ -67,11 +67,23 @@ const createAppointmentInput = z
   })
   .strict();
 
+// ⏳ Server-side read (CRM sync), NOT patient-facing — confirm the citas endpoint/params (api-contract §8).
+const listAppointmentsInput = z
+  .object({
+    idSucursal: z.string().min(1),
+    fechaInicio: z.string().optional(), // 'YYYY-MM-DD'
+    fechaFin: z.string().optional(), // 'YYYY-MM-DD'
+  })
+  .strict();
+
 /**
  * Dentalink's `q` filter column for a patient's identity document. ⏳ Confirm the real column name
  * against the live API (api-contract §8, Q-5): `rut` vs `documento` vs `numero_documento`.
  */
 const PATIENT_DOCUMENT_COLUMN = 'rut';
+
+/** ⏳ Column for the appointment date in the `q` filter — confirm against the live API (api-contract §8). */
+const APPOINTMENT_DATE_COLUMN = 'fecha';
 
 /**
  * Dentalink `q` filter columns for scoping the dentists list. ⏳ Unverified — api-contract §8 must
@@ -296,6 +308,35 @@ export function buildDentalinkTools(
             'create appointment',
           ),
         ),
+    }),
+    // --- Server-side read (CRM sync; NOT for the patient-facing basket) ------
+    defineTool({
+      name: `mcp_${SLUG}_list_appointments`,
+      description:
+        "List a branch's appointments in a date window (cita agenda). **Server-side / staff read** " +
+        "for the CRM appointment-event sync — it returns other patients' appointments, so a consumer " +
+        'must NOT curate it into a patient-facing agent. Returns records verbatim.',
+      input: listAppointmentsInput,
+      handler: async (args, ctx) => {
+        // ⏳ Endpoint + date-range filter provisional — confirm against the live API (api-contract §8).
+        const range: Record<string, string> = {};
+        if (args.fechaInicio) range.gte = args.fechaInicio;
+        if (args.fechaFin) range.lte = args.fechaFin;
+        const params =
+          Object.keys(range).length > 0
+            ? { q: JSON.stringify({ [APPOINTMENT_DATE_COLUMN]: range }) }
+            : undefined;
+        return toOutcome(
+          unwrapDentalink(
+            await client.get(
+              `sucursales/${encodeURIComponent(args.idSucursal)}/citas`,
+              ctx.request,
+              params,
+            ),
+            'list appointments',
+          ),
+        );
+      },
     }),
   ];
 }
