@@ -35,6 +35,8 @@ const cursor = z
   .optional()
   .describe('The `Cursor` of the previous page, to read the next one.');
 const limit = z.number().int().min(1).max(100).default(100).describe('Page size (1-100).');
+/** The widest check-out window a reservation list takes (Mews' own ceiling is "3M1D"). */
+const MAX_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
 const categoryId = uuid.describe('A room type id, from mcp_mews_list_resource_categories.');
 const rateId = uuid.describe('A rate id, from mcp_mews_list_rates (active and enabled).');
 const customerId = uuid.describe(
@@ -472,13 +474,26 @@ export function buildMewsTools(client: MewsClient) {
     tool({
       name: `mcp_${SLUG}_list_reservations`,
       description:
-        'Reservations of the connected service by id, by reservation number or by guest (customer ' +
-        'id), with their state (Confirmed, Canceled…), dates, room type and rate.',
+        'Reservations of the connected service by id, by reservation number, by guest (customer ' +
+        'id) or by a check-out window (at most 3 months), with their state (Confirmed, Started, ' +
+        'Processed, Canceled…), dates, room type and rate.',
       input: z
         .object({
           reservationIds: z.array(uuid).min(1).max(100).optional(),
           numbers: z.array(z.string().min(1)).min(1).max(100).optional(),
           customerIds: z.array(uuid).min(1).max(100).optional(),
+          // Mews filters on ScheduledEndUtc and refuses an interval over "3M1D" (observed on the
+          // demo, 2026-09-24: 90 days answered, 100 days was a 400). 90 is the safe ceiling.
+          checkOutWindow: z
+            .object({ fromUtc: z.string().datetime(), toUtc: z.string().datetime() })
+            .strict()
+            .refine((w) => Date.parse(w.toUtc) > Date.parse(w.fromUtc), {
+              message: 'toUtc must be after fromUtc',
+            })
+            .refine((w) => Date.parse(w.toUtc) - Date.parse(w.fromUtc) <= MAX_WINDOW_MS, {
+              message: 'a check-out window is at most 90 days',
+            })
+            .optional(),
           cursor,
           limit,
         })
@@ -487,8 +502,9 @@ export function buildMewsTools(client: MewsClient) {
           (a) =>
             a.reservationIds !== undefined ||
             a.numbers !== undefined ||
-            a.customerIds !== undefined,
-          { message: 'give reservationIds, numbers or customerIds' },
+            a.customerIds !== undefined ||
+            a.checkOutWindow !== undefined,
+          { message: 'give reservationIds, numbers, customerIds or checkOutWindow' },
         ),
       handler: async (args, ctx) =>
         asOutcome(
@@ -499,6 +515,42 @@ export function buildMewsTools(client: MewsClient) {
               ...(args.reservationIds ? { ReservationIds: args.reservationIds } : {}),
               ...(args.numbers ? { Numbers: args.numbers } : {}),
               ...(args.customerIds ? { AccountIds: args.customerIds } : {}),
+              ...(args.checkOutWindow
+                ? {
+                    ScheduledEndUtc: {
+                      StartUtc: args.checkOutWindow.fromUtc,
+                      EndUtc: args.checkOutWindow.toUtc,
+                    },
+                  }
+                : {}),
+              Limitation: { Count: args.limit, ...(args.cursor ? { Cursor: args.cursor } : {}) },
+            },
+            ctx.request,
+          ),
+        ),
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_list_order_items`,
+      description:
+        'What was charged on reservations of the connected service: each order item with its ' +
+        'gross amount and currency, its type (night, product, rebate…) and whether it was ' +
+        'canceled. A rebate is a negative amount. Read-only.',
+      input: z
+        .object({
+          reservationIds: z.array(uuid).min(1).max(100),
+          cursor,
+          limit,
+        })
+        .strict(),
+      handler: async (args, ctx) =>
+        asOutcome(
+          await call(
+            'orderItems/getAll',
+            {
+              // A reservation is a service order in Mews (observed 2026-09-24: items answered for the
+              // reservation ids passed as ServiceOrderIds, with ServiceOrderId on each item).
+              ServiceOrderIds: args.reservationIds,
               Limitation: { Count: args.limit, ...(args.cursor ? { Cursor: args.cursor } : {}) },
             },
             ctx.request,

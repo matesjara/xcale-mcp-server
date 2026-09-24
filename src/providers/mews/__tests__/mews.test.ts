@@ -28,6 +28,7 @@ const ADULT = 'c202559b-c900-48f9-b8ba-ade8008e4070';
 const CATEGORY = '6ebb4101-3e4f-46c7-96b2-0b76f112fe57';
 const RATE = '1312c636-2947-429b-bec9-b4ad00f374b0';
 const CUSTOMER = '00000000-0000-0000-0000-000000000001';
+const RES = '3c2e9f10-2b51-4f7a-9d6e-8a1b2c3d4e5f';
 
 const CTX: ProviderCallContext = {
   credential: { secret: new SecretString(ACCESS_TOKEN) },
@@ -491,6 +492,51 @@ describe('mews provider — writes', () => {
 
     expect(failure(result).code).toBe(ProviderErrorCode.INVALID_INPUT);
     expect(sent).toHaveLength(0);
+  });
+
+  it("lists a check-out window as Mews' ScheduledEndUtc interval", async () => {
+    const { provider, sent } = mews({
+      'reservations/getAll/2023-06-06': { status: 200, body: { Reservations: [] } },
+    });
+
+    await provider.callTool(
+      'mcp_mews_list_reservations',
+      { checkOutWindow: { fromUtc: '2026-06-26T00:00:00Z', toUtc: '2026-09-24T00:00:00Z' } },
+      CTX,
+    );
+
+    expect(sent[0]?.body).toMatchObject({
+      ScheduledEndUtc: { StartUtc: '2026-06-26T00:00:00Z', EndUtc: '2026-09-24T00:00:00Z' },
+    });
+  });
+
+  it('refuses a window wider than 90 days before asking Mews, which refuses over 3M1D', async () => {
+    const { provider, sent } = mews({});
+
+    const result = await provider.callTool(
+      'mcp_mews_list_reservations',
+      { checkOutWindow: { fromUtc: '2026-06-01T00:00:00Z', toUtc: '2026-09-24T00:00:00Z' } },
+      CTX,
+    );
+
+    expect(failure(result).code).toBe(ProviderErrorCode.INVALID_INPUT);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('reads what was charged on reservations as their order items', async () => {
+    const items = {
+      OrderItems: [{ ServiceOrderId: RES, Amount: { Currency: 'GBP', GrossValue: 86 } }],
+    };
+    const { provider, sent } = mews({ 'orderItems/getAll': { status: 200, body: items } });
+
+    const result = await provider.callTool(
+      'mcp_mews_list_order_items',
+      { reservationIds: [RES] },
+      CTX,
+    );
+
+    expect(data(result)).toEqual(items);
+    expect(sent[0]?.body).toMatchObject({ ServiceOrderIds: [RES] });
   });
 });
 
