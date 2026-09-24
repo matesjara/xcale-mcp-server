@@ -111,6 +111,16 @@ gynaecological history, personal history, family history, and the ~33 parametric
     emits under a modest burst (§6).
 13. **Nothing about SaludTools exists in any xcale repo today** — greenfield; no slug, no toolbox entry, no
     leftovers.
+14. **A patient's document is unique, and the API enforces it** (observed 2026-09-24, not documented). A
+    second `PATIENT/CREATE` with the same `documentType` + `documentNumber` is refused —
+    `412 "Ya existe un paciente con el tipo y numero de documento enviado. Id:6929503"` — and the refusal
+    carries the existing patient's id. **An agent retrying a create after a timeout cannot duplicate a
+    patient**, which was the single worst failure mode of the write path. The refusal is read as an answer,
+    not an error; see `production-evidence.md` §2026-09-24.
+15. **`habeasData` is WRITABLE through the API** (observed 2026-09-24). `PATIENT/UPDATE` moved it from
+    `false` to `true` and the read-back confirmed it. It is not a flag the clinic keeps to itself in its own
+    UI: anything holding `update_patient` can change a patient's recorded consent. That widens D4 and it is
+    an input to the Ley 1581 decision (#1055), which was framed around _reading_ health data.
 
 ## 3. Decisions
 
@@ -140,6 +150,21 @@ gynaecological history, personal history, family history, and the ~33 parametric
 
 - **D4 — `habeasData` is surfaced, never interpreted.** The read tools return it as the provider states it.
   Whether the agent may then message that patient is not a rule this adapter gets to make.
+
+  **Amended 2026-09-24, once it was observed to be writable** (§2.15). Surfacing a consent flag and being
+  able to flip it are different powers, and the second one arrived without anyone choosing it: it rides in
+  on `update_patient`, whose reason to exist is a phone number. Two things follow, and neither is ours to
+  decide alone:
+  - _Whether an agent may record consent at all_ is the tenant's policy and quite possibly the law's
+    answer, not a capability question — it belongs in #1055 with the rest of Ley 1581, and is flagged
+    there rather than settled here.
+  - _Whether `habeasData` should be split out of `update_patient`_ is a design question for that answer. A
+    separate control-plane operation would make recording consent a deliberate act instead of a field that
+    travels with an address change. Not done pre-emptively: splitting it now would guess at the answer.
+    Note that `update_patient` sends SaludTools a whole patient, not a patch, so the field cannot simply
+    be omitted from our schema without knowing what the provider does with an absent one — and **whether
+    it accepts an update without `habeasData` has not been observed**; the run that proved the field
+    writable always sent it.
 
 - **D5 — Complete coverage, but an agent does not hold a scalpel.** Every SaludTools operation gets built
   (§1). What differs is **who may call it**:

@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { ProviderErrorCode } from '../../../core/errors';
 import type { RequestResult } from '../../../core/http';
-import { classifySaludtoolsStatus, isPatientNotFound, unwrapSaludtools } from '../errors';
+import {
+  classifySaludtoolsStatus,
+  isPatientNotFound,
+  patientAlreadyExists,
+  unwrapSaludtools,
+} from '../errors';
 
 import patientNotFound412 from '../__fixtures__/errors/patientNotFound412.json';
 import patientRead from '../__fixtures__/patientRead.json';
@@ -152,5 +157,55 @@ describe('isPatientNotFound', () => {
 
   it('is false for a failure that carries no vendor message', () => {
     expect(isPatientNotFound(unwrapSaludtools(failed(500), 'get patient'))).toBe(false);
+  });
+});
+
+describe('patientAlreadyExists', () => {
+  const refusal = (message: string) =>
+    unwrapSaludtools(ok200({ id: null, code: 412, message, body: null }), 'create patient');
+
+  it('recognizes the sentence production actually sends, and lifts the id out of it', () => {
+    expect(
+      patientAlreadyExists(
+        refusal('Ya existe un paciente con el tipo y numero de documento enviado. Id:6929503'),
+      ),
+    ).toEqual({ patientId: 6929503 });
+  });
+
+  it('matches the CLASS of sentence, not the one example', () => {
+    /*
+     * The vendor has already reworded a message once during this integration, and it accents
+     * inconsistently ("numero" here, "informacion" elsewhere, both unaccented — but nothing
+     * guarantees the next release is). Spacing around the colon varies across their messages too.
+     *
+     * Pinning the exact string would mean the day SaludTools tidies its Spanish, every duplicate
+     * create silently goes back to being reported as bad input.
+     */
+    for (const message of [
+      'Ya existe un paciente con el tipo y numero de documento enviado. Id: 41',
+      'YA EXISTE UN PACIENTE REGISTRADO. Id:41',
+      'Ya existe un paciente con ese número de documento. id : 41',
+    ]) {
+      expect(patientAlreadyExists(refusal(message)), message).toEqual({ patientId: 41 });
+    }
+  });
+
+  it('still reports the fact when the message carries no id', () => {
+    // An empty object, not undefined: "they exist" is the answer even without the id, and the
+    // caller finds them with the document it already holds.
+    expect(patientAlreadyExists(refusal('Ya existe un paciente con esos datos'))).toEqual({});
+  });
+
+  it('stays narrow — a real input error is not a duplicate', () => {
+    expect(patientAlreadyExists(refusal('No se ha enviado un tipo de evento valido'))).toBe(
+      undefined,
+    );
+  });
+
+  it('is undefined for a success and for a failure with no vendor message', () => {
+    expect(patientAlreadyExists(unwrapSaludtools(ok200(patientRead), 'get patient'))).toBe(
+      undefined,
+    );
+    expect(patientAlreadyExists(unwrapSaludtools(failed(500), 'create patient'))).toBe(undefined);
   });
 });

@@ -17,6 +17,9 @@ import observedStates from '../__fixtures__/observed-statesCatalog.json';
 import observedAppointmentNoDoctor from '../__fixtures__/errors/observed-appointmentNoDoctor412.json';
 import observedPatientCreated from '../__fixtures__/observed-patientCreated200.json';
 import observedPatientReadBack from '../__fixtures__/observed-patientReadBack200.json';
+import observedPatientDuplicate from '../__fixtures__/errors/observed-patientDuplicate412.json';
+import observedPatientUpdated from '../__fixtures__/observed-patientUpdated200.json';
+import observedPatientDeleted from '../__fixtures__/observed-patientDeleted200.json';
 
 /**
  * OBSERVED, 2026-09-21 — the only tests in this module backed by real responses.
@@ -357,6 +360,11 @@ describe('observed — the write path, run against production and undone', () =>
    * reading the document again and by searching the surname: zero matches, and zero appointments in
    * the window used. The clinic is exactly as it was found. Synthetic data throughout, so nothing
    * here is anybody's PHI.
+   *
+   * The run was repeated on 2026-09-24 to close the last three unknowns of the write path — the
+   * duplicate create, the update, and what a delete actually answers — one call at a time, with the
+   * inventory checked between each. Same outcome: created, duplicated, updated, read back, deleted,
+   * and verified gone twice (by document and by surname).
    */
 
   it('reports a creation as a SUCCESS, with the id the envelope carries', async () => {
@@ -387,6 +395,139 @@ describe('observed — the write path, run against production and undone', () =>
 
     expect(result.kind).toBe('success');
     expect(successData(result)).toEqual({ created: true, patientId: 6923470 });
+  });
+
+  it('reads "that patient already exists" as an ANSWER, not as bad input', async () => {
+    /*
+     * Observed 2026-09-24, deliberately: the same create sent twice. The second is refused with
+     * `{"id": null, "code": 412, "message": "Ya existe un paciente con el tipo y numero de documento
+     * enviado. Id:6929503"}`.
+     *
+     * Two facts in one response. The first is reassuring — SaludTools enforces uniqueness on the
+     * document, so a retry after a timeout cannot duplicate a patient in a live clinic. The second
+     * is the defect: a 412 is `PROVIDER_INVALID_INPUT`, and with the vendor's prose stripped (as it
+     * must be) the agent is told it sent bad data. It did not. It sent a real person who is already
+     * registered, and the vendor even handed back their id.
+     *
+     * An agent told "invalid input" re-asks for the document number it already has right.
+     */
+    const { provider: p } = provider(observedPatientDuplicate);
+    const result = await p.callTool(
+      'mcp_saludtools_create_patient',
+      {
+        firstName: 'PRUEBA',
+        firstLastName: 'XCALE',
+        birthDate: '1990-01-01',
+        gender: 3,
+        documentType: 1,
+        documentNumber: '999999901',
+        eps: 3,
+        habeasData: false,
+      },
+      CTX,
+    );
+
+    expect(result.kind).toBe('success');
+    expect(successData(result)).toEqual({
+      created: false,
+      alreadyExists: true,
+      patientId: 6929503,
+    });
+  });
+
+  it('never forwards the vendor sentence that carried that id', async () => {
+    /*
+     * The guard on the branch above, and it has to run the real call to be worth anything: a test
+     * that asserts against a literal the test itself wrote proves only that the test can spell.
+     *
+     * Reading a NUMBER out of Spanish operator prose is allowed; the prose is not, and the
+     * temptation to pass it along is highest exactly where it is informative — "ya existe, id 6929503"
+     * reads like a helpful thing to hand an agent. It would put a clinic's operator text into a
+     * patient's chat.
+     */
+    const { provider: p } = provider(observedPatientDuplicate);
+    const result = await p.callTool(
+      'mcp_saludtools_create_patient',
+      {
+        firstName: 'PRUEBA',
+        firstLastName: 'XCALE',
+        birthDate: '1990-01-01',
+        gender: 3,
+        documentType: 1,
+        documentNumber: '999999901',
+        eps: 3,
+        habeasData: false,
+      },
+      CTX,
+    );
+
+    const wire = JSON.stringify(result);
+
+    // Every meaningful word of the vendor's sentence, not a sample of it. Spanish articles and
+    // conjunctions are skipped because two-letter strings collide with ordinary JSON, not because
+    // they are safe to leak — no sentence survives losing only its long words.
+    const words = observedPatientDuplicate.message
+      .split(' ')
+      .filter((w) => w.length >= 4 && !w.startsWith('Id:'));
+    expect(words).toContain('paciente');
+    for (const word of words) {
+      expect(wire, `leaked "${word}" from the vendor message`).not.toContain(word);
+    }
+
+    // The id, and only the id, crosses over.
+    expect(wire).toContain('6929503');
+  });
+
+  it('reports an update as an update, with the id in the envelope and no body', async () => {
+    // Observed: `{"id": 6929503, "code": 200, "message": "Se actualiza el paciente id: 6929503",
+    // "body": null}` — the same envelope-carries-the-id shape as a create.
+    const { provider: p } = provider(observedPatientUpdated);
+    const result = await p.callTool(
+      'mcp_saludtools_update_patient',
+      {
+        firstName: 'PRUEBA',
+        firstLastName: 'XCALE',
+        birthDate: '1990-01-01',
+        gender: 3,
+        documentType: 1,
+        documentNumber: '999999901',
+        eps: 3,
+        phone: '3111111111',
+        habeasData: true,
+      },
+      CTX,
+    );
+
+    expect(result.kind).toBe('success');
+    expect(successData(result)).toEqual({ updated: true, patientId: 6929503 });
+  });
+
+  it('reports a delete as a delete, though its envelope carries neither body nor id', async () => {
+    /*
+     * Observed: `{"code": 200, "message": "Se elimina el paciente id: 6929503"}`. No `body`, no
+     * `id` — the thinnest envelope this provider sends.
+     *
+     * Read the way the read tools read, that is a success carrying `null`, which tells the caller
+     * nothing: it cannot distinguish a completed deletion from an empty answer. `deleted: true` is
+     * the fact, and it is the only one there is.
+     */
+    const { provider: p } = provider(observedPatientDeleted);
+    const result = await p.callTool(
+      'mcp_saludtools_delete_patient',
+      {
+        firstName: 'PRUEBA',
+        firstLastName: 'XCALE',
+        birthDate: '1990-01-01',
+        gender: 3,
+        documentType: 1,
+        documentNumber: '999999901',
+        eps: 3,
+      },
+      CTX,
+    );
+
+    expect(result.kind).toBe('success');
+    expect(successData(result)).toEqual({ deleted: true });
   });
 
   it('round-trips habeasData, and the read carries neither address nor pageable', async () => {

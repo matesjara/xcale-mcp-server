@@ -101,16 +101,19 @@ After connecting, in this order. Each step tells you which of the above is missi
    the conversation is a different one.
 4. **`get_patient`** with a document the clinic gives you. `{found: false}` is an answer, not an
    error — it means that person is not registered, and the agent's next move is to offer to register
-   them.
+   them. Registering is safe to retry: SaludTools refuses a document it already holds, and the tool
+   reports that as `{created: false, alreadyExists: true, patientId}` rather than as a failure, so a
+   dropped connection cannot leave the clinic with two records for one person.
 5. **Book one appointment end to end**, with a real doctor document from step 2 of this runbook, at a
    time the clinic is happy to have occupied — then cancel it by updating the state. This is the step
    that proves the configuration, and it is the only one that writes.
 
 ## What to promise, and what not to
 
-| Yes                                                      | No                                                                                                                                             |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Recognize a patient by document, register a new one      | Tell a patient when the clinic is free, unless the hours are configured                                                                        |
-| Tell them their appointments                             | Reschedule in one step — it is a read plus a full update                                                                                       |
-| Book, move and cancel against the real agenda            | Anything clinical: history, prescriptions, results (built later, and gated on [#1055](https://github.com/matesjara/xcale-backend/issues/1055)) |
-| Respect `habeasData`, the clinic's own record of consent | Discover doctors, or work without their documents                                                                                              |
+| Yes                                                      | No                                                                                                                                                                                          |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recognize a patient by document, register a new one      | Tell a patient when the clinic is free, unless the hours are configured                                                                                                                     |
+| Tell them their appointments                             | Reschedule in one step — it is a read plus a full update                                                                                                                                    |
+| Book, move and cancel against the real agenda            | Anything clinical: history, prescriptions, results (built later, and gated on [#1055](https://github.com/matesjara/xcale-backend/issues/1055))                                              |
+| Respect `habeasData`, the clinic's own record of consent | Discover doctors, or work without their documents                                                                                                                                           |
+| Register a patient twice by accident — the API refuses   | **Record or change consent on a patient's behalf** — possible through `update_patient`, and pending the Ley 1581 decision ([#1055](https://github.com/matesjara/xcale-backend/issues/1055)) |

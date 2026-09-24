@@ -1,4 +1,4 @@
-# SaludTools — round-trip proof (production, 2026-09-21/22)
+# SaludTools — round-trip proof (production, 2026-09-21 · 22 · 24)
 
 The `add-provider` Definition of Done, executed: `server/discover` lists the provider with its
 descriptor, `tools/list` returns the tools an agent would see, `tools/call` runs real tools against the
@@ -7,10 +7,15 @@ real provider, and a forced auth failure comes back as `PROVIDER_AUTH_EXPIRED`.
 **Run against SaludTools PRODUCTION** with a client clinic's ApiKey — QA rejects that key, so there was
 no other environment to run it in (see `grill-notes.md` §6 Q1).
 
-**Zero patient records were read, and nothing was written.** The calls are a catalog, a paged catalog,
-an agenda window in 1990, and a lookup for a document nobody holds. That is a deliberate constraint:
-the key carries `role_admin`/`role_superadmin` on a live clinic and the Ley 1581 question (§6 Q6) is
-still open.
+**Zero patient records were read, and nothing was written** — in the first run, below. The calls are a
+catalog, a paged catalog, an agenda window in 1990, and a lookup for a document nobody holds. That is
+a deliberate constraint: the key carries `role_admin`/`role_superadmin` on a live clinic and the Ley
+1581 question (§6 Q6) is still open.
+
+Two later runs (09-22 and 09-24) did write, each authorised for that run, each reversible, each
+undone and verified. **No existing record of the clinic was ever read, written or deleted**: every
+write acted on one synthetic patient this integration created and then removed. The two sections at
+the end record them call by call.
 
 ## How it was run
 
@@ -231,11 +236,69 @@ documento enviado"_ (from `APPOINTMENT/CREATE`) and the doctor equivalent. Delib
 `isPatientNotFound`: on a booking these are genuine caller-fixable input errors, not an answer, and
 `412 → PROVIDER_INVALID_INPUT` is already right.
 
+## The write path again, to close what the first run left open — 2026-09-24
+
+Three unknowns survived the 2026-09-22 run, and each of them was a way the integration could
+misbehave in a live clinic. Same conditions: every write reversible, **by hand, one call at a time**,
+with the inventory checked between each — never a script, because a script knows what it was told to
+undo and a person knows what exists.
+
+| #   | Call                                                | Result                                                                                          |
+| --- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| 1   | `PATIENT/READ` doc `999999901` · `SEARCH` surname   | absent · **0 matches** — the document was free and nothing was left over from 09-22             |
+| 2   | `PATIENT/CREATE`                                    | `{"id": 6929503, "code": 200, "message": "Se registra el paciente id: 6929503", "body": null}`  |
+| 3   | `PATIENT/CREATE` **again, same document**           | `{"id": null, "code": 412, "message": "Ya existe un paciente … Id:6929503", "body": null}`      |
+| 4   | `PATIENT/UPDATE` — phone, and `habeasData` → `true` | `{"id": 6929503, "code": 200, "message": "Se actualiza el paciente id: 6929503", "body": null}` |
+| 5   | `PATIENT/READ`                                      | both changes landed                                                                             |
+| 6   | `PATIENT/DELETE`                                    | `{"code": 200, "message": "Se elimina el paciente id: 6929503"}`                                |
+| 7   | `PATIENT/READ` · `SEARCH` surname                   | `body: null` · **0 matches** — verified gone from two directions                                |
+
+**The clinic is exactly as it was found**, for the second time. No appointment was created: there is
+still no doctor document to book with (#1062).
+
+### 1. A duplicate create is refused — the unknown that mattered most
+
+`written()` carried a warning that this was unobserved, and that if SaludTools silently created a
+second record, an agent retrying after a timeout would duplicate a patient in a real clinic.
+
+**It does not.** SaludTools enforces uniqueness on (`documentType`, `documentNumber`) and refuses the
+second create outright. The retry hazard that shaped the create path does not exist.
+
+What it exposed instead is a shape problem. A `412` is `PROVIDER_INVALID_INPUT`, and the vendor's
+prose is stripped before a caller sees it — so the agent was told **it sent bad input**. It had not:
+it sent a real person who is already registered, and the vendor even handed back their id. The two
+readings lead opposite ways — re-ask for the document, versus carry on and book the appointment — and
+an agent given the wrong one loops on a form the patient already filled in correctly.
+
+`create_patient` now answers `{created: false, alreadyExists: true, patientId}`. The id travels; the
+Spanish sentence that carried it does not. Same move already made for "no such patient", one step
+further along the same conversation.
+
+### 2. A delete answers with no body and no id
+
+`{"code": 200, "message": "Se elimina el paciente id: 6929503"}` — the thinnest envelope this provider
+sends. Read the way the read tools read, that is a success carrying `null`: the caller cannot tell a
+completed deletion from an empty answer. Both delete tools now report `{deleted: true}`.
+
+### 3. `habeasData` is writable through the API
+
+The update set it from `false` to `true` and the read-back confirmed it. That matters for Ley 1581
+(#1055): the consent flag is not a read-only field the clinic maintains in its own UI — an agent with
+`update_patient` can change a patient's recorded consent. Whether it ever should is the tenant's
+policy and, more likely, a legal question; that it _can_ is now a fact the decision has to account
+for, rather than an assumption.
+
+Three fixtures were recorded from this run — `observed-patientDuplicate412.json`,
+`observed-patientUpdated200.json`, `observed-patientDeleted200.json` — and the first two are the only
+tests in the module that exercise a write refusal and an update at all.
+
 ## What it did NOT prove
 
 - **Any read that returns a real patient.** Not run, on purpose (Q6).
-- **Any write.** Not run, and not to be run against this key: `role_admin` on a live clinic, where a
-  "test" appointment is a real appointment in a real doctor's diary.
+- **The booking write.** The patient writes are proven (the two runs above); `APPOINTMENT/CREATE` is
+  not, and cannot be until the clinic supplies a doctor's identity document (#1062). It is the one
+  write that puts something in a real doctor's diary, so it waits for a clinic that agrees to the
+  slot, not for a spare moment.
 - **Phases 3–4** (clinical reads and writes). Still unbuilt — their response shapes are undocumented and
   cannot be observed without reading real clinical records.
 - **The QA host.** It rejects this key; a sandbox credential is still wanted

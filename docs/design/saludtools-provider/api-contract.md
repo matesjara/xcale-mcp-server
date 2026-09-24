@@ -206,8 +206,10 @@ Input rules:
 - Pagination is the gateway's uniform 1-based `page`/`pageSize`, translated to SaludTools' 0-based
   `pageable` and clamped to 20.
 - **`update_appointment` takes the WHOLE appointment**, not a patch: read it first, then resend every
-  field with the edit applied. Whether a partial body is accepted is untested — settling it needs an
-  UPDATE call, which is a write, and no write has been made against a live clinic.
+  field with the edit applied. The same holds for `update_patient`, where it is confirmed — the update
+  run on 2026-09-24 sent every field. Whether a **partial** body is accepted is still untested on
+  either: the runs always sent the whole record, so nothing says what an absent field does, and
+  "probably ignored" and "overwritten with null" are both consistent with what has been seen.
 - **Cancelling is `update_appointment`** with the cancelled `stateAppointment` from the catalog, not
   `delete_appointment` (which is control-plane). A cancelled appointment stays auditable; a deleted
   one does not.
@@ -228,6 +230,21 @@ default (`projections.ts`).
 - `get_catalog` → the vendor's own shape, verbatim (array or flattened page). Not unified: inventing
   `id`s for the `value`-keyed catalogs would produce ids no appointment accepts.
 
+**Writes report what happened, not a record.** SaludTools answers a write with the id in the
+**envelope** and `body: null` — the mirror image of a read — so a write result is the outcome itself:
+
+- `create_patient` → `{created: true, patientId}`, or **`{created: false, alreadyExists: true, patientId}`**
+  when that document is already registered. The second is an answer, not an error (see D): the provider
+  enforces uniqueness on (`documentType`, `documentNumber`), so **a create is safe to retry**, and the
+  agent's next move is to carry on with the patient it just found rather than re-ask for the document.
+- `update_patient`, `update_appointment` → `{updated: true, …Id}`.
+- `create_appointment` → `{created: true, appointmentId}`.
+- `delete_patient`, `delete_appointment` → `{deleted: true}`. A delete's envelope carries neither a body
+  nor an id, so that boolean is the whole of what the provider says.
+
+No write returns `{ok: true}`: the result envelope already says the call succeeded, and a second `ok`
+nested inside the payload invites a reader to find meaning in a field that has none.
+
 ### C.3 Consumer guidance
 
 - **Read the catalogs first.** `clinic`, `documentType`, `gender`, `eps`, `modality` and
@@ -236,24 +253,35 @@ default (`projections.ts`).
   _booked_. Opening hours, appointment length and which doctors take new patients are the tenant's own
   configuration and belong in its agent instructions — not in this contract and not in the adapter.
 - **`habeasData` is surfaced, never interpreted.** Whether the agent may then message that patient is
-  the tenant's rule and, where Ley 1581 speaks, the law's.
+  the tenant's rule and, where Ley 1581 speaks, the law's. Note that it is also **writable** through
+  `update_patient` (observed 2026-09-24) — so a tenant that grants that tool grants the power to record
+  consent, which is a decision to make deliberately rather than inherit. Flagged on #1055.
+- **A create that comes back `alreadyExists` is not a failed create.** An agent that treats it as one
+  will re-ask a patient for a document number they gave correctly.
 
 ---
 
 ## D. Error mapping
 
-| Condition                                             | Wire                                     | `ProviderErrorCode`                 |
-| ----------------------------------------------------- | ---------------------------------------- | ----------------------------------- |
-| Invalid/absent token on a data call                   | HTTP 401 (bare JSON string body)         | `PROVIDER_AUTH_EXPIRED`             |
-| Rail A reports the durable credential revoked         | resolve → 422                            | `PROVIDER_AUTH_EXPIRED`             |
-| Any input problem                                     | `412` (transport **or** envelope `code`) | `PROVIDER_INVALID_INPUT`            |
-| Rate limited                                          | `429`, empty body                        | `PROVIDER_RATE_LIMITED`             |
-| Server error on a data call                           | `5xx`                                    | `PROVIDER_UNAVAILABLE`              |
-| 200 with no envelope `code`, or an unrecognized shape | —                                        | `PROVIDER_ERROR`                    |
-| **200 with `body: null` on a READ**                   | —                                        | **not an error** → `{found: false}` |
+| Condition                                             | Wire                                     | `ProviderErrorCode`                                      |
+| ----------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------- |
+| Invalid/absent token on a data call                   | HTTP 401 (bare JSON string body)         | `PROVIDER_AUTH_EXPIRED`                                  |
+| Rail A reports the durable credential revoked         | resolve → 422                            | `PROVIDER_AUTH_EXPIRED`                                  |
+| Any input problem                                     | `412` (transport **or** envelope `code`) | `PROVIDER_INVALID_INPUT`                                 |
+| Rate limited                                          | `429`, empty body                        | `PROVIDER_RATE_LIMITED`                                  |
+| Server error on a data call                           | `5xx`                                    | `PROVIDER_UNAVAILABLE`                                   |
+| 200 with no envelope `code`, or an unrecognized shape | —                                        | `PROVIDER_ERROR`                                         |
+| **200 with `body: null` on a READ**                   | —                                        | **not an error** → `{found: false}`                      |
+| **`412 "Ya existe un paciente … Id:N"` on a CREATE**  | `412`                                    | **not an error** → `{alreadyExists: true, patientId: N}` |
 
 `412` is the one re-classification this adapter makes: the shared status map sends it to
 `PROVIDER_ERROR`, which tells a caller to give up on a call it could have fixed.
+
+**Two of SaludTools' `412`s are not errors at all**, and both are cases where the provider answered the
+question and only the status code disagrees: an unregistered patient on a read, and an already-registered
+one on a create. Each is recognized by its own predicate in `errors.ts`, never by matching prose at a
+call site, and each yields a structured answer. The id is read out of the vendor's sentence; the sentence
+itself never travels.
 
 **A 500 on a data call is an outage, never a dead credential.** The 500-vs-412 quirk lives on the mint
 endpoint, which only Rail A calls.

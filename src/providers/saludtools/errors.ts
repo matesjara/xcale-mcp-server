@@ -176,6 +176,39 @@ export function isRecordAbsent(result: Unwrapped): boolean {
 }
 
 /**
+ * Does this failure mean "that person is ALREADY in the clinic's records"?
+ *
+ * Observed 2026-09-24 against production: a create that repeats a document is refused with
+ * `412 "Ya existe un paciente con el tipo y numero de documento enviado. Id:6929503"`.
+ *
+ * **The good news first: SaludTools enforces uniqueness on (documentType, documentNumber)**, so an
+ * agent that retries a create after a timeout cannot duplicate a patient in a real clinic. That was
+ * an open unknown and it resolved in our favour.
+ *
+ * The bad news is the shape. `412` maps to `PROVIDER_INVALID_INPUT`, and the vendor's prose is
+ * stripped before a caller sees it — so the agent is told it sent bad input when the truth is "that
+ * person is already registered, and here is their id". Those call for opposite moves: fix the call,
+ * versus carry on with the patient you already have. It is the same failure as an unknown patient
+ * arriving as a `412`, one step further along the same conversation.
+ *
+ * Returns the existing patient's id, which the vendor puts in the message. Reading a number out of
+ * prose is not the same as forwarding prose: the id travels, the sentence does not.
+ */
+export function patientAlreadyExists(result: Unwrapped): { patientId?: number } | undefined {
+  if (result.ok || result.detail === undefined) return undefined;
+  const text = result.detail.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (!text.includes('ya existe un paciente')) return undefined;
+  /*
+   * The id is optional on purpose, and its absence has ONE cause: the vendor phrased the refusal
+   * without one. The agent's next move does not change either way — that person is registered, and
+   * `get_patient` finds them by the document it already holds. So an optional field is honest here,
+   * where elsewhere in this provider an optional would be hiding two different situations.
+   */
+  const match = /id\s*:\s*(\d+)/.exec(text);
+  return match ? { patientId: Number(match[1]) } : {};
+}
+
+/**
  * Does this failure mean "that person is not in the clinic's records"?
  *
  * SaludTools answers a patient lookup for an unknown document with `code: 412` and the message

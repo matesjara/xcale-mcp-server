@@ -15,6 +15,7 @@ import type { SaludtoolsClient } from './client';
 import {
   isPatientNotFound,
   isRecordAbsent,
+  patientAlreadyExists,
   unwrapSaludtools,
   unwrapSaludtoolsCatalog,
 } from './errors';
@@ -125,14 +126,22 @@ function toOutcome(result: ReturnType<typeof unwrapSaludtools>): ToolOutcome {
  * by the id a create returns, so nothing needs to thread it through. It is there for a human reading
  * a log.
  *
- * **Unknown, and worth finding out before this runs unattended:** what SaludTools does when a create
- * repeats a document that already exists. Never observed — the production run created, deleted, and
- * created again, so the duplicate path was never taken. If it silently creates a second record, an
- * agent retrying after a timeout duplicates a patient.
+ * **Resolved 2026-09-24, and in our favour:** SaludTools enforces uniqueness on (documentType,
+ * documentNumber). A create that repeats a document is refused with `412 "Ya existe un paciente con
+ * el tipo y numero de documento enviado. Id:6929503"` — so an agent that retries after a timeout
+ * cannot duplicate a patient in a live clinic. `create_patient` reads that refusal as an answer
+ * rather than an error; see its handler.
+ *
+ * **A delete answers with no body and no envelope id at all** — observed on the same run:
+ * `{"code": 200, "message": "Se elimina el paciente id: 6929503"}`. Passed through the read-shaped
+ * path that returns `body`, that is a success carrying `null`: technically correct, and useless to
+ * whoever called it, who cannot tell a completed deletion from an empty one. `{deleted: true}` says
+ * what happened. If a delete ever does carry a body, dropping it loses nothing — nobody needs the
+ * contents of a record that no longer exists.
  */
 function written(
   result: ReturnType<typeof unwrapSaludtools>,
-  outcome: 'created' | 'updated',
+  outcome: 'created' | 'updated' | 'deleted',
   idKey: string,
 ): ToolOutcome {
   if (!result.ok) return err(result.code, result.message);
@@ -280,7 +289,9 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
       description:
         "Register a new patient in the clinic's records. Required before an appointment can be " +
         'booked for someone the clinic does not have yet. `habeasData` must be stated explicitly — ' +
-        'it records whether the patient authorized being contacted.',
+        'it records whether the patient authorized being contacted. Safe to retry: a document ' +
+        'that is already registered comes back as `{created: false, alreadyExists: true}` with ' +
+        'that patient id, never as a second record.',
       input: z
         .object({
           firstName: z.string().min(1),
@@ -312,15 +323,30 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
         })
         .strict(),
       identityPolicy: { mode: 'subject-bound', identityFields: ['documentNumber'] },
-      handler: async (args, ctx) =>
-        written(
-          unwrapSaludtools(
-            await client.event('PATIENT', 'CREATE', args, ctx.request),
-            'create patient',
-          ),
-          'created',
-          'patientId',
-        ),
+      handler: async (args, ctx) => {
+        const result = unwrapSaludtools(
+          await client.event('PATIENT', 'CREATE', args, ctx.request),
+          'create patient',
+        );
+
+        /*
+         * "That person is already registered" is an ANSWER, not a failure.
+         *
+         * SaludTools refuses a duplicate document with a 412, which maps to
+         * `PROVIDER_INVALID_INPUT` — and stripped of the vendor's prose, the agent is told it sent
+         * bad input. It did not: it sent a real person who happens to already be in the records.
+         * The two call for opposite moves — fix the call, versus carry on and book the appointment
+         * — and an agent handed the wrong one either loops on the form or tells the patient to
+         * check their document number.
+         *
+         * So the tool answers what happened. `created: false` keeps the same key the success path
+         * uses, so a caller reads one field to know whether it registered anyone.
+         */
+        const existing = patientAlreadyExists(result);
+        if (existing) return ok({ created: false, alreadyExists: true, ...existing });
+
+        return written(result, 'created', 'patientId');
+      },
     }),
 
     defineTool({
@@ -699,11 +725,13 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
       controlPlane: true,
       identityPolicy: { mode: 'subject-scoped' },
       handler: async (args, ctx) =>
-        toOutcome(
+        written(
           unwrapSaludtools(
             await client.event('APPOINTMENT', 'DELETE', { id: args.id }, ctx.request),
             'delete appointment',
           ),
+          'deleted',
+          'appointmentId',
         ),
     }),
 
@@ -729,11 +757,13 @@ export function buildSaludtoolsTools(client: SaludtoolsClient): readonly ToolDef
       controlPlane: true,
       identityPolicy: { mode: 'subject-bound', identityFields: ['documentNumber'] },
       handler: async (args, ctx) =>
-        toOutcome(
+        written(
           unwrapSaludtools(
             await client.event('PATIENT', 'DELETE', args, ctx.request),
             'delete patient',
           ),
+          'deleted',
+          'patientId',
         ),
     }),
   ];
