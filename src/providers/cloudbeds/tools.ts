@@ -203,6 +203,10 @@ export function buildCloudbedsTools(
     definePaginatedList({
       name: `mcp_${SLUG}_list_reservations`,
       requiredScopes: ['read:reservation'], // spec: getReservations
+      // Takes no person identifier and returns other people's stays anyway — the leak that needs
+      // nobody to ask about anyone. Entirely legitimate for the property's own staff reading their
+      // own arrivals; not something to read out to whoever happens to be in a conversation.
+      identityPolicy: { mode: 'subject-scoped' },
       description:
         'List reservations for the property, filtered by status and/or by check-in or check-out ' +
         'dates. The three date/status combinations cover the three moments of a stay: arriving ' +
@@ -675,6 +679,15 @@ export function buildCloudbedsTools(
     definePaginatedList({
       name: `mcp_${SLUG}_search_guests`,
       requiredScopes: ['read:guest'], // spec: getGuestList
+      // The property's front door to a person, and it opens two ways. Named — `guestPhone` and the
+      // rest identify someone. Unnamed — EVERY filter here is optional, so a call with none
+      // returns the property's whole guest list, paginated. Its own description says as much
+      // ("or to answer who is staying and when"). A consumer enforcing "only the person writing"
+      // has to know both, and neither is visible from a name, a description or a schema.
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: ['guestPhone', 'guestEmail', 'guestFirstName', 'guestLastName'],
+      },
       description:
         'Search the property’s guests by name, email, phone, or stay dates. Use it to find an existing ' +
         'guest before creating a new one, or to answer who is staying and when.',
@@ -1135,6 +1148,10 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_list_users`,
       requiredScopes: ['read:user'], // spec: getUsers
+      // Staff rather than guests, but still a roster of named people with contact details, and it
+      // takes no identifier at all. The property's own team is the audience; a guest in a
+      // conversation is not.
+      identityPolicy: { mode: 'subject-scoped' },
       description:
         'List the staff users of this property. Use it to know who can be assigned or contacted.',
       input: z.object({}).strict(),

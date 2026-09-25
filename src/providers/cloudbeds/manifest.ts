@@ -20,8 +20,22 @@ export const cloudbedsManifest: ProviderManifest = {
   // few minutes of staleness, not permanent invisibility. Bumped anyway: this is the rule the repo
   // wrote for itself two lines up, and the nearest precedent is a FIX commit for exactly this
   // omission (`bb48775`).
-  schemaVersion: '2026-09-10',
-  providerVersion: '0.8.0',
+  //
+  // Bumped again: three published tools now carry an `identityPolicy`, so `listTools()` output
+  // changed — the rule the paragraphs above keep restating. No tool was added or removed and no
+  // input schema moved, so a consumer that ignores the field sees exactly the menu it saw before;
+  // one that reads it can finally tell a guest lookup from a room-type read.
+  //
+  // Re-dated 2026-09-24: the first cut of that change never reached the wire — `tools/list` rebuilds
+  // each tool from three fields and dropped it, so the menu a consumer saw did NOT change and a
+  // bumped version promised something that had not shipped. It travels in `_meta` now (ADR 0019),
+  // and the date moves with the surface actually changing.
+  //
+  // Reconciled at merge (2026-09-25): both bumps above landed in the same window — the new tool and the
+  // published `identityPolicy` — so one date and one version carry the two, and the version steps once
+  // more so two independent surface changes do not collapse onto one `providerVersion`.
+  schemaVersion: '2026-09-25',
+  providerVersion: '0.9.0',
   logoUrl: '/assets/cloudbeds.svg',
   capabilities: { pagination: true },
   // A Cloudbeds token is scoped to its property; discover the propertyID via getHotels instead of
