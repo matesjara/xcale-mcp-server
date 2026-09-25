@@ -18,7 +18,12 @@ export const cloudbedsManifest: ProviderManifest = {
   // changed — the rule the paragraphs above keep restating. No tool was added or removed and no
   // input schema moved, so a consumer that ignores the field sees exactly the menu it saw before;
   // one that reads it can finally tell a guest lookup from a room-type read.
-  schemaVersion: '2026-09-15',
+  //
+  // Re-dated 2026-09-24: the first cut of that change never reached the wire — `tools/list` rebuilds
+  // each tool from three fields and dropped it, so the menu a consumer saw did NOT change and a
+  // bumped version promised something that had not shipped. It travels in `_meta` now (ADR 0018),
+  // and the date moves with the surface actually changing.
+  schemaVersion: '2026-09-24',
   providerVersion: '0.8.0',
   logoUrl: '/assets/cloudbeds.svg',
   capabilities: { pagination: true },

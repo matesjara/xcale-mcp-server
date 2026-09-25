@@ -12,7 +12,7 @@ import {
 import { ReferenceAuthExpiredError } from '../core/credential/reference-resolver';
 import { ProviderErrorCode } from '../core/errors';
 import type { ProviderRegistry } from '../core/registry';
-import type { InboundCallContext } from '../core/types';
+import { IDENTITY_POLICY_META_KEY, type InboundCallContext } from '../core/types';
 import { toMcpResult } from './result-mapping';
 
 /**
@@ -32,12 +32,20 @@ export function createMcpServer(
   );
 
   // Pillar: tools/list — flat list across all providers (namespaced mcp_{slug}_{verb}).
+  //
+  // This handler REBUILDS each tool field by field, so anything a provider declares beyond the
+  // three MCP core fields stops here unless it is named below. That is how `identityPolicy` was
+  // shipped and never reached a consumer (review of #101): the providers declared it, the
+  // repo's own tests read the provider list and saw it, and the wire never carried it.
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     const tools: Tool[] = registry.providers.flatMap((provider) =>
       provider.listTools().map((tool) => ({
         name: tool.name,
         description: tool.description,
         inputSchema: tool.inputSchema as Tool['inputSchema'],
+        ...(tool.identityPolicy
+          ? { _meta: { [IDENTITY_POLICY_META_KEY]: tool.identityPolicy } }
+          : {}),
       })),
     );
     return { tools };

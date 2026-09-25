@@ -36,6 +36,24 @@ export type ToolIdentityPolicy =
   /** Access earned by proving knowledge only the holder would have, rather than by naming them. */
   | { readonly mode: 'knowledge-proof' };
 
+/**
+ * The `_meta` key `identityPolicy` travels under in `tools/list`.
+ *
+ * NOT a style choice — measured. The SDK validates every published tool against its `ToolSchema`,
+ * a plain `z.object`, so zod strips any key it does not name: a top-level `identityPolicy` is
+ * silently dropped between this server and its consumer. `_meta` is the one passthrough the schema
+ * declares (`z.record(z.string(), z.unknown())`), and the MCP spec's own place for
+ * implementation-defined metadata. Verified against the installed SDK:
+ *
+ *   ToolSchema.parse({ …, identityPolicy })   → the key is gone
+ *   ToolSchema.parse({ …, _meta: { … } })     → `_meta` survives intact
+ *
+ * Namespaced because `_meta` is shared ground and the spec asks for it. The prefix is this
+ * SERVER's, never a consumer's — any MCP client can read the key without knowing who xcale-backend
+ * is, which is the consumer-agnostic bar.
+ */
+export const IDENTITY_POLICY_META_KEY = 'xcale.app/identityPolicy';
+
 export interface McpToolDefinition {
   /** Namespaced to avoid collisions: `mcp_{slug}_{verb}`. */
   readonly name: string;

@@ -70,7 +70,12 @@ describe('cloudbeds publishes whose data each tool can reach', () => {
 
   it('declares the version bump that a changed tools/list requires', () => {
     // The repo's own rule, and the nearest precedent is a FIX commit for exactly this omission.
-    expect(cloudbedsManifest.schemaVersion).toBe('2026-09-15');
+    //
+    // Re-dated to 09-24: the 09-15 bump announced a changed menu that never shipped — the handler
+    // dropped the field, so a consumer keyed on this version re-read the menu and found it
+    // identical. The version moves with the surface a consumer can actually observe, which is what
+    // `mcp.integration.test.ts` now pins over the wire.
+    expect(cloudbedsManifest.schemaVersion).toBe('2026-09-24');
     expect(cloudbedsManifest.providerVersion).toBe('0.8.0');
   });
 });
