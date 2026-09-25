@@ -1,0 +1,22 @@
+[
+  {
+    "id": 14,
+    "number": "14",
+    "status": "processing",
+    "currency": "COP",
+    "total": "400000",
+    "customer_id": 0,
+    "date_created": "2026-09-14T22:33:26",
+    "date_created_gmt": "2026-09-14T22:33:26"
+  },
+  {
+    "id": 15,
+    "number": "15",
+    "status": "completed",
+    "currency": "COP",
+    "total": "145000",
+    "customer_id": 3,
+    "date_created": "2026-09-15T10:05:00",
+    "date_created_gmt": "2026-09-15T15:05:00"
+  }
+]
