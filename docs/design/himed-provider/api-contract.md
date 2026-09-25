@@ -178,11 +178,14 @@ Context, ADR-0009). Igual que SaludTools.
 
 **Un solo endpoint**; el campo `accion` decide la operación. El `client.ts` mapea cada tool a su `accion`.
 
-### 2.5 Response envelope
+### 2.5 Response envelope — **verificado en sandbox (2026-09-24)**
 
-Éxito **201**; arrays JSON al tope para listados. "Paciente no encontrado" llega como
-`{ mensaje, cantidad: 0 }` (⏳ confirmar que otros "no encontrado" no lleguen como 200 con body vacío —
-patrón SaludTools). **`estado`/forma del body es la señal**, no solo el status.
+El Swagger declara tres códigos y su semántica: **`201`** = registro exitoso / paciente existe · **`401`** =
+error de validación o autenticación · **`200`** = *"consulta exitosa **o error de procesamiento capturado con
+estado 200"***. ⚠️ **Un `200` puede ser un error** → el adapter **debe inspeccionar el body**, nunca solo el
+status HTTP (mismo patrón que Toteat/Cloudbeds). Listados: array JSON al tope — verificado en vivo con
+`listarSedes` → `[{ idSede:number, sede, telefono, celular }]`. "No encontrado" (existePaciente):
+`{ mensaje, cantidad: 0 }`.
 
 ### 2.6 Error mapping
 
@@ -235,28 +238,36 @@ input: z.object({ idUsuario: z.string().min(1) }).strict()   // "listarTiposCita
 ```ts
 input: z.object({
   idUsuario: z.string().min(1),
-  idSede: z.number().int(),
-  fechaInicial: z.string(),        // ⏳ formato por verificar
-  forma: z.string(),               // ⏳ valores por verificar (doc truncada)
+  idSede: z.union([z.string(), z.number()]),
+  fechaInicial: z.string(),          // DD-MM-YYYY — verificado en sandbox ("01-10-2023")
+  fechaFinal: z.string().optional(), // DD-MM-YYYY o "none"
+  forma: z.enum(['texto']),          // el sandbox usa "texto"
 }).strict()   // "consultarDisponibilidad"
 ```
-Salida: array de slots. ⏳ **forma exacta por verificar en sandbox** (la doc quedó truncada).
+**Verificado en sandbox (request), 2026-09-24.** ⚠️ La clave del ejemplo aparece como `fechalnicial` (patrón
+I/l) — usar exactamente la que acepte el server. ⏳ Falta capturar la **forma de la respuesta** (no ejecuté este read).
 
 #### `mcp_himed_scheduling_create_appointment` — **write**
 ```ts
 input: z.object({
   idPaciente: z.string().min(4).max(20),
-  idSede: z.number().int(),
+  idSede: z.union([z.string(), z.number()]),
   idUsuario: z.string().min(1),
-  fechaCita: z.string(),           // ⏳ formato
-  horaInicioCita: z.string(),      // ⏳ formato
-  modalidadAtencion: z.number().int(),
-  tipo: z.number().int(),          // idTipoCita
-  // strModulo lo fija el adapter (identifica el origen) — no lo ve el modelo
+  fechaCita: z.string(),                 // DD-MM-YYYY (verif: "12-12-2023")
+  horaInicioCita: z.string(),            // HH:mm:ss (verif: "08:00:00"; clave ejemplo "horalnicioCita")
+  modalidadAtencion: z.string(),         // "1" (catálogo modalidad)
+  idTipoCita: z.string(),                // "3" (catálogo tipo de cita)
+  tipo: z.enum(['paciente']),            // quién pide (paciente / tercero)
+  observaciones: z.string().optional(),
+  nombrePideCita: z.string().optional(),     // si un tercero agenda por el paciente
+  apellidoPideCita: z.string().optional(),
+  parentescoPideCita: z.string().optional(), // catálogo de parentesco ("17")
+  // strModulo lo fija el adapter ("himed") — no lo ve el modelo
 }).strict()   // "CrearCita"
 ```
-Éxito devuelve `idCita`. ⏳ forma de éxito/error por verificar. **Precondición:** el paciente debe existir
-(`patient_exists` / `create_patient` primero).
+**Request verificado en sandbox (ejemplo), 2026-09-24.** Campos nuevos vs. la doc: `observaciones`,
+`nombre/apellido/parentescoPideCita`, `idTipoCita` (distinto de `tipo`). ⏳ forma de la **respuesta**
+(éxito con `idCita` / error) por capturar. **Precondición:** el paciente debe existir (`patient_exists` / `create_patient`).
 
 #### `mcp_himed_scheduling_list_patient_appointments` — read
 ```ts
@@ -288,11 +299,14 @@ Ninguna se publica en `tools/list` (feature-design AD-9): la key puede ser **adm
 
 | Área | Estado |
 |:--|:--|
-| Nombres de endpoint / `accion` / campos de request | De la doc; `⏳ por verificar` con 1 llamada al sandbox |
-| Formas de response (listados) | Ejemplos de la doc; verificar |
-| `consultarDisponibilidad` / `CrearCita` (formas completas) | **Faltan** (doc truncada) — obligatorio verificar |
-| Formatos de fecha/hora | ⏳ desconocidos |
-| Envelope de creación (R-5) y "no encontrado" (200 vacío) | ⏳ verificar |
+| **El sandbox ejecuta sin credenciales propias** | ✅ **verificado** (Swagger "Execute" sin "Authorize"; `listarSedes` devolvió 200 real con las creds demo del ejemplo) |
+| `consultarDisponibilidad` / `CrearCita` (request) | ✅ **capturados del sandbox** (ver §2.7) — antes truncados |
+| Formatos de fecha/hora | ✅ `DD-MM-YYYY` y `HH:mm:ss` |
+| Envelope: **200 puede ser error** | ✅ verificado (Swagger); inspeccionar body, no status |
+| Respuesta de `listarSedes` | ✅ verificada en vivo |
+| Respuestas de `consultarDisponibilidad` / `CrearCita` | ⏳ por capturar (no ejecuté disponibilidad ni la escritura) |
+| Claves `fechalnicial` / `horalnicioCita` (patrón I/l) | ⏳ usar exactamente la que acepte el server (ejecutar) |
+| Envelope de creación (R-5) y "no encontrado" (200 vacío) | ⏳ verificar al ejecutar la escritura |
 | Tope de página (R-6) | ⏳ verificar |
 | ¿`codigo_servicio` secreto? (§2.2) | ✅ resuelto por doc (identificador, no secreto); confirmar en activación |
 | URLs de producción | ⏳ las libera HiMed tras el sandbox |
