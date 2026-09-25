@@ -1,4 +1,4 @@
-# ADR 0018: A tool's identity policy travels in `_meta`, under this server's namespace
+# ADR 0019: A tool's identity policy travels in `_meta`, under this server's namespace
 
 - **Status:** Accepted
 - **Date:** 2026-09-24
