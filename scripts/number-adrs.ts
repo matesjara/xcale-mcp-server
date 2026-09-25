@@ -11,7 +11,8 @@
  * Ordering is by the commit that first added each ADR (uncommitted ones sort last), so numbers
  * follow the real history rather than the alphabet.
  *
- * See docs/adr/README.md and .claude/skills/adr/SKILL.md.
+ * See docs/adr/README.md and the xcale layer's /adr skill
+ * (https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/adr/references/xcale-mcp-server.md).
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
