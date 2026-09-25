@@ -157,11 +157,12 @@ metadataSchema: z.object({ codigo_servicio: z.string().min(1) }).strict()   // v
 El handler pone `codigo_servicio` (de `ctx.metadata`) en el body; el materializer pone `token` (el secreto)
 en el body.
 
-> ⚠️ **RIESGO ABIERTO (decide el diseño):** esto asume que **`codigo_servicio` NO es secreto** (routing).
-> Si HiMed lo considera secreto, `X-Provider-Metadata` **no lo redacta** (glosario) → violación; y el
-> `ResolvedCredential` de hoy lleva **un** secreto, no dos, así que **no puede cargar ambos** sin abrir la
-> vía multi-material (la misma puerta que la auth imperativa que creíamos cerrada). **Confirmar con HiMed si
-> `codigo_servicio` es secreto o identificador.** Si es secreto → esto necesita su propio ADR.
+> ✅ **Resuelto por la doc (2026-09-24), confirmar en activación.** La doc distingue: `token` = **"Código de
+> seguridad"** (el secreto) y `codigo_servicio` = **"Código"** (sin "de seguridad" → identificador del
+> servicio); además `codigo_servicio` **por sí solo no da acceso** (se necesita el `token`). Por eso el diseño
+> de arriba es correcto: `codigo_servicio` como metadata (identificador, como `xir` de Toteat), `token` como el
+> único secreto. **No** se reabre la vía multi-material ni hace falta ADR extra. Queda una confirmación barata
+> en la activación (si HiMed dijera que `codigo_servicio` también es secreto, ahí sí habría que rediseñar).
 
 ### 2.3 Context schema
 
@@ -293,7 +294,7 @@ Ninguna se publica en `tools/list` (feature-design AD-9): la key puede ser **adm
 | Formatos de fecha/hora | ⏳ desconocidos |
 | Envelope de creación (R-5) y "no encontrado" (200 vacío) | ⏳ verificar |
 | Tope de página (R-6) | ⏳ verificar |
-| ¿`codigo_servicio` secreto? (§2.2) | ⏳ **bloqueante de diseño** — preguntar a HiMed |
+| ¿`codigo_servicio` secreto? (§2.2) | ✅ resuelto por doc (identificador, no secreto); confirmar en activación |
 | URLs de producción | ⏳ las libera HiMed tras el sandbox |
 
 ## 6. Fixtures & tests
