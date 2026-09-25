@@ -55,7 +55,7 @@ the customer's clinical system over WhatsApp. Clinical modules: doctors, locatio
 | ADR | Status | Reason |
 |---|---|---|
 | `api_key placement: 'body'` in the materializer | **Definite** | Touches `src/core/auth/authentication-materializer.ts` → breaks the `add-provider` golden rule → requires an exceptional ADR. Enables phase 1. |
-| Imperative/signed auth for appointments | **Conditional** | Only if the SHA-256 token is computed per request. No current ADR covers signed auth (0010 explicitly leaves it out). |
+| ~~Imperative/signed auth for appointments~~ | **NOT needed** | The docs confirm `token`/`codigo_servicio` are static values HiMed issues (not computed per request) — see Q1. No signed-auth variant required. |
 
 The B-vs-A choice is **not an ADR** (it applies ADR-0004): documented here and in the feature-design.
 
@@ -93,8 +93,17 @@ and a branch in the materializer that inserts the secret into the JSON body befo
 
 ## 5. Open questions
 
-- **Q1 (blocking phase 2 · external):** how is the autoagendamiento SHA-256 `token` generated?
-  Static pre-hashed → fits body-placement (no imperative ADR). Computed per request → signed auth → conditional ADR.
+- **Q1 (technical) — RESOLVED per docs (2026-09-24):** how is the autoagendamiento SHA-256 `token` generated?
+
+  _Answer:_ the docs state `codigo_servicio` and `token` are **"ambos generados por HiMed Solutions y cifrados
+  con SHA-256"** — static values HiMed issues (the examples reuse the same `token` across every call). **Not**
+  computed per request → **not** signed/imperative auth. (Resolved from the developer docs, not HiMed's email —
+  the email only pointed us to the portal.)
+
+  _Consequence:_ the imperative-auth ADR is **dropped**. `himed-scheduling` auth = static values in the body:
+  model `token` as the body-placed secret and `codigo_servicio` as non-secret metadata (`X-Provider-Metadata`),
+  pending a one-line confirm that `codigo_servicio` is safe as non-secret routing. Worth confirming static-ness
+  at activation, but the design no longer blocks on it.
 - **Q2 (commercial) — RESOLVED (2026-09-15, Mateo):** who pays for the HiMed API Key?
 
   _Decision:_ **each client clinic pays** for its own HiMed API Key. xcale is **only the integrator**.
@@ -113,8 +122,12 @@ and a branch in the materializer that inserts the secret into the JSON body befo
   _Why:_ creating an appointment (phase 2) **requires the patient to already exist** in HiMed, so patient
   creation must land in phase 1 — starting read-only would strand phase 2 with a half-built dependency. Being
   PHI writes, these tools go with field curation (see Q4). See D3.
-- **Q4 (security · PHI) — OPEN:** results carry health data (names, document, phone, email, address, birth
-  date) that enters the LLM context and the stored conversation. soul.md #1.
+- **Q4 (security · PHI) — OPEN · tracked in backend as issue #1055 (Ley 1581):** results carry health data
+  (names, document, phone, email, address, birth date) that enters the LLM context and the stored conversation.
+  soul.md #1. Per JuanJo (epic #1053), the Ley 1581 consent question is now **backend issue #1055** and it
+  **gates three integrations** (this one, #1039, SaludTools) — one answer covers all three, and it belongs in
+  front of Mateo **before Senzzes starts (November)**. The provider-side mitigation below still stands; the
+  legal/consent decision lives in #1055.
 
   _Possible solution (recommendation, not decided):_ **per-tool field projection (allow-list)** curated in the
   adapter — each tool returns only what its job needs and drops the rest; allow-list so a new sensitive HiMed
@@ -210,7 +223,43 @@ Needed to map fields (`tipo_documento`, etc.) in phase 1; download it and versio
 
 No new glossary terms resolved in this session (the decisions are feature-level, not domain vocabulary).
 
-## 12. Next step
+## 12. Scope refinement (2026-09-24)
 
-Close Q1/Q3 (and confirm Q2 with the boss) → authorize `/feature-design` for `himed-provider` with the
-two-provider, phased plan. The body-placement ADR is written before/alongside the phase-1 code.
+Request credentials / build for **Autoagendamiento + Demográficos only**. The standalone **Doctores** and
+**Sedes** APIs are **dropped** — Autoagendamiento already exposes `listarSedes` and `listarUsuarios`
+(professionals, with `idUsuario` = the professional's document), so they are redundant for the booking flow.
+(JuanJo flags the Doctors API as an advantage over SaludTools for enumerating professionals; that advantage is
+already captured by `listarUsuarios`, so no separate credential is needed unless we later want richer doctor data.)
+
+## 13. Learnings from SaludTools (backend epic #1053, JuanJo — transferable to HiMed)
+
+SaludTools is the sibling Colombian clinical integration, one step ahead of us. Transferable findings:
+
+- **Health vertical axis is shared, already built.** A `health` axis is registered on `feat/saludtools-connect`;
+  HiMed registers as another `(health, himed)` pair in `register-vertical-scopes.ts` — the registry keys on the
+  pair, nothing else changes. **Failure mode to avoid:** a provider with **no registered vertical scope is
+  connectable but completely inert** (turn resolves to `null` scope, tools silently unused, nothing throws). So
+  the backend track MUST register `(health, himed)`. Do **not** fold clinics into `booking`.
+- **Credential is likely admin-only.** SaludTools issues admin/superadmin keys with no read-only option — the
+  key can do anything staff can. If HiMed is the same, the **only** guard against an agent deleting a record is
+  the gateway **not publishing destructive tools** in `tools/list`. → curate destructive tools out; confirm the
+  key's scope with HiMed early.
+- **Do not trust the portal — verify one live call per shape.** SaludTools' docs contradicted production in ~10
+  places (enum with 3 documented / 12 live, an undocumented page-size ceiling, a "not found" returned as success
+  with empty body). Comparison table: `docs/design/saludtools-provider/grill-notes.md` §6.
+- **Create may return its id in an envelope, not the body.** Projecting a create like a read turned a successful
+  registration into an error — with the patient already created → a retry makes a **duplicate**. Handle for `create_patient`.
+- **Page-size ceiling.** SaludTools refuses > 20 while the gateway defaults to 25 → every paginated call failed
+  until clamped. Check HiMed's ceiling early.
+- **Execution context:** SaludTools injects nothing (one key = a company with several sites; site travels as an
+  explicit per-call arg). HiMed is the same shape → **no `contextSchema`**, `idSede` explicit (consistent with §7).
+- **MCP route fit SaludTools cleanly** (`credential_exchange` + `reference`, no core changes, no ADR). HiMed
+  differs: its `api_key`-in-body needs the body-placement core change (§4) — HiMed's auth is the uglier one.
+
+## 14. Next step
+
+- **Provider track (mcp-server), now:** build the `himed` provider (Autoagendamiento + Demográficos) — the
+  sandbox runs **without credentials**, so shapes can be verified now. Write the body-placement ADR alongside.
+- **Backend track (xcale-backend), gated:** register `(health, himed)`, PHI curation, Rail A wiring. **Base off
+  `dev` once `feat/saludtools-connect` merges** (it is 25 commits ahead, unmerged — do not stack on it). Tracked
+  under epic #1053; Q4/Ley in #1055.
