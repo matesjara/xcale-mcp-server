@@ -283,6 +283,29 @@ input: z.object({ idCita: z.string().min(1), idPaciente: z.string().min(4).max(2
 
 ---
 
+### 2.8 Formas de respuesta verificadas en sandbox (2026-09-24)
+
+Ejecutadas en vivo contra `socket.medsas.co/test/...` **sin credenciales propias** (creds demo del ejemplo):
+
+| accion | HTTP | Respuesta (verificada) |
+|:--|:--|:--|
+| `existePaciente` | 201 | `[{ cantidad:number, nombre:string, idEntidad:string }]` · no encontrado: `{ mensaje, cantidad:0 }` |
+| `listarSedes` | 200 | `[{ idSede:number, sede:string, telefono:string, celular:string }]` |
+| `listarEspecialidades` | 200 | `[{ idEspecialidad:string, descripcion:string }]` |
+| `listarUsuarios` | 200 | `[{ idUsuario:string, usuario:string, especialidad:string, success:boolean }]` |
+| `listarModalidades` | 200 | `[{ idModalidad:number, descripcion:string }]` |
+| `consultarDisponibilidad` | 200 | `[{ disponibilidad:string, fecha:"DD-MM-YYYY", hora:"HH:mm:ss", duracion:"HH:mm:ss" }]` |
+| `listarTiposCitas` | (doc) | `[{ ID:number, nombre:string, recomendacion:string, success:boolean }]` — ver typo abajo |
+| `citasPaciente` | (doc) | `[{ idCita, textoCita }]` — ver typo abajo |
+| error de accion faltante/mala | **401** | `{ mensaje: "No se ha proporcionado el valor del campo 'acción'" }` |
+
+⚠️ **Los ejemplos del sandbox de HiMed traen typos** (R-2, no confiar en la doc):
+- `listarTiposCitas` viene como **`"accion": "listar TiposCitas"`** (con espacio) → da 401. El valor correcto es `listarTiposCitas`.
+- `consultarDisponibilidad`/`CrearCita` traen las claves como `fechalnicial` / `horalnicioCita` (patrón I/l).
+- **Regla de build:** usar los identificadores canónicos correctos, no copiar los ejemplos a ciegas; cada `accion` se prueba una vez.
+
+Pendiente (writes, no ejecutados por precaución): respuesta de `CrearCita` (éxito con `idCita`) y `cancelarCita`.
+
 ## 3. Curación PHI (allow-list) — resumen
 
 `data` conserva la semántica de HiMed pero **proyectada** por tool (Fidelity over Unification, ADR-0009).
@@ -304,9 +327,10 @@ Ninguna se publica en `tools/list` (feature-design AD-9): la key puede ser **adm
 | Formatos de fecha/hora | ✅ `DD-MM-YYYY` y `HH:mm:ss` |
 | Envelope: **200 puede ser error** | ✅ verificado (Swagger); inspeccionar body, no status |
 | Respuesta de `listarSedes` | ✅ verificada en vivo |
-| Respuestas de `consultarDisponibilidad` / `CrearCita` | ⏳ por capturar (no ejecuté disponibilidad ni la escritura) |
-| Claves `fechalnicial` / `horalnicioCita` (patrón I/l) | ⏳ usar exactamente la que acepte el server (ejecutar) |
-| Envelope de creación (R-5) y "no encontrado" (200 vacío) | ⏳ verificar al ejecutar la escritura |
+| Respuestas de **todos los reads** (existePaciente, list_*, disponibilidad) | ✅ **verificadas en vivo** (ver §2.8) |
+| Respuestas de los **writes** (`CrearCita`, `cancelarCita`) | ⏳ por capturar (no ejecuté escrituras en el sandbox) |
+| Typos en los ejemplos de HiMed (`"listar TiposCitas"`, `fechalnicial`/`horalnicioCita`) | ✅ **detectados** (R-2) — usar los identificadores canónicos |
+| "No encontrado" (existePaciente) | ✅ `{ mensaje, cantidad:0 }` · error de accion → 401 `{ mensaje }` |
 | Tope de página (R-6) | ⏳ verificar |
 | ¿`codigo_servicio` secreto? (§2.2) | ✅ resuelto por doc (identificador, no secreto); confirmar en activación |
 | URLs de producción | ⏳ las libera HiMed tras el sandbox |
