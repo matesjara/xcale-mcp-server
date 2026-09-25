@@ -193,23 +193,31 @@ export function buildHimedSchedulingTools(
         fechaCita: z.string().min(1).describe('DD-MM-YYYY'),
         horaInicioCita: z.string().min(1).describe('HH:mm:ss'),
         modalidadAtencion: z.union([z.string(), z.number()]),
-        idTipoCita: z.union([z.string(), z.number()]),
-        tipo: z.enum(['paciente']).default('paciente'),
+        idTipoCita: z.union([z.string(), z.number()]).optional(),
+        tipo: z.enum(['paciente', 'usuario']).default('paciente'),
         observaciones: z.string().optional(),
+        // Used when tipo='usuario' (a third party books): who is requesting the appointment.
         nombrePideCita: z.string().optional(),
         apellidoPideCita: z.string().optional(),
-        parentescoPideCita: z.string().optional(),
+        parentescoPideCita: z
+          .string()
+          .optional()
+          .describe(
+            'Relationship catalog code — 15 = patient books own, 17 = unknown (default 15)',
+          ),
       })
       .strict(),
     handler: async (args, ctx) => {
-      // NOTE (R-2, sandbox 2026-09-25): CrearCita rejected the doc example with
-      // `401 {estado:'error', mensaje:'El parentesco es obligatorio'}` even though it carried
-      // `parentescoPideCita:'17'` — so the server's required field is NOT `parentescoPideCita`.
-      // The exact parentesco field/requirement (and whether tipo='paciente' should exempt it) must be
-      // confirmed with HiMed before the write path ships. Also confirm the `horaInicioCita` key
-      // (the example spells it `horalnicioCita`, an I/l typo).
+      // Per the docs, HiMed requires `parentescoPideCita`: 15 = patient books their own appointment,
+      // 17 = unknown. A self-booking (tipo='paciente') defaults to 15 — the sandbox example's 401
+      // "El parentesco es obligatorio" was that example pairing tipo='paciente' with 17. The field name
+      // and `horaInicioCita` are the doc's canonical spellings; the example's `horalnicioCita` is a typo.
       const out = unwrapHimedScheduling(
-        await call(ctx, 'CrearCita', { ...args, strModulo: 'himed' }),
+        await call(ctx, 'CrearCita', {
+          ...args,
+          parentescoPideCita: args.parentescoPideCita ?? '15',
+          strModulo: 'himed',
+        }),
         'create_appointment',
       );
       return out.ok ? ok(out.data) : err(out.code, out.message);

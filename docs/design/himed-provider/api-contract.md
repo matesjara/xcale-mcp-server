@@ -337,9 +337,12 @@ Ejecutadas en vivo contra `socket.medsas.co/test/...` **sin credenciales propias
 **Writes verificados en sandbox (2026-09-25):**
 
 - `cancelarCita` → **200** `{ success: true, mensaje }`. Solo requiere **`idCita`** (el `idPaciente` del doc es opcional).
-- `CrearCita` → **401** `{ estado: "error", mensaje: "El parentesco es obligatorio" }` — aun enviando el
-  `parentescoPideCita: "17"` del ejemplo. ⚠️ El campo de parentesco real **no es** `parentescoPideCita`;
-  confirmar con HiMed el nombre/requisito exacto (y si `tipo:"paciente"` debería eximirlo) antes de producción.
+- `CrearCita` → el `401 { estado:"error", mensaje:"El parentesco es obligatorio" }` del ejemplo fue porque el
+  ejemplo del sandbox emparejaba `tipo:"paciente"` con `parentescoPideCita:"17"`. **La doc lo aclara (no hay que
+  preguntar a HiMed):** el campo ES `parentescoPideCita` (requerido), con **`15` = el paciente agenda para sí
+  mismo**, `17` = desconocido. El adapter default-ea `15` en autoagendamiento. La clave de hora es
+  **`horaInicioCita`** (hh:mm:ss) por doc — el `horalnicioCita` del ejemplo es un typo del ejemplo, y el código
+  ya usa la correcta. → `create_appointment` **desbloqueado** (falta confirmar el 201 en sandbox cuando el editor lo permita).
 - **`401` está sobrecargado**: HiMed lo usa para token inválido **y** para errores de validación. El envelope de
   error es `{ estado:"error"|success:false, mensaje }`. → El adapter **clasifica por el `mensaje`** (contiene
   "token" → `PROVIDER_AUTH_EXPIRED`; si no → `PROVIDER_INVALID_INPUT`), nunca por el status. Ya implementado en
