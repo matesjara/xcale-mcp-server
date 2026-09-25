@@ -47,11 +47,11 @@ docs/adr/
 
 ### Core (Slice 0 — foundation)
 
-| Archivo | Símbolo | Firma / cambio | Intención | Tipo |
-|:--|:--|:--|:--|:--|
-| `src/core/provider-port.ts:23` | `ProviderAuthDescriptor` | `placement: 'header' \| 'query' \| 'body'` | Habilita declarar credencial en el body | MODIFIED |
-| `src/core/auth/authentication-materializer.ts:31-45` | `materialize()` | nueva rama en el case `api_key`: si `placement === 'body'`, parsea `spec.body` (JSON), inserta `{[field.key]: secret}`, re-serializa; header/query sin cambios | Coloca el secreto dentro del JSON del body (único punto con `.reveal()`) | MODIFIED |
-| `src/core/auth/__tests__/authentication-materializer.test.ts` | test | caso: `placement:'body'` mete el secreto en el body y no lo filtra en URL/headers | Fija el contrato del nuevo placement | MODIFIED |
+| Archivo                                                       | Símbolo                  | Firma / cambio                                                                                                                                                 | Intención                                                                | Tipo     |
+| :------------------------------------------------------------ | :----------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------- | :------- |
+| `src/core/provider-port.ts:23`                                | `ProviderAuthDescriptor` | `placement: 'header' \| 'query' \| 'body'`                                                                                                                     | Habilita declarar credencial en el body                                  | MODIFIED |
+| `src/core/auth/authentication-materializer.ts:31-45`          | `materialize()`          | nueva rama en el case `api_key`: si `placement === 'body'`, parsea `spec.body` (JSON), inserta `{[field.key]: secret}`, re-serializa; header/query sin cambios | Coloca el secreto dentro del JSON del body (único punto con `.reveal()`) | MODIFIED |
+| `src/core/auth/__tests__/authentication-materializer.test.ts` | test                     | caso: `placement:'body'` mete el secreto en el body y no lo filtra en URL/headers                                                                              | Fija el contrato del nuevo placement                                     | MODIFIED |
 
 > **Nota de diseño (materializer):** `RequestSpec.body` es `string \| URLSearchParams` (`http-request.ts:25`).
 > La rama body aplica solo a `body` JSON (string); si el body es `URLSearchParams` o ausente, es un error de
@@ -59,41 +59,41 @@ docs/adr/
 
 ### Provider `himed` (Slice 1 — Demográficos)
 
-| Archivo | Símbolo | Firma | Intención | Tipo |
-|:--|:--|:--|:--|:--|
-| `himed/manifest.ts` | `himedManifest` | `ProviderManifest` (`slug:'himed'`, `category:'health'`) | Identidad + versión | NEW |
-| `himed/auth.ts` | `himedAuth` | `ProviderAuthDescriptor` `api_key`/`forwarded`/`fields:[{key:'api_key',placement:'body'}]` | Credencial en body | NEW |
-| `himed/client.ts` | `createHimedClient(deps?)` · `post(path, request, body)` | arma `RequestSpec` POST a `Demograficos/{op}.php` con body JSON | Cliente HTTP fino | NEW |
-| `himed/errors.ts` | `classifyHimedFailure(status, body): ProviderErrorCode` | 401→`AUTH_EXPIRED`; 406/417/404→`INVALID_INPUT`; 5xx→`UNAVAILABLE` | Mapeo sobre `mapHttpStatusToErrorCode` | NEW |
-| `himed/tools.ts` | `buildHimedTools(client)` → `create_patient`, `update_patient`, `change_patient_document` | `defineTool` con input zod (ver api-contract §1.7); salida curada `{estado,mensaje}` | Las 3 tools de paciente (write) | NEW |
-| `himed/provider.ts` | `createHimedProvider(deps?)` · `himedProvider` | `createProvider({manifest,auth,tools})` (patrón `toteat/provider.ts:22-31`) | Factory + instancia default | NEW |
+| Archivo             | Símbolo                                                                                   | Firma                                                                                      | Intención                              | Tipo |
+| :------------------ | :---------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------- | :------------------------------------- | :--- |
+| `himed/manifest.ts` | `himedManifest`                                                                           | `ProviderManifest` (`slug:'himed'`, `category:'health'`)                                   | Identidad + versión                    | NEW  |
+| `himed/auth.ts`     | `himedAuth`                                                                               | `ProviderAuthDescriptor` `api_key`/`forwarded`/`fields:[{key:'api_key',placement:'body'}]` | Credencial en body                     | NEW  |
+| `himed/client.ts`   | `createHimedClient(deps?)` · `post(path, request, body)`                                  | arma `RequestSpec` POST a `Demograficos/{op}.php` con body JSON                            | Cliente HTTP fino                      | NEW  |
+| `himed/errors.ts`   | `classifyHimedFailure(status, body): ProviderErrorCode`                                   | 401→`AUTH_EXPIRED`; 406/417/404→`INVALID_INPUT`; 5xx→`UNAVAILABLE`                         | Mapeo sobre `mapHttpStatusToErrorCode` | NEW  |
+| `himed/tools.ts`    | `buildHimedTools(client)` → `create_patient`, `update_patient`, `change_patient_document` | `defineTool` con input zod (ver api-contract §1.7); salida curada `{estado,mensaje}`       | Las 3 tools de paciente (write)        | NEW  |
+| `himed/provider.ts` | `createHimedProvider(deps?)` · `himedProvider`                                            | `createProvider({manifest,auth,tools})` (patrón `toteat/provider.ts:22-31`)                | Factory + instancia default            | NEW  |
 
 ### Provider `himed-scheduling` (Slice 2 — Autoagendamiento)
 
-| Archivo | Símbolo | Firma | Intención | Tipo |
-|:--|:--|:--|:--|:--|
-| `himed-scheduling/manifest.ts` | `himedSchedulingManifest` | `ProviderManifest` (`capabilities:{webhooks:false}`) | Identidad | NEW |
-| `himed-scheduling/auth.ts` | `himedSchedulingAuth` | `api_key`/`forwarded`/`fields:[{key:'token',placement:'body'}]` | `token` = único secreto en body | NEW |
-| `himed-scheduling/context.ts` | `himedSchedulingContext` | `z.object({ codigo_servicio: z.string().min(1) }).strict()` | `codigo_servicio` como metadata (no secreto, §2.2 api-contract) | NEW |
-| `himed-scheduling/client.ts` | `createHimedSchedulingClient(deps?)` · `call(accion, request, ctx, args)` | arma un POST único; mete `accion` + args + `ctx.metadata.codigo_servicio` en el body; el materializer añade `token` | Un endpoint, dispatch por `accion` | NEW |
-| `himed-scheduling/errors.ts` | `classifyHimedSchedulingFailure(body)` | mensajes de token→`AUTH_EXPIRED`; resto→`INVALID_INPUT`/`ERROR` | Mapeo por forma del body | NEW |
-| `himed-scheduling/tools.ts` | `buildHimedSchedulingTools(client)` → 10 tools (ver api-contract §2.7) | `toolFactory<{codigo_servicio}>()`; inputs zod; salida curada PHI | patient_exists, list_*, get_availability, create/cancel_appointment, list_patient_appointments | NEW |
-| `himed-scheduling/provider.ts` | `createHimedSchedulingProvider(deps?)` · `himedSchedulingProvider` | `createProvider({manifest,auth,metadataSchema:context,tools})` | Factory + instancia | NEW |
+| Archivo                        | Símbolo                                                                   | Firma                                                                                                               | Intención                                                                                       | Tipo |
+| :----------------------------- | :------------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------- | :--- |
+| `himed-scheduling/manifest.ts` | `himedSchedulingManifest`                                                 | `ProviderManifest` (`capabilities:{webhooks:false}`)                                                                | Identidad                                                                                       | NEW  |
+| `himed-scheduling/auth.ts`     | `himedSchedulingAuth`                                                     | `api_key`/`forwarded`/`fields:[{key:'token',placement:'body'}]`                                                     | `token` = único secreto en body                                                                 | NEW  |
+| `himed-scheduling/context.ts`  | `himedSchedulingContext`                                                  | `z.object({ codigo_servicio: z.string().min(1) }).strict()`                                                         | `codigo_servicio` como metadata (no secreto, §2.2 api-contract)                                 | NEW  |
+| `himed-scheduling/client.ts`   | `createHimedSchedulingClient(deps?)` · `call(accion, request, ctx, args)` | arma un POST único; mete `accion` + args + `ctx.metadata.codigo_servicio` en el body; el materializer añade `token` | Un endpoint, dispatch por `accion`                                                              | NEW  |
+| `himed-scheduling/errors.ts`   | `classifyHimedSchedulingFailure(body)`                                    | mensajes de token→`AUTH_EXPIRED`; resto→`INVALID_INPUT`/`ERROR`                                                     | Mapeo por forma del body                                                                        | NEW  |
+| `himed-scheduling/tools.ts`    | `buildHimedSchedulingTools(client)` → 10 tools (ver api-contract §2.7)    | `toolFactory<{codigo_servicio}>()`; inputs zod; salida curada PHI                                                   | patient*exists, list*\*, get_availability, create/cancel_appointment, list_patient_appointments | NEW  |
+| `himed-scheduling/provider.ts` | `createHimedSchedulingProvider(deps?)` · `himedSchedulingProvider`        | `createProvider({manifest,auth,metadataSchema:context,tools})`                                                      | Factory + instancia                                                                             | NEW  |
 
 ### Integración (Slice 3 — orquestador)
 
-| Archivo | Cambio | Tipo |
-|:--|:--|:--|
+| Archivo                        | Cambio                                                                      | Tipo     |
+| :----------------------------- | :-------------------------------------------------------------------------- | :------- |
 | `src/providers/index.ts:14-19` | importar y agregar `himedProvider`, `himedSchedulingProvider` a `PROVIDERS` | MODIFIED |
 
 ## Slices verticales (ordenados)
 
-| # | Slice | Banda | Depende de | Footprint (owns) |
-|:--|:--|:--|:--|:--|
-| **S0** | ADR body-placement + `placement:'body'` en el materializer + tests | foundation (orquestador) | — | `docs/adr/`, `src/core/provider-port.ts`, `src/core/auth/*` |
-| **S1** | Provider `himed` (Demográficos, 3 tools) + fixtures/tests + verificación sandbox | independent (subagente) | S0 | `src/providers/himed/**` |
-| **S2** | Provider `himed-scheduling` (Autoagendamiento, 10 tools) + fixtures/tests + verificación sandbox | independent (subagente) | S0 | `src/providers/himed-scheduling/**` |
-| **S3** | Registro en `index.ts` + round-trip (`server/discover`/`tools/list`/`tools/call` incl. 401) | integration (orquestador) | S1, S2 | `src/providers/index.ts` |
+| #      | Slice                                                                                            | Banda                     | Depende de | Footprint (owns)                                            |
+| :----- | :----------------------------------------------------------------------------------------------- | :------------------------ | :--------- | :---------------------------------------------------------- |
+| **S0** | ADR body-placement + `placement:'body'` en el materializer + tests                               | foundation (orquestador)  | —          | `docs/adr/`, `src/core/provider-port.ts`, `src/core/auth/*` |
+| **S1** | Provider `himed` (Demográficos, 3 tools) + fixtures/tests + verificación sandbox                 | independent (subagente)   | S0         | `src/providers/himed/**`                                    |
+| **S2** | Provider `himed-scheduling` (Autoagendamiento, 10 tools) + fixtures/tests + verificación sandbox | independent (subagente)   | S0         | `src/providers/himed-scheduling/**`                         |
+| **S3** | Registro en `index.ts` + round-trip (`server/discover`/`tools/list`/`tools/call` incl. 401)      | integration (orquestador) | S1, S2     | `src/providers/index.ts`                                    |
 
 S1 y S2 tienen footprints **disjuntos** → corren en paralelo tras S0. Nadie más escribe el core después de S0.
 
@@ -113,6 +113,7 @@ vacío), tope de página (R-6). Lo capturado alimenta `__fixtures__/`.
 ## Test strategy + Definition of Done
 
 Por slice y global (soul.md: nada "done" sin chequeo real):
+
 - **S0:** `authentication-materializer.test.ts` — body placement mete el secreto en el body y **no** en URL/headers; quitar la rama pone el test en rojo.
 - **S1/S2:** conformance (`runProviderConformance`) + por tool: input zod valida, salida curada (ningún campo PHI fuera del allow-list), errores mapeados (token→`PROVIDER_AUTH_EXPIRED`), redacción de credencial en `core/__tests__/http.test.ts`, no-duplicación de `create_patient` (envelope), y que ninguna tool destructiva aparezca en `tools/list`.
 - **Global:** `npx tsc --noEmit` limpio · `npm run lint` limpio · `npm test` verde · round-trip S3 (incl. 401→`PROVIDER_AUTH_EXPIRED`).

@@ -72,4 +72,88 @@ describe('HiMed (Demográficos) provider', () => {
     expect(result.kind).toBe('error');
     if (result.kind === 'error') expect(result.code).toBe(ProviderErrorCode.INVALID_INPUT);
   });
+
+  it('list_doctors posts to Usuarios/consultarUsuarios.php and curates out professional PHI', async () => {
+    const sink: Captured[] = [];
+    const provider = createHimedProvider({
+      fetchImpl: fakeFetch(
+        200,
+        {
+          estado: 'success',
+          mensaje: 'ok',
+          usuarios: [
+            {
+              id_usuario: '12333',
+              nombres: 'Médico pruebas',
+              apellidos: 'del Río',
+              rol: 'Médico Especialista',
+              id_especialidad: '232',
+              email: 'xxx@xxx.com',
+              celular: '3209872211',
+              direccion: 'El Poblado',
+              fecha_nacimiento: '1992-06-09',
+            },
+          ],
+        },
+        sink,
+      ),
+    });
+    const result = await provider.callTool(
+      'mcp_himed_list_doctors',
+      { idEspecialidad: '232' },
+      cred(),
+    );
+    expect(result.kind).toBe('success');
+    const body = JSON.parse(sink[0]!.body ?? '{}') as Record<string, unknown>;
+    expect(sink[0]!.url).toContain('/Usuarios/consultarUsuarios.php');
+    expect(body.api_key).toBe('KEY123');
+    if (result.kind === 'success') {
+      expect(result.data).toEqual([
+        {
+          idUsuario: '12333',
+          nombres: 'Médico pruebas',
+          apellidos: 'del Río',
+          rol: 'Médico Especialista',
+          idEspecialidad: '232',
+        },
+      ]);
+      // PHI dropped
+      expect(JSON.stringify(result.data)).not.toContain('xxx@xxx.com');
+      expect(JSON.stringify(result.data)).not.toContain('1992-06-09');
+    }
+  });
+
+  it('list_locations posts to Sedes/consultarSedes.php and returns curated sede rows', async () => {
+    const provider = createHimedProvider({
+      fetchImpl: fakeFetch(200, {
+        estado: 'success',
+        mensaje: 'ok',
+        info_sede: [
+          {
+            id_sede: '1',
+            sede: 'Medellín',
+            codigo_prestador: '0502515201',
+            direccion: 'Calle 10 # 12-28',
+            telefono: '5405960',
+            celular: '3209872211',
+            email: 'medellin@himed.com',
+            municipio: '001',
+          },
+        ],
+      }),
+    });
+    const result = await provider.callTool('mcp_himed_list_locations', {}, cred());
+    expect(result.kind).toBe('success');
+    if (result.kind === 'success') {
+      expect(result.data).toEqual([
+        {
+          idSede: '1',
+          sede: 'Medellín',
+          direccion: 'Calle 10 # 12-28',
+          telefono: '5405960',
+          municipio: '001',
+        },
+      ]);
+    }
+  });
 });

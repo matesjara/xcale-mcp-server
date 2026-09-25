@@ -36,7 +36,7 @@ the customer's clinical system over WhatsApp. Clinical modules: doctors, locatio
 - **D1-rejection — Option A (native toolbox modeled on Nevatal): rejected.** It would be cheaper (HiMed's
   awkward auth is trivial in a hand-rolled client, zero core ADRs), but it grows the backend per-provider —
   exactly what ADR-0004 aims to stop. Strategic consistency is prioritized over the one-off cost.
-  *(This choice applies ADR-0004; it does not warrant its own ADR.)*
+  _(This choice applies ADR-0004; it does not warrant its own ADR.)_
 - **D2 — Two providers.** Not a preference: it is forced by (3)+(4). The modules use **different body fields**
   (`api_key` vs `token`) and different schemes → they cannot share one `authDescriptor`.
   - `himed` → doctors, locations, demographics (`api_key` in body, `credentialDelivery: 'forwarded'`).
@@ -52,10 +52,10 @@ the customer's clinical system over WhatsApp. Clinical modules: doctors, locatio
 
 ## 4. ADRs to create
 
-| ADR | Status | Reason |
-|---|---|---|
-| `api_key placement: 'body'` in the materializer | **Definite** | Touches `src/core/auth/authentication-materializer.ts` → breaks the `add-provider` golden rule → requires an exceptional ADR. Enables phase 1. |
-| ~~Imperative/signed auth for appointments~~ | **NOT needed** | The docs confirm `token`/`codigo_servicio` are static values HiMed issues (not computed per request) — see Q1. No signed-auth variant required. |
+| ADR                                             | Status         | Reason                                                                                                                                          |
+| ----------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api_key placement: 'body'` in the materializer | **Definite**   | Touches `src/core/auth/authentication-materializer.ts` → breaks the `add-provider` golden rule → requires an exceptional ADR. Enables phase 1.  |
+| ~~Imperative/signed auth for appointments~~     | **NOT needed** | The docs confirm `token`/`codigo_servicio` are static values HiMed issues (not computed per request) — see Q1. No signed-auth variant required. |
 
 The B-vs-A choice is **not an ADR** (it applies ADR-0004): documented here and in the feature-design.
 
@@ -63,6 +63,7 @@ The B-vs-A choice is **not an ADR** (it applies ADR-0004): documented here and i
 
 **How the MCP places the credential today.** When a tool runs, a single core step
 (`authentication-materializer.ts`) takes the secret and puts it on the request in **one of two ways**:
+
 - in a **header** — e.g. `Authorization: Bearer <token>` or `X-Api-Key: <token>`, or
 - in the URL **query-string** — e.g. `...?api_key=<token>`.
 
@@ -75,7 +76,7 @@ POST .../consultarSedes.php
 { "api_key": "NJA6isD893nsa0Q72j", "pais": "CO", "departamento": "..." }
 ```
 
-That is, the `api_key` travels *mixed with the business data* in the JSON — not in a header or the URL.
+That is, the `api_key` travels _mixed with the business data_ in the JSON — not in a header or the URL.
 
 **Why that forces an ADR.** The materializer is `src/core` code, **shared by all providers**. The
 `add-provider` golden rule forbids a provider from touching `src/core` without an **exceptional ADR** —
@@ -104,6 +105,7 @@ and a branch in the materializer that inserts the secret into the JSON body befo
   model `token` as the body-placed secret and `codigo_servicio` as non-secret metadata (`X-Provider-Metadata`),
   pending a one-line confirm that `codigo_servicio` is safe as non-secret routing. Worth confirming static-ness
   at activation, but the design no longer blocks on it.
+
 - **Q2 (commercial) — RESOLVED (2026-09-15, Mateo):** who pays for the HiMed API Key?
 
   _Decision:_ **each client clinic pays** for its own HiMed API Key. xcale is **only the integrator**.
@@ -114,6 +116,7 @@ and a branch in the materializer that inserts the secret into the JSON body befo
   _Implication:_ onboarding a clinic includes the clinic obtaining its own key/sandbox access from HiMed
   (the sandbox still requires a paid key — the clinic's, not xcale's). HiMed support: `ayudamed@himedsolutions.com`,
   line `3009120001` op 2.
+
 - **Q3 (product) — RESOLVED (2026-09-15):** does phase 1 include patient writes (create/update), or does it
   start read-only?
 
@@ -122,6 +125,7 @@ and a branch in the materializer that inserts the secret into the JSON body befo
   _Why:_ creating an appointment (phase 2) **requires the patient to already exist** in HiMed, so patient
   creation must land in phase 1 — starting read-only would strand phase 2 with a half-built dependency. Being
   PHI writes, these tools go with field curation (see Q4). See D3.
+
 - **Q4 (security · PHI) — OPEN · tracked in backend as issue #1055 (Ley 1581):** results carry health data
   (names, document, phone, email, address, birth date) that enters the LLM context and the stored conversation.
   soul.md #1. Per JuanJo (epic #1053), the Ley 1581 consent question is now **backend issue #1055** and it
@@ -131,13 +135,14 @@ and a branch in the materializer that inserts the secret into the JSON body befo
 
   _Possible solution (recommendation, not decided):_ **per-tool field projection (allow-list)** curated in the
   adapter — each tool returns only what its job needs and drops the rest; allow-list so a new sensitive HiMed
-  field **does not leak by default**. Permitted by *Fidelity over Unification* (ADR-0009). Examples:
+  field **does not leak by default**. Permitted by _Fidelity over Unification_ (ADR-0009). Examples:
   `list_doctors` → id, name, specialty; `list_locations` → id_sede, sede, city;
   `search_patient`/`patient_exists` → id_paciente, name, tipo_documento. The exact field set is defined in the api-contract.
 
   _What projection does NOT solve (still open):_
   - **Logs / storage:** even curated, it is still PHI in the LLM context and the stored conversation; ensure neither MCP nor backend logs raw results.
   - **Legal/consent (Mateo's call):** sending **sensitive** health data (Ley 1581, Colombian habeas data) to a US-based LLM has consent and data-residency implications. Not solved by code; may be a bigger blocker than `placement: 'body'`. Raise before sending PHI to production.
+
 - **Q5 (product) — RESOLVED (decision):** does HiMed push events (webhooks / websockets / real-time), or must
   the client poll?
 
@@ -171,27 +176,27 @@ The `api_key` custody lives **only** in Rail A; the server is credential-statele
 
 ### Provider `himed` — host `m.medsas.co`, `api_key` in body — **PHASE 1**
 
-| Module | Endpoint (POST) | Proposed MCP tool | Type |
-|---|---|---|---|
-| Doctors | `Usuarios/consultarUsuarios.php` | `mcp_himed_list_doctors` | read |
-| Locations | `Sedes/consultarSedes.php` | `mcp_himed_list_locations` | read |
-| Patients | `Demograficos/crearPaciente.php` | `mcp_himed_create_patient` (creates or checks existence) | **write** |
-| Patients | `Demograficos/modificarPaciente.php` | `mcp_himed_update_patient` | **write** |
-| Patients | `Demograficos/modificarIdTipoIdPaciente.php` | `mcp_himed_change_patient_document` | **write** |
+| Module    | Endpoint (POST)                              | Proposed MCP tool                                        | Type      |
+| --------- | -------------------------------------------- | -------------------------------------------------------- | --------- |
+| Doctors   | `Usuarios/consultarUsuarios.php`             | `mcp_himed_list_doctors`                                 | read      |
+| Locations | `Sedes/consultarSedes.php`                   | `mcp_himed_list_locations`                               | read      |
+| Patients  | `Demograficos/crearPaciente.php`             | `mcp_himed_create_patient` (creates or checks existence) | **write** |
+| Patients  | `Demograficos/modificarPaciente.php`         | `mcp_himed_update_patient`                               | **write** |
+| Patients  | `Demograficos/modificarIdTipoIdPaciente.php` | `mcp_himed_change_patient_document`                      | **write** |
 
 ### Provider `himed-scheduling` — host `socket.medsas.co`, RPC by `accion`, SHA-256 token — **PHASE 2**
 
 A single endpoint (`envioConsumoAutoagendamiento`) dispatches by the `accion` field. In the MCP, each `accion`
 is its own `defineTool` (curated); the `client.ts` maps it to the POST with its `accion`.
 
-| accion | Proposed MCP tool | Type |
-|---|---|---|
-| `existePaciente` | `patient_exists` | read |
-| `listarSedes` / `listarEspecialidades` / `listarUsuarios` / `listarModalidades` / `listarTiposCitas` | `list_*` | read |
-| `consultarDisponibilidad` | `get_availability` | read |
-| `CrearCita` | `create_appointment` | **write** |
-| `citasPaciente` | `list_patient_appointments` | read |
-| `cancelarCita` | `cancel_appointment` | **write** |
+| accion                                                                                               | Proposed MCP tool           | Type      |
+| ---------------------------------------------------------------------------------------------------- | --------------------------- | --------- |
+| `existePaciente`                                                                                     | `patient_exists`            | read      |
+| `listarSedes` / `listarEspecialidades` / `listarUsuarios` / `listarModalidades` / `listarTiposCitas` | `list_*`                    | read      |
+| `consultarDisponibilidad`                                                                            | `get_availability`          | read      |
+| `CrearCita`                                                                                          | `create_appointment`        | **write** |
+| `citasPaciente`                                                                                      | `list_patient_appointments` | read      |
+| `cancelarCita`                                                                                       | `cancel_appointment`        | **write** |
 
 **Context (`contextSchema`): not needed.** One connection spans N locations, but `idSede` travels as an
 **explicit argument** of each tool (the agent lists locations and passes `idSede`), not as ambient context

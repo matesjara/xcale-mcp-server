@@ -17,24 +17,25 @@
 
 HiMed expone dos backends con auth incompatible → **dos providers** (ver feature-design AD-2):
 
-| Provider           | Módulo HiMed             | Host               | Auth                                               |
-| :----------------- | :----------------------- | :----------------- | :------------------------------------------------- |
-| `himed`            | Demográficos (pacientes) | `m.medsas.co`      | `api_key` en el body                               |
-| `himed-scheduling` | Autoagendamiento (citas) | `socket.medsas.co` | `token` + `codigo_servicio` en el body (estáticos) |
+| Provider           | Módulo HiMed                                | Host               | Auth                                               |
+| :----------------- | :------------------------------------------ | :----------------- | :------------------------------------------------- |
+| `himed`            | Demográficos (pacientes) + Doctores + Sedes | `m.medsas.co`      | `api_key` en el body                               |
+| `himed-scheduling` | Autoagendamiento (citas)                    | `socket.medsas.co` | `token` + `codigo_servicio` en el body (estáticos) |
 
 ---
 
-## 1. Provider `himed` (Demográficos)
+## 1. Provider `himed` (Demográficos + Doctores + Sedes)
 
 ### 1.1 Manifest
 
 ```ts
 {
   slug: 'himed',
-  displayName: 'HiMed — Pacientes',
+  displayName: 'HiMed — Directorio y Pacientes',
   category: 'health',
-  schemaVersion: '2026-09-24',
+  schemaVersion: '2026-09-25',
   providerVersion: '0.1.0',
+  connectionProbe: { tool: 'mcp_himed_list_locations' },   // read barato para validar la credencial
 }
 ```
 
@@ -57,12 +58,13 @@ Ninguno. Una `api_key` identifica a la clínica; no hay scope adicional que desa
 
 ### 1.4 Base URL
 
-| Env     | Base                                                                  |
-| :------ | :-------------------------------------------------------------------- |
-| Prod    | `https://m.medsas.co/interoperabilidad/Api/Controllers/Demograficos/` |
-| Sandbox | ⏳ por confirmar (HiMed libera URL de prod tras validar en sandbox)   |
+| Env     | Base                                                     |
+| :------ | :------------------------------------------------------- |
+| Prod    | `https://m.medsas.co/interoperabilidad/Api/Controllers/` |
+| Sandbox | ⏳ HiMed libera URL de prod tras validar en sandbox      |
 
-Todas las operaciones son **POST** a un archivo `.php`.
+Todas las operaciones son **POST** a `{Controller}/{op}.php` (`Demograficos/…`, `Usuarios/…`, `Sedes/…`).
+El `api_key` va en el body en los tres.
 
 ### 1.5 Response envelope
 
@@ -128,8 +130,38 @@ input: z.object({
 
 `POST modificarIdTipoIdPaciente.php`. Cambia tipo/número de documento.
 
-> **Nota:** no hay tool de lectura de paciente aquí — la existencia se consulta desde `himed-scheduling`
-> (`patient_exists`). Demográficos solo escribe.
+#### `mcp_himed_list_doctors` — read (Doctores)
+
+```ts
+input: z.object({
+  tipoUser: z.string().optional(), // ej. "2" = profesional
+  idEspecialidad: z.string().optional(),
+  idUsuario: z.string().optional(),
+}).strict();
+```
+
+`POST Usuarios/consultarUsuarios.php`. **Verificado en sandbox (200):**
+`{ estado:"success", mensaje, usuarios:[{ id_usuario, tipo_documento, tipo_user, rol, nombres, apellidos,
+celular, telefono_uno, email, direccion, fecha_nacimiento, pais, departamento, municipio, id_especialidad }] }`.
+**Curado (allow-list, se descarta el PHI de contacto):** `{ idUsuario, nombres, apellidos, rol, idEspecialidad }`.
+
+#### `mcp_himed_list_locations` — read (Sedes)
+
+```ts
+input: z.object({
+  pais: z.string().optional(),
+  departamento: z.string().optional(),
+  ciudad: z.string().optional(),
+}).strict();
+```
+
+`POST Sedes/consultarSedes.php`. **Verificado en sandbox (200):**
+`{ estado:"success", mensaje, info_sede:[{ id_sede, sede, codigo_prestador, direccion, telefono, celular,
+email, pais, departamento, municipio }] }`. **Curado:** `{ idSede, sede, direccion, telefono, municipio }`.
+
+> **Nota:** el directorio (`list_doctors`/`list_locations`) es el conjunto **completo** con datos ricos;
+> el flujo de agendar usa las listas de `himed-scheduling` (subconjunto habilitado para autoagendamiento).
+> No hay tool de lectura de paciente; la existencia se consulta desde `himed-scheduling` (`patient_exists`).
 
 ---
 

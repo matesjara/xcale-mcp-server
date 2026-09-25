@@ -45,12 +45,12 @@ disponibilidad y crea la cita directamente en HiMed, sin intervención humana.
 
 ### Metrics
 
-| Type | Metric | Target | Cómo se mide |
-|:--|:--|:--|:--|
-| **Leading** | Clínicas HiMed conectadas | ≥ 1 piloto (Senzzes) post-release | Conexiones activas en Rail A |
-| **Leading** | Consultas (sedes/profesionales/disponibilidad) resueltas por el agente | > 90 % sin error | `tools/call` OK vs error |
-| **Lagging** | Citas agendadas por el agente vía WhatsApp | Por definir con producto | `create_appointment` exitosas |
-| **Lagging** | Reducción de agendamiento manual en recepción | Por definir con producto | Comparativo con la piloto |
+| Type        | Metric                                                                 | Target                            | Cómo se mide                  |
+| :---------- | :--------------------------------------------------------------------- | :-------------------------------- | :---------------------------- |
+| **Leading** | Clínicas HiMed conectadas                                              | ≥ 1 piloto (Senzzes) post-release | Conexiones activas en Rail A  |
+| **Leading** | Consultas (sedes/profesionales/disponibilidad) resueltas por el agente | > 90 % sin error                  | `tools/call` OK vs error      |
+| **Lagging** | Citas agendadas por el agente vía WhatsApp                             | Por definir con producto          | `create_appointment` exitosas |
+| **Lagging** | Reducción de agendamiento manual en recepción                          | Por definir con producto          | Comparativo con la piloto     |
 
 > Las métricas lagging son **tentativas** — las fija producto/Mateo.
 
@@ -97,10 +97,11 @@ disponibilidad y crea la cita directamente en HiMed, sin intervención humana.
 > **Doctores** y **Sedes** quedan **fuera** — Autoagendamiento ya expone `listarSedes` y `listarUsuarios`
 > (profesionales, con `idUsuario` = documento del médico), así que son redundantes para el flujo de agendamiento.
 
-### ✅ Must Have — Provider `himed` (Demográficos, `api_key` en body)
+### ✅ Must Have — Provider `himed` (Demográficos + Doctores + Sedes, `api_key` en body)
 
 - [ ] Provider `himed` descubrible vía `server/discover` con `authDescriptor` `api_key`, `placement: 'body'`.
-- [ ] Tools de paciente: `create_patient` (crea o consulta existencia), `update_patient`, `change_patient_document`.
+- [ ] Tools de paciente (write): `create_patient` (crea o consulta existencia), `update_patient`, `change_patient_document`.
+- [ ] Tools de directorio (read): `list_doctors` (Usuarios) y `list_locations` (Sedes) — directorio completo con datos ricos, curados (PHI allow-list). `list_locations` es el `connectionProbe`.
 - [ ] Manejo del **create-envelope** (el id puede venir en envelope, no en el body → no tratarlo como lectura, o un reintento duplica el paciente).
 
 ### ✅ Must Have — Provider `himed-scheduling` (Autoagendamiento, `token`+`codigo_servicio` en body)
@@ -121,7 +122,6 @@ disponibilidad y crea la cita directamente en HiMed, sin intervención humana.
 
 ### ⛔ Won't Have — Explícitamente fuera de alcance
 
-- **Módulos standalone Doctores y Sedes** — redundantes con Autoagendamiento (ver §5 nota).
 - **Módulo API Contable (Siigo/Alegra)** — HiMed empuja las facturas **directo** a Siigo/Alegra dentro de HiMed Web; xcale no está en esa ruta. No dispara el gate financiero de ADR-0010.
 - **Escritura de disponibilidad/agenda del profesional** — se configura solo en HiMed Web (la API es unilateral).
 - **Un único provider `himed`** — descartado: los dos backends usan campos/esquemas de auth distintos (ver AD-2).
@@ -142,7 +142,7 @@ claro, sin exponer la credencial.
 
 ### 6.2 Flujo conversacional — agendar una cita
 
-Paciente: *"Quiero cita con la doctora García en la sede norte esta semana."* El agente:
+Paciente: _"Quiero cita con la doctora García en la sede norte esta semana."_ El agente:
 
 1. `patient_exists` para validar el paciente; si no existe, `create_patient` (Demográficos).
 2. `list_locations` → `list_specialties` → `list_professionals` para resolver sede/especialidad/profesional.
@@ -155,7 +155,7 @@ Errores de negocio (campo inválido, paciente inexistente) → mensaje tipado.
 
 ### 6.3 Consultar / cancelar
 
-*"¿Qué citas tengo?"* → `list_patient_appointments`. *"Cancela la del viernes"* → `cancel_appointment`.
+_"¿Qué citas tengo?"_ → `list_patient_appointments`. _"Cancela la del viernes"_ → `cancel_appointment`.
 
 ### 6.4 Notificaciones & Feedback
 
@@ -171,37 +171,37 @@ HiMed **no tiene webhooks** (modelo pull, confirmado por doc). Recordatorios pro
 
 ### Connection (Rail A — xcale-backend, no en este repo)
 
-| Field | Type | Description |
-|:--|:--|:--|
-| `userId` | string | Tenant dueño de la conexión |
-| `provider` | enum: `himed`, `himed-scheduling` | Cuál de los dos providers |
-| credencial | encrypted | `api_key` (himed) · `codigo_servicio`+`token` (himed-scheduling) — cifrada en reposo |
-| `status` | enum: `CONNECTED`, `AUTH_FAILURE`, … | Ciclo de vida |
+| Field      | Type                                 | Description                                                                          |
+| :--------- | :----------------------------------- | :----------------------------------------------------------------------------------- |
+| `userId`   | string                               | Tenant dueño de la conexión                                                          |
+| `provider` | enum: `himed`, `himed-scheduling`    | Cuál de los dos providers                                                            |
+| credencial | encrypted                            | `api_key` (himed) · `codigo_servicio`+`token` (himed-scheduling) — cifrada en reposo |
+| `status`   | enum: `CONNECTED`, `AUTH_FAILURE`, … | Ciclo de vida                                                                        |
 
 ### Objetos devueltos (curados, allow-list — ver Q4/#1055)
 
-| Entidad | Campos expuestos (propuesta) | Descartados |
-|:--|:--|:--|
-| Sede | idSede, sede, ciudad | teléfono, celular |
-| Profesional | idUsuario, nombre, especialidad | — |
-| Paciente | idPaciente, nombre, idEntidad | dirección, email, fecha_nacimiento completa |
-| Cita | idCita, fecha, hora, estado | — |
+| Entidad     | Campos expuestos (propuesta)    | Descartados                                 |
+| :---------- | :------------------------------ | :------------------------------------------ |
+| Sede        | idSede, sede, ciudad            | teléfono, celular                           |
+| Profesional | idUsuario, nombre, especialidad | —                                           |
+| Paciente    | idPaciente, nombre, idEntidad   | dirección, email, fecha_nacimiento completa |
+| Cita        | idCita, fecha, hora, estado     | —                                           |
 
 ---
 
 ## 8. Architectural Decisions
 
-| # | Decisión | Elección | Justificación |
-|:--|:--|:--|:--|
-| AD-1 | Dónde vive | **Provider MCP en `xcale-mcp-server`** (opción B) | Dirección estratégica: nativas se congelan, lo nuevo va al MCP (ADR-0004). Opción A (toolbox nativa) descartada pese a ser más barata. |
-| AD-2 | Uno vs dos providers | **Dos**: `himed` (Demográficos) + `himed-scheduling` (Autoagendamiento) | `auth` es singular por provider (ADR-0016) y los dos backends usan campos/esquemas distintos. |
-| AD-3 | Auth de `himed` | `api_key`, `forwarded`, `fields: [{ key: 'api_key', placement: 'body' }]` | Demográficos manda la credencial en el body → requiere **`placement: 'body'` en el materializer** → ADR de core (R-1). |
+| #    | Decisión                   | Elección                                                                       | Justificación                                                                                                                                                                                        |
+| :--- | :------------------------- | :----------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AD-1 | Dónde vive                 | **Provider MCP en `xcale-mcp-server`** (opción B)                              | Dirección estratégica: nativas se congelan, lo nuevo va al MCP (ADR-0004). Opción A (toolbox nativa) descartada pese a ser más barata.                                                               |
+| AD-2 | Uno vs dos providers       | **Dos**: `himed` (Demográficos) + `himed-scheduling` (Autoagendamiento)        | `auth` es singular por provider (ADR-0016) y los dos backends usan campos/esquemas distintos.                                                                                                        |
+| AD-3 | Auth de `himed`            | `api_key`, `forwarded`, `fields: [{ key: 'api_key', placement: 'body' }]`      | Demográficos manda la credencial en el body → requiere **`placement: 'body'` en el materializer** → ADR de core (R-1).                                                                               |
 | AD-4 | Auth de `himed-scheduling` | **`token` (secreto en body) + `codigo_servicio` (metadata)** — ambos estáticos | Q1 resuelta: HiMed **genera** ambos (no se calculan por request) → **no hay auth imperativa, no hay ADR condicional**. Pendiente confirmar que `codigo_servicio` es seguro como metadata no-secreta. |
-| AD-5 | Custodia de credenciales | **Rail A** (xcale-backend) | Conocimiento en el server, custodia en Rail A (ADR-0004); el server descarta la credencial por llamada. |
-| AD-6 | Contexto (`contextSchema`) | **No se declara** | Una conexión abarca N sedes; `idSede` viaja como argumento explícito (Explicit Context, ADR-0009). Igual que SaludTools. |
-| AD-7 | Curación de datos | **Allow-list por tool** (Fidelity over Unification) | Minimiza PHI en el contexto del LLM. Campos concretos en el api-contract. |
-| AD-8 | Notificaciones | **Polling** (no webhooks) | Modelo unilateral/pull de HiMed. |
-| AD-9 | Tools destructivas | **No exponerlas en `tools/list`** | La key de HiMed puede ser **admin** (aprendizaje SaludTools): lo único que evita que el agente borre una historia clínica es que el catálogo no publique la tool destructiva. |
+| AD-5 | Custodia de credenciales   | **Rail A** (xcale-backend)                                                     | Conocimiento en el server, custodia en Rail A (ADR-0004); el server descarta la credencial por llamada.                                                                                              |
+| AD-6 | Contexto (`contextSchema`) | **No se declara**                                                              | Una conexión abarca N sedes; `idSede` viaja como argumento explícito (Explicit Context, ADR-0009). Igual que SaludTools.                                                                             |
+| AD-7 | Curación de datos          | **Allow-list por tool** (Fidelity over Unification)                            | Minimiza PHI en el contexto del LLM. Campos concretos en el api-contract.                                                                                                                            |
+| AD-8 | Notificaciones             | **Polling** (no webhooks)                                                      | Modelo unilateral/pull de HiMed.                                                                                                                                                                     |
+| AD-9 | Tools destructivas         | **No exponerlas en `tools/list`**                                              | La key de HiMed puede ser **admin** (aprendizaje SaludTools): lo único que evita que el agente borre una historia clínica es que el catálogo no publique la tool destructiva.                        |
 
 ---
 
@@ -209,25 +209,25 @@ HiMed **no tiene webhooks** (modelo pull, confirmado por doc). Recordatorios pro
 
 ### Riesgos
 
-| # | Riesgo | Prob. | Impacto | Mitigación |
-|:--|:--|:--|:--|:--|
-| R-1 | El body-placement toca `src/core` (materializer) → viola el golden rule | Alta | Media | ADR excepcional + cambio acotado (`placement: 'body'`) con tests. |
-| R-2 | La doc de HiMed (legacy PHP) no coincide con producción | **Alta** | Media | **No confiar en el portal** (SaludTools tenía ~10 contradicciones). Una llamada real por forma, temprano — el sandbox corre sin key. |
-| R-3 | PHI hacia un LLM sin base legal/consentimiento | Media | **Alta** | Allow-list + **decisión Ley 1581 (#1055)** de Mateo antes de producción (Senzzes arranca en noviembre). |
-| R-4 | La key es **admin** (todo-poderosa) → el agente podría borrar una historia clínica | Media | **Alta** | AD-9: no publicar tools destructivas; confirmar el scope de la key con HiMed. |
-| R-5 | `create_patient` devuelve el id en envelope → tratarlo como lectura duplica el paciente | Media | Media | Manejar el envelope explícitamente; test de no-duplicación. |
-| R-6 | Tope de página no documentado (SaludTools rechazaba > 20; el gateway default 25) | Media | Baja | Confirmar el ceiling de HiMed temprano y clamplear. |
+| #   | Riesgo                                                                                  | Prob.    | Impacto  | Mitigación                                                                                                                           |
+| :-- | :-------------------------------------------------------------------------------------- | :------- | :------- | :----------------------------------------------------------------------------------------------------------------------------------- |
+| R-1 | El body-placement toca `src/core` (materializer) → viola el golden rule                 | Alta     | Media    | ADR excepcional + cambio acotado (`placement: 'body'`) con tests.                                                                    |
+| R-2 | La doc de HiMed (legacy PHP) no coincide con producción                                 | **Alta** | Media    | **No confiar en el portal** (SaludTools tenía ~10 contradicciones). Una llamada real por forma, temprano — el sandbox corre sin key. |
+| R-3 | PHI hacia un LLM sin base legal/consentimiento                                          | Media    | **Alta** | Allow-list + **decisión Ley 1581 (#1055)** de Mateo antes de producción (Senzzes arranca en noviembre).                              |
+| R-4 | La key es **admin** (todo-poderosa) → el agente podría borrar una historia clínica      | Media    | **Alta** | AD-9: no publicar tools destructivas; confirmar el scope de la key con HiMed.                                                        |
+| R-5 | `create_patient` devuelve el id en envelope → tratarlo como lectura duplica el paciente | Media    | Media    | Manejar el envelope explícitamente; test de no-duplicación.                                                                          |
+| R-6 | Tope de página no documentado (SaludTools rechazaba > 20; el gateway default 25)        | Media    | Baja     | Confirmar el ceiling de HiMed temprano y clamplear.                                                                                  |
 
 ### Preguntas abiertas
 
-| # | Pregunta | Owner | Estado |
-|:--|:--|:--|:--|
-| Q-1 | ¿Cómo se genera el `token` SHA-256? | HiMed | ✅ **Resuelta** (doc): estático, lo genera HiMed → sin auth imperativa. Confirmar en activación. |
-| Q-2 | ¿Quién paga el API Key? | Mateo | ✅ **Resuelta**: paga la clínica cliente; xcale es solo integrador. |
-| Q-3 | ¿Fase 1 incluye crear paciente? | Producto | ✅ **Resuelta**: sí. |
-| Q-4 | Ley 1581 / consentimiento PHI a un LLM | Mateo / legal | ↪️ **Backend #1055** (gatea 3 integraciones; antes de noviembre). |
-| Q-5 | ¿Webhooks? | HiMed | ✅ **Resuelta**: no → polling. |
-| Q-7 | ¿Qué módulos habilita HiMed para Senzzes (solo Autoagendamiento, o también Demográficos)? | HiMed | ⏳ Pendiente (en el correo de credenciales). |
+| #   | Pregunta                                                                                  | Owner         | Estado                                                                                           |
+| :-- | :---------------------------------------------------------------------------------------- | :------------ | :----------------------------------------------------------------------------------------------- |
+| Q-1 | ¿Cómo se genera el `token` SHA-256?                                                       | HiMed         | ✅ **Resuelta** (doc): estático, lo genera HiMed → sin auth imperativa. Confirmar en activación. |
+| Q-2 | ¿Quién paga el API Key?                                                                   | Mateo         | ✅ **Resuelta**: paga la clínica cliente; xcale es solo integrador.                              |
+| Q-3 | ¿Fase 1 incluye crear paciente?                                                           | Producto      | ✅ **Resuelta**: sí.                                                                             |
+| Q-4 | Ley 1581 / consentimiento PHI a un LLM                                                    | Mateo / legal | ↪️ **Backend #1055** (gatea 3 integraciones; antes de noviembre).                                |
+| Q-5 | ¿Webhooks?                                                                                | HiMed         | ✅ **Resuelta**: no → polling.                                                                   |
+| Q-7 | ¿Qué módulos habilita HiMed para Senzzes (solo Autoagendamiento, o también Demográficos)? | HiMed         | ⏳ Pendiente (en el correo de credenciales).                                                     |
 
 ---
 
@@ -235,11 +235,11 @@ HiMed **no tiene webhooks** (modelo pull, confirmado por doc). Recordatorios pro
 
 > Reencuadrado por **tracks/repos**, no por provider. El track provider avanza ya; el backend está gated.
 
-| Fase | Track (repo) | Alcance | Dependencias | Esfuerzo |
-|:--|:--|:--|:--|:--|
-| **Fase 1** | Provider (`xcale-mcp-server`) | Adapters `himed` + `himed-scheduling` + ADR body-placement + curación + verificación en sandbox | Sandbox sin key → **puede arrancar ya** | L |
-| **Fase 2** | Backend (`xcale-backend`) | Registrar scope `(health, himed)` + conexiones Rail A + curación PHI + wiring del agente | **Gated:** merge de `feat/saludtools-connect` a `dev`; decisión #1055 | L |
-| **Fase 3** | Backend | Recordatorios proactivos (polling) | Fases 1–2 | M |
+| Fase       | Track (repo)                  | Alcance                                                                                         | Dependencias                                                          | Esfuerzo |
+| :--------- | :---------------------------- | :---------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------- | :------- |
+| **Fase 1** | Provider (`xcale-mcp-server`) | Adapters `himed` + `himed-scheduling` + ADR body-placement + curación + verificación en sandbox | Sandbox sin key → **puede arrancar ya**                               | L        |
+| **Fase 2** | Backend (`xcale-backend`)     | Registrar scope `(health, himed)` + conexiones Rail A + curación PHI + wiring del agente        | **Gated:** merge de `feat/saludtools-connect` a `dev`; decisión #1055 | L        |
+| **Fase 3** | Backend                       | Recordatorios proactivos (polling)                                                              | Fases 1–2                                                             | M        |
 
 ---
 
@@ -247,15 +247,15 @@ HiMed **no tiene webhooks** (modelo pull, confirmado por doc). Recordatorios pro
 
 ### Módulos y trabajo relacionado
 
-| Qué | Relación | Dónde |
-|:--|:--|:--|
-| Providers MCP | Este feature agrega dos | `src/providers/himed/`, `src/providers/himed-scheduling/`, `src/providers/index.ts` |
-| Core auth (materializer) | Se extiende con `placement: 'body'` (ADR) | `src/core/auth/authentication-materializer.ts` |
-| Épica backend | Integración de salud HiMed | `matesjara/xcale-backend#1053` |
-| Ley 1581 (compartida) | Consentimiento PHI | `matesjara/xcale-backend#1055` |
-| Vertical `health` | Se reusa; HiMed se registra como par `(health, himed)` | `feat/saludtools-connect` → `register-vertical-scopes.ts` (⚠️ sin registrar, el provider queda inerte) |
-| Provider hermano | Mismo patrón, un paso adelante | `docs/design/saludtools-provider/`, backend `feat/saludtools-connect` |
-| Rail A | Custodia credenciales, connect/reconnect | consumidor, fuera de este repo |
+| Qué                      | Relación                                               | Dónde                                                                                                  |
+| :----------------------- | :----------------------------------------------------- | :----------------------------------------------------------------------------------------------------- |
+| Providers MCP            | Este feature agrega dos                                | `src/providers/himed/`, `src/providers/himed-scheduling/`, `src/providers/index.ts`                    |
+| Core auth (materializer) | Se extiende con `placement: 'body'` (ADR)              | `src/core/auth/authentication-materializer.ts`                                                         |
+| Épica backend            | Integración de salud HiMed                             | `matesjara/xcale-backend#1053`                                                                         |
+| Ley 1581 (compartida)    | Consentimiento PHI                                     | `matesjara/xcale-backend#1055`                                                                         |
+| Vertical `health`        | Se reusa; HiMed se registra como par `(health, himed)` | `feat/saludtools-connect` → `register-vertical-scopes.ts` (⚠️ sin registrar, el provider queda inerte) |
+| Provider hermano         | Mismo patrón, un paso adelante                         | `docs/design/saludtools-provider/`, backend `feat/saludtools-connect`                                  |
+| Rail A                   | Custodia credenciales, connect/reconnect               | consumidor, fuera de este repo                                                                         |
 
 ### Convenciones
 

@@ -134,10 +134,73 @@ Request del ejemplo: `tipo:"paciente"` **con** `parentescoPideCita:"17"`.
 
 ---
 
+## Directorio en `m.medsas.co` (provider `himed`) — verificados en vivo (2026-09-25)
+
+Reads del Swagger, `api_key` en el body (host `m.medsas.co`, status HTTP reales).
+
+### `consultarUsuarios.php` (Doctores) → 200
+
+Request: `{ api_key, tipo_user?, id_especialidad?, id_usuario? }`
+
+```json
+{
+  "estado": "success",
+  "mensaje": "Búsqueda de usuario(s) realizada con éxito",
+  "usuarios": [
+    {
+      "id_usuario": "12333",
+      "tipo_documento": "CC",
+      "tipo_user": "2",
+      "rol": "Médico Especialista",
+      "nombres": "Médico pruebas",
+      "apellidos": "del Río",
+      "celular": "...",
+      "telefono_uno": "...",
+      "email": "xxx@xxx.com",
+      "direccion": "El Poblado",
+      "fecha_nacimiento": "1992-06-09",
+      "pais": "057",
+      "departamento": "05",
+      "municipio": "001",
+      "id_especialidad": "232"
+    }
+  ]
+}
+```
+
+Envelope `{ estado, mensaje, usuarios:[…] }`. **Mucho PHI** → curado a `{ idUsuario, nombres, apellidos, rol, idEspecialidad }`.
+
+### `consultarSedes.php` (Sedes) → 200
+
+Request: `{ api_key, pais?, departamento?, ciudad? }`
+
+```json
+{
+  "estado": "success",
+  "mensaje": "Búsqueda de sede(s) realizada con éxito.",
+  "info_sede": [
+    {
+      "id_sede": "1",
+      "sede": "Medellín",
+      "codigo_prestador": "0502515201",
+      "direccion": "Calle 10# 12-28 consultorio 1010",
+      "telefono": "5405960",
+      "celular": "3209872211",
+      "email": "medellin@himed.com",
+      "pais": "057",
+      "departamento": "05",
+      "municipio": "001"
+    }
+  ]
+}
+```
+
+Envelope `{ estado, mensaje, info_sede:[…] }`. Curado a `{ idSede, sede, direccion, telefono, municipio }`.
+
 ## Pendiente por capturar
 
-- [ ] **201 de `CrearCita`** con `parentesco=15` (forma de éxito y `idCita`).
-- [ ] **Demográficos** (`himed`): son writes en otro host (`m.medsas.co`); sus formas se verifican en su propio sandbox / con key.
+- [ ] **201 de `CrearCita`** con `parentesco=15` (forma de éxito y `idCita`) — el editor del Swagger complica editar el body.
+- [ ] **Demográficos writes** (`crearPaciente`/`modificarPaciente`/`modificarIdTipoIdPaciente`): no ejecutados (writes). Los reads de Doctores/Sedes ya quedaron verificados arriba.
 - [ ] **Tope de página** (R-6) y **URLs de producción** (las libera HiMed tras validar).
 
 ## Impacto en el código (ya aplicado)
