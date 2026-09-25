@@ -1,0 +1,44 @@
+[
+  {
+    "id": 12,
+    "name": "Camiseta",
+    "slug": "camiseta",
+    "permalink": "https://store.example.com/product/camiseta/",
+    "type": "simple",
+    "status": "publish",
+    "description": "<p>Camiseta marfil en jersey premium.</p>",
+    "short_description": "",
+    "sku": "CL-001",
+    "price": "100000",
+    "regular_price": "125000",
+    "sale_price": "100000",
+    "on_sale": true,
+    "manage_stock": true,
+    "stock_quantity": 46,
+    "stock_status": "instock",
+    "categories": [{ "id": 15, "name": "Uncategorized", "slug": "uncategorized" }],
+    "images": [
+      { "id": 13, "src": "https://store.example.com/wp-content/uploads/2026/09/96541-1.webp" }
+    ]
+  },
+  {
+    "id": 20,
+    "name": "Gorra",
+    "slug": "gorra",
+    "permalink": "https://store.example.com/product/gorra/",
+    "type": "simple",
+    "status": "publish",
+    "description": "<p>Gorra clasica.</p>",
+    "short_description": "",
+    "sku": "CL-002",
+    "price": "45000",
+    "regular_price": "45000",
+    "sale_price": "",
+    "on_sale": false,
+    "manage_stock": false,
+    "stock_quantity": null,
+    "stock_status": "outofstock",
+    "categories": [{ "id": 15, "name": "Uncategorized", "slug": "uncategorized" }],
+    "images": []
+  }
+]
