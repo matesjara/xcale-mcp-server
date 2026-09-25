@@ -35,6 +35,38 @@ describe('AuthenticationMaterializer', () => {
     expect(req.url).toContain('api_key=a%20b');
   });
 
+  it('api_key body placement → the secret is injected as a field of the JSON body, not in url/headers', () => {
+    const auth: ProviderAuthDescriptor = {
+      type: 'api_key',
+      fields: [{ key: 'api_key', label: 'Key', placement: 'body' }],
+    };
+    const postSpec: RequestSpec = {
+      method: 'POST',
+      url: 'https://api.test/resource',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ accion: 'listarSedes' }),
+    };
+    const req = materialize(auth, resolved(), postSpec);
+    expect(JSON.parse(req.body as string)).toEqual({ accion: 'listarSedes', api_key: 'SEC' });
+    // the secret never leaks into the URL or headers
+    expect(req.url).toBe(postSpec.url);
+    expect(JSON.stringify(req.headers)).not.toContain('SEC');
+  });
+
+  it('api_key body placement → a non-object body is a descriptor bug that throws (never sent unauthenticated)', () => {
+    const auth: ProviderAuthDescriptor = {
+      type: 'api_key',
+      fields: [{ key: 'api_key', label: 'Key', placement: 'body' }],
+    };
+    const post = (body?: string): RequestSpec => ({
+      method: 'POST',
+      url: 'https://api.test/x',
+      ...(body !== undefined ? { body } : {}),
+    });
+    expect(() => materialize(auth, resolved(), post())).toThrow(); // absent body
+    expect(() => materialize(auth, resolved(), post('[]'))).toThrow(); // array, not object
+  });
+
   it('oauth2 bearer_header → Authorization: Bearer <token>', () => {
     const auth: ProviderAuthDescriptor = {
       type: 'oauth2',

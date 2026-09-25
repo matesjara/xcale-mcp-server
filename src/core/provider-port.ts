@@ -20,7 +20,12 @@ export type ProviderAuthDescriptor =
       readonly fields: ReadonlyArray<{
         readonly key: string;
         readonly label: string;
-        readonly placement: 'header' | 'query';
+        /**
+         * Where the credential is applied. `body` injects it as a field of the JSON request body
+         * (ADR: body-placement-for-api-key) — used by providers that authenticate from the body
+         * (HiMed). Requires a JSON string body; a URLSearchParams/absent body is a descriptor bug.
+         */
+        readonly placement: 'header' | 'query' | 'body';
       }>;
     }
   | {

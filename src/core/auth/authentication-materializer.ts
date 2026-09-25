@@ -22,6 +22,7 @@ export function materialize(
 ): HttpRequest {
   const headers: Record<string, string> = { ...(spec.headers ?? {}) };
   let url = spec.url;
+  let body = spec.body;
   const secret = resolved.secret.reveal(); // ← the ONLY reveal in the runtime
 
   switch (auth.type) {
@@ -38,8 +39,11 @@ export function materialize(
       }
       if (field.placement === 'header') {
         headers[field.key] = secret;
-      } else {
+      } else if (field.placement === 'query') {
         url = appendQueryParam(url, field.key, secret);
+      } else {
+        // 'body' (ADR: body-placement-for-api-key): inject the secret as a field of the JSON body.
+        body = injectBodyParam(body, field.key, secret);
       }
       break;
     }
@@ -61,11 +65,31 @@ export function materialize(
     method: spec.method,
     url,
     headers,
-    ...(spec.body !== undefined ? { body: spec.body } : {}),
+    ...(body !== undefined ? { body } : {}),
   };
 }
 
 function appendQueryParam(url: string, key: string, value: string): string {
   const sep = url.includes('?') ? '&' : '?';
   return `${url}${sep}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+}
+
+/**
+ * Inject the credential as a field of the JSON request body (ADR: body-placement-for-api-key). Requires
+ * a JSON object string body; a URLSearchParams or absent body with placement:'body' is a descriptor bug,
+ * surfaced loudly rather than sent unauthenticated. The value is placed verbatim, never interpolated.
+ */
+function injectBodyParam(
+  body: string | URLSearchParams | undefined,
+  key: string,
+  value: string,
+): string {
+  if (typeof body !== 'string') {
+    throw new Error("api_key placement 'body' requires a JSON string request body");
+  }
+  const parsed: unknown = JSON.parse(body);
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error("api_key placement 'body' requires a JSON object body");
+  }
+  return JSON.stringify({ ...(parsed as Record<string, unknown>), [key]: value });
 }
