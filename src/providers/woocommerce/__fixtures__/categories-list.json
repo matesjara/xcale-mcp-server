@@ -1,0 +1,24 @@
+[
+  {
+    "id": 15,
+    "name": "Uncategorized",
+    "slug": "uncategorized",
+    "parent": 0,
+    "description": "",
+    "display": "default",
+    "image": null,
+    "menu_order": 0,
+    "count": 1
+  },
+  {
+    "id": 18,
+    "name": "Camisetas",
+    "slug": "camisetas",
+    "parent": 15,
+    "description": "",
+    "display": "default",
+    "image": null,
+    "menu_order": 0,
+    "count": 3
+  }
+]

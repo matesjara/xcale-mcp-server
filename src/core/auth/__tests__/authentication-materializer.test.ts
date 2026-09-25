@@ -93,6 +93,19 @@ describe('AuthenticationMaterializer', () => {
     expect(req.headers.authorization).toBe('Bearer SEC');
   });
 
+  it('basic → Authorization: Basic base64(<composed key:secret>)', () => {
+    const auth: ProviderAuthDescriptor = {
+      type: 'basic',
+      credentialDelivery: 'forwarded',
+      fields: [{ key: 'consumer_key', label: 'Consumer Key' }],
+    };
+    const req = materialize(auth, { secret: new SecretString('ck_abc:cs_xyz') }, spec);
+    expect(req.headers.authorization).toBe(
+      'Basic ' + Buffer.from('ck_abc:cs_xyz').toString('base64'),
+    );
+    expect(req.url).toBe(spec.url);
+  });
+
   it('is the single reveal point: the secret appears ONLY in the materialized header, and the wrapper stays redacted', () => {
     const cred = resolved();
     const req = materialize({ type: 'bearer', fields: [] }, cred, spec);

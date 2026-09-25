@@ -1,0 +1,48 @@
+{
+  "id": 14,
+  "number": "14",
+  "status": "processing",
+  "currency": "COP",
+  "total": "400000",
+  "customer_id": 3,
+  "date_created": "2026-09-14T22:33:26",
+  "billing": {
+    "first_name": "Maria",
+    "last_name": "Lopez",
+    "company": "",
+    "address_1": "Calle 10 #5-55",
+    "address_2": "",
+    "city": "Armenia",
+    "state": "QUI",
+    "postcode": "630001",
+    "country": "CO",
+    "email": "maria@example.com",
+    "phone": "3001234567"
+  },
+  "shipping": {
+    "first_name": "Maria",
+    "last_name": "Lopez",
+    "company": "",
+    "address_1": "Calle 10 #5-55",
+    "address_2": "Apto 302",
+    "city": "Armenia",
+    "state": "QUI",
+    "postcode": "630001",
+    "country": "CO",
+    "phone": "3001234567"
+  },
+  "line_items": [
+    {
+      "id": 1,
+      "name": "Camiseta",
+      "product_id": 12,
+      "variation_id": 0,
+      "quantity": 4,
+      "subtotal": "400000",
+      "total": "400000",
+      "sku": "CL-001",
+      "price": 100000
+    }
+  ],
+  "payment_url": "https://store.example.com/checkout/order-pay/14/?pay_for_order=true&key=wc_order_x"
+}

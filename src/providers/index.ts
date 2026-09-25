@@ -5,6 +5,7 @@ import { himedProvider } from './himed';
 import { himedSchedulingProvider } from './himed-scheduling';
 import { siigoProvider } from './siigo';
 import { toteatProvider } from './toteat';
+import { woocommerceProvider } from './woocommerce';
 
 /**
  * The single explicit provider list (no auto-discovery).
@@ -18,6 +19,7 @@ export const PROVIDERS: readonly IProvider[] = [
   cloudbedsProvider,
   toteatProvider,
   siigoProvider,
+  woocommerceProvider,
   himedProvider,
   himedSchedulingProvider,
 ];

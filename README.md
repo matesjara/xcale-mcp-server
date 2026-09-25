@@ -2,7 +2,7 @@
 
 > **Status:** in production. Deployed on DigitalOcean App Platform from `main`
 > (`deploy_on_push`), consumed by `xcale-backend` as an MCP client. Four providers are
-> registered — `cloudbeds`, `toteat`, `siigo`, and the `echo` stub — publishing 73 tools.
+> registered — `cloudbeds`, `toteat`, `siigo`, and the `echo` stub — publishing 74 tools.
 > Decisions live in [`docs/adr/`](docs/adr/README.md); what runs where in
 > [`docs/deploy.md`](docs/deploy.md).
 
@@ -74,8 +74,7 @@ xcale-mcp-server/
 │   └── providers/              ← cloudbeds · toteat · siigo · echo (explicit list in index.ts)
 ├── docs/                       ← deploy.md, adr/, design/<slug>/, foundation.md, security/
 ├── scripts/ · assets/          ← tooling; logos served at /assets
-├── Dockerfile · doppler.yaml   ← runs `src/server.ts` under tsx, no build step
-└── .claude/                    ← settings; the harness lives in the xcale layer
+└── Dockerfile · doppler.yaml   ← runs `src/server.ts` under tsx, no build step
 ```
 
 ## Conventions
