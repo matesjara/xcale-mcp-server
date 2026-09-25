@@ -14,8 +14,14 @@ export const cloudbedsManifest: ProviderManifest = {
   // NOT bumped by the API-key connect method: `schemaVersion` keys the consumer's `tools/list`
   // cache, and that change adds a way IN, not a tool. `providerVersion` carries it instead — the
   // catalog entry (auth descriptors, connectionProbe) is read fresh at consumer bootstrap.
-  schemaVersion: '2026-08-06',
-  providerVersion: '0.7.0',
+  // Bumped again: `get_room_calendar` (read:rate) is a new tool in tools/list — same precedent as
+  // `list_addons` above. The consumer's cache is a 5-minute TTL keyed on the gateway URL rather
+  // than on this field (`xcale-backend/src/modules/mcp/tools-cache.ts`), so the real exposure is a
+  // few minutes of staleness, not permanent invisibility. Bumped anyway: this is the rule the repo
+  // wrote for itself two lines up, and the nearest precedent is a FIX commit for exactly this
+  // omission (`bb48775`).
+  schemaVersion: '2026-09-10',
+  providerVersion: '0.8.0',
   logoUrl: '/assets/cloudbeds.svg',
   capabilities: { pagination: true },
   // A Cloudbeds token is scoped to its property; discover the propertyID via getHotels instead of
