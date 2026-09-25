@@ -84,13 +84,47 @@ describe('HiMed scheduling (Autoagendamiento) provider', () => {
     if (r2.kind === 'success') expect(r2.data).toEqual({ found: false });
   });
 
-  it('maps a 401 to PROVIDER_AUTH_EXPIRED', async () => {
+  it('a 401 with a TOKEN message → PROVIDER_AUTH_EXPIRED', async () => {
     const provider = createHimedSchedulingProvider({
-      fetchImpl: fakeFetch(401, { mensaje: 'token' }),
+      fetchImpl: fakeFetch(401, { estado: 'error', mensaje: 'El token ingresado no es correcto' }),
     });
     const result = await provider.callTool('mcp_himed-scheduling_list_locations', {}, ctx());
     expect(result.kind).toBe('error');
     if (result.kind === 'error') expect(result.code).toBe(ProviderErrorCode.AUTH_EXPIRED);
+  });
+
+  it('a 401 with a VALIDATION message → PROVIDER_INVALID_INPUT (HiMed overloads 401)', async () => {
+    // Real sandbox response: CrearCita → 401 { estado:'error', mensaje:'El parentesco es obligatorio' }.
+    const provider = createHimedSchedulingProvider({
+      fetchImpl: fakeFetch(401, { estado: 'error', mensaje: 'El parentesco es obligatorio' }),
+    });
+    const result = await provider.callTool('mcp_himed-scheduling_list_locations', {}, ctx());
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe(ProviderErrorCode.INVALID_INPUT);
+  });
+
+  it('a 200 that carries a captured error (estado:error) is treated as an error, not success', async () => {
+    const provider = createHimedSchedulingProvider({
+      fetchImpl: fakeFetch(200, { estado: 'error', mensaje: 'algo salió mal' }),
+    });
+    const result = await provider.callTool('mcp_himed-scheduling_list_locations', {}, ctx());
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe(ProviderErrorCode.INVALID_INPUT);
+  });
+
+  it('cancel_appointment succeeds on a 200 { success:true } write envelope', async () => {
+    const provider = createHimedSchedulingProvider({
+      fetchImpl: fakeFetch(200, {
+        success: true,
+        mensaje: 'La cita ha sido cancelada correctamente.',
+      }),
+    });
+    const result = await provider.callTool(
+      'mcp_himed-scheduling_cancel_appointment',
+      { idCita: '25' },
+      ctx(),
+    );
+    expect(result.kind).toBe('success');
   });
 
   it('rejects a call missing codigo_servicio with INVALID_INPUT (metadata validation)', async () => {

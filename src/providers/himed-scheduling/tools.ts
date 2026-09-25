@@ -202,8 +202,12 @@ export function buildHimedSchedulingTools(
       })
       .strict(),
     handler: async (args, ctx) => {
-      // NOTE (R-2): the sandbox example spells the key `horalnicioCita` (I/l typo). We send the
-      // canonical `horaInicioCita`; confirm against the write endpoint before production.
+      // NOTE (R-2, sandbox 2026-09-25): CrearCita rejected the doc example with
+      // `401 {estado:'error', mensaje:'El parentesco es obligatorio'}` even though it carried
+      // `parentescoPideCita:'17'` — so the server's required field is NOT `parentescoPideCita`.
+      // The exact parentesco field/requirement (and whether tipo='paciente' should exempt it) must be
+      // confirmed with HiMed before the write path ships. Also confirm the `horaInicioCita` key
+      // (the example spells it `horalnicioCita`, an I/l typo).
       const out = unwrapHimedScheduling(
         await call(ctx, 'CrearCita', { ...args, strModulo: 'himed' }),
         'create_appointment',
@@ -236,7 +240,8 @@ export function buildHimedSchedulingTools(
     input: z
       .object({
         idCita: z.string().min(1),
-        idPaciente: z.string().min(4).max(20),
+        // Verified in sandbox: cancelarCita succeeds with idCita alone; idPaciente is optional.
+        idPaciente: z.string().min(4).max(20).optional(),
       })
       .strict(),
     handler: async (args, ctx) => {
