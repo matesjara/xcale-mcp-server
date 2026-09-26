@@ -39,6 +39,9 @@ export function buildHimedSchedulingTools(
     description:
       'Check whether a patient already exists in the clinic (required before booking). Returns the ' +
       "patient's name so the agent can confirm identity.",
+    // Exposes any patient's existence + name by document. `idPaciente` is not the WhatsApp Subject,
+    // so `subject-bound` cannot compare it — the honest guard under `strict` is to reject.
+    identityPolicy: { mode: 'subject-scoped' },
     input: z.object({ idPaciente: z.string().min(4).max(20) }).strict(),
     handler: async (args, ctx) => {
       const out = unwrapHimedScheduling(await call(ctx, 'existePaciente', args), 'patient_exists');
@@ -227,6 +230,9 @@ export function buildHimedSchedulingTools(
   const listPatientAppointments = tool({
     name: 'mcp_himed-scheduling_list_patient_appointments',
     description: "List a patient's appointments (also the polling primitive for reminders).",
+    // Returns a given patient's appointments by document. Same reasoning as patient_exists: reject
+    // under `strict` rather than field-compare a document against the writer's phone.
+    identityPolicy: { mode: 'subject-scoped' },
     input: z
       .object({
         idPaciente: z.string().min(4).max(20),

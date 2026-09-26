@@ -16,7 +16,9 @@ export const himedSchedulingManifest: ProviderManifest = {
   displayName: 'HiMed — Citas',
   category: 'health',
   schemaVersion: '2026-09-25',
-  providerVersion: '0.1.0',
+  // 0.2.0: two tools now publish an `identityPolicy` (subject-scoped) in tools/list — the observable
+  // surface changed, so the version steps (same discipline as Cloudbeds' identity-policy bump).
+  providerVersion: '0.2.0',
   capabilities: { webhooks: false },
   connectionProbe: { tool: `mcp_${SLUG}_list_locations` },
 };
