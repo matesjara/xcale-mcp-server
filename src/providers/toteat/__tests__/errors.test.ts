@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ProviderErrorCode } from '../../../core/errors';
 import type { RequestResult } from '../../../core/http';
-import { classifyToteatFailure, unwrapToteat } from '../errors';
+import { classifyToteatFailure, toteatMessage, unwrapToteat } from '../errors';
 
 import bareFalse from '../__fixtures__/errors/bareFalse.json';
 import invalidDateFormat from '../__fixtures__/errors/invalidDateFormat.json';
@@ -102,5 +102,41 @@ describe('unwrapToteat', () => {
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.code).not.toBe(ProviderErrorCode.AUTH_EXPIRED);
     }
+  });
+});
+
+/**
+ * The per-field detail Toteat hides in an undocumented `errors` array.
+ *
+ * `create_order` was refused four times running with nothing but "Invalid Parameters" while this
+ * array sat in the same response naming every missing field (2026-08-18). The envelope did not model
+ * it, so `unwrapToteat` threw it away and every rejection looked identical. Losing it again would
+ * mean re-learning the same lesson by guesswork.
+ */
+describe('toteatMessage — the errors array', () => {
+  it('appends the per-field detail to the headline', () => {
+    const msg = toteatMessage({
+      ok: false,
+      msg: { texto: 'Invalid Parameters', tipo: 7 },
+      errors: ["Field 'status' - Field required", "Field 'document.payments' - Field required"],
+    });
+
+    // The headline is preserved verbatim: `classifyToteatFailure` and every log line match on it.
+    expect(msg).toContain('Invalid Parameters');
+    // And the part that actually says what to fix.
+    expect(msg).toContain("Field 'status' - Field required");
+    expect(msg).toContain("Field 'document.payments' - Field required");
+  });
+
+  it('still returns the bare headline when there is no detail', () => {
+    expect(toteatMessage({ ok: false, msg: { texto: 'Not Authorized' } })).toBe('Not Authorized');
+  });
+
+  it('reports the detail even when Toteat sends no headline at all', () => {
+    const msg = toteatMessage({ ok: false, errors: ["Field 'operationDate' - Field required"] });
+
+    // `{"ok":false}` with no message is the venue-not-found shape; with detail it is a fixable input
+    // error, and answering "unknown" would throw away the only actionable thing in the response.
+    expect(msg).toContain("Field 'operationDate' - Field required");
   });
 });

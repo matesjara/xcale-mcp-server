@@ -33,32 +33,15 @@ Read in this order:
 
 ## Adding a provider (the mechanical recipe)
 
-A new provider is a **self-contained module**:
-
-```
-src/providers/{slug}/
-├── manifest.ts   # slug, displayName, category, schemaVersion, metadataSchema (zod)
-├── auth.ts       # ProviderAuthDescriptor (NON-secret; secrets go to Doppler in the backend)
-├── provider.ts   # implements IProvider (listTools, callTool)
-├── client.ts     # the external API client
-├── tools/        # one file per tool (zod inputSchema + execution)
-├── errors.ts     # map provider errors → ProviderErrorCode
-├── __fixtures__/ # recorded provider responses
-└── __tests__/    # unit + conformance tests
-```
-
-Run the repeatable recipe with the **`add-provider`** skill (`.claude/skills/add-provider/`), or
-scaffold the skeleton with **`/scaffold-provider <slug>`**. Checklist:
-
-1. Declare the `ProviderAuthDescriptor` (adaptive — only what the auth type needs; never secrets).
-2. Declare tools (`name`, `description`, `inputSchema` via zod) — **curate at author time**: only
-   the tools that matter.
-3. Implement `callTool`; normalize provider errors to the closed `ProviderErrorCode` set.
-4. Declare any required call-context in `metadataSchema`.
-5. Register the provider in the explicit registry (one line).
-6. Add fixtures + a conformance test.
-7. Backend side (generic config only): register the provider's secrets in Doppler. **No backend
-   code.**
+A new provider is a **self-contained module** in `src/providers/{slug}/` plus one line in
+`src/providers/index.ts`, built on the core's canonical helpers (ADR 0009): `createProvider`,
+`defineTool`/`toolFactory`/`definePaginatedList`, and handlers that run every call through `ctx.request`, so
+the adapter never touches a credential. The recipe — file layout, helpers, error normalization, tests and
+the Definition of done — is the xcale layer's **`add-provider`** skill
+([xcale-harness](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/add-provider/SKILL.md));
+it is not restated here. Start from the closest real provider: `echo` (minimal), `siigo` (credential
+exchange), `toteat` (call context), `cloudbeds` (OAuth with scopes derived from the tools). Backend side:
+generic config only (the provider's secrets in Doppler). **No backend code.**
 
 ## Dev workflow
 
@@ -70,6 +53,6 @@ scaffold the skeleton with **`/scaffold-provider <slug>`**. Checklist:
 
 ## The agent toolset
 
-This repo is self-contained for AI-assisted work — see **`.claude/README.md`** for the full set of
-skills (grill, feature-design, api-contract-authoring, implementation-plan, adr, tdd, add-provider,
-…), agents, and commands, grouped by purpose.
+AI-assisted work on this repo runs from the xcale layer ([xcale-harness](https://github.com/matesjara/xcale-harness)),
+the folder that holds this repo: its skills (grill, feature-design, api-contract-authoring, implementation-plan, adr,
+tdd, add-provider, …), agents and pipeline serve this repo, with a reference for it where it differs.

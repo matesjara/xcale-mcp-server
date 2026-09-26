@@ -1,7 +1,9 @@
 # xcale-mcp-server — Foundation Document ("Composio LATAM")
 
-> **Status:** Foundational / pre-implementation. This is the founding pillar for the
-> architectural design and development of the system. No runtime code exists yet.
+> **Status:** Foundational; the system is built and runs in production. This file remains the
+> founding pillar — the vision and principles the system was designed from — and does not
+> track what runs today: the Status block of [`README.md`](../README.md) does, in one place.
+> Where this document and the code differ, the code is the truth.
 > **Type:** Vision + architecture seed + first functional requirements.
 > **Owner:** Juan José (design lead) · in coordination with the xcale team (Mateo, founder).
 > **Created:** 2026-06-18
@@ -268,9 +270,10 @@ xcale-mcp-server/
 └── .claude/                   ← agent rules, skills, agents, commands for this repo
 ```
 
-> The `src/` tree above is a **proposed** starting structure, not yet built. It mirrors the
-> "thin adapter per provider" shape described in the vision doc and is the seed for the first
-> implementation plan.
+> The `src/` tree above was the **proposed** starting structure, before anything was built. It
+> mirrored the "thin adapter per provider" shape described in the vision doc and was the seed
+> for the first implementation plan. The layout as built is described in
+> [`README.md` › Repo layout (current)](../README.md#repo-layout-current).
 
 ### 6.2 Request lifecycle (happy path)
 
@@ -411,9 +414,8 @@ export interface ProviderCallContext {
 5. **(Backend side)** add an `MCPToolboxDefinition` entry pointing at this server's
    `mcpServerUrl` and the provider slug; Rail A handles the connection.
 
-This recipe is captured as a repeatable Claude skill at
-`.claude/skills/add-provider/SKILL.md` and (optionally) a scaffold command at
-`.claude/commands/scaffold-provider.md`.
+This recipe is captured as a repeatable Claude skill, `add-provider`, which lives in the xcale layer
+([xcale-harness](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/add-provider/SKILL.md)).
 
 ### 9.3 Constraints that keep it mechanical
 
@@ -653,7 +655,7 @@ provider moves to MCP; the rest of the plumbing is what migrates out.
 - Composio curation pattern: `xcale-backend/src/modules/composio/curation/README.md`
 - Rail A (connection auth the MCP path consumes): `xcale-backend/docs/adr/0005-native-connection-reauth-lifecycle.md`
 - Native-vs-Composio sourcing policy: `xcale-backend/docs/adr/0004-native-vs-composio-sourcing-policy.md`
-- xcale identity & engineering philosophy: `xcale-backend/.claude/rules/soul.md`
+- xcale identity & engineering philosophy: `.claude/rules/xcale-backend-soul.md` in the xcale layer
 
 **External:**
 

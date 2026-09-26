@@ -1,59 +1,32 @@
 # xcale-mcp-server — Project facts
 
+> **Open xcale sessions in the xcale layer**, `~/Documents/Projects/xcale` — the folder that holds this
+> repo ([xcale-harness](https://github.com/matesjara/xcale-harness)). The team's harness lives there: the
+> working policy, `/handoff`, how to report to Mateo, this repo's identity rule, the design flow (`/grill`, `/feature-design`,
+> `/api-contract-authoring`, `/implementation-plan`, `/adr`, and the `architect` agent), the engineering discipline
+> (`/git-workflow`, `/tdd`, `/diagnose`, `/improve-architecture`, `/creating-skills`, and the `debugger` and `prod-debugger`
+> agents), review (`/pr-review`, and the `code-reviewer`, `pr-reviewer` and `mcp-contract-qa` agents), the autonomous pipeline
+> (`/implement`), this repo's own skill (`add-provider`), and the gates every command and edit goes through — guard,
+> secret scan, push gate, formatter, type check. A session opened inside this repo reads the layer's `CLAUDE.md` and
+> working policy, but none of its skills, and it runs without those gates.
+
 xcale's own MCP integration platform (a "Composio LATAM"). Provider knowledge lives here;
 consumers (xcale-backend first) consume capabilities over stable, consumer-agnostic MCP contracts.
 
-- **Identity & philosophy** — `.claude/rules/soul.md` (always loaded).
-- **Working with Mateo** — `.claude/skills/working-with-mateo` (always loaded via the import
-  in § Communication): report structure, altitude rules, decision surfacing.
+- **Identity & philosophy** — the xcale layer's [`.claude/rules/xcale-mcp-server-soul.md`](https://github.com/matesjara/xcale-harness/blob/main/.claude/rules/xcale-mcp-server-soul.md) (loaded, from the layer, whenever a session works with a file in this repo).
 - **Glossary** — `CONTEXT.md` (use its canonical terms in code, docs, commits).
 - **Vision** — `docs/foundation.md`. **Target architecture & rationale** — `docs/architecture-review.md`.
 - **Decisions** — `docs/adr/` (index + policy: `docs/adr/README.md`).
-- **Onboarding / add a provider** — `docs/onboarding.md` + the `add-provider` skill.
+- **Onboarding / add a provider** — `docs/onboarding.md` + the xcale layer's [`add-provider`](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/add-provider/SKILL.md) skill.
 
-## Communication — how to answer in chat
+## Language
 
-**Language: chat in Spanish, artifacts in English.** Every response you write to me is in Spanish.
-Everything that lands in the repo or on GitHub stays in English — code, comments, docs, ADRs,
-commit messages, PR titles and bodies, branch names. Quoting an artifact inside a Spanish answer
-keeps its English wording; don't translate identifiers, paths, commands, or error strings.
+Everything that lands in the repo or on GitHub is in English — code, comments, docs, ADRs, commit
+messages, PR titles and bodies, branch names (the xcale layer's [working policy](https://github.com/matesjara/xcale-harness/blob/main/.claude/rules/working-policy.md) › Language).
 **One sanctioned exception** (decided 2026-08-20): *internal working journals* — dated
 investigation/certification diaries under `docs/design/` (e.g. the Cloudbeds certification
 notes) — may be written in Spanish. Anything external-facing, contract-adjacent, or durable
 (code, ADRs, design docs, READMEs) stays English.
-
-Top-down. **Ceiling: ~12 lines; a release or PR briefing ~18.** Past that you are explaining, not
-reporting — move the detail into the PR body, an ADR, or a doc and link it.
-
-Order, always:
-
-1. **Verdict first.** Line one is the outcome or what I have to do — never the setup.
-2. **⚠️ Then what I must decide or watch.** Decisions, risks, blockers, things that break. Marked.
-3. **Then facts, only if they'd change my decision.** Consolidated into one or two lines.
-
-**Decisions close every work turn as their own numbered block.** After any turn that does work
-(PR review, implementation, release…), if something needs my call, end the reply with:
-
-> **Decisiones:**
-> 1. <the decision, one line> — **Rec:** <your recommendation, a few words>
-
-One line per decision, recommendation always included, nothing else in the block. No pending
-decisions → no block (never an empty section). Items already parked in the roadmap only appear
-here when they block or newly need my call.
-
-Rules:
-
-- **No walkthroughs.** Never one section per PR / file / commit / step — group them into a claim.
-- **Numbers, not adjectives.** "227 tests green, 0 vulns" beats "everything passes cleanly".
-- **Say it once.** No restating my request, no narrating what you just did, no closing recap.
-- **Cut what I can infer.** "Gates green" — not a list of every gate that was green.
-- **Rationale lives in artifacts** (ADR, PR body, docs), not in chat. Link, don't paste.
-- If the honest answer is one line, it's one line. Length is never a proxy for rigor.
-
-The full working agreement (report structure, altitude rules, decision surfacing) is the
-`working-with-mateo` skill, auto-loaded here so every session starts with it:
-
-@.claude/skills/working-with-mateo/SKILL.md
 
 ## Stack
 
@@ -88,20 +61,33 @@ The full working agreement (report structure, altitude rules, decision surfacing
 
 ## Git workflow
 
+- **How code moves** — the xcale layer's [`/git-workflow`](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/git-workflow/SKILL.md),
+  with this repo's checks, deploy, gates and scopes in its
+  [`references/xcale-mcp-server.md`](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/git-workflow/references/xcale-mcp-server.md).
 - `main` (default, protected: PR + CI `verify` green, no direct or force pushes) · `dev`
   (protected: same). Implementation: feature branch → PR → `dev`; release: `dev` → `main` PR.
   Repo: https://github.com/matesjara/xcale-mcp-server
-- **Release owner** — Mateo (`matesjara`, CEO). A release to `main` needs his explicit
-  authorization for *that* release, whoever opens or merges the PR.
-- **No required approvals on `main`** (set 2026-08-20). GitHub personal-account repos have no
-  admin role for collaborators — everyone but the owner is capped at `write` — so a mandatory
-  approval permanently blocked Juan José from merging to `main`, and forced Mateo to `--admin`
-  past it on every release. The enforced gate is now PR + green CI; **review stays a team
-  convention, not a machine rule**. Giving Juan José real admin rights would require moving the
-  repo to a GitHub organization.
+- **Working policy** — [`.claude/rules/working-policy.md` in xcale-harness](https://github.com/matesjara/xcale-harness/blob/main/.claude/rules/working-policy.md) (always loaded, from
+  the xcale layer): done means merged into `dev`, merges into `dev` by Mateo or by
+  `/implement` after its gates, nobody merges their own work, merge commits, the state labels,
+  handoffs.
+- **Release owner** — Mateo (`matesjara`, CEO). He merges into `dev` and `main`; a release to
+  `main` needs his explicit authorization for *that* release. Juan José opens PRs to `dev` and
+  merges none (2026-09-13 — the self-merge into `dev` allowed on 2026-08-20 is retired).
+- **No required approvals on `dev` or `main`** (set 2026-08-20). On a personal-account repo a
+  required approval is only met with `--admin` — an author cannot approve their own PR, and
+  `/implement` merges under Mateo's identity — so the enforced gate is PR + green CI, and **the
+  independent review is a team rule, not a machine rule**.
 - **Do not use `gh pr merge --admin`.** `enforce_admins` is still `false`, so with approvals at 0
   the only thing that flag still bypasses is a red build. Merge with `gh pr merge <n> --merge`
   once CI is green.
+- **Autonomous path** — `/implement`, the xcale layer's pipeline, builds a scoped change in a worktree of this repo and merges
+  it to `dev` on its own when three independent gate agents (`code-reviewer`, `pr-reviewer`,
+  `mcp-contract-qa`, all in the xcale layer) pass and CI `verify` is green. It never merges to `main`, never uses
+  `--admin`, and escalates instead of merging anything that reaches `src/core|protocol|auth`.
+  ADR: `docs/adr/0017-agentic-auto-merge-to-dev.md`; what differs here — reach, the green list — is the pipeline's
+  [`references/xcale-mcp-server.md`](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/implement/references/xcale-mcp-server.md).
+  Its contract probe is this repo's `scripts/contract-probe.mjs`.
 
 ## Deploy
 

@@ -41,6 +41,12 @@ interface ToteatEnvelope {
   readonly msg?: string | { texto?: string; tipo?: number };
   readonly data?: unknown;
   readonly status_code?: number;
+  /**
+   * Per-field validation detail. Undocumented in the vendor spec and easy to miss, which cost real
+   * time: `create_order` was rejected four times with nothing but "Invalid Parameters" while this
+   * array sat in the same body naming every missing field (observed 2026-08-18). Never discard it.
+   */
+  readonly errors?: readonly string[];
 }
 
 export type Unwrapped =
@@ -52,10 +58,20 @@ const NOT_AUTHORIZED = 'not authorized';
 
 /** Pull the human-readable control message out of whichever envelope shape came back. */
 export function toteatMessage(body: unknown): string | undefined {
-  const msg = (body as ToteatEnvelope | null)?.msg;
-  if (typeof msg === 'string') return msg;
-  if (msg && typeof msg === 'object' && typeof msg.texto === 'string') return msg.texto;
-  return undefined;
+  const env = body as ToteatEnvelope | null;
+  const msg = env?.msg;
+  const headline =
+    typeof msg === 'string'
+      ? msg
+      : msg && typeof msg === 'object' && typeof msg.texto === 'string'
+        ? msg.texto
+        : undefined;
+
+  // The detail, appended to the headline rather than replacing it, so the text every classifier and
+  // every log line already matches on stays where it was.
+  const detail = (env?.errors ?? []).filter((e) => typeof e === 'string');
+  if (detail.length === 0) return headline;
+  return `${headline ?? 'Toteat rejected the request'}: ${detail.join('; ')}`;
 }
 
 /**

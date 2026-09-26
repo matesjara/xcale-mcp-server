@@ -16,10 +16,25 @@ jobs:
           # Match the production image (Dockerfile: node:22-alpine). Node 20 is EOL.
           node-version: 22
           cache: npm
+      # Only the audit steps below need this, and they need it badly. npm is retiring the legacy
+      # `POST /-/npm/v1/security/audits/quick` endpoint that the npm shipped with Node 22 calls,
+      # and it now answers 400 with "Invalid package tree, run npm install to rebuild your
+      # package-lock.json". That message is misleading: `npm ci` succeeds on the same tree, and
+      # npm 11 locally reports 0 vulnerabilities against it. npm 11 uses the bulk advisory
+      # endpoint instead, which is the one that is not going away.
+      #
+      # The RUNTIME stays Node 22 deliberately — matching the production image is the whole point
+      # of pinning it above. This upgrades only the client that talks to the advisory API.
+      - name: Use an npm whose audit client is not the retired endpoint
+        run: npm install -g npm@11
       - run: npm ci
+      # The guard is about DECLARING a schema by hand. It was a bare grep, so it also failed on a
+      # test that merely READS `tool.inputSchema` to check the published contract — the kind of
+      # test this rule exists to make possible. Tests declare nothing that ships, so they are out
+      # of its reach; a hand-written schema in provider source still fails it.
       - name: Guard — providers must not hand-write inputSchema (single source of truth)
         run: |
-          if grep -rn "inputSchema" src/providers; then
+          if grep -rn --include="*.ts" --exclude-dir=__tests__ "inputSchema" src/providers; then
             echo "::error::Providers must declare tools via defineTool (zod). Hand-written inputSchema is forbidden (ADR: canonical-provider-pattern)."
             exit 1
           fi
