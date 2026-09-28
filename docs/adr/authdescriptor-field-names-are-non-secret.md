@@ -19,7 +19,7 @@ The blunt `/password/i` term flags this non-secret field **name** as if a secret
 
 ## Decision
 
-An `authDescriptor`'s field **names** — `bodyFields` keys and values, and `fields[].key` for `api_key`/`basic` — are **non-secret provider knowledge** that legitimately appears in the published catalog. The catalog secret-scan guard asserts the absence of secret **values** and consumer-specific concepts; it must **not** treat the non-secret wire field name `password` as a leak. We adjust the guard to target real signals of a leak (secret field names like `clientSecret`/`client_secret`, and consumer concepts like `tenant`/`plan`) and drop the bare `password` term, documenting the reasoning in the test.
+An `authDescriptor`'s field **names** — `bodyFields` keys and values, and `fields[].key` for `api_key`/`basic` — are **non-secret provider knowledge** that legitimately appears in the published catalog. The catalog secret-scan guard asserts the absence of secret **values** and consumer-specific concepts; it must **not** treat the non-secret wire field name `password` as a leak. We keep the guard scanning for `password` (and the other terms), but first **exclude each `authDescriptor.bodyFields`** — the non-secret wire-field-name map — from the scanned JSON. The guard therefore still catches a real secret value containing `password` anywhere else in the catalog, while no longer flagging Erbon's legitimate `password` field name.
 
 ## Alternatives Considered
 
@@ -33,10 +33,10 @@ An `authDescriptor`'s field **names** — `bodyFields` keys and values, and `fie
 - **Cons:** Rail A derives the connect form and the mint request from `bodyFields`; it is the consumer-agnostic litmus ("the connect form is derivable from the catalog alone"). Dropping it re-introduces per-provider knowledge on the consumer.
 - **Why rejected:** breaks a deliberate contract (ADR [consumer-agnostic-contract](consumer-agnostic-contract.md), ADR [provider-knowledge-vs-credential-custody](provider-knowledge-vs-credential-custody.md)).
 
-### Alternative C (accepted): Make the secret-scan precise
-- **Pros:** the guard expresses its real intent (no secret *values*, no consumer concepts); unblocks any provider whose wire field is `password`; no contract broken.
-- **Cons:** the bare-word `password` heuristic is dropped.
-- **Why accepted:** the dropped heuristic was catching a false positive. The descriptor is data-only (enforced by the serializability round-trip in `provider-conformance.ts`), real secret **values** never enter it (`SecretString` + Credential-in-Transit-Only), and the genuinely dangerous field names (`clientSecret`/`client_secret`) plus consumer concepts (`tenant`/`plan`) stay scanned.
+### Alternative C (accepted): Scope the scan to exclude the `bodyFields` name-map
+- **Pros:** the `password` term stays in the scan (a real leak elsewhere is still caught); only the false positive — the non-secret `bodyFields` name-map — is excluded; unblocks any provider whose wire field is `password`; no contract broken.
+- **Cons:** the scan must first strip `authDescriptor.bodyFields` (a few lines).
+- **Why accepted:** the only false positive was the `bodyFields` name-map, so excluding just that keeps the `password` guard fully intact everywhere else — strictly better than dropping the term. The descriptor is data-only (enforced by the serializability round-trip in `provider-conformance.ts`), real secret **values** never enter it (`SecretString` + Credential-in-Transit-Only), and the dangerous field names (`clientSecret`/`client_secret`) plus consumer concepts (`tenant`/`plan`) stay scanned.
 
 ## Consequences
 
@@ -45,11 +45,11 @@ An `authDescriptor`'s field **names** — `bodyFields` keys and values, and `fie
 - The guard now states what it actually protects: secret **values** and consumer concepts must not appear in the published catalog.
 
 ### Negative
-- The catalog is no longer scanned for the literal substring `password`. Mitigated because (a) the descriptor is serializable data with no behavior, asserted by the conformance round-trip; (b) secret values never enter the descriptor (`SecretString`, `.reveal()` only at egress); (c) a leaked *secret field* would still trip `clientSecret`/`client_secret`.
-- Reversing this would mean re-adding the term and finding another home for `password`-named wire fields — low cost, but it would re-block Erbon.
+- The scan skips the `authDescriptor.bodyFields` name-map, so a secret value that somehow landed *inside* `bodyFields` as a value would not trip `password` there. Mitigated because (a) the descriptor is serializable data with no behavior, asserted by the conformance round-trip; (b) secret values never enter the descriptor (`SecretString`, `.reveal()` only at egress); (c) everywhere else in the catalog `password`/`clientSecret`/`client_secret` are still scanned.
+- Reversing this is a few lines (remove the `bodyFields` strip), but it would re-block Erbon.
 
 ### Neutral
-- We now own a slightly more explicit guard, with a comment tying the `password` exclusion to this ADR so a future reader does not "restore" the term and re-break Erbon.
+- We now own a slightly more explicit guard, with a comment tying the `bodyFields` exclusion to this ADR so a future reader does not "restore" the blunt term and re-break Erbon.
 - Touches a security-guard test → this ADR is gated on Mateo's sign-off (soul.md #1 Security).
 
 ## References

@@ -11,8 +11,19 @@ const tool = toolFactory<ErbonContext>();
 /** No-argument input — the reference reads that take no filter (hotelID rides the call context). */
 const noArgs = z.object({}).strict();
 
-/** Erbon takes stay dates as ISO calendar dates, `YYYY-MM-DD`, in request headers (Observed). */
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use an ISO calendar date (YYYY-MM-DD)');
+/**
+ * Erbon takes stay dates as ISO calendar dates, `YYYY-MM-DD`. The shape check is not enough — a
+ * syntactically valid but non-existent date (`2026-02-30`, `2026-13-45`) would otherwise be forwarded
+ * to Erbon, and on the irreversible `create_booking` that is a booking on the wrong (or no) date with
+ * no API undo. The refine confirms the date round-trips, i.e. it is a real calendar day.
+ */
+const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use an ISO calendar date (YYYY-MM-DD)')
+  .refine((s) => {
+    const d = new Date(`${s}T00:00:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+  }, 'Not a real calendar date');
 
 /**
  * The curated Erbon menu — money-free reads only. `hotelID` comes from the call context, never a tool
@@ -151,7 +162,13 @@ export function buildErbonTools(
           isRateDefault: z.boolean().optional(),
           commentsBooking: z.string().optional(),
         })
-        .strict(),
+        .strict()
+        // Irreversible write (no Erbon cancel/modify): reject a reversed or zero-night range here
+        // rather than let Erbon create an un-undoable booking. ISO YYYY-MM-DD compares as dates.
+        .refine((v) => v.checkOutDate > v.checkInDate, {
+          message: 'checkOutDate must be after checkInDate',
+          path: ['checkOutDate'],
+        }),
       handler: async (args, ctx) =>
         unwrapErbon(
           await client.post('booking/new', ctx.request, ctx.metadata, args),
@@ -194,6 +211,9 @@ export function buildErbonTools(
         'BACKEND-ONLY. Create (or update, when `id` is present) a guest at the connected Erbon hotel — ' +
         'the prerequisite for a booking. A correctable write (editable via Erbon). Returns it verbatim.',
       controlPlane: true,
+      // Bounded allow-list of Erbon's documented `guest/new` fields (swagger AE23) + `.strict()` — same
+      // tightness as create_booking, so a stray/misnamed field is rejected here instead of silently
+      // reaching Erbon. Extend this list when Erbon documents a new guest field.
       input: z
         .object({
           name: z.string().min(1),
@@ -203,9 +223,15 @@ export function buildErbonTools(
           birthDate: isoDate.optional(),
           genderID: z.number().int().optional(),
           nationality: z.string().optional(),
+          professionID: z.number().int().optional(),
+          profession: z.string().optional(),
+          vehicleRegistration: z.string().optional(),
+          isClient: z.boolean().optional(),
+          isProvider: z.boolean().optional(),
+          address: z.unknown().optional(),
           documents: z.array(z.record(z.unknown())).optional(),
         })
-        .passthrough(),
+        .strict(),
       handler: async (args, ctx) =>
         unwrapErbon(
           await client.post('guest/new', ctx.request, ctx.metadata, args),

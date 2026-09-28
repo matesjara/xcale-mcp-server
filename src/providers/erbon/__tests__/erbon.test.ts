@@ -326,6 +326,15 @@ describe('erbon provider — S5 create_booking (write)', () => {
     if (res.kind === 'error') expect(res.code).toBe(ProviderErrorCode.INVALID_INPUT);
     expect(capture.length).toBe(0);
   });
+
+  it('maps a non-2xx Erbon response on the write path to a typed error (400 → INVALID_INPUT)', async () => {
+    const provider = createErbonProvider({
+      fetchImpl: fakeFetch({ status: 400, body: 'ERR_BOOKING_INVALID' }),
+    });
+    const res = await provider.callTool('mcp_erbon_create_booking', VALID_BOOKING, ctx);
+    expect(res.kind).toBe('error');
+    if (res.kind === 'error') expect(res.code).toBe(ProviderErrorCode.INVALID_INPUT);
+  });
 });
 
 // ---------------------------------------------------------------------------
