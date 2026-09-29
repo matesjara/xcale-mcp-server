@@ -44,9 +44,14 @@ Copy the body verbatim into `gh pr create --body-file`. Precedent: `siigo-read-o
 >
 > ### What the provider does
 >
-> Nine agent tools — patient lookup and registration, the agenda, a patient's appointments, booking and
-> rescheduling, the catalogs — and four control-plane operations withdrawn from `tools/list`: the
-> patient-list walk and the three destructive ones.
+> **Nine agent tools** — patient lookup and registration, the agenda, a patient's appointments, booking
+> and rescheduling, the catalogs — and **thirty-two control-plane operations withdrawn from
+> `tools/list`**: the patient-list walk, the three destructive ones, and the twenty-eight clinical
+> tools of phases 3 and 4.
+>
+> **The whole SaludTools API is covered**, which was this integration's definition of done: every
+> `eventType` and every parametric catalog has a home here, as an agent tool or as a control-plane
+> operation the consumer drives and the agent never sees.
 >
 > Three decisions worth a reviewer's attention:
 >
@@ -77,19 +82,55 @@ Copy the body verbatim into `gh pr create --body-file`. Precedent: `siigo-read-o
 > with an empty body. The comparison table is in `grill-notes.md` §6. Do not design the next CareCloud
 > integration from the portal alone.
 >
+> ### The clinical phases are built AND invisible — read this before approving
+>
+> Twenty-eight clinical tools ship in this PR and **not one of them is on the agent's menu.** The
+> published surface is still the nine above, and the test suite asserts it as a **closed list**, so any
+> tool that becomes agent-visible — including one written later without the flag — turns the suite red.
+>
+> - **Phase 3, the clinical reads: withdrawn TEMPORARILY.** The rule they were waiting on was my own
+>   ("#1055 is answered before phase 3 is _written_"), and its purpose was that no clinical PHI reaches
+>   a model before a human decided it may. Withdrawal serves that purpose exactly, while "do not write
+>   it" only delays the work. When #1055 answers, exposing a tool is deleting one line. Decision D10.
+> - **Phase 4, the clinical writes: withdrawn PERMANENTLY** (D5). Prescribing, recording a diagnosis or
+>   filing a disability certificate is not an agent's move under any tenant's rules. They exist so the
+>   provider is completely covered and a consumer can drive a sync.
+> - **No clinical write has ever been executed, against any environment.** Nine of the ten surfaces
+>   have no delete, so the phase cannot be exercised against a clinic that treats real patients
+>   (#1057). Their schemas are _Documented_, never _Observed_, and the code says so.
+>
+> Two asymmetries a reviewer should check on purpose, because they look like inconsistencies and are
+> not:
+>
+> - **Outputs are strict allow-lists; inputs are deliberately loose.** A projection's failure mode is
+>   omission, which is what makes an allow-list safe against documentation that has been wrong seven
+>   times. On the way in there is no leak to prevent, and a schema stricter than the provider rejects a
+>   clinical record the clinic was entitled to file — with our error instead of theirs.
+> - **`documentType` and `patientDocumentType` are both used, per surface, and never unified.** Six
+>   surfaces name it one way and four the other. A helper that normalised them would hide the exact
+>   difference that made three surfaces look unreachable for a week.
+>
 > ### Not in this PR, and why
 >
-> Phases 3–4 (clinical reads and writes) are designed and unbuilt: their response shapes cannot be
-> observed without reading real clinical records. Phase 5 (webhooks) waits on a payload nobody has
-> seen. `tools.ts` says so where the next person will look.
+> - **`CLINIC_HISTORY`'s read.** Its response nests ~80 vital-sign fields; a hand-transcribed allow-list
+>   of eighty names is a list with a typo in it. It is also unreachable from a patient document, so no
+>   agent path to it exists regardless.
+> - **Phase 5, the webhooks.** Confirmed blocked by reading the vendor's page, not assumed: twelve UI
+>   steps and zero words about the payload. Only an observed delivery unblocks it (#1060).
+> - **The booking write is unproven.** Not for lack of permission or effort — the clinic has no
+>   appointments across three years and the API publishes no doctor directory, so there is no doctor
+>   document to book with (#1062).
 >
 > ### Verification
 >
-> 381 tests green · `tsc --noEmit` clean · Prettier clean · no credential in the diff.
+> 426 tests green · `tsc --noEmit` clean · Prettier clean · no credential in the diff.
 
 ---
 
-## 2. xcale-backend — `feat/saludtools-connect` → `dev`
+## 2. xcale-backend — `feat/saludtools-connect` → `dev` — **MERGED as #1020**
+
+> Kept for the record: this is the body it shipped with. The frontend half merged as
+> xcale-frontend#161. Only the mcp-server PR above is still to open.
 
 **Title:** `feat(saludtools): enroll SaludTools — catalog entry, pinned mint, and the identity chain`
 
