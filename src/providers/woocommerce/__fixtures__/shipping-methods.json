@@ -1,0 +1,27 @@
+[
+  {
+    "id": 1,
+    "instance_id": 1,
+    "title": "Free shipping",
+    "order": 1,
+    "enabled": true,
+    "method_id": "free_shipping",
+    "method_title": "Free shipping",
+    "settings": {
+      "requires": { "value": "min_amount" },
+      "min_amount": { "value": "250000" }
+    }
+  },
+  {
+    "id": 2,
+    "instance_id": 2,
+    "title": "Flat rate",
+    "order": 2,
+    "enabled": true,
+    "method_id": "flat_rate",
+    "method_title": "Flat rate",
+    "settings": {
+      "cost": { "value": "18000" }
+    }
+  }
+]

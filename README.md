@@ -2,7 +2,7 @@
 
 > **Status:** in production. Deployed on DigitalOcean App Platform from `main`
 > (`deploy_on_push`), consumed by `xcale-backend` as an MCP client. Four providers are
-> registered — `cloudbeds`, `toteat`, `siigo`, and the `echo` stub — publishing 73 tools.
+> registered — `cloudbeds`, `toteat`, `siigo`, and the `echo` stub — publishing 74 tools.
 > Decisions live in [`docs/adr/`](docs/adr/README.md); what runs where in
 > [`docs/deploy.md`](docs/deploy.md).
 

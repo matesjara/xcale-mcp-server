@@ -105,7 +105,7 @@ describe('mews provider — catalog surface', () => {
     await runProviderConformance(mews({}).provider);
   });
 
-  it('publishes an api_key descriptor placing the hotel AccessToken in the JSON body (ADR 0018)', () => {
+  it('publishes an api_key descriptor placing the hotel AccessToken in the JSON body (ADR 0020)', () => {
     const { auth } = createMewsProvider();
     expect(auth.type).toBe('api_key');
     if (auth.type === 'api_key') {

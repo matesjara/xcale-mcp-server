@@ -46,6 +46,11 @@ export function materialize(
       }
       break;
     }
+    case 'basic':
+      // A single composed `key:secret` (joined by the consumer, e.g. WooCommerce ck:cs) →
+      // HTTP Basic. Stays single-secret; the server only encodes. ADR 0018.
+      headers.authorization = `Basic ${Buffer.from(secret).toString('base64')}`;
+      break;
     case 'oauth2':
     case 'credential_exchange':
       if (auth.tokenPlacement === 'bearer_header') {
@@ -69,7 +74,7 @@ export function materialize(
 }
 
 /**
- * ADR 0018: the secret becomes a top-level property of the client's JSON object body. Anything else
+ * ADR 0020: the secret becomes a top-level property of the client's JSON object body. Anything else
  * is a client or descriptor bug and throws — never a request sent without its credential. A key the
  * client already filled throws too: overwriting it would hide the bug that put it there.
  */

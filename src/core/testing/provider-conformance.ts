@@ -36,6 +36,11 @@ function assertAuthDescriptorShape(auth: ProviderAuthDescriptor, label: string):
         `${label}: credential_exchange.responseFields.token`,
       ).toBeGreaterThan(0);
       break;
+    case 'basic':
+      // Basic declares the credential inputs a consumer must collect (in Basic order); it composes
+      // them at the consumer and only encodes here. At least one field must be declared.
+      expect(auth.fields.length, `${label}: basic fields`).toBeGreaterThan(0);
+      break;
     default:
       assertNever(auth);
   }

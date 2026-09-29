@@ -27,7 +27,7 @@ export interface MewsClient {
 /**
  * Thin Connector API client. Every Mews operation is a POST whose body carries the operation's own
  * fields next to `ClientToken` and `Client`; the core adds `AccessToken` when it materializes the
- * request (ADR 0018). The `ClientToken` is never logged, never returned and never put in an error:
+ * request (ADR 0020). The `ClientToken` is never logged, never returned and never put in an error:
  * it is only ever part of the outgoing body.
  */
 export function createMewsClient(deps: MewsClientDeps): MewsClient {
