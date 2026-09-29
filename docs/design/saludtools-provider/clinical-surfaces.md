@@ -211,5 +211,7 @@ only by pointing a real endpoint at a real clinic and looking at what arrives.
    documentation error in this integration lands on that safe side.
 4. **Drop `pathLocation`, `patient`, `uuid` and every internal id** that names another system's
    storage. D6.
-5. **Nothing here is built yet.** Phase 3 waits on #1055 by the grill's own rule; phase 4 waits on
-   #1057 because nine of its ten writes cannot be undone.
+5. **Both phases are now BUILT, and both are withdrawn from `tools/list`** (2026-09-28/29, D10 and
+   D5). Phase 3's withdrawal is temporary and lifts when #1055 answers; phase 4's is permanent.
+   **No clinical write has ever been executed** against any environment, and none should be until
+   #1057 provides a sandbox — nine of the ten cannot be undone.

@@ -234,9 +234,37 @@ record), so they are never collapsed. Searches answer `{records, total}`.
 hand-transcribed allow-list of eighty names is a list with a typo in it. It is also unreachable from a
 patient document, so no agent path to it exists regardless.
 
-**Phase 4 — the clinical writes — remains unbuilt**, and its blocker is not shape: nine of the ten
-clinical writes have **no delete**, so the phase cannot be exercised against a clinic that treats real
-patients ([#1057](https://github.com/matesjara/xcale-backend/issues/1057)).
+### C.1.2 The clinical writes — built, control-plane permanently, and never executed
+
+Twelve tools: `create_prescription` / `update_prescription` / `delete_prescription`,
+`create_clinic_history`, `create_exam_prescription`, `create_exam_result`, `create_paraclinic`,
+`create_disability`, `create_gyneco_history`, `create_personal_history`, `create_family_history`,
+`upload_patient_file`.
+
+**Control-plane here is permanent, not provisional** (D5). Prescribing a medicine, recording a
+diagnosis or filing a disability certificate is not a move an agent makes on a patient's behalf under
+any tenant's rules. They exist so the provider covers the whole API and a consumer can drive a
+migration or a sync.
+
+**None has been executed against any environment**, and that is the honest status rather than an
+oversight: nine of the ten surfaces have **no delete**, so the phase cannot be exercised against a
+clinic that treats real patients. Its blocker is
+[#1057](https://github.com/matesjara/xcale-backend/issues/1057), and the first real call will correct
+some of these schemas — it should do so somewhere nobody is treated.
+
+**Inputs are deliberately looser than outputs.** A projection's failure mode is omission, so an
+allow-list is safe on the way out. On the way in, a schema stricter than the provider rejects a
+clinical record the clinic was entitled to file, with _our_ error instead of the provider's — and this
+API has already been documented wrong in both directions. So the large nested clinical blocks
+(`patientVitalSignsRecord`, `sectionDiagnostic`, `prescriptedMedicine`, …) are accepted as objects and
+forwarded verbatim, with the vendor's field table cited in each description. The rule: **validate what
+we would otherwise corrupt — shapes, dates, required identity — and let the provider judge its own
+clinical vocabulary.**
+
+**One exception, and it is the provider's bug.** `create_family_history` refuses a call that carries
+both `diagnosticText` and `diagnosticType`, or neither. The vendor states it silently **picks one**,
+so a caller with two intentions gets an arbitrary one written into a medical history with no error to
+notice.
 
 Input rules:
 
