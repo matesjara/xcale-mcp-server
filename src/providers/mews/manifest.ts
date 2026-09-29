@@ -16,8 +16,10 @@ export const mewsManifest: ProviderManifest = {
   slug: SLUG,
   displayName: 'Mews',
   category: 'hospitality',
-  schemaVersion: '2026-09-23',
-  providerVersion: '0.1.0',
+  // 2026-09-29: three read tools publish the `identityPolicy` every provider tool that reaches a
+  // person's records now carries (ADR 0019) — a change to `tools/list`, so the version steps.
+  schemaVersion: '2026-09-29',
+  providerVersion: '0.2.0',
   connectionProbe: { tool: `mcp_${SLUG}_list_services` },
   contextDiscovery: {
     key: 'serviceId',

@@ -478,6 +478,12 @@ export function buildMewsTools(client: MewsClient) {
 
     tool({
       name: `mcp_${SLUG}_search_customers`,
+      // Reads guests' records by what names them: an email the guest gave, or the customer id a
+      // reservation carries. A filter is required, so there is no unscoped call (ADR 0019).
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: ['emails', 'customerIds'],
+      },
       description:
         'Find guests (customers) of the hotel by email or by id, to reuse an existing guest instead of ' +
         'creating a duplicate.',
@@ -552,6 +558,9 @@ export function buildMewsTools(client: MewsClient) {
 
     tool({
       name: `mcp_${SLUG}_list_reservations`,
+      // A check-out window returns every guest's bookings in it: other people's records, with no
+      // person named in the call (ADR 0019).
+      identityPolicy: { mode: 'subject-scoped' },
       description:
         'Reservations of the connected service by id, by reservation number, by guest (customer ' +
         'id) or by a check-out window (at most 3 months), with their state (Confirmed, Started, ' +
@@ -611,6 +620,8 @@ export function buildMewsTools(client: MewsClient) {
 
     tool({
       name: `mcp_${SLUG}_list_order_items`,
+      // What guests were charged, by reservation: other people's money, with no person named (ADR 0019).
+      identityPolicy: { mode: 'subject-scoped' },
       description:
         'What was charged on reservations of the connected service: each order item with its ' +
         'gross amount and currency, its type (night, product, rebate…) and whether it was ' +
