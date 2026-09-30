@@ -5,6 +5,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { buildApp } from '../../server';
+import { IDENTITY_POLICY_META_KEY } from '../../core/types';
 
 const SECRET = 'test-secret';
 let app: FastifyInstance;
@@ -83,6 +84,68 @@ describe('MCP protocol (e2e over Streamable HTTP, stateless)', () => {
     const res = await client.callTool({ name: 'mcp_echo_reconnect_required', arguments: {} });
     expect(res.isError).toBe(true);
     expect(res.structuredContent).toMatchObject({ ok: false, code: 'PROVIDER_AUTH_EXPIRED' });
+    await client.close();
+  });
+});
+
+/**
+ * Whose data a tool can reach, AS THE CONSUMER RECEIVES IT.
+ *
+ * WHY THIS LIVES HERE AND NOT BESIDE THE PROVIDER. The first cut of this feature was tested against
+ * `provider.listTools()` — the declaration — and passed while the wire carried nothing: the
+ * `tools/list` handler rebuilds every tool from `name`, `description` and `inputSchema`, so the
+ * field never left this server (review of #101). A test on the provider's own list cannot see that,
+ * because the thing it reads is the thing that was never the problem.
+ *
+ * These go through a real MCP client over Streamable HTTP, so the SDK validates the payload on both
+ * ends — the same validation that silently dropped a top-level field and is the reason the policy
+ * travels in `_meta`.
+ */
+describe('identityPolicy reaches the consumer over the wire', () => {
+  it('publishes the policy of a tool that acts on a named person', async () => {
+    const client = await connect();
+    const { tools } = await client.listTools();
+    const search = tools.find((t) => t.name === 'mcp_cloudbeds_search_guests');
+
+    expect(search, 'the tool must be published at all').toBeDefined();
+    expect(search?._meta?.[IDENTITY_POLICY_META_KEY]).toEqual({
+      mode: 'subject-bound',
+      identityFields: ['guestPhone', 'guestEmail', 'guestFirstName', 'guestLastName'],
+    });
+    await client.close();
+  });
+
+  it('publishes the policy of a read that returns other people unasked', async () => {
+    const client = await connect();
+    const { tools } = await client.listTools();
+    const list = tools.find((t) => t.name === 'mcp_cloudbeds_list_reservations');
+
+    expect(list?._meta?.[IDENTITY_POLICY_META_KEY]).toEqual({ mode: 'subject-scoped' });
+    await client.close();
+  });
+
+  it('carries NO policy for a tool that touches nobody, rather than an empty one', async () => {
+    // Absent is the honest answer for a room-type read, and it is what tells a consumer there is
+    // nothing to enforce. An empty object would read as "declared, and it says nothing".
+    const client = await connect();
+    const { tools } = await client.listTools();
+    const rooms = tools.find((t) => t.name === 'mcp_cloudbeds_list_room_types');
+
+    expect(rooms, 'the tool must be published at all').toBeDefined();
+    expect(rooms?._meta?.[IDENTITY_POLICY_META_KEY]).toBeUndefined();
+    await client.close();
+  });
+
+  it('carries every declared policy through, not just the ones a test names', async () => {
+    // The count is the guard: a handler that forwards one shape and drops another would pass the
+    // three cases above and fail here.
+    const client = await connect();
+    const { tools } = await client.listTools();
+    const overTheWire = tools.filter(
+      (t) => t._meta?.[IDENTITY_POLICY_META_KEY] !== undefined,
+    ).length;
+
+    expect(overTheWire).toBeGreaterThan(0);
     await client.close();
   });
 });

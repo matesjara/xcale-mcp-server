@@ -3,6 +3,7 @@ import type { z } from 'zod';
 import type { RequestSpec } from './auth/http-request';
 import type { ProviderErrorCode } from './errors';
 import type { RequestResult } from './http';
+import type { ToolIdentityPolicy } from './types';
 
 /**
  * The light result a handler returns. The provider dispatcher (createProvider) wraps it into the
@@ -53,6 +54,17 @@ export interface ToolDefinition<I extends z.ZodTypeAny = z.ZodTypeAny, M = unkno
    * Omitted means the provider has no scope model at all (api_key providers).
    */
   readonly requiredScopes?: readonly string[];
+  /**
+   * Whose data this tool can reach, declared by whoever wrote it and PUBLISHED in `tools/list`.
+   *
+   * Provider knowledge, so it lives with the tool — the same argument as `requiredScopes` one field
+   * up. A consumer receives a name, a description and a schema, and none of those say that
+   * `guestPhone` identifies a person, or that `search_guests` with every filter omitted returns the
+   * property's whole guest list. It can enforce a rule it is told; it cannot invent one.
+   *
+   * Absent means the tool touches nobody's personal records — true of most of them.
+   */
+  readonly identityPolicy?: ToolIdentityPolicy;
   /**
    * Control-plane tool: dispatched by `tools/call`, **withdrawn from `tools/list`**.
    *

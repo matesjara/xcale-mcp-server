@@ -28,9 +28,13 @@ jobs:
       - name: Use an npm whose audit client is not the retired endpoint
         run: npm install -g npm@11
       - run: npm ci
+      # The guard is about DECLARING a schema by hand. It was a bare grep, so it also failed on a
+      # test that merely READS `tool.inputSchema` to check the published contract — the kind of
+      # test this rule exists to make possible. Tests declare nothing that ships, so they are out
+      # of its reach; a hand-written schema in provider source still fails it.
       - name: Guard — providers must not hand-write inputSchema (single source of truth)
         run: |
-          if grep -rn "inputSchema" src/providers; then
+          if grep -rn --include="*.ts" --exclude-dir=__tests__ "inputSchema" src/providers; then
             echo "::error::Providers must declare tools via defineTool (zod). Hand-written inputSchema is forbidden (ADR: canonical-provider-pattern)."
             exit 1
           fi

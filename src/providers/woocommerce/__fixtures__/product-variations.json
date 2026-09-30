@@ -1,0 +1,53 @@
+[
+  {
+    "id": 18,
+    "type": "variation",
+    "permalink": "http://localhost:10004/product/camiseta/?attribute_talla=S",
+    "sku": "CM-001",
+    "price": "150000",
+    "regular_price": "150000",
+    "sale_price": "",
+    "on_sale": false,
+    "status": "publish",
+    "manage_stock": "parent",
+    "stock_quantity": 76,
+    "stock_status": "instock",
+    "attributes": [{ "id": 0, "name": "Talla", "slug": "talla", "option": "S" }],
+    "name": "S",
+    "parent_id": 14
+  },
+  {
+    "id": 19,
+    "type": "variation",
+    "permalink": "http://localhost:10004/product/camiseta/?attribute_talla=M",
+    "sku": "CM-001",
+    "price": "150000",
+    "regular_price": "150000",
+    "sale_price": "",
+    "on_sale": false,
+    "status": "publish",
+    "manage_stock": "parent",
+    "stock_quantity": 76,
+    "stock_status": "instock",
+    "attributes": [{ "id": 0, "name": "Talla", "slug": "talla", "option": "M" }],
+    "name": "M",
+    "parent_id": 14
+  },
+  {
+    "id": 20,
+    "type": "variation",
+    "permalink": "http://localhost:10004/product/camiseta/?attribute_talla=L",
+    "sku": "CM-001",
+    "price": "150000",
+    "regular_price": "150000",
+    "sale_price": "",
+    "on_sale": false,
+    "status": "publish",
+    "manage_stock": "parent",
+    "stock_quantity": 76,
+    "stock_status": "instock",
+    "attributes": [{ "id": 0, "name": "Talla", "slug": "talla", "option": "L" }],
+    "name": "L",
+    "parent_id": 14
+  }
+]
