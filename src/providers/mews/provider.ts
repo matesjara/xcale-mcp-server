@@ -17,6 +17,8 @@ export interface MewsProviderDeps {
   readonly clientToken?: string;
   /** The `Client` name sent on every call. Defaults to deployment config (`MEWS_CLIENT_NAME`). */
   readonly clientName?: string;
+  /** Injected so a test does not wait out the retry of a throttled read. */
+  readonly sleep?: (ms: number) => Promise<void>;
 }
 
 /**
@@ -29,6 +31,7 @@ export function createMewsProvider(deps: MewsProviderDeps = {}): IProvider {
     baseUrl: deps.baseUrl ?? config.mewsBaseUrl ?? 'https://api.mews.com',
     clientToken: deps.clientToken ?? config.mewsClientToken ?? '',
     clientName: deps.clientName ?? config.mewsClientName ?? 'xcale 1.0.0',
+    ...(deps.sleep ? { sleep: deps.sleep } : {}),
   });
   return createProvider({
     manifest: mewsManifest,

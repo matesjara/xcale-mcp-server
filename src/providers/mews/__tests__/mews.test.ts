@@ -81,6 +81,7 @@ function mews(routes: Record<string, Route>, clientToken = CLIENT_TOKEN) {
     clientToken,
     clientName: 'xcale-test 0.0.0',
     baseUrl: 'https://api.mews-demo.com',
+    sleep: async () => {},
   });
   return { provider, sent };
 }
@@ -788,6 +789,68 @@ describe('mews provider — the owner’s back office: rooms, blocks, guest and 
         ReservationUpdates: [{ ReservationId: RES, AssignedResourceId: { Value: room } }],
       }),
     );
+  });
+});
+
+describe('mews provider — a throttled read waits and tries again; a write never does (E13)', () => {
+  /** A Mews that answers 429 for the first `throttled` calls, then the given body. */
+  function throttledThen(throttled: number, body: unknown) {
+    let calls = 0;
+    const waits: number[] = [];
+    const impl = (async () => {
+      calls += 1;
+      const status = calls <= throttled ? 429 : 200;
+      return new Response(JSON.stringify(status === 429 ? tooMany : body), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as FetchLike;
+    const provider = createMewsProvider({
+      fetchImpl: impl,
+      clientToken: CLIENT_TOKEN,
+      clientName: 'xcale-test 0.0.0',
+      baseUrl: 'https://api.mews-demo.com',
+      sleep: async (ms) => {
+        waits.push(ms);
+      },
+    });
+    return { provider, calls: () => calls, waits };
+  }
+
+  it('answers a read Mews throttled once, after a short wait', async () => {
+    const { provider, calls, waits } = throttledThen(1, products);
+
+    const out = data(await provider.callTool('mcp_mews_list_products', {}, CTX)) as {
+      Products: unknown[];
+    };
+
+    expect(out.Products.length).toBeGreaterThan(0);
+    expect(calls()).toBe(2);
+    expect(waits).toEqual([1000]);
+  });
+
+  it('gives up on a read after two waits and says it was throttled', async () => {
+    const { provider, calls, waits } = throttledThen(10, products);
+
+    const result = await provider.callTool('mcp_mews_list_products', {}, CTX);
+
+    expect(failure(result).code).toBe(ProviderErrorCode.RATE_LIMITED);
+    expect(calls()).toBe(3);
+    expect(waits).toEqual([1000, 2500]);
+  });
+
+  it('never repeats a write Mews throttled — it may have landed', async () => {
+    const { provider, calls, waits } = throttledThen(1, serviceOrderNoteAdd);
+
+    const result = await provider.callTool(
+      'mcp_mews_add_reservation_note',
+      { reservationId: RES, text: 'Anniversary' },
+      CTX,
+    );
+
+    expect(failure(result).code).toBe(ProviderErrorCode.RATE_LIMITED);
+    expect(calls()).toBe(1);
+    expect(waits).toEqual([]);
   });
 });
 
