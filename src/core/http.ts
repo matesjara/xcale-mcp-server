@@ -22,6 +22,11 @@ export type RequestResult =
       readonly status: number;
       readonly errorCode: ProviderErrorCode;
       readonly body: string;
+      /**
+       * How long the provider asked the caller to wait (the HTTP `Retry-After` header, in seconds or
+       * as a date), when it said. A provider's client decides whether to wait; the transport only reads.
+       */
+      readonly retryAfterMs?: number;
     };
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -81,10 +86,12 @@ export async function sendRequest(
     });
     if (!res.ok) {
       const body = await safeText(res);
+      const retryAfterMs = parseRetryAfter(res.headers.get('retry-after'));
       return {
         ok: false,
         status: res.status,
         errorCode: mapHttpStatusToErrorCode(res.status),
+        ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
         // The provider's own error body, redacted: a provider that echoes request context back
         // (Toteat's order responses echo the caller IP and payload state) would otherwise hand the
         // credential straight out through the error path.
@@ -105,6 +112,22 @@ export async function sendRequest(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * `Retry-After` as milliseconds: delta-seconds or an HTTP date (RFC 9110 §10.2.3). `undefined` when
+ * absent or unreadable — never a guess.
+ */
+export function parseRetryAfter(
+  value: string | null,
+  now: number = Date.now(),
+): number | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) return Number(trimmed) * 1000;
+  const at = Date.parse(trimmed);
+  if (Number.isNaN(at)) return undefined;
+  return Math.max(0, at - now);
 }
 
 async function safeText(res: Response): Promise<string> {

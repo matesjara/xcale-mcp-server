@@ -14,6 +14,13 @@ const READ_OPERATION = /\/(getAll|get|getUrls|getPricing|getAvailability|price)(
 /** One wait per retry of a throttled read, in order. Short: a guest is waiting on WhatsApp. */
 export const READ_RETRY_DELAYS_MS: readonly number[] = [1000, 2500];
 
+/**
+ * The longest wait a read takes when Mews says how long (`Retry-After`). Mews' window is 200 requests
+ * per AccessToken in 30 s (docs › Environments); past this ceiling the read fails and the consumer
+ * decides, rather than holding a guest's reply.
+ */
+export const MAX_RETRY_AFTER_MS = 5000;
+
 export function isReadOperation(operation: string): boolean {
   return READ_OPERATION.test(operation);
 }
@@ -67,9 +74,12 @@ export function createMewsClient(deps: MewsClientDeps): MewsClient {
       const delays = isReadOperation(operation) ? READ_RETRY_DELAYS_MS : [];
       const sleep = deps.sleep ?? defaultSleep;
       let res = await send();
-      for (const wait of delays) {
+      for (const fallback of delays) {
         if (res.ok || res.status !== 429) break;
-        await sleep(wait);
+        // Mews says how long to wait; honour it, up to the ceiling. Longer than that, give up now.
+        const asked = res.retryAfterMs;
+        if (asked !== undefined && asked > MAX_RETRY_AFTER_MS) break;
+        await sleep(asked ?? fallback);
         res = await send();
       }
       return res;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ProviderErrorCode } from '../errors';
-import { mapHttpStatusToErrorCode, redactQueryValues, sendRequest } from '../http';
+import { mapHttpStatusToErrorCode, parseRetryAfter, redactQueryValues, sendRequest } from '../http';
 
 const TOKEN = 'super-secret-api-token';
 const URL_WITH_CREDENTIAL = `https://api.example.com/shiftstatus?xir=123&xil=1&xapitoken=${TOKEN}`;
@@ -123,5 +123,33 @@ describe('sendRequest — the credential never survives in a result', () => {
 
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.body).not.toContain(TOKEN);
+  });
+});
+
+describe('parseRetryAfter (RFC 9110 §10.2.3)', () => {
+  const NOW = Date.parse('2026-09-30T12:00:00Z');
+
+  it('reads delta-seconds and an HTTP date', () => {
+    expect(parseRetryAfter('3', NOW)).toBe(3000);
+    expect(parseRetryAfter('Wed, 30 Sep 2026 12:00:04 GMT', NOW)).toBe(4000);
+  });
+
+  it('never guesses: absent or unreadable is undefined, a past date is zero', () => {
+    expect(parseRetryAfter(null, NOW)).toBeUndefined();
+    expect(parseRetryAfter('soon', NOW)).toBeUndefined();
+    expect(parseRetryAfter('Wed, 30 Sep 2026 11:59:00 GMT', NOW)).toBe(0);
+  });
+
+  it('reaches the error result of a throttled request', async () => {
+    const fetchImpl = (async () =>
+      new Response('{}', { status: 429, headers: { 'retry-after': '2' } })) as typeof fetch;
+
+    const res = await sendRequest(
+      { method: 'GET', url: 'https://x.test/a', headers: {} },
+      { fetchImpl },
+    );
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.retryAfterMs).toBe(2000);
   });
 });

@@ -839,6 +839,41 @@ describe('mews provider — a throttled read waits and tries again; a write neve
     expect(waits).toEqual([1000, 2500]);
   });
 
+  it('waits as long as Mews asks (Retry-After), and gives up at once past the ceiling', async () => {
+    const asking = (seconds: string) => {
+      let calls = 0;
+      const waits: number[] = [];
+      const provider = createMewsProvider({
+        fetchImpl: (async () => {
+          calls += 1;
+          return calls === 1
+            ? new Response(JSON.stringify(tooMany), {
+                status: 429,
+                headers: { 'retry-after': seconds },
+              })
+            : new Response(JSON.stringify(products), { status: 200 });
+        }) as FetchLike,
+        clientToken: CLIENT_TOKEN,
+        clientName: 'xcale-test 0.0.0',
+        baseUrl: 'https://api.mews-demo.com',
+        sleep: async (ms) => {
+          waits.push(ms);
+        },
+      });
+      return { provider, calls: () => calls, waits };
+    };
+
+    const short = asking('3');
+    data(await short.provider.callTool('mcp_mews_list_products', {}, CTX));
+    expect(short.waits).toEqual([3000]);
+
+    const long = asking('20');
+    const result = await long.provider.callTool('mcp_mews_list_products', {}, CTX);
+    expect(failure(result).code).toBe(ProviderErrorCode.RATE_LIMITED);
+    expect(long.calls()).toBe(1);
+    expect(long.waits).toEqual([]);
+  });
+
   it('never repeats a write Mews throttled — it may have landed', async () => {
     const { provider, calls, waits } = throttledThen(1, serviceOrderNoteAdd);
 
