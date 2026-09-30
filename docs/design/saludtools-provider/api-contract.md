@@ -210,7 +210,7 @@ read**, below.
 
 ### C.1.1 The clinical reads — built, and invisible to agents
 
-Sixteen tools over the clinical surfaces, all `controlPlane: true` (decision D10):
+Fifteen tools over the clinical surfaces, all `controlPlane: true` (decision D10):
 
 | Reached by a patient document                                            | Reached by a record id                                  |
 | ------------------------------------------------------------------------ | ------------------------------------------------------- |

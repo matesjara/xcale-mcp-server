@@ -20,34 +20,33 @@ Copy the body verbatim into `gh pr create --body-file`. Precedent: `siigo-read-o
 > third clinical integration on the board (#1053 HiMed, #1039 Dentalink). Its whole API is two POST
 > endpoints — a `key`+`secret` exchange that mints a JWT, and one RPC endpoint dispatched by
 > `eventType` and `actionType` — which makes it `credential_exchange` + `reference`, the shape Siigo
-> already proved. It lands inside the `add-provider` golden rule with one deliberate exception, below.
+> already proved, and it lands **entirely inside the `add-provider` golden rule** — no exception.
 >
-> ### Read this first: what is in the diff that is not mine
+> ### The scope, and the exception that went away
 >
-> **This branch merges xcale-mcp-server#101** (`identityPolicy`), because it could not wait for that
-> PR to merge and a PHI provider shipping ahead of it publishes declarations nobody enforces. Merged
-> rather than copied, so the two branches share ancestry and reconcile automatically whichever lands
-> first. **Review #101 there.** Ours is `src/providers/saludtools/`, one line in
-> `src/providers/index.ts`, `assets/saludtools.svg`, the optional config field, the docs — and one line
-> in `src/protocol/mcp-server.ts`.
+> Ours is `src/providers/saludtools/`, one line in `src/providers/index.ts`,
+> `assets/saludtools.svg`, the optional config field and the docs. **Nothing in `src/core`,
+> `src/protocol` or `src/auth`.**
 >
-> ### The protocol line, stated plainly
+> An earlier version of this branch did touch `src/protocol/mcp-server.ts`. #101 had added
+> `identityPolicy` to `ToolDefinition` and pinned it with tests that read `provider.listTools()` — the
+> in-process object — while the wire mapping dropped it, so every declaration was true and none of it
+> left the building. A PHI provider's round-trip proof is what noticed, and this branch carried the
+> one-line fix.
 >
-> It touches `src/protocol/`, against the golden rule. #101 added `identityPolicy` to `ToolDefinition`,
-> forwarded it through `provider-factory` and `definePaginatedList`, and pinned it with tests that read
-> `provider.listTools()` — the in-process object. **The wire mapping dropped it**, so every declaration
-> was true and none of it left the building: exactly the failure #101's own commit message warns
-> about. This is the other half of that PR, and it took the same exception #101 took for `src/core`,
-> recorded in a commit rather than an ADR. A protocol test now asserts the wire shape over raw
-> JSON-RPC — the SDK's typed client strips unknown fields, so a test written through it would report
-> the field absent even once it is present.
+> **That is now `dev`'s, and better.** #101 merged with ADR 0019: the policy travels in `_meta`, a
+> field the MCP spec names, so the SDK's own typed client preserves it instead of stripping it. On
+> merging `dev` the line was dropped in favour of that, and the raw-JSON-RPC test written to work
+> around the SDK's stripping was deleted — `dev` covers the same ground with four tests through the
+> ordinary client. The provider needed no change: it declares `identityPolicy` and the new mapping
+> publishes it.
 >
 > ### What the provider does
 >
 > **Nine agent tools** — patient lookup and registration, the agenda, a patient's appointments, booking
-> and rescheduling, the catalogs — and **thirty-two control-plane operations withdrawn from
-> `tools/list`**: the patient-list walk, the three destructive ones, and the twenty-eight clinical
-> tools of phases 3 and 4.
+> and rescheduling, the catalogs — and **thirty-one control-plane operations withdrawn from
+> `tools/list`**: the patient-list walk, the three destructive ones, and the twenty-seven clinical
+> tools of phases 3 and 4 (fifteen reads, twelve writes).
 >
 > **The whole SaludTools API is covered**, which was this integration's definition of done: every
 > `eventType` and every parametric catalog has a home here, as an agent tool or as a control-plane
@@ -84,7 +83,7 @@ Copy the body verbatim into `gh pr create --body-file`. Precedent: `siigo-read-o
 >
 > ### The clinical phases are built AND invisible — read this before approving
 >
-> Twenty-eight clinical tools ship in this PR and **not one of them is on the agent's menu.** The
+> Twenty-seven clinical tools ship in this PR and **not one of them is on the agent's menu.** The
 > published surface is still the nine above, and the test suite asserts it as a **closed list**, so any
 > tool that becomes agent-visible — including one written later without the flag — turns the suite red.
 >
@@ -123,7 +122,7 @@ Copy the body verbatim into `gh pr create --body-file`. Precedent: `siigo-read-o
 >
 > ### Verification
 >
-> 426 tests green · `tsc --noEmit` clean · Prettier clean · no credential in the diff.
+> 567 tests green across the whole repo (the branch is merged up to date with `dev`) · `tsc --noEmit` clean · Prettier clean · no credential in the diff.
 
 ---
 

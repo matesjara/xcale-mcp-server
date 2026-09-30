@@ -83,7 +83,7 @@ describe('the published surface is a CLOSED list', () => {
   });
 
   it('adding the clinical phases changed nothing about what an agent can see', async () => {
-    // Twenty-eight clinical tools exist; the agent's menu is still nine.
+    // Twenty-seven clinical tools exist; the agent's menu is still nine.
     const { provider: p } = provider([]);
     expect((await p.listTools()).length).toBe(9);
     expect(WRITES.length).toBeGreaterThan(10);

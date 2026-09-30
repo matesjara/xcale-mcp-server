@@ -5,6 +5,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { buildApp } from '../../server';
+import { IDENTITY_POLICY_META_KEY } from '../../core/types';
 
 const SECRET = 'test-secret';
 let app: FastifyInstance;
@@ -57,52 +58,6 @@ describe('MCP protocol (e2e over Streamable HTTP, stateless)', () => {
     await client.close();
   });
 
-  it('tools/list carries each tool’s identityPolicy onto the WIRE', async () => {
-    /*
-     * REGRESSION, and the field's whole reason to exist.
-     *
-     * #101 added `identityPolicy` to `ToolDefinition`, forwarded it through `provider-factory` and
-     * `definePaginatedList`, and pinned it with tests that read `provider.listTools()` — the
-     * in-process object. The protocol mapping, the only place a tool becomes something a consumer can
-     * see, dropped it. Every declaration was true and none of it left the building; a PHI provider's
-     * round-trip proof is what noticed.
-     *
-     * Asserted over RAW JSON-RPC on purpose. The SDK's own `ToolSchema` is a plain `z.object`, so its
-     * typed client strips any field the spec does not name — a test written through `client.listTools()`
-     * would report this absent even once it is present, and "fixing" that would mean deleting the fix.
-     * xcale-backend reads raw JSON (`modules/mcp/mcp-client.ts`), which is the view that matters.
-     */
-    const res = await app.inject({
-      method: 'POST',
-      url: '/mcp',
-      headers: {
-        authorization: `Bearer ${SECRET}`,
-        'x-provider-token': 'provider-token',
-        'content-type': 'application/json',
-        accept: 'application/json, text/event-stream',
-      },
-      payload: { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} },
-    });
-
-    const sse = res.body.match(/data: (\{[\s\S]*\})/);
-    const body = JSON.parse(sse ? sse[1]! : res.body) as {
-      result: { tools: Array<{ name: string; identityPolicy?: { mode: string } }> };
-    };
-    const byName = new Map(body.result.tools.map((t) => [t.name, t]));
-
-    // A tool that reaches a named person says so.
-    expect(byName.get('mcp_cloudbeds_search_guests')?.identityPolicy).toEqual({
-      mode: 'subject-bound',
-      identityFields: expect.any(Array),
-    });
-    // A tool that returns other people's records without taking an identifier says that instead.
-    expect(byName.get('mcp_cloudbeds_list_reservations')?.identityPolicy).toEqual({
-      mode: 'subject-scoped',
-    });
-    // And the majority, which reach nobody, still publish nothing — absence is meaningful.
-    expect(byName.get('mcp_echo_say')?.identityPolicy).toBeUndefined();
-  });
-
   it('tools/call executes a tool and returns a success result', async () => {
     const client = await connect();
     const res = await client.callTool({ name: 'mcp_echo_say', arguments: { message: 'hola' } });
@@ -129,6 +84,68 @@ describe('MCP protocol (e2e over Streamable HTTP, stateless)', () => {
     const res = await client.callTool({ name: 'mcp_echo_reconnect_required', arguments: {} });
     expect(res.isError).toBe(true);
     expect(res.structuredContent).toMatchObject({ ok: false, code: 'PROVIDER_AUTH_EXPIRED' });
+    await client.close();
+  });
+});
+
+/**
+ * Whose data a tool can reach, AS THE CONSUMER RECEIVES IT.
+ *
+ * WHY THIS LIVES HERE AND NOT BESIDE THE PROVIDER. The first cut of this feature was tested against
+ * `provider.listTools()` — the declaration — and passed while the wire carried nothing: the
+ * `tools/list` handler rebuilds every tool from `name`, `description` and `inputSchema`, so the
+ * field never left this server (review of #101). A test on the provider's own list cannot see that,
+ * because the thing it reads is the thing that was never the problem.
+ *
+ * These go through a real MCP client over Streamable HTTP, so the SDK validates the payload on both
+ * ends — the same validation that silently dropped a top-level field and is the reason the policy
+ * travels in `_meta`.
+ */
+describe('identityPolicy reaches the consumer over the wire', () => {
+  it('publishes the policy of a tool that acts on a named person', async () => {
+    const client = await connect();
+    const { tools } = await client.listTools();
+    const search = tools.find((t) => t.name === 'mcp_cloudbeds_search_guests');
+
+    expect(search, 'the tool must be published at all').toBeDefined();
+    expect(search?._meta?.[IDENTITY_POLICY_META_KEY]).toEqual({
+      mode: 'subject-bound',
+      identityFields: ['guestPhone', 'guestEmail', 'guestFirstName', 'guestLastName'],
+    });
+    await client.close();
+  });
+
+  it('publishes the policy of a read that returns other people unasked', async () => {
+    const client = await connect();
+    const { tools } = await client.listTools();
+    const list = tools.find((t) => t.name === 'mcp_cloudbeds_list_reservations');
+
+    expect(list?._meta?.[IDENTITY_POLICY_META_KEY]).toEqual({ mode: 'subject-scoped' });
+    await client.close();
+  });
+
+  it('carries NO policy for a tool that touches nobody, rather than an empty one', async () => {
+    // Absent is the honest answer for a room-type read, and it is what tells a consumer there is
+    // nothing to enforce. An empty object would read as "declared, and it says nothing".
+    const client = await connect();
+    const { tools } = await client.listTools();
+    const rooms = tools.find((t) => t.name === 'mcp_cloudbeds_list_room_types');
+
+    expect(rooms, 'the tool must be published at all').toBeDefined();
+    expect(rooms?._meta?.[IDENTITY_POLICY_META_KEY]).toBeUndefined();
+    await client.close();
+  });
+
+  it('carries every declared policy through, not just the ones a test names', async () => {
+    // The count is the guard: a handler that forwards one shape and drops another would pass the
+    // three cases above and fail here.
+    const client = await connect();
+    const { tools } = await client.listTools();
+    const overTheWire = tools.filter(
+      (t) => t._meta?.[IDENTITY_POLICY_META_KEY] !== undefined,
+    ).length;
+
+    expect(overTheWire).toBeGreaterThan(0);
     await client.close();
   });
 });

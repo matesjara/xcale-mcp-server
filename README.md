@@ -1,9 +1,10 @@
 # xcale-mcp-server — "Composio LATAM"
 
 > **Status:** in production. Deployed on DigitalOcean App Platform from `main`
-> (`deploy_on_push`), consumed by `xcale-backend` as an MCP client. Five providers are
-> registered — `cloudbeds`, `toteat`, `siigo`, `saludtools`, and the `echo` stub — publishing 82
-> tools (94 routable: the difference is the control-plane operations, withdrawn from `tools/list`).
+> (`deploy_on_push`), consumed by `xcale-backend` as an MCP client. Six providers are
+> registered — `cloudbeds`, `toteat`, `siigo`, `saludtools`, `woocommerce`, and the `echo` stub —
+> publishing 103 tools (143 routable: the difference is the 40 control-plane operations, withdrawn
+> from `tools/list`).
 > Decisions live in [`docs/adr/`](docs/adr/README.md); what runs where in
 > [`docs/deploy.md`](docs/deploy.md).
 

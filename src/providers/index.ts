@@ -4,6 +4,7 @@ import { echoProvider } from './echo';
 import { saludtoolsProvider } from './saludtools';
 import { siigoProvider } from './siigo';
 import { toteatProvider } from './toteat';
+import { woocommerceProvider } from './woocommerce';
 
 /**
  * The single explicit provider list (no auto-discovery).
@@ -18,4 +19,5 @@ export const PROVIDERS: readonly IProvider[] = [
   toteatProvider,
   siigoProvider,
   saludtoolsProvider,
+  woocommerceProvider,
 ];

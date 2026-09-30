@@ -43,6 +43,11 @@ export function materialize(
       }
       break;
     }
+    case 'basic':
+      // A single composed `key:secret` (joined by the consumer, e.g. WooCommerce ck:cs) →
+      // HTTP Basic. Stays single-secret; the server only encodes. ADR 0018.
+      headers.authorization = `Basic ${Buffer.from(secret).toString('base64')}`;
+      break;
     case 'oauth2':
     case 'credential_exchange':
       if (auth.tokenPlacement === 'bearer_header') {
