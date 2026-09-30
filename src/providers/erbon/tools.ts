@@ -238,5 +238,57 @@ export function buildErbonTools(
           'create guest',
         ),
     }),
+    tool({
+      // BACKEND-ONLY read: the backend looks a reservation up by id and reconciles a create whose
+      // response was lost. Withdrawn from the agent menu (a booking read is not the agent's to make).
+      name: `mcp_${SLUG}_get_booking`,
+      description:
+        'BACKEND-ONLY. Get one booking at the connected Erbon hotel by its internal ID. Returns the ' +
+        'booking verbatim. Used by the backend for reservation lookup and reconcile.',
+      controlPlane: true,
+      input: z.object({ bookingInternalID: z.union([z.string().min(1), z.number()]) }).strict(),
+      handler: async (args, ctx) =>
+        unwrapErbon(
+          await client.get(
+            `booking/${encodeURIComponent(String(args.bookingInternalID))}`,
+            ctx.request,
+            ctx.metadata,
+          ),
+          'get booking',
+        ),
+    }),
+    tool({
+      // BACKEND-ONLY read: Erbon has NO server-side voucher filter, so reconcile lists a window
+      // (check-in/out or created-at) and matches the stamped `voucher` CLIENT-SIDE (anti-duplicate,
+      // since Erbon has no cancel). Filters travel in HEADERS. Withdrawn from the agent menu.
+      name: `mcp_${SLUG}_search_booking`,
+      description:
+        'BACKEND-ONLY. Search bookings at the connected Erbon hotel by a window (checkin/checkout or ' +
+        'bookingCreatedAtStart/End) and other filters. Returns a flat array verbatim. The backend ' +
+        'matches its stamped voucher client-side to reconcile a create.',
+      controlPlane: true,
+      input: z
+        .object({
+          checkin: isoDate.optional(),
+          checkout: isoDate.optional(),
+          bookingCreatedAtStart: isoDate.optional(),
+          bookingCreatedAtEnd: isoDate.optional(),
+          status: z.string().optional(),
+          bookingNumber: z.string().optional(),
+          mainguestEmail: z.string().optional(),
+          mainguestTel: z.string().optional(),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const headers: Record<string, string> = {};
+        for (const [k, v] of Object.entries(args)) {
+          if (v !== undefined) headers[k] = String(v);
+        }
+        return unwrapErbon(
+          await client.post('booking/search', ctx.request, ctx.metadata, {}, headers),
+          'search booking',
+        );
+      },
+    }),
   ];
 }

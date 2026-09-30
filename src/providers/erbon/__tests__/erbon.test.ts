@@ -410,3 +410,44 @@ describe('erbon provider — S6 guest tools', () => {
     expect(body.email).toBe('ana@example.com');
   });
 });
+
+// ---------------------------------------------------------------------------
+// S3b/S4 support — booking reads (backend-only: lookup + reconcile)
+// ---------------------------------------------------------------------------
+
+describe('erbon provider — booking reads (get_booking / search_booking)', () => {
+  it('keeps get_booking and search_booking OFF the agent menu but routable', () => {
+    const menu = erbonProvider.listTools().map((t) => t.name);
+    const routable = erbonProvider.routableToolNames();
+    for (const n of ['mcp_erbon_get_booking', 'mcp_erbon_search_booking']) {
+      expect(menu).not.toContain(n);
+      expect(routable).toContain(n);
+    }
+  });
+
+  it('get_booking GETs /booking/{id}, url-encoding the id, verbatim', async () => {
+    const capture: Captured[] = [];
+    const provider = createErbonProvider({
+      fetchImpl: fakeFetch({ body: { bookingInternalID: 'B-1', voucher: 'v1' }, capture }),
+    });
+    const res = await provider.callTool('mcp_erbon_get_booking', { bookingInternalID: 'B-1' }, ctx);
+    expect(res.kind).toBe('success');
+    if (res.kind === 'success')
+      expect(res.data).toEqual({ bookingInternalID: 'B-1', voucher: 'v1' });
+    expect(capture[0]?.url).toMatch(/\/hotel\/H1\/booking\/B-1$/);
+  });
+
+  it('search_booking POSTs booking/search with the window filters in headers', async () => {
+    const capture: Captured[] = [];
+    const provider = createErbonProvider({ fetchImpl: fakeFetch({ body: [], capture }) });
+    await provider.callTool(
+      'mcp_erbon_search_booking',
+      { bookingCreatedAtStart: '2026-10-19', bookingCreatedAtEnd: '2026-10-21' },
+      ctx,
+    );
+    expect(capture[0]?.init.method).toBe('POST');
+    expect(capture[0]?.url).toMatch(/\/hotel\/H1\/booking\/search$/);
+    expect(capture[0]?.init.headers?.bookingCreatedAtStart).toBe('2026-10-19');
+    expect(capture[0]?.init.headers?.bookingCreatedAtEnd).toBe('2026-10-21');
+  });
+});
