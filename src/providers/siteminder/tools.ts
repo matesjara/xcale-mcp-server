@@ -242,7 +242,9 @@ export function buildSiteminderTools(
         '`availability` (rooms left for the whole stay), and `price` for the whole stay: `gross` ' +
         '(with taxes and service charge), `net`, `tax` and `serviceCharge`, in the currency of ' +
         'mcp_siteminder_get_property. An empty list means SiteMinder offered no rate for that stay ' +
-        'and party. ' +
+        'and party: the rooms may be taken, or the stay may not meet a rule the hotel set (a ' +
+        'minimum or maximum number of nights, say) — the API does not say which, so try other ' +
+        'dates or another length of stay before concluding the hotel is full. ' +
         `At most ${MAX_QUOTE_NIGHTS} nights per request. A quote holds no room and reserves nothing.`,
       input: z
         .object({

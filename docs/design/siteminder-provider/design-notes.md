@@ -44,6 +44,12 @@ pages are treated as the newer contract.
 | E2 | No key → `401 {"errors":[{"code":"Unauthorized","message":"Missing API key"}]}` | live, 2026-09-24 |
 | E3 | The key is checked before the path or query: a bad key on a 40-night `/quotes` and on the group-only `/properties` is the same 401 | live, 2026-09-24 |
 | E4 | A 401 carries no `X-SM-TRACE-TOKEN` and no rate-limit headers | live, 2026-09-24 |
+| S1 | Direct Booking API use is **included in the Direct Booking subscription**; the key is generated in Little Hotelier › Direct Booking › Configuration › API integration › Generate key | SiteMinder (Market Performance Specialist), email to xcale, 2026-09-30 |
+| S2 | The API does not create, modify or cancel reservations, nor read existing reservations or full guest data | same email |
+| S3 | Little Hotelier offers **no configurable webhooks** for reservation events | same email |
+| S4 | Receiving reservations needs a certified **SMX** integration (partner onboarding, HTTPS endpoint, certification; a test environment exists during development); Little Hotelier publishes **no ARI over SMX** | same email |
+| S5 | "The current documentation does not include room images" — **contradicted** by the developer guide, which documents `GET …/room-types/{uuid}/photos` ([reference](https://developer.siteminder.com/direct-booking-api/reference/room-type/photos.md)); likely read from the Help Centre. Q8 | same email |
+| S6 | Min/max stay restrictions "are contemplated in the Rates API documentation"; xcale must confirm the Direct Booking endpoint exposes them. It does not: `RoomRate` has no restriction field and `/quotes` returns "all rates available" (reference pages, 2026-09-30). Q9 | same email |
 
 ## 3. Tools
 
@@ -112,8 +118,14 @@ as E-rows, and replace `__fixtures__/documented/` with recordings:
    (`RoomType.code`?), so the link can pre-select the quoted rate?
 5. **Q5** — is `bookingEngineUrl` ever null for a Little Hotelier property with Direct Booking active?
 6. **Q6** — is `gross` exactly what the engine charges for the same stay?
-7. **Q7** (SiteMinder) — does the customer's Little Hotelier plan include Direct Booking and the API
-   integration tab, or is it a paid add-on? Can a Little Hotelier property join Channels Plus?
+7. ~~**Q7**~~ — answered by SiteMinder (S1): the API is included in the Direct Booking subscription. Whether
+   the customer (Hotel El Mirador del Cocora) has Direct Booking active is confirmed in its own account.
+   Channels Plus for Little Hotelier: not answered; SMX is their route for receiving reservations (S4).
+8. **Q8** — does `…/room-types/{uuid}/photos` answer for a Little Hotelier property (S5 says the docs
+   carry no images; the developer guide documents the endpoint)?
+9. **Q9** — does `/quotes` leave out a rate whose restriction the stay breaks (a 1-night stay under a
+   2-night minimum), or return it? The tool description tells the agent an empty list may be either
+   cause; confirm with one quote under a known restriction.
 
 ## 7. What the consumer must do
 
