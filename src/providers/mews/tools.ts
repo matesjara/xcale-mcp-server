@@ -649,6 +649,81 @@ export function buildMewsTools(client: MewsClient) {
     }),
 
     tool({
+      name: `mcp_${SLUG}_list_products`,
+      description:
+        'The products the connected service sells beside the stay — breakfast, parking, a late ' +
+        'check-out, a city tax — with their names and descriptions per language, their price and ' +
+        'currency, and how they are charged (Once, PerTimeUnit, PerPerson…). Read-only; it books ' +
+        'nothing. Only active products are returned.',
+      input: z.object({ cursor, limit }).strict(),
+      handler: async (args, ctx) => {
+        const res = await call(
+          'products/getAll',
+          {
+            ServiceIds: [ctx.metadata.serviceId],
+            Limitation: { Count: args.limit, ...(args.cursor ? { Cursor: args.cursor } : {}) },
+          },
+          ctx.request,
+        );
+        if (!res.ok) return asOutcome(res);
+        // Every product carries `IsActive` (E29); one that is off cannot be sold, so it is not offered.
+        const data = res.data as { Products?: Array<{ IsActive?: boolean }>; Cursor?: unknown };
+        return ok({
+          Products: (data.Products ?? []).filter((p) => p.IsActive !== false),
+          Cursor: data.Cursor ?? null,
+        });
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_list_reservation_notes`,
+      // What was written on other guests' bookings, with no person named in the call (ADR 0019).
+      identityPolicy: { mode: 'subject-scoped' },
+      description:
+        'The notes written on reservations of the connected service (a reservation is a service ' +
+        'order in Mews): each with its text, type and when it was written. Read-only.',
+      input: z
+        .object({
+          reservationIds: z.array(uuid).min(1).max(100),
+          cursor,
+          limit,
+        })
+        .strict(),
+      handler: async (args, ctx) =>
+        asOutcome(
+          await call(
+            'serviceOrderNotes/getAll',
+            {
+              ServiceOrderIds: args.reservationIds,
+              Limitation: { Count: args.limit, ...(args.cursor ? { Cursor: args.cursor } : {}) },
+            },
+            ctx.request,
+          ),
+        ),
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_add_reservation_note`,
+      description:
+        'Write a note on an existing reservation, for the front desk to read — an anniversary, a ' +
+        'late arrival. The note is added beside any already there; nothing is replaced.',
+      input: z
+        .object({
+          reservationId: uuid.describe('The reservation (its Id, not its Number).'),
+          text: z.string().trim().min(1).max(1000),
+        })
+        .strict(),
+      handler: async (args, ctx) =>
+        asOutcome(
+          await call(
+            'serviceOrderNotes/add',
+            { ServiceOrderNotes: [{ ServiceOrderId: args.reservationId, Text: args.text }] },
+            ctx.request,
+          ),
+        ),
+    }),
+
+    tool({
       name: `mcp_${SLUG}_create_reservation`,
       description:
         'Book a stay of one or more rooms in the hotel’s Mews for an existing guest, in ONE call: ' +

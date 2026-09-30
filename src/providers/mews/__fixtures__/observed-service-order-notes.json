@@ -1,0 +1,21 @@
+{
+  "ServiceOrderNotes": [
+    {
+      "Id": "5c0c5b44-e5b7-4c5a-ae91-b4d500f10f01",
+      "OrderId": "0ece1d0a-63bc-477c-b8d9-b4ce0156e169",
+      "Text": "xcale probe 2026-09-30: occasion note after confirmation",
+      "Type": "General",
+      "CreatedUtc": "2026-09-30T14:37:40Z",
+      "UpdatedUtc": "2026-09-30T14:37:40Z"
+    },
+    {
+      "Id": "85524c48-9208-4732-baa5-b4ce0156e346",
+      "OrderId": "0ece1d0a-63bc-477c-b8d9-b4ce0156e169",
+      "Text": "Booked through xcale (xbk-ee4d4b7b-e4be-4bc5-877c-7871b854d110).",
+      "Type": "General",
+      "CreatedUtc": "2026-09-23T20:48:23Z",
+      "UpdatedUtc": "2026-09-23T20:48:23Z"
+    }
+  ],
+  "Cursor": "85524c48-9208-4732-baa5-b4ce0156e346"
+}

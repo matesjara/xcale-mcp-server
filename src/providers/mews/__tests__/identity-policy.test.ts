@@ -31,7 +31,11 @@ describe('mews publishes whose data each tool can reach', () => {
   });
 
   it('marks the reads that return other people without being asked about anyone', () => {
-    for (const name of ['mcp_mews_list_reservations', 'mcp_mews_list_order_items']) {
+    for (const name of [
+      'mcp_mews_list_reservations',
+      'mcp_mews_list_order_items',
+      'mcp_mews_list_reservation_notes',
+    ]) {
       expect(byName.get(name)?.identityPolicy, name).toEqual({ mode: 'subject-scoped' });
     }
   });
@@ -41,13 +45,14 @@ describe('mews publishes whose data each tool can reach', () => {
       'mcp_mews_list_resource_categories',
       'mcp_mews_list_rates',
       'mcp_mews_get_availability',
+      'mcp_mews_list_products',
     ]) {
       expect(byName.get(name)?.identityPolicy, name).toBeUndefined();
     }
   });
 
   it('declares the version bump that a changed tools/list requires', () => {
-    expect(mewsManifest.schemaVersion).toBe('2026-09-29');
-    expect(mewsManifest.providerVersion).toBe('0.2.0');
+    expect(mewsManifest.schemaVersion).toBe('2026-09-30');
+    expect(mewsManifest.providerVersion).toBe('0.3.0');
   });
 });

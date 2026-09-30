@@ -1,0 +1,262 @@
+{
+  "Products": [
+    {
+      "Id": "677a5cdf-0310-495b-b360-b49e0078226a",
+      "ServiceId": "a6f7e910-c4c4-4f36-8823-b49000a725ff",
+      "CategoryId": null,
+      "AccountingCategoryId": "e09a1695-6edc-4cb1-9240-b791a597472e",
+      "IsActive": true,
+      "IsDefault": false,
+      "Name": "city tax -",
+      "Names": { "en-US": "city tax -" },
+      "ExternalName": "city tax -",
+      "ExternalNames": {},
+      "ShortName": "ct",
+      "ShortNames": {},
+      "Description": null,
+      "Descriptions": {},
+      "Charging": "Once",
+      "ChargingMode": "Once",
+      "Posting": "Once",
+      "PostingMode": "Once",
+      "Options": { "BillAsPackage": false, "ExcludePriceFromOffer": false },
+      "Promotions": {
+        "BeforeCheckIn": false,
+        "AfterCheckIn": false,
+        "DuringStay": false,
+        "BeforeCheckOut": false,
+        "AfterCheckOut": false,
+        "DuringCheckOut": false
+      },
+      "Classifications": {
+        "Food": false,
+        "Beverage": false,
+        "Wellness": false,
+        "CityTax": false,
+        "Fee": false
+      },
+      "Price": {
+        "Value": 0,
+        "Net": 0,
+        "Tax": 0,
+        "TaxRate": null,
+        "Currency": "GBP",
+        "NetValue": 0,
+        "GrossValue": 0,
+        "TaxValues": [],
+        "Breakdown": { "Items": [{ "TaxRateCode": null, "NetValue": 0, "TaxValue": 0 }] }
+      },
+      "Pricing": {
+        "Discriminator": "Relative",
+        "Value": {
+          "Multiplier": -0.05,
+          "Target": "NetValue",
+          "TaxRateCodes": ["UK-2022-0%"],
+          "ProductIds": ["a6151840-b7ba-49fd-9d3b-b49000a72617"]
+        }
+      },
+      "ImageIds": [],
+      "Ordering": 0,
+      "ExternalIdentifier": null,
+      "TaxExemptionReason": null,
+      "TaxExemptionLegalReference": null,
+      "CreatedUtc": "2026-08-06T07:17:23Z",
+      "UpdatedUtc": "2026-08-06T07:17:23Z",
+      "ConsumptionMoment": "ServiceOrderStart"
+    },
+    {
+      "Id": "89d46e7d-a4dc-4aa0-9d87-b49e0077f7da",
+      "ServiceId": "a6f7e910-c4c4-4f36-8823-b49000a725ff",
+      "CategoryId": null,
+      "AccountingCategoryId": "e09a1695-6edc-4cb1-9240-b791a597472e",
+      "IsActive": true,
+      "IsDefault": false,
+      "Name": "city city",
+      "Names": { "en-US": "city city" },
+      "ExternalName": "city city",
+      "ExternalNames": {},
+      "ShortName": "cc",
+      "ShortNames": {},
+      "Description": null,
+      "Descriptions": {},
+      "Charging": "Once",
+      "ChargingMode": "Once",
+      "Posting": "Once",
+      "PostingMode": "Once",
+      "Options": { "BillAsPackage": false, "ExcludePriceFromOffer": false },
+      "Promotions": {
+        "BeforeCheckIn": false,
+        "AfterCheckIn": false,
+        "DuringStay": false,
+        "BeforeCheckOut": false,
+        "AfterCheckOut": false,
+        "DuringCheckOut": false
+      },
+      "Classifications": {
+        "Food": false,
+        "Beverage": false,
+        "Wellness": false,
+        "CityTax": false,
+        "Fee": false
+      },
+      "Price": {
+        "Value": 0,
+        "Net": 0,
+        "Tax": 0,
+        "TaxRate": null,
+        "Currency": "GBP",
+        "NetValue": 0,
+        "GrossValue": 0,
+        "TaxValues": [],
+        "Breakdown": { "Items": [{ "TaxRateCode": null, "NetValue": 0, "TaxValue": 0 }] }
+      },
+      "Pricing": {
+        "Discriminator": "Relative",
+        "Value": {
+          "Multiplier": 0.05,
+          "Target": "NetValue",
+          "TaxRateCodes": ["UK-2022-0%"],
+          "ProductIds": ["a6151840-b7ba-49fd-9d3b-b49000a72617"]
+        }
+      },
+      "ImageIds": [],
+      "Ordering": 0,
+      "ExternalIdentifier": null,
+      "TaxExemptionReason": null,
+      "TaxExemptionLegalReference": null,
+      "CreatedUtc": "2026-08-06T07:16:47Z",
+      "UpdatedUtc": "2026-08-06T07:16:47Z",
+      "ConsumptionMoment": "ServiceOrderStart"
+    },
+    {
+      "Id": "b00509f2-58f5-44a3-948c-b49e00777fc5",
+      "ServiceId": "a6f7e910-c4c4-4f36-8823-b49000a725ff",
+      "CategoryId": null,
+      "AccountingCategoryId": "e09a1695-6edc-4cb1-9240-b791a597472e",
+      "IsActive": true,
+      "IsDefault": false,
+      "Name": "CITY TAX",
+      "Names": { "en-US": "CITY TAX" },
+      "ExternalName": "CITY TAX",
+      "ExternalNames": {},
+      "ShortName": "CT",
+      "ShortNames": {},
+      "Description": null,
+      "Descriptions": {},
+      "Charging": "Once",
+      "ChargingMode": "Once",
+      "Posting": "Once",
+      "PostingMode": "Once",
+      "Options": { "BillAsPackage": false, "ExcludePriceFromOffer": false },
+      "Promotions": {
+        "BeforeCheckIn": false,
+        "AfterCheckIn": false,
+        "DuringStay": false,
+        "BeforeCheckOut": false,
+        "AfterCheckOut": false,
+        "DuringCheckOut": false
+      },
+      "Classifications": {
+        "Food": false,
+        "Beverage": false,
+        "Wellness": false,
+        "CityTax": false,
+        "Fee": false
+      },
+      "Price": {
+        "Value": 0,
+        "Net": 0,
+        "Tax": 0,
+        "TaxRate": null,
+        "Currency": "GBP",
+        "NetValue": 0,
+        "GrossValue": 0,
+        "TaxValues": [],
+        "Breakdown": { "Items": [{ "TaxRateCode": null, "NetValue": 0, "TaxValue": 0 }] }
+      },
+      "Pricing": {
+        "Discriminator": "Relative",
+        "Value": {
+          "Multiplier": 0.05,
+          "Target": "NetValue",
+          "TaxRateCodes": ["UK-2022-0%"],
+          "ProductIds": ["a6151840-b7ba-49fd-9d3b-b49000a72617"]
+        }
+      },
+      "ImageIds": [],
+      "Ordering": 0,
+      "ExternalIdentifier": null,
+      "TaxExemptionReason": null,
+      "TaxExemptionLegalReference": null,
+      "CreatedUtc": "2026-08-06T07:15:04Z",
+      "UpdatedUtc": "2026-08-06T07:15:04Z",
+      "ConsumptionMoment": "ServiceOrderStart"
+    },
+    {
+      "Id": "b6c5ee06-f079-4338-8f95-b49e0077178c",
+      "ServiceId": "a6f7e910-c4c4-4f36-8823-b49000a725ff",
+      "CategoryId": null,
+      "AccountingCategoryId": "e09a1695-6edc-4cb1-9240-b791a597472e",
+      "IsActive": true,
+      "IsDefault": false,
+      "Name": "city tax",
+      "Names": { "en-US": "city tax" },
+      "ExternalName": "city tax",
+      "ExternalNames": {},
+      "ShortName": "ct",
+      "ShortNames": {},
+      "Description": null,
+      "Descriptions": {},
+      "Charging": "Once",
+      "ChargingMode": "Once",
+      "Posting": "Once",
+      "PostingMode": "Once",
+      "Options": { "BillAsPackage": false, "ExcludePriceFromOffer": true },
+      "Promotions": {
+        "BeforeCheckIn": false,
+        "AfterCheckIn": false,
+        "DuringStay": false,
+        "BeforeCheckOut": false,
+        "AfterCheckOut": false,
+        "DuringCheckOut": false
+      },
+      "Classifications": {
+        "Food": false,
+        "Beverage": false,
+        "Wellness": false,
+        "CityTax": false,
+        "Fee": false
+      },
+      "Price": {
+        "Value": 0,
+        "Net": 0,
+        "Tax": 0,
+        "TaxRate": null,
+        "Currency": "GBP",
+        "NetValue": 0,
+        "GrossValue": 0,
+        "TaxValues": [],
+        "Breakdown": { "Items": [{ "TaxRateCode": null, "NetValue": 0, "TaxValue": 0 }] }
+      },
+      "Pricing": {
+        "Discriminator": "Relative",
+        "Value": {
+          "Multiplier": 0.05,
+          "Target": "NetValue",
+          "TaxRateCodes": ["UK-2022-0%"],
+          "ProductIds": ["a6151840-b7ba-49fd-9d3b-b49000a72617"]
+        }
+      },
+      "ImageIds": [],
+      "Ordering": 0,
+      "ExternalIdentifier": null,
+      "TaxExemptionReason": null,
+      "TaxExemptionLegalReference": null,
+      "CreatedUtc": "2026-08-06T07:13:36Z",
+      "UpdatedUtc": "2026-08-06T07:13:36Z",
+      "ConsumptionMoment": "ServiceOrderStart"
+    }
+  ],
+  "CustomerProducts": [],
+  "Cursor": "b6c5ee06-f079-4338-8f95-b49e0077178c"
+}

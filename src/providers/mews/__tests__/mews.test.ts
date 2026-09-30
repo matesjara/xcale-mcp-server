@@ -14,6 +14,9 @@ import reservationPrice from '../__fixtures__/observed-reservation-price.json';
 import reservationAdd from '../__fixtures__/observed-reservation-add.json';
 import reservationCancel from '../__fixtures__/observed-reservation-cancel.json';
 import customersGetAll from '../__fixtures__/observed-customers-getall.json';
+import products from '../__fixtures__/observed-products.json';
+import serviceOrderNotes from '../__fixtures__/observed-service-order-notes.json';
+import serviceOrderNoteAdd from '../__fixtures__/observed-service-order-note-add.json';
 import noAvailability from '../__fixtures__/errors/403-no-availability.json';
 import cancelAgain from '../__fixtures__/errors/403-cancel-again.json';
 import concurrentChange from '../__fixtures__/errors/403-concurrent-change.json';
@@ -601,6 +604,75 @@ describe('mews provider — writes', () => {
 
     expect(data(result)).toEqual(items);
     expect(sent[0]?.body).toMatchObject({ ServiceOrderIds: [RES] });
+  });
+});
+
+describe('mews provider — what the hotel sells beside the stay, and notes on a booking (E29)', () => {
+  it('lists the service’s products as Mews observed them, scoped to the connected service', async () => {
+    const { provider, sent } = mews({ 'products/getAll': { body: products } });
+
+    const result = await provider.callTool('mcp_mews_list_products', {}, CTX);
+
+    const out = data(result) as { Products: Array<{ Name: string; Price: { Currency: string } }> };
+    expect(out.Products.map((p) => p.Name)).toEqual(products.Products.map((p) => p.Name));
+    expect(out.Products[0]?.Price.Currency).toBe('GBP');
+    expect(sent[0]?.body).toMatchObject({ ServiceIds: [SERVICE_ID] });
+  });
+
+  it('does not offer a product the hotel switched off', async () => {
+    const withInactive = {
+      ...products,
+      Products: [...products.Products, { ...products.Products[0], Id: 'off', IsActive: false }],
+    };
+    const { provider } = mews({ 'products/getAll': { body: withInactive } });
+
+    const out = data(await provider.callTool('mcp_mews_list_products', {}, CTX)) as {
+      Products: Array<{ Id: string }>;
+    };
+
+    expect(out.Products.map((p) => p.Id)).not.toContain('off');
+    expect(out.Products).toHaveLength(products.Products.length);
+  });
+
+  it('reads the notes on a reservation — the note xcale writes at creation among them', async () => {
+    const { provider, sent } = mews({ 'serviceOrderNotes/getAll': { body: serviceOrderNotes } });
+
+    const out = data(
+      await provider.callTool('mcp_mews_list_reservation_notes', { reservationIds: [RES] }, CTX),
+    ) as { ServiceOrderNotes: Array<{ Text: string }> };
+
+    expect(out.ServiceOrderNotes.some((n) => n.Text.startsWith('Booked through xcale'))).toBe(true);
+    expect(sent[0]?.body).toMatchObject({ ServiceOrderIds: [RES] });
+  });
+
+  it('adds a note to an existing reservation, beside the ones already there', async () => {
+    const { provider, sent } = mews({ 'serviceOrderNotes/add': { body: serviceOrderNoteAdd } });
+
+    const out = data(
+      await provider.callTool(
+        'mcp_mews_add_reservation_note',
+        { reservationId: RES, text: '  Anniversary — flowers in the room  ' },
+        CTX,
+      ),
+    ) as { ServiceOrderNotes: Array<{ Id: string }> };
+
+    expect(out.ServiceOrderNotes).toHaveLength(1);
+    expect(sent[0]?.body).toMatchObject({
+      ServiceOrderNotes: [{ ServiceOrderId: RES, Text: 'Anniversary — flowers in the room' }],
+    });
+  });
+
+  it('refuses an empty note before asking Mews', async () => {
+    const { provider, sent } = mews({});
+
+    const result = await provider.callTool(
+      'mcp_mews_add_reservation_note',
+      { reservationId: RES, text: '   ' },
+      CTX,
+    );
+
+    expect(failure(result).code).toBe(ProviderErrorCode.INVALID_INPUT);
+    expect(sent).toHaveLength(0);
   });
 });
 
