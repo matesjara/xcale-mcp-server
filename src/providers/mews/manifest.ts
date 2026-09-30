@@ -19,8 +19,10 @@ export const mewsManifest: ProviderManifest = {
   // 2026-09-29: three read tools publish the `identityPolicy` every provider tool that reaches a
   // person's records now carries (ADR 0019) — a change to `tools/list`, so the version steps.
   // 2026-09-30: list_products, list_reservation_notes and add_reservation_note join the menu (E29).
+  // And the owner's back office (E30): list_rooms, list_availability_blocks, update_customer,
+  // change_reservation_dates and assign_room.
   schemaVersion: '2026-09-30',
-  providerVersion: '0.3.0',
+  providerVersion: '0.4.0',
   connectionProbe: { tool: `mcp_${SLUG}_list_services` },
   contextDiscovery: {
     key: 'serviceId',

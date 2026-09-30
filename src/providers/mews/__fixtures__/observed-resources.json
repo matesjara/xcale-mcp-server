@@ -1,0 +1,164 @@
+{
+  "Resources": [
+    {
+      "Id": "095a6d7f-4893-4a3b-9c35-ff595d4bfa0c",
+      "EnterpriseId": "851df8c8-90f2-4c4a-8e01-a4fc46b25178",
+      "IsActive": true,
+      "ParentResourceId": null,
+      "Name": "101",
+      "State": "Dirty",
+      "Descriptions": {
+        "es-ES": "Prueba de descripcion a ver que sale en español",
+        "en-US": "Prueba de descripcion a ver que sale"
+      },
+      "CreatedUtc": "2018-06-11T14:55:45Z",
+      "UpdatedUtc": "2026-09-30T15:40:52Z",
+      "DeletedUtc": null,
+      "Data": { "Discriminator": "Space", "Value": { "FloorNumber": "2", "LocationNotes": "1" } },
+      "ExternalNames": {},
+      "Directions": {}
+    },
+    {
+      "Id": "0943f364-491f-4590-a207-fc92dc9ab92e",
+      "EnterpriseId": "851df8c8-90f2-4c4a-8e01-a4fc46b25178",
+      "IsActive": true,
+      "ParentResourceId": null,
+      "Name": "107",
+      "State": "Dirty",
+      "Descriptions": {},
+      "CreatedUtc": "2015-07-07T13:33:22Z",
+      "UpdatedUtc": "2026-09-30T10:05:42Z",
+      "DeletedUtc": null,
+      "Data": { "Discriminator": "Space", "Value": { "FloorNumber": "1", "LocationNotes": null } },
+      "ExternalNames": {},
+      "Directions": {}
+    },
+    {
+      "Id": "eeb095d1-e8ed-40e9-9b4f-f5a91bf85bc4",
+      "EnterpriseId": "851df8c8-90f2-4c4a-8e01-a4fc46b25178",
+      "IsActive": true,
+      "ParentResourceId": null,
+      "Name": "103",
+      "State": "Clean",
+      "Descriptions": {},
+      "CreatedUtc": "2018-09-24T07:55:26Z",
+      "UpdatedUtc": "2026-09-30T10:05:43Z",
+      "DeletedUtc": null,
+      "Data": { "Discriminator": "Space", "Value": { "FloorNumber": "8", "LocationNotes": null } },
+      "ExternalNames": {},
+      "Directions": {}
+    },
+    {
+      "Id": "731aaefd-1f84-47cb-858a-ef701f6a375a",
+      "EnterpriseId": "851df8c8-90f2-4c4a-8e01-a4fc46b25178",
+      "IsActive": true,
+      "ParentResourceId": null,
+      "Name": "108",
+      "State": "Dirty",
+      "Descriptions": {},
+      "CreatedUtc": "2018-04-25T11:49:09Z",
+      "UpdatedUtc": "2026-09-29T11:38:35Z",
+      "DeletedUtc": null,
+      "Data": { "Discriminator": "Space", "Value": { "FloorNumber": "1", "LocationNotes": "" } },
+      "ExternalNames": {},
+      "Directions": {}
+    },
+    {
+      "Id": "ec06ad34-be1a-40f9-b934-dc7b561d2f12",
+      "EnterpriseId": "851df8c8-90f2-4c4a-8e01-a4fc46b25178",
+      "IsActive": true,
+      "ParentResourceId": null,
+      "Name": "309",
+      "State": "Dirty",
+      "Descriptions": {},
+      "CreatedUtc": "2015-11-26T00:16:44Z",
+      "UpdatedUtc": "2026-09-21T11:08:05Z",
+      "DeletedUtc": null,
+      "Data": { "Discriminator": "Space", "Value": { "FloorNumber": "3", "LocationNotes": null } },
+      "ExternalNames": {},
+      "Directions": {}
+    },
+    {
+      "Id": "359fecf8-2bd3-4bdb-ada7-d2a2e6ae661c",
+      "EnterpriseId": "851df8c8-90f2-4c4a-8e01-a4fc46b25178",
+      "IsActive": true,
+      "ParentResourceId": null,
+      "Name": "802",
+      "State": "Dirty",
+      "Descriptions": {},
+      "CreatedUtc": "2018-01-28T17:37:41Z",
+      "UpdatedUtc": "2026-09-28T18:21:55Z",
+      "DeletedUtc": null,
+      "Data": { "Discriminator": "Space", "Value": { "FloorNumber": "999", "LocationNotes": "2" } },
+      "ExternalNames": {},
+      "Directions": {}
+    }
+  ],
+  "ResourceCategoryAssignments": [
+    {
+      "Id": "873b8bc2-fc75-4f6b-bd9c-b073009c21fb",
+      "IsActive": true,
+      "ResourceId": "095a6d7f-4893-4a3b-9c35-ff595d4bfa0c",
+      "CategoryId": "94815b3f-bd37-48d7-be79-b073009b3a03",
+      "CreatedUtc": "2023-09-04T09:28:27Z",
+      "UpdatedUtc": "2023-09-04T09:28:27Z"
+    },
+    {
+      "Id": "ec7b66ee-b289-4c2d-aadd-b20a01429e40",
+      "IsActive": true,
+      "ResourceId": "095a6d7f-4893-4a3b-9c35-ff595d4bfa0c",
+      "CategoryId": "25cd0160-6f00-41bf-9338-9e7d7eab2622",
+      "CreatedUtc": "2024-10-15T19:34:36Z",
+      "UpdatedUtc": "2024-10-15T19:34:36Z"
+    },
+    {
+      "Id": "5707eae5-27c2-4002-a974-ac060112034a",
+      "IsActive": true,
+      "ResourceId": "0943f364-491f-4590-a207-fc92dc9ab92e",
+      "CategoryId": "0a5da171-3663-4496-a61e-35ecbd78b9b1",
+      "CreatedUtc": "2015-07-07T13:33:22Z",
+      "UpdatedUtc": "2020-07-28T16:37:38Z"
+    },
+    {
+      "Id": "a2e0250b-c65c-400d-aed8-ac060112034a",
+      "IsActive": true,
+      "ResourceId": "eeb095d1-e8ed-40e9-9b4f-f5a91bf85bc4",
+      "CategoryId": "733a06d5-2bfd-443d-a195-729190ef84cf",
+      "CreatedUtc": "2018-09-24T07:55:26Z",
+      "UpdatedUtc": "2020-07-28T16:37:38Z"
+    },
+    {
+      "Id": "2ab89471-535a-4847-9eff-ac060112034a",
+      "IsActive": true,
+      "ResourceId": "731aaefd-1f84-47cb-858a-ef701f6a375a",
+      "CategoryId": "0a5da171-3663-4496-a61e-35ecbd78b9b1",
+      "CreatedUtc": "2018-04-25T11:49:09Z",
+      "UpdatedUtc": "2020-07-28T16:37:38Z"
+    },
+    {
+      "Id": "e70f4a3e-910c-467f-95ac-ac060112034a",
+      "IsActive": true,
+      "ResourceId": "ec06ad34-be1a-40f9-b934-dc7b561d2f12",
+      "CategoryId": "34c29e73-c8db-4e93-b51b-981e42655e03",
+      "CreatedUtc": "2015-11-26T00:16:44Z",
+      "UpdatedUtc": "2020-07-28T16:37:38Z"
+    },
+    {
+      "Id": "d7fd1bf4-41c7-418d-b458-b1a7015f68d4",
+      "IsActive": true,
+      "ResourceId": "ec06ad34-be1a-40f9-b934-dc7b561d2f12",
+      "CategoryId": "0ef0a05c-1291-462b-a558-b0a00116f480",
+      "CreatedUtc": "2024-07-08T21:19:26Z",
+      "UpdatedUtc": "2024-07-08T21:19:26Z"
+    },
+    {
+      "Id": "065291ca-5f5b-41c1-b5b9-ac060112034a",
+      "IsActive": true,
+      "ResourceId": "359fecf8-2bd3-4bdb-ada7-d2a2e6ae661c",
+      "CategoryId": "e785b1c6-5ffa-490c-b146-ebd8a6e19fa9",
+      "CreatedUtc": "2018-01-28T17:37:41Z",
+      "UpdatedUtc": "2020-07-28T16:37:38Z"
+    }
+  ],
+  "Cursor": "84baf57c-7b1f-4478-b1fc-b3d3009e9a85"
+}

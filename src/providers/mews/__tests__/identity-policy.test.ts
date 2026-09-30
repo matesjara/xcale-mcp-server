@@ -53,6 +53,6 @@ describe('mews publishes whose data each tool can reach', () => {
 
   it('declares the version bump that a changed tools/list requires', () => {
     expect(mewsManifest.schemaVersion).toBe('2026-09-30');
-    expect(mewsManifest.providerVersion).toBe('0.3.0');
+    expect(mewsManifest.providerVersion).toBe('0.4.0');
   });
 });

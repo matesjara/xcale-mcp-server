@@ -17,6 +17,11 @@ import customersGetAll from '../__fixtures__/observed-customers-getall.json';
 import products from '../__fixtures__/observed-products.json';
 import serviceOrderNotes from '../__fixtures__/observed-service-order-notes.json';
 import serviceOrderNoteAdd from '../__fixtures__/observed-service-order-note-add.json';
+import resources from '../__fixtures__/observed-resources.json';
+import availabilityBlocks from '../__fixtures__/observed-availability-blocks.json';
+import customerUpdate from '../__fixtures__/observed-customer-update.json';
+import reservationUpdate from '../__fixtures__/observed-reservation-update.json';
+import reservationUpdateInterval from '../__fixtures__/observed-reservation-update-interval.json';
 import noAvailability from '../__fixtures__/errors/403-no-availability.json';
 import cancelAgain from '../__fixtures__/errors/403-cancel-again.json';
 import concurrentChange from '../__fixtures__/errors/403-concurrent-change.json';
@@ -673,6 +678,116 @@ describe('mews provider — what the hotel sells beside the stay, and notes on a
 
     expect(failure(result).code).toBe(ProviderErrorCode.INVALID_INPUT);
     expect(sent).toHaveLength(0);
+  });
+});
+
+describe('mews provider — the owner’s back office: rooms, blocks, guest and booking edits (E30)', () => {
+  it('lists the rooms with their housekeeping state and the room types each belongs to', async () => {
+    const { provider, sent } = mews({ 'resources/getAll': { body: resources } });
+
+    const out = data(await provider.callTool('mcp_mews_list_rooms', {}, CTX)) as {
+      Resources: Array<{ Id: string; Name: string; State: string; CategoryIds: string[] }>;
+    };
+
+    expect(out.Resources).toHaveLength(resources.Resources.length);
+    const first = resources.Resources[0]!;
+    const expected = resources.ResourceCategoryAssignments.filter(
+      (a) => a.ResourceId === first.Id,
+    ).map((a) => a.CategoryId);
+    expect(out.Resources[0]).toMatchObject({ Name: first.Name, State: first.State });
+    expect(out.Resources[0]?.CategoryIds).toEqual(expected);
+    expect(sent[0]?.body).toMatchObject({
+      Extent: { Resources: true, ResourceCategoryAssignments: true },
+    });
+  });
+
+  it('lists the blocks overlapping a window, and refuses one wider than 90 days before asking', async () => {
+    const { provider, sent } = mews({ 'availabilityBlocks/getAll': { body: availabilityBlocks } });
+    const window = { fromUtc: '2026-09-01T00:00:00Z', toUtc: '2026-11-01T00:00:00Z' };
+
+    const out = data(
+      await provider.callTool('mcp_mews_list_availability_blocks', { window }, CTX),
+    ) as {
+      AvailabilityBlocks: Array<{ Name: string }>;
+    };
+
+    expect(out.AvailabilityBlocks[0]?.Name).toBe(availabilityBlocks.AvailabilityBlocks[0]!.Name);
+    expect(sent[0]?.body).toMatchObject({
+      ServiceIds: [SERVICE_ID],
+      CollidingUtc: { StartUtc: window.fromUtc, EndUtc: window.toUtc },
+    });
+
+    const wide = mews({});
+    const refused = await wide.provider.callTool(
+      'mcp_mews_list_availability_blocks',
+      { window: { fromUtc: '2026-01-01T00:00:00Z', toUtc: '2026-06-01T00:00:00Z' } },
+      CTX,
+    );
+    expect(failure(refused).code).toBe(ProviderErrorCode.INVALID_INPUT);
+    expect(wide.sent).toHaveLength(0);
+  });
+
+  it('changes only the guest fields given', async () => {
+    const { provider, sent } = mews({ 'customers/update': { body: customerUpdate } });
+
+    await provider.callTool(
+      'mcp_mews_update_customer',
+      { customerId: CUSTOMER, phone: '+57 300 000 0001' },
+      CTX,
+    );
+
+    expect(sent[0]?.body).toMatchObject({ CustomerId: CUSTOMER, Phone: '+57 300 000 0001' });
+    expect(sent[0]?.body).not.toHaveProperty('Email');
+    expect(sent[0]?.body).not.toHaveProperty('FirstName');
+  });
+
+  it('refuses a guest update that changes nothing, before asking Mews', async () => {
+    const { provider, sent } = mews({});
+
+    const result = await provider.callTool(
+      'mcp_mews_update_customer',
+      { customerId: CUSTOMER },
+      CTX,
+    );
+
+    expect(failure(result).code).toBe(ProviderErrorCode.INVALID_INPUT);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('moves a booking to new local dates as the hotel’s own instants, no cancellation fee by default', async () => {
+    const { provider, sent } = mews({
+      ...STAY_ROUTES,
+      'reservations/updateInterval': { body: reservationUpdateInterval },
+    });
+
+    const result = await provider.callTool(
+      'mcp_mews_change_reservation_dates',
+      { reservationId: RES, checkIn: '2027-03-11', checkOut: '2027-03-13' },
+      CTX,
+    );
+
+    data(result);
+    const call = sent.find((x) => x.operation === 'reservations/updateInterval');
+    expect(call?.body).toMatchObject({ ReservationId: RES, ChargeCancellationFee: false });
+    expect(typeof call?.body.StartUtc).toBe('string');
+    expect(Date.parse(String(call?.body.EndUtc))).toBeGreaterThan(
+      Date.parse(String(call?.body.StartUtc)),
+    );
+  });
+
+  it('assigns a room to a booking', async () => {
+    const room = resources.Resources[0]!.Id;
+    const { provider, sent } = mews({ 'reservations/update': { body: reservationUpdate } });
+
+    data(
+      await provider.callTool('mcp_mews_assign_room', { reservationId: RES, roomId: room }, CTX),
+    );
+
+    expect(sent[0]?.body).toEqual(
+      expect.objectContaining({
+        ReservationUpdates: [{ ReservationId: RES, AssignedResourceId: { Value: room } }],
+      }),
+    );
   });
 });
 

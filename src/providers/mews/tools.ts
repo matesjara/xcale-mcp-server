@@ -724,6 +724,195 @@ export function buildMewsTools(client: MewsClient) {
     }),
 
     tool({
+      name: `mcp_${SLUG}_list_rooms`,
+      description:
+        'The hotel’s rooms (Mews resources): each with its name or number, its housekeeping state ' +
+        '(Clean, Dirty, Inspected, OutOfService, OutOfOrder) and the room types it belongs to. ' +
+        'Read-only. Mews keeps rooms per enterprise, so a hotel with several services sees them all.',
+      input: z.object({ cursor, limit }).strict(),
+      handler: async (args, ctx) => {
+        const res = await call(
+          'resources/getAll',
+          {
+            Extent: { Resources: true, ResourceCategoryAssignments: true },
+            Limitation: { Count: args.limit, ...(args.cursor ? { Cursor: args.cursor } : {}) },
+          },
+          ctx.request,
+        );
+        if (!res.ok) return asOutcome(res);
+        // Observed (E30): the assignments come as a separate list; each room carries its room
+        // types here so the consumer does not have to join them.
+        const data = res.data as {
+          Resources?: Array<{ Id?: string; IsActive?: boolean }>;
+          ResourceCategoryAssignments?: Array<{
+            ResourceId?: string;
+            CategoryId?: string;
+            IsActive?: boolean;
+          }>;
+          Cursor?: unknown;
+        };
+        const categoriesOf = new Map<string, string[]>();
+        for (const a of data.ResourceCategoryAssignments ?? []) {
+          if (!a.ResourceId || !a.CategoryId || a.IsActive === false) continue;
+          categoriesOf.set(a.ResourceId, [...(categoriesOf.get(a.ResourceId) ?? []), a.CategoryId]);
+        }
+        return ok({
+          Resources: (data.Resources ?? [])
+            .filter((r) => r.IsActive !== false)
+            .map((r) => ({ ...r, CategoryIds: (r.Id && categoriesOf.get(r.Id)) || [] })),
+          Cursor: data.Cursor ?? null,
+        });
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_list_availability_blocks`,
+      description:
+        'The availability blocks of the connected service (rooms held for a group, an event or an ' +
+        'allotment) that overlap a window: name, state, dates and rate. Read-only.',
+      input: z
+        .object({
+          window: z
+            .object({ fromUtc: z.string().datetime(), toUtc: z.string().datetime() })
+            .strict()
+            .describe('Blocks overlapping this interval (UTC), at most 90 days wide.'),
+          cursor,
+          limit,
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const from = Date.parse(args.window.fromUtc);
+        const to = Date.parse(args.window.toUtc);
+        if (!(to > from) || to - from > MAX_WINDOW_MS) {
+          return err(
+            ProviderErrorCode.INVALID_INPUT,
+            'window must end after it starts and span at most 90 days',
+          );
+        }
+        return asOutcome(
+          await call(
+            'availabilityBlocks/getAll',
+            {
+              ServiceIds: [ctx.metadata.serviceId],
+              CollidingUtc: { StartUtc: args.window.fromUtc, EndUtc: args.window.toUtc },
+              Extent: { AvailabilityBlocks: true },
+              Limitation: { Count: args.limit, ...(args.cursor ? { Cursor: args.cursor } : {}) },
+            },
+            ctx.request,
+          ),
+        );
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_update_customer`,
+      // Writes the record of the guest it names (ADR 0019).
+      identityPolicy: { mode: 'subject-bound', identityFields: ['customerId'] },
+      description:
+        'Correct a guest’s details in the hotel’s Mews — name, email or phone. Only the fields ' +
+        'given change; the others stay as they are.',
+      input: z
+        .object({
+          customerId,
+          firstName: z.string().trim().min(1).max(255).optional(),
+          lastName: z.string().trim().min(1).max(255).optional(),
+          email: z.string().email().optional(),
+          phone: z.string().trim().min(3).max(50).optional(),
+        })
+        .strict()
+        .refine(
+          (a) =>
+            a.firstName !== undefined ||
+            a.lastName !== undefined ||
+            a.email !== undefined ||
+            a.phone !== undefined,
+          { message: 'give at least one field to change' },
+        ),
+      handler: async (args, ctx) =>
+        asOutcome(
+          await call(
+            'customers/update',
+            {
+              CustomerId: args.customerId,
+              ...(args.firstName !== undefined ? { FirstName: args.firstName } : {}),
+              ...(args.lastName !== undefined ? { LastName: args.lastName } : {}),
+              ...(args.email !== undefined ? { Email: args.email } : {}),
+              ...(args.phone !== undefined ? { Phone: args.phone } : {}),
+            },
+            ctx.request,
+          ),
+        ),
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_change_reservation_dates`,
+      description:
+        'Move an existing reservation to new dates, in the hotel’s local calendar. Mews checks ' +
+        'availability and reprices the stay itself, and refuses a change it cannot sell.',
+      input: z
+        .object({
+          reservationId: uuid.describe('The reservation (its Id, not its Number).'),
+          ...stay,
+          chargeCancellationFee: z
+            .boolean()
+            .default(false)
+            .describe('Whether Mews charges the fee for the nights given up. Default: no.'),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        try {
+          assertStay(args.checkIn, args.checkOut);
+        } catch (e) {
+          return dateError(e);
+        }
+        const cal = await calendarOf(ctx.metadata.serviceId, ctx.request);
+        if (!cal.ok) return asOutcome(cal);
+        let instants: { StartUtc: string; EndUtc: string };
+        try {
+          instants = stayInstants(args.checkIn, args.checkOut, cal.data as ServiceCalendar);
+        } catch (e) {
+          return dateError(e);
+        }
+        return asOutcome(
+          await call(
+            'reservations/updateInterval',
+            {
+              ReservationId: args.reservationId,
+              ...instants,
+              ChargeCancellationFee: args.chargeCancellationFee,
+            },
+            ctx.request,
+          ),
+        );
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_assign_room`,
+      description:
+        'Assign a specific room (from mcp_mews_list_rooms) to an existing reservation. Mews refuses ' +
+        'a room of another type or one already taken for those nights.',
+      input: z
+        .object({
+          reservationId: uuid.describe('The reservation (its Id, not its Number).'),
+          roomId: uuid.describe('The room, from mcp_mews_list_rooms.'),
+        })
+        .strict(),
+      handler: async (args, ctx) =>
+        asOutcome(
+          await call(
+            'reservations/update',
+            {
+              ReservationUpdates: [
+                { ReservationId: args.reservationId, AssignedResourceId: { Value: args.roomId } },
+              ],
+            },
+            ctx.request,
+          ),
+        ),
+    }),
+
+    tool({
       name: `mcp_${SLUG}_create_reservation`,
       description:
         'Book a stay of one or more rooms in the hotel’s Mews for an existing guest, in ONE call: ' +
