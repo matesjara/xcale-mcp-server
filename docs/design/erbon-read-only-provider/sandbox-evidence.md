@@ -94,3 +94,29 @@ Giovanni provided a hotel with prices loaded and shipped the create endpoint.
 - **`POST /hotel/{hotelID}/booking/new` is LIVE** ("AE79 - Create a new booking"). Swagger `required: []` (Erbon validates server-side); Giovanni's "principal" fields: `idBookingStatus, checkInDate, checkOutDate, idRoomTypeReserved, idRoomTypeOccupied, numberAdults/Children/Children2/Babies, idConfigPension, idRate, ratePrices[], isDirect, isCompany, idCompany, idAgency, idSource, idSegment, voucher, isRateDefault, commentsBooking, guests[]`. Full prop set also has `idRoom, manualValue, totalWithTax, contact*`, etc.
 - **⚠️ Still NO cancel and NO modify** in the swagger (only checkin/checkout/invoice/guest attach-remove). **A created booking cannot be undone via the API.**
 - **Erbon's own caveats:** (1) the API will create a booking **even with no availability** (overbooking) — the caller must check availability first; (2) **one room per reservation** — each booking is a separate call. The `voucher` field is caller-supplied (candidate idempotency/reconciliation key).
+
+## 7. Update 2026-10-01 — WRITE PATH exercised end-to-end (live sandbox test booking)
+
+A deliberate test booking was created in the sandbox (`hotelID 964d9ad8…`, holder `QA XCALE …`) to confirm the write/read shapes — a sandbox booking is safe (no real hotel) though it cannot be cancelled via API. **All shapes below are Observed (verbatim).**
+
+- **`POST guest/new`** → id field is **`id`**: `{ "id":20652, "name":"…", "email":null, "phone":null, "address":{…}, "documents":[] }`.
+- **`POST booking/new`** (one room, 2 adults, RO) → **HTTP 200**:
+  ```json
+  { "bookingInternalID":61706, "number":1713, "serie":"RSVN1" }
+  ```
+  Create returns `bookingInternalID` (internal anchor), `number` (guest-facing = `erbonNumber` on reads), `serie`. **No `voucher`/`status` in the create response.**
+- **`GET /hotel/{hotelID}/booking/{bookingInternalID}`** and **`POST .../booking/search`** rows share one shape. Key fields (Observed):
+  ```json
+  { "bookingInternalID":61706, "erbonNumber":1713, "onlineSaleChannelNumber":"xbk-qa-…",
+    "status":"BOOKING", "confirmedStatus":"CONFIRMED", "roomTypeID":2, "roomTypeDescription":"LUXO SOLTEIRO",
+    "checkInDateTime":"2026-11-10T15:00:00", "checkOutDateTime":"2026-11-12T12:00:00",
+    "adultQuantity":2, "childrenQuantity":0, "totalBookingRate":742, "totalBookingRateWithTax":779.1,
+    "rateId":1, "rateDesc":"Balcony", "currencyId":2, "observations":"…(=commentsBooking)",
+    "guestList":[{ "id":20653, "mainGuest":true, "name":"…", "email":null, "phone":null }] }
+  ```
+  - **The voucher round-trips as `onlineSaleChannelNumber`** (NOT a field named `voucher`). ⇒ reconcile matches on `onlineSaleChannelNumber` client-side.
+  - Guest-facing number is **`erbonNumber`**; the main guest sits in **`guestList[]`** (`mainGuest:true`); check-in is **`checkInDateTime`**; state is **`status`/`confirmedStatus`**.
+- **`booking/search` honours these filters SERVER-SIDE** (headers), each returning exactly the one booking: `onlineSaleChannelNumber=<voucher>` ✅, `bookingNumber=1713` ✅, `checkin`/`checkout` ✅. ⇒ reconcile can narrow server-side by the voucher; lookup can filter by `bookingNumber`.
+- **`rateprices` is keyed by occupancy.** One row **per `numberPAX`** per date (not one row per date): `numberPAX=2 priceRO=370` and `numberPAX=1 priceRO=660` for the same night. Also carries `paxType` ("ADULT") and **`isTaxIncluded`**. ⇒ price MUST be selected by the party's pax; occupancy pricing is available (resolves the `occupancyPriced` question).
+- **⚠️ Tax is contradictory — keep the scar.** The rate row says `isTaxIncluded:true`, yet the created booking shows `totalBookingRate 742` vs `totalBookingRateWithTax 779.1` (**+5% added on top**). So the rate price is NOT a settled, tax-final figure. Quote stays `taxesIncluded:false` + caveat until Erbon's tax treatment is pinned (backend #1252). **Question for Giovanni:** what does `isTaxIncluded:true` mean if the booking still adds 5%? and is that 5% always applied?
+- **Odd (verify with Giovanni):** 1-pax price (660) > 2-pax price (370) for the same room/date — confirm the `numberPAX` semantics before relying on single-occupancy pricing.

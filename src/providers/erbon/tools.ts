@@ -264,8 +264,9 @@ export function buildErbonTools(
       name: `mcp_${SLUG}_search_booking`,
       description:
         'BACKEND-ONLY. Search bookings at the connected Erbon hotel by a window (checkin/checkout or ' +
-        'bookingCreatedAtStart/End) and other filters. Returns a flat array verbatim. The backend ' +
-        'matches its stamped voucher client-side to reconcile a create.',
+        'bookingCreatedAtStart/End), by `bookingNumber`, or by `onlineSaleChannelNumber` (the ' +
+        'caller-stamped voucher — the reconcile filter, Observed to match server-side). Returns a flat ' +
+        'array verbatim; the backend still confirms the voucher client-side.',
       controlPlane: true,
       input: z
         .object({
@@ -275,6 +276,8 @@ export function buildErbonTools(
           bookingCreatedAtEnd: isoDate.optional(),
           status: z.string().optional(),
           bookingNumber: z.string().optional(),
+          // The caller-stamped voucher, round-tripped on reads; filters bookings server-side (Observed).
+          onlineSaleChannelNumber: z.string().optional(),
           mainguestEmail: z.string().optional(),
           mainguestTel: z.string().optional(),
         })
