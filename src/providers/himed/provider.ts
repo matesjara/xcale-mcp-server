@@ -25,5 +25,11 @@ export function createHimedProvider(deps: HimedProviderDeps = {}): IProvider {
   });
 }
 
-/** Default instance registered in src/providers/index.ts. */
-export const himedProvider = createHimedProvider();
+/**
+ * Default instance registered in src/providers/index.ts. `HIMED_BASE_URL` lets a deployment point at a
+ * non-production Demográficos (the sandbox is `https://demo.medsas.co/interoperabilidad/Api/Controllers`)
+ * without a code change; absent, the production default stands.
+ */
+export const himedProvider = createHimedProvider(
+  process.env.HIMED_BASE_URL ? { baseUrl: process.env.HIMED_BASE_URL } : {}
+);

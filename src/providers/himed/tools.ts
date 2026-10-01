@@ -37,7 +37,7 @@ export function buildHimedTools(client: HimedClient): ReadonlyArray<ToolDefiniti
         fechaNacimiento: z
           .string()
           .min(1)
-          .describe('Birth date, DD-MM-YYYY (pending sandbox confirm)'),
+          .describe('Birth date, YYYY-MM-DD (confirmed against the sandbox 2026-10-01)'),
       })
       .strict(),
     handler: async (args, ctx) => {

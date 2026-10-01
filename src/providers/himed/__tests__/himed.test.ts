@@ -32,7 +32,7 @@ const patientArgs = {
   idPaciente: '11111111',
   primerNombre: 'Paciente',
   primerApellido: 'Pruebas',
-  fechaNacimiento: '01-01-1990',
+  fechaNacimiento: '1990-01-01',
 };
 
 describe('HiMed (Demográficos) provider', () => {
@@ -57,6 +57,8 @@ describe('HiMed (Demográficos) provider', () => {
     expect(body.api_key).toBe('KEY123'); // injected into the body by the materializer
     expect(body.tipo_documento).toBe('CC');
     expect(body.id_paciente).toBe('11111111');
+    // Demográficos expects YYYY-MM-DD (confirmed against the sandbox 2026-10-01; DD-MM-YYYY 400s).
+    expect(body.fecha_nacimiento).toBe('1990-01-01');
   });
 
   it('maps a 401 to PROVIDER_AUTH_EXPIRED', async () => {

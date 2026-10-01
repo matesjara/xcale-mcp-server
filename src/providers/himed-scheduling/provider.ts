@@ -26,5 +26,14 @@ export function createHimedSchedulingProvider(deps: HimedSchedulingProviderDeps 
   });
 }
 
-/** Default instance registered in src/providers/index.ts. */
-export const himedSchedulingProvider = createHimedSchedulingProvider();
+/**
+ * Default instance registered in src/providers/index.ts. `HIMED_SCHEDULING_BASE_URL` lets a deployment
+ * point at a non-production Autoagendamiento (the sandbox is
+ * `https://demo-notificaciones.medsas.co/notificaciones/envioConsumoAutoagendamiento`) without a code
+ * change; absent, the default stands.
+ */
+export const himedSchedulingProvider = createHimedSchedulingProvider(
+  process.env.HIMED_SCHEDULING_BASE_URL
+    ? { baseUrl: process.env.HIMED_SCHEDULING_BASE_URL }
+    : {}
+);

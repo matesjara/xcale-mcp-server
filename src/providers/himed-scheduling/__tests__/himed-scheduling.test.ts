@@ -121,10 +121,24 @@ describe('HiMed scheduling (Autoagendamiento) provider', () => {
     });
     const result = await provider.callTool(
       'mcp_himed-scheduling_cancel_appointment',
-      { idCita: '25' },
+      { idCita: '25', idPaciente: '11111111' },
       ctx(),
     );
     expect(result.kind).toBe('success');
+  });
+
+  it('cancel_appointment requires idPaciente (HiMed rejects a cancel without it — sandbox 2026-10-01)', async () => {
+    const provider = createHimedSchedulingProvider({
+      fetchImpl: fakeFetch(200, { success: true }),
+    });
+    const result = await provider.callTool(
+      'mcp_himed-scheduling_cancel_appointment',
+      { idCita: '25' },
+      ctx(),
+    );
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error')
+      expect(result.code).toBe(ProviderErrorCode.INVALID_INPUT);
   });
 
   it('rejects a call missing codigo_servicio with INVALID_INPUT (metadata validation)', async () => {

@@ -254,8 +254,11 @@ export function buildHimedSchedulingTools(
     input: z
       .object({
         idCita: z.string().min(1),
-        // Verified in sandbox: cancelarCita succeeds with idCita alone; idPaciente is optional.
-        idPaciente: z.string().min(4).max(20).optional(),
+        // HiMed rejects a cancel without the patient ("No se ha proporcionado el valor del campo
+        // 'idPaciente'" — sandbox 2026-10-01), so it is required. (An earlier 2026-09-24 note had it
+        // optional; the clinic/service in the 2026-10 sandbox requires it, and sending it is always
+        // safe — the cancel flow has the patient in hand.)
+        idPaciente: z.string().min(4).max(20),
       })
       .strict(),
     handler: async (args, ctx) => {

@@ -16,6 +16,6 @@ export const himedManifest: ProviderManifest = {
   displayName: 'HiMed — Directorio y Pacientes',
   category: 'health',
   schemaVersion: '2026-09-25',
-  providerVersion: '0.1.0',
+  providerVersion: '0.1.1',
   connectionProbe: { tool: `mcp_${SLUG}_list_locations` },
 };
