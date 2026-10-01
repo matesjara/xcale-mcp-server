@@ -164,8 +164,11 @@ export function buildHimedSchedulingTools(
       .strict(),
     handler: async (args, ctx) => {
       const out = unwrapHimedScheduling(
+        // HiMed keys the professional on `idEspecialista` for availability (not `idUsuario`, which it
+        // rejects as missing — sandbox 2026-10-01 + Autoagendamiento docs). Keep the agent-facing input
+        // `idUsuario` (what listProfessionals returns) and map it to the wire field here.
         await call(ctx, 'consultarDisponibilidad', {
-          idUsuario: args.idUsuario,
+          idEspecialista: args.idUsuario,
           idSede: args.idSede,
           fechaInicial: args.fechaInicial,
           fechaFinal: args.fechaFinal ?? 'none',

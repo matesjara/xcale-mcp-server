@@ -58,6 +58,27 @@ describe('HiMed scheduling (Autoagendamiento) provider', () => {
     }
   });
 
+  it('get_availability sends the professional as idEspecialista (not idUsuario) on the wire', async () => {
+    // HiMed's consultarDisponibilidad keys the professional on `idEspecialista`; sending `idUsuario`
+    // is rejected with "No se ha proporcionado el valor del campo 'idUsuario'" (sandbox 2026-10-01,
+    // confirmed against the Autoagendamiento docs example). The agent-facing input stays `idUsuario`.
+    const sink: Captured[] = [];
+    const provider = createHimedSchedulingProvider({
+      fetchImpl: fakeFetch(200, [], sink),
+    });
+
+    await provider.callTool(
+      'mcp_himed-scheduling_get_availability',
+      { idUsuario: '1152442529', idSede: '1', fechaInicial: '14-10-2026' },
+      ctx(),
+    );
+
+    const body = JSON.parse(sink[0]?.body ?? '{}') as Record<string, unknown>;
+    expect(body.accion).toBe('consultarDisponibilidad');
+    expect(body.idEspecialista).toBe('1152442529');
+    expect(body.idUsuario).toBeUndefined();
+  });
+
   it('patient_exists → found when cantidad > 0, else not found', async () => {
     const found = createHimedSchedulingProvider({
       fetchImpl: fakeFetch(201, [{ cantidad: 1, nombre: 'Paciente HM', idEntidad: '13-18' }]),
