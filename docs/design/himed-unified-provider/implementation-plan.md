@@ -170,9 +170,9 @@ Mechanical rename `himed-scheduling` → `himed`, no logic change (api-contract 
 | ✅ S2 | Group-aware resolver + materializer + factory + protocol wiring (+ regression test) | F2 | foundation | credential-resolver.ts, authentication-materializer.ts, provider-factory.ts, protocol/mcp-server.ts |
 | ✅ S3 | Revert Option A core/catalog + providers deletions | F1 | foundation | provider-port.ts, catalog.ts, providers/index.ts, himed-directory/ (del) |
 | ✅ S4 | Unified himed provider (auth groups, client routing, merged tools, probe, manifest) + tests | F3 | integration | providers/himed/* |
-| S5 | Backend contract: McpAuthDescriptor.groups; remove connectWithoutProbe; mcp-client bundle | F4 | foundation | mcp/entities.ts, mcp/mcp-client.ts |
-| S6 | buildCredentialConfig multi-secret form + bundle + probe + executor forward (+ tests) | F4 | integration | mcp/mcp-bootstrap.ts, mcp/mcp-tool-executor.ts, mcp-bootstrap.credential.test.ts |
-| S7 | Backend catalog + vertical scope + i18n (one himed) | F4 | integration | toolboxes.ts, register-vertical-scopes(.test).ts, i18n |
+| ✅ S5 | Backend contract: McpAuthDescriptor.groups; remove connectWithoutProbe; mcp-client bundle | F4 | foundation | mcp/entities.ts, mcp/mcp-client.ts |
+| ✅ S6 | buildCredentialConfig multi-secret form + bundle + probe + executor forward (+ tests) | F4 | integration | mcp/mcp-bootstrap.ts, mcp/mcp-tool-executor.ts, mcp-bootstrap.credential.test.ts |
+| ✅ S7 | Backend catalog + vertical scope + i18n (one himed) | F4 | integration | toolboxes.ts, register-vertical-scopes(.test).ts, i18n |
 | S8 | Phase-3 ripple rename | F5 | integration | lifecycle-messages/* |
 | S9 | Sandbox verification of the unified connection | F5 | verification | — |
 
