@@ -166,7 +166,7 @@ Mechanical rename `himed-scheduling` → `himed`, no logic change (api-contract 
 
 | # | Slice | Phase | Band | Owned files |
 |:--|:--|:--|:--|:--|
-| S1 | Core types: CredentialGroup, authDescriptor.groups, ToolDefinition.credentialGroup, ResolvedCredential.secrets | F2 | foundation | provider-port.ts, tool.ts, resolved-credential.ts |
+| ✅ S1 | Core types: CredentialGroup, authDescriptor.groups, ToolDefinition.credentialGroup, ResolvedCredential.secrets | F2 | foundation | provider-port.ts, tool.ts, resolved-credential.ts |
 | S2 | Group-aware resolver + materializer + factory + protocol wiring (+ regression test) | F2 | foundation | credential-resolver.ts, authentication-materializer.ts, provider-factory.ts, protocol/mcp-server.ts |
 | S3 | Revert Option A core/catalog + providers deletions | F1 | foundation | provider-port.ts, catalog.ts, providers/index.ts, himed-directory/ (del) |
 | S4 | Unified himed provider (auth groups, client routing, merged tools, probe, manifest) + tests | F3 | integration | providers/himed/* |
