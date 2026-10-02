@@ -168,7 +168,7 @@ Mechanical rename `himed-scheduling` → `himed`, no logic change (api-contract 
 |:--|:--|:--|:--|:--|
 | ✅ S1 | Core types: CredentialGroup, authDescriptor.groups, ToolDefinition.credentialGroup, ResolvedCredential.secrets | F2 | foundation | provider-port.ts, tool.ts, resolved-credential.ts |
 | ✅ S2 | Group-aware resolver + materializer + factory + protocol wiring (+ regression test) | F2 | foundation | credential-resolver.ts, authentication-materializer.ts, provider-factory.ts, protocol/mcp-server.ts |
-| S3 | Revert Option A core/catalog + providers deletions | F1 | foundation | provider-port.ts, catalog.ts, providers/index.ts, himed-directory/ (del) |
+| ✅ S3 | Revert Option A core/catalog + providers deletions | F1 | foundation | provider-port.ts, catalog.ts, providers/index.ts, himed-directory/ (del) |
 | S4 | Unified himed provider (auth groups, client routing, merged tools, probe, manifest) + tests | F3 | integration | providers/himed/* |
 | S5 | Backend contract: McpAuthDescriptor.groups; remove connectWithoutProbe; mcp-client bundle | F4 | foundation | mcp/entities.ts, mcp/mcp-client.ts |
 | S6 | buildCredentialConfig multi-secret form + bundle + probe + executor forward (+ tests) | F4 | integration | mcp/mcp-bootstrap.ts, mcp/mcp-tool-executor.ts, mcp-bootstrap.credential.test.ts |

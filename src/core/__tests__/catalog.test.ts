@@ -32,17 +32,4 @@ describe('buildCatalog', () => {
     expect(echo).toBeDefined();
     expect(echo && 'additionalAuthDescriptors' in echo).toBe(false);
   });
-
-  it('publishes connectWithoutProbe for a credential provider with no probe (HiMed Demográficos)', () => {
-    // HiMed Demográficos exposes only writes: no connectionProbe, but it must still be connectable, so
-    // it opts into probe-less connect. himed-directory keeps a real probe.
-    const himed = catalog.find((e) => e.slug === 'himed');
-    expect(himed?.connectionProbe).toBeUndefined();
-    expect(himed?.connectWithoutProbe).toBe(true);
-    const directory = catalog.find((e) => e.slug === 'himed-directory');
-    expect(directory?.connectionProbe).toEqual({
-      tool: 'mcp_himed-directory_list_locations',
-    });
-    expect(directory && 'connectWithoutProbe' in directory).toBe(false);
-  });
 });

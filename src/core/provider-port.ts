@@ -171,15 +171,6 @@ export interface ProviderManifest {
     readonly tool: string;
   };
   /**
-   * A credential provider that legitimately CANNOT be probed: it exposes no read/validate/ping tool, so
-   * a pasted key cannot be proven before persisting — it is validated lazily on the first real call (a
-   * bad key surfaces as `PROVIDER_AUTH_EXPIRED` → reconnect). Only meaningful WITHOUT `connectionProbe`.
-   * The consumer must opt a provider into connecting this way; absent (the default) keeps the
-   * fail-closed behavior — no probe means not connectable. HiMed Demográficos is the first (writes
-   * only, no read). STRICTLY DECLARATIVE.
-   */
-  readonly connectWithoutProbe?: boolean;
-  /**
    * Which `contextSchema` keys identify the ACCOUNT, in order — the tuple a consumer should key a
    * connection on when the same credential can address several of them.
    *
