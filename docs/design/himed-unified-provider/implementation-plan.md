@@ -175,6 +175,7 @@ Mechanical rename `himed-scheduling` → `himed`, no logic change (api-contract 
 | ✅ S7 | Backend catalog + vertical scope + i18n (one himed) | F4 | integration | toolboxes.ts, register-vertical-scopes(.test).ts, i18n |
 | ✅ S8 | Phase-3 ripple rename (+ verifier bundle-forward fix) | F5 | integration | lifecycle-messages/* |
 | 🟡 S9 | Sandbox verification of the unified connection | F5 | verification | scripts/himed-unified-sandbox-e2e.ts |
+| ✅ S10 | Collapse the two HiMed agent templates into one clinic agent on `himed` | F5 | integration | agent-templates/data/himed-clinic-agent.ts (+ seeder, contract tests) |
 
 **Fan-out:** 9 slices, ~24 files across two repos — **above threshold**, but the two repos' changes
 are sequential (mcp-server S1–S4 must land/publish before backend S5–S8 consume the new catalog), and

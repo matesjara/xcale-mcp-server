@@ -77,12 +77,12 @@ confirmación de un comando, no como trabajo de integración.
 | Live: clasificación de auth por grupo (PROBE) | ✅ |
 | Live: happy-path crear→agendar→citasPaciente→cancelar | ⏳ (1 comando; faltan los 4 env) |
 
-## Seguimiento abierto (fuera del alcance de S8/S9, para decisión de Mateo)
-- **Agent templates:** `agent-templates/data/himed-scheduling-agent.ts` sigue declarando
-  `requiredIntegrations: ['whatsapp', 'himed-scheduling']` y existe junto a `himed-patient-admin.ts`.
-  Bajo una sola conexión `himed` (tres grupos), hay que decidir si los dos templates se **colapsan en
-  uno** o si siguen siendo dos agentes atados a la misma conexión. Es decisión de producto, no un
-  rename — por eso no entró en S8. Hoy compila y los tests pasan (el slug viaja como string sin
-  validación contra el catálogo), así que es deuda latente, no un fallo.
+## Seguimiento
+- ✅ **Agent templates (S10, decidido por Mateo — Opción A):** los dos templates
+  (`himed-patient-admin` + `himed-scheduling-agent`) se **colapsaron en uno**,
+  `agent-templates/data/himed-clinic-agent.ts`, atado a `requiredIntegrations: ['whatsapp', 'himed']`,
+  con registros + directorio + agenda en un solo agente de clínica. Guarda de contrato nueva: exactamente
+  un template HiMed, sobre `himed`, y ningún template referencia el slug retirado `himed-scheduling`.
 - **Ejemplos en tests genéricos de mcp** (`mcp-tool-loader`, `mcp-client`, `tool-result-observers`)
   usan `himed-scheduling` como string de muestra; inocuo, pero conviene alinearlos al renombrar.
+  Deuda cosmética, no un fallo.
