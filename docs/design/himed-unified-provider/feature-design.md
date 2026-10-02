@@ -129,13 +129,10 @@ the `ResolvedCredential` carries a **map of named secrets** (bundle), and each `
 which **group** it belongs to. At egress, the secret (and context) of the tool's group is injected.
 Single-secret providers keep working (one implicit group) — an additive change.
 
-**Sub-variant (to settle in the api-contract):** who injects —
-- **(a) group-aware materializer:** the gateway passes the tool's group to `materialize`, which injects
-  that group's field. Preserves the "handler never sees the secret" invariant
-  (Credential-in-Transit-Only). *Recommended.*
-- **(b) egress in the handler:** the handler reveals its group's secret from the bundle and places it.
-  Simpler in the core, but moves `.reveal()` into the handler (allowed by the "reveal only at egress"
-  ADR, but breaks HiMed's current pattern where the handler never sees the secret).
+**Sub-variant — DECIDED (2026-10-02): (a) group-aware materializer.** The gateway passes the tool's
+group to `materialize`, which injects that group's field; the handler never sees the secret
+(Credential-in-Transit-Only preserved, repo standard kept). Option (b) (egress in the handler) was
+declined.
 
 ### AD-2 — One provider = one HiMed agent
 Collapsing to one `himed` means "one provider per turn" (ADR-0046) no longer forces multiple agents: a
@@ -164,7 +161,7 @@ change.
 | **Change in `src/core/auth`** (touches the credential contract) | ADR + human merge (the pipeline escalates core changes). Additive: single-secret stays as-is. |
 | Backend `buildCredentialConfig` today **throws with >1 secret** (except `basic`) | Extend it to a bundle of N named secrets (see api-contract). |
 | Storing multiple secrets in one `Connection` | Reuse the `credential_exchange` pattern (credential as encrypted JSON). |
-| One wrong token among the three? The probe only validates `directorio` | Accepted: the probe validates the bundle via directory; Demográficos/Autoagendamiento validate on first use (AUTH_EXPIRED→reconnect) — strictly better than today. Do we want to probe all three at connect? → **open question**. |
+| One wrong token among the three? The probe only validates `directorio` | **DECIDED (2026-10-02): directory-only probe (`list_locations`).** Demográficos (no read) and Autoagendamiento validate on first real use (AUTH_EXPIRED→reconnect) — strictly better than today, and lighter than multi-probe. |
 | Is `codigo_servicio` part of the accountKey (clinic identity)? | Likely yes (one clinic = one codigo_servicio). Confirm in api-contract. |
 
 ## 10. Phasing
