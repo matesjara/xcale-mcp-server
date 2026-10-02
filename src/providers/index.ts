@@ -2,6 +2,7 @@ import type { IProvider } from '../core/provider-port';
 import { cloudbedsProvider } from './cloudbeds';
 import { echoProvider } from './echo';
 import { himedProvider } from './himed';
+import { himedDirectoryProvider } from './himed-directory';
 import { himedSchedulingProvider } from './himed-scheduling';
 import { siigoProvider } from './siigo';
 import { toteatProvider } from './toteat';
@@ -21,5 +22,6 @@ export const PROVIDERS: readonly IProvider[] = [
   siigoProvider,
   woocommerceProvider,
   himedProvider,
+  himedDirectoryProvider,
   himedSchedulingProvider,
 ];

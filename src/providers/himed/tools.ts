@@ -6,16 +6,11 @@ import type { HimedClient } from './client';
 import { unwrapHimed } from './errors';
 
 /**
- * HiMed `m.medsas.co` tools: patient writes (Demográficos) + the directory reads (Doctores, Sedes).
- * Inputs are camelCase (our convention); handlers map to HiMed's snake_case wire fields. The `api_key`
- * is never in these bodies — the materializer injects it (placement:'body'). Directory reads return a
- * `{ estado, <named array> }` envelope; the handler pulls the array and curates fields (PHI allow-list).
+ * HiMed `m.medsas.co` Demográficos tools: patient writes only (create / update / change document). The
+ * directory reads (Doctores, Sedes) are a SEPARATE provider (`himed-directory`) because HiMed issues a
+ * separate token per API (2026-10-01). Inputs are camelCase; handlers map to HiMed's snake_case wire
+ * fields. The `api_key` is never in these bodies — the materializer injects it (placement:'body').
  */
-/** Pull a named array out of an `{ estado, <key>: [...] }` HiMed envelope. */
-function envelopeRows(data: unknown, key: string): ReadonlyArray<Record<string, unknown>> {
-  const arr = (data as Record<string, unknown> | null)?.[key];
-  return Array.isArray(arr) ? (arr as Array<Record<string, unknown>>) : [];
-}
 // `any` for the input type holds a heterogeneous tool collection (each tool's zod input differs);
 // per-tool types stay sound at each defineTool call site. Same pattern as every provider here.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -103,69 +98,5 @@ export function buildHimedTools(client: HimedClient): ReadonlyArray<ToolDefiniti
     },
   });
 
-  const listDoctors = defineTool({
-    name: 'mcp_himed_list_doctors',
-    description:
-      'List active health professionals (full directory), optionally filtered by specialty or user. ' +
-      'Richer than the scheduling list; use for professional info beyond booking.',
-    input: z
-      .object({
-        tipoUser: z.string().optional().describe('User type filter (e.g. "2" = professional)'),
-        idEspecialidad: z.string().optional(),
-        idUsuario: z.string().optional(),
-      })
-      .strict(),
-    handler: async (args, ctx) => {
-      const res = await client.post('Usuarios/consultarUsuarios.php', ctx.request, {
-        ...(args.tipoUser !== undefined ? { tipo_user: args.tipoUser } : {}),
-        ...(args.idEspecialidad !== undefined ? { id_especialidad: args.idEspecialidad } : {}),
-        ...(args.idUsuario !== undefined ? { id_usuario: args.idUsuario } : {}),
-      });
-      const out = unwrapHimed(res, 'list_doctors');
-      if (!out.ok) return err(out.code, out.message);
-      // Curate: drop the professional's contact PHI (email, phones, address, birth date).
-      return ok(
-        envelopeRows(out.data, 'usuarios').map((r) => ({
-          idUsuario: r.id_usuario,
-          nombres: r.nombres,
-          apellidos: r.apellidos,
-          rol: r.rol,
-          idEspecialidad: r.id_especialidad,
-        })),
-      );
-    },
-  });
-
-  const listLocations = defineTool({
-    name: 'mcp_himed_list_locations',
-    description:
-      'List active clinic sedes (full directory) with address, optionally filtered by area.',
-    input: z
-      .object({
-        pais: z.string().optional(),
-        departamento: z.string().optional(),
-        ciudad: z.string().optional(),
-      })
-      .strict(),
-    handler: async (args, ctx) => {
-      const res = await client.post('Sedes/consultarSedes.php', ctx.request, {
-        ...(args.pais !== undefined ? { pais: args.pais } : {}),
-        ...(args.departamento !== undefined ? { departamento: args.departamento } : {}),
-        ...(args.ciudad !== undefined ? { ciudad: args.ciudad } : {}),
-      });
-      const out = unwrapHimed(res, 'list_locations');
-      if (!out.ok) return err(out.code, out.message);
-      return ok(
-        envelopeRows(out.data, 'info_sede').map((r) => ({
-          idSede: r.id_sede,
-          sede: r.sede,
-          direccion: r.direccion,
-          telefono: r.telefono,
-          municipio: r.municipio,
-        })),
-      );
-    },
-  });
-
-  return [createPatient, updatePatient, changePatientDocument, listDoctors, listLocations];
+  return [createPatient, updatePatient, changePatientDocument];
 }
