@@ -41,6 +41,12 @@ export interface CatalogEntry {
    */
   readonly connectionProbe?: { readonly tool: string };
   /**
+   * A credential provider with no probe that the consumer should still connect, validating the pasted
+   * key lazily on first use. Only meaningful without `connectionProbe`; absent keeps the fail-closed
+   * default (no probe → not connectable).
+   */
+  readonly connectWithoutProbe?: boolean;
+  /**
    * Which context keys form the ACCOUNT identity, in order. A consumer keys its connection on this
    * tuple; absent means "every required context key".
    */
@@ -70,6 +76,9 @@ export function buildCatalog(registry: ProviderRegistry): CatalogEntry[] {
       ...(m.sunsetDate !== undefined ? { sunsetDate: m.sunsetDate } : {}),
       ...(m.contextDiscovery !== undefined ? { contextDiscovery: m.contextDiscovery } : {}),
       ...(m.connectionProbe !== undefined ? { connectionProbe: m.connectionProbe } : {}),
+      ...(m.connectWithoutProbe !== undefined
+        ? { connectWithoutProbe: m.connectWithoutProbe }
+        : {}),
       ...(m.accountContextKeys !== undefined ? { accountContextKeys: m.accountContextKeys } : {}),
     };
   });

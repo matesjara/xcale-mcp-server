@@ -21,4 +21,6 @@ export const himedManifest: ProviderManifest = {
   category: 'health',
   schemaVersion: '2026-09-25',
   providerVersion: '0.2.0',
+  // Demográficos has no read to probe, so connect without one and validate on first write.
+  connectWithoutProbe: true,
 };
