@@ -169,7 +169,7 @@ Mechanical rename `himed-scheduling` → `himed`, no logic change (api-contract 
 | ✅ S1 | Core types: CredentialGroup, authDescriptor.groups, ToolDefinition.credentialGroup, ResolvedCredential.secrets | F2 | foundation | provider-port.ts, tool.ts, resolved-credential.ts |
 | ✅ S2 | Group-aware resolver + materializer + factory + protocol wiring (+ regression test) | F2 | foundation | credential-resolver.ts, authentication-materializer.ts, provider-factory.ts, protocol/mcp-server.ts |
 | ✅ S3 | Revert Option A core/catalog + providers deletions | F1 | foundation | provider-port.ts, catalog.ts, providers/index.ts, himed-directory/ (del) |
-| S4 | Unified himed provider (auth groups, client routing, merged tools, probe, manifest) + tests | F3 | integration | providers/himed/* |
+| ✅ S4 | Unified himed provider (auth groups, client routing, merged tools, probe, manifest) + tests | F3 | integration | providers/himed/* |
 | S5 | Backend contract: McpAuthDescriptor.groups; remove connectWithoutProbe; mcp-client bundle | F4 | foundation | mcp/entities.ts, mcp/mcp-client.ts |
 | S6 | buildCredentialConfig multi-secret form + bundle + probe + executor forward (+ tests) | F4 | integration | mcp/mcp-bootstrap.ts, mcp/mcp-tool-executor.ts, mcp-bootstrap.credential.test.ts |
 | S7 | Backend catalog + vertical scope + i18n (one himed) | F4 | integration | toolboxes.ts, register-vertical-scopes(.test).ts, i18n |
@@ -192,6 +192,6 @@ sub-issues (PD-1: one epic #1053, one lane per repo).
   (the ship-log flow) through the unified provider.
 
 ## Open questions carried from the contract
-- OQ-1 directory `idSede` ≡ scheduling `idSede` (confirm before dropping scheduling `listarSedes`).
+- ✅ OQ-1 (S4): directory `idSede` ≡ scheduling `idSede` (confirm before dropping scheduling `listarSedes`).
 - OQ-2 single-secret materialization byte-identical (regression test in S2).
-- OQ-3 per-group baseUrl routing in the himed client (S4).
+- ✅ OQ-3 (S4): per-group baseUrl routing in the himed client (S4).

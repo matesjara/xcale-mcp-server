@@ -27,3 +27,73 @@ export function unwrapHimed(res: RequestResult, operation: string): Unwrapped {
   // 2xx (201 / 207): the provider body is a plain status envelope ({ estado, mensaje }) with no PHI.
   return { ok: true, data: res.data };
 }
+
+/** Pull a named array out of an `{ estado, <key>: [...] }` HiMed directory envelope. */
+export function envelopeRows(
+  data: unknown,
+  key: string,
+): ReadonlyArray<Record<string, unknown>> {
+  const arr = (data as Record<string, unknown> | null)?.[key];
+  return Array.isArray(arr) ? (arr as Array<Record<string, unknown>>) : [];
+}
+
+/**
+ * Unwrap a HiMed Autoagendamiento response (sandbox-verified). HiMed overloads `401` for both a bad
+ * token AND validation errors, and a 2xx can carry a captured error, so classification is by the body
+ * message (only token-related → AUTH_EXPIRED; every other `estado:'error'`/`success:false` →
+ * INVALID_INPUT). The message carries the provider control string (`mensaje`), never the data (PHI).
+ */
+interface HimedEnvelope {
+  readonly estado?: string;
+  readonly success?: boolean;
+  readonly mensaje?: string;
+}
+
+function parseBody(raw: unknown): HimedEnvelope | null {
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw) as HimedEnvelope;
+    } catch {
+      return null;
+    }
+  }
+  return raw !== null && typeof raw === 'object' ? (raw as HimedEnvelope) : null;
+}
+
+function classifyScheduling(mensaje: string | undefined): ProviderErrorCode {
+  return (mensaje ?? '').toLowerCase().includes('token')
+    ? ProviderErrorCode.AUTH_EXPIRED
+    : ProviderErrorCode.INVALID_INPUT;
+}
+
+function failScheduling(
+  operation: string,
+  mensaje: string | undefined,
+  status: number,
+): Unwrapped {
+  return {
+    ok: false,
+    code: classifyScheduling(mensaje),
+    message: mensaje
+      ? `HiMed scheduling ${operation}: ${mensaje}`
+      : `HiMed scheduling ${operation} failed (HTTP ${status})`,
+  };
+}
+
+export function unwrapHimedScheduling(res: RequestResult, operation: string): Unwrapped {
+  if (!res.ok) {
+    if (res.errorCode === ProviderErrorCode.PROVIDER_UNAVAILABLE) {
+      return {
+        ok: false,
+        code: res.errorCode,
+        message: `HiMed scheduling ${operation} failed (HTTP ${res.status})`,
+      };
+    }
+    return failScheduling(operation, parseBody(res.body)?.mensaje, res.status);
+  }
+  const body = parseBody(res.data);
+  if (body && (body.estado === 'error' || body.success === false)) {
+    return failScheduling(operation, body.mensaje, res.status);
+  }
+  return { ok: true, data: res.data };
+}

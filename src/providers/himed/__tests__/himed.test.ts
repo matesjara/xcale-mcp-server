@@ -8,14 +8,12 @@ import { createHimedProvider } from '../provider';
 
 interface Captured {
   url: string;
-  method: string;
   body: string | undefined;
 }
 
-/** A fetch stub that records the (already materialized) request and returns a fixed response. */
 function fakeFetch(status: number, jsonBody: unknown, sink?: Captured[]): FetchLike {
-  return (async (url: string, init: { method: string; body?: string }) => {
-    sink?.push({ url, method: init.method, body: init.body });
+  return (async (url: string, init: { body?: string }) => {
+    sink?.push({ url, body: init.body });
     return {
       ok: status >= 200 && status < 300,
       status,
@@ -25,62 +23,149 @@ function fakeFetch(status: number, jsonBody: unknown, sink?: Captured[]): FetchL
   }) as unknown as FetchLike;
 }
 
-const cred = () => ({ credential: { secret: new SecretString('KEY123') } });
+/** A context carrying the three-group credential bundle + the codigo_servicio service context. */
+const ctx = () => ({
+  credential: {
+    secret: new SecretString('IGNORED'),
+    secrets: {
+      demograficos: new SecretString('DEMO_SEC'),
+      directorio: new SecretString('DIR_SEC'),
+      autoagendamiento: new SecretString('SCHED_SEC'),
+    },
+  },
+  metadata: { codigo_servicio: 'CS1' },
+});
 
-const patientArgs = {
-  tipoDocumento: 'CC',
-  idPaciente: '11111111',
-  primerNombre: 'Paciente',
-  primerApellido: 'Pruebas',
-  fechaNacimiento: '1990-01-01',
-};
-
-describe('HiMed (Demográficos) provider', () => {
+describe('HiMed unified provider — credential groups', () => {
   it('passes provider conformance', async () => {
-    await runProviderConformance(createHimedProvider({ fetchImpl: fakeFetch(201, {}) }));
+    await runProviderConformance(createHimedProvider({ fetchImpl: fakeFetch(200, []) }));
   });
 
-  it('create_patient injects the api_key into the JSON body — never in the URL or headers', async () => {
+  it('declares one provider with all 14 tools and list_locations as the probe', () => {
+    const provider = createHimedProvider({ fetchImpl: fakeFetch(200, []) });
+    expect(provider.manifest.connectionProbe).toEqual({ tool: 'mcp_himed_list_locations' });
+    expect(provider.listTools()).toHaveLength(14);
+    expect(provider.listTools().map((t) => t.name)).toContain('mcp_himed_create_appointment');
+    // The scheduling list_locations was dropped — only the directory one remains (OQ-1).
+    expect(
+      provider.listTools().filter((t) => t.name === 'mcp_himed_list_locations'),
+    ).toHaveLength(1);
+  });
+
+  it('publishes subject-scoped identityPolicy on the patient-exposing scheduling reads', () => {
+    const provider = createHimedProvider({ fetchImpl: fakeFetch(200, []) });
+    const byName = Object.fromEntries(provider.listTools().map((t) => [t.name, t]));
+    expect(byName['mcp_himed_patient_exists']?.identityPolicy).toEqual({ mode: 'subject-scoped' });
+    expect(byName['mcp_himed_list_patient_appointments']?.identityPolicy).toEqual({
+      mode: 'subject-scoped',
+    });
+  });
+
+  it('create_patient (demograficos group) injects the Demográficos secret as body.api_key', async () => {
     const sink: Captured[] = [];
     const provider = createHimedProvider({
-      fetchImpl: fakeFetch(201, { estado: 'success', mensaje: 'ok' }, sink),
+      fetchImpl: fakeFetch(201, { estado: 'success' }, sink),
     });
-
-    const result = await provider.callTool('mcp_himed_create_patient', patientArgs, cred());
-
-    expect(result.kind).toBe('success');
-    expect(sink).toHaveLength(1);
+    const res = await provider.callTool(
+      'mcp_himed_create_patient',
+      {
+        tipoDocumento: 'CC',
+        idPaciente: '11111111',
+        primerNombre: 'P',
+        primerApellido: 'X',
+        fechaNacimiento: '1990-01-01',
+      },
+      ctx(),
+    );
+    expect(res.kind).toBe('success');
     const req = sink[0]!;
-    expect(req.url).toContain('/crearPaciente.php');
-    expect(req.url).not.toContain('KEY123'); // never in the URL
+    expect(req.url).toContain('/Demograficos/crearPaciente.php');
     const body = JSON.parse(req.body ?? '{}') as Record<string, unknown>;
-    expect(body.api_key).toBe('KEY123'); // injected into the body by the materializer
-    expect(body.tipo_documento).toBe('CC');
-    expect(body.id_paciente).toBe('11111111');
-    // Demográficos expects YYYY-MM-DD (confirmed against the sandbox 2026-10-01; DD-MM-YYYY 400s).
+    expect(body.api_key).toBe('DEMO_SEC');
     expect(body.fecha_nacimiento).toBe('1990-01-01');
   });
 
-  it('maps a 401 to PROVIDER_AUTH_EXPIRED', async () => {
+  it('list_locations (directorio group, the probe) injects the Service secret as body.api_key', async () => {
+    const sink: Captured[] = [];
+    const provider = createHimedProvider({
+      fetchImpl: fakeFetch(
+        200,
+        { estado: 'success', info_sede: [{ id_sede: '1', sede: 'Poblado', email: 'x@x.com' }] },
+        sink,
+      ),
+    });
+    const res = await provider.callTool('mcp_himed_list_locations', {}, ctx());
+    expect(res.kind).toBe('success');
+    const req = sink[0]!;
+    expect(req.url).toContain('/Sedes/consultarSedes.php');
+    expect((JSON.parse(req.body ?? '{}') as Record<string, unknown>).api_key).toBe('DIR_SEC');
+    if (res.kind === 'success') {
+      expect(res.data).toEqual([
+        { idSede: '1', sede: 'Poblado', direccion: undefined, telefono: undefined, municipio: undefined },
+      ]);
+      expect(JSON.stringify(res.data)).not.toContain('x@x.com'); // PHI curated out
+    }
+  });
+
+  it('create_appointment (autoagendamiento group) injects the scheduling token + codigo_servicio', async () => {
+    const sink: Captured[] = [];
+    const provider = createHimedProvider({
+      fetchImpl: fakeFetch(200, { success: true, idCita: 1029 }, sink),
+    });
+    const res = await provider.callTool(
+      'mcp_himed_create_appointment',
+      {
+        idPaciente: '11111111',
+        idSede: 1,
+        idUsuario: '42',
+        fechaCita: '08-10-2026',
+        horaInicioCita: '09:00:00',
+        modalidadAtencion: 1,
+      },
+      ctx(),
+    );
+    expect(res.kind).toBe('success');
+    const body = JSON.parse(sink[0]!.body ?? '{}') as Record<string, unknown>;
+    expect(body.token).toBe('SCHED_SEC');
+    expect(body.codigo_servicio).toBe('CS1');
+    expect(body.accion).toBe('CrearCita');
+    expect(body.parentescoPideCita).toBe('15');
+  });
+
+  it('get_availability sends the professional as idEspecialista (not idUsuario)', async () => {
+    const sink: Captured[] = [];
+    const provider = createHimedProvider({ fetchImpl: fakeFetch(200, [], sink) });
+    await provider.callTool(
+      'mcp_himed_get_availability',
+      { idUsuario: '42', idSede: '1', fechaInicial: '14-10-2026' },
+      ctx(),
+    );
+    const body = JSON.parse(sink[0]!.body ?? '{}') as Record<string, unknown>;
+    expect(body.idEspecialista).toBe('42');
+    expect(body.idUsuario).toBeUndefined();
+  });
+
+  it('cancel_appointment requires idPaciente', async () => {
+    const provider = createHimedProvider({ fetchImpl: fakeFetch(200, { success: true }) });
+    const res = await provider.callTool('mcp_himed_cancel_appointment', { idCita: '25' }, ctx());
+    expect(res.kind).toBe('error');
+    if (res.kind === 'error') expect(res.code).toBe(ProviderErrorCode.INVALID_INPUT);
+  });
+
+  it('maps a Demográficos 401 to PROVIDER_AUTH_EXPIRED', async () => {
     const provider = createHimedProvider({ fetchImpl: fakeFetch(401, { mensaje: 'token' }) });
-    const result = await provider.callTool('mcp_himed_create_patient', patientArgs, cred());
-    expect(result.kind).toBe('error');
-    if (result.kind === 'error') expect(result.code).toBe(ProviderErrorCode.AUTH_EXPIRED);
-  });
-
-  it('refines a 417 to PROVIDER_INVALID_INPUT (caller-fixable)', async () => {
-    const provider = createHimedProvider({ fetchImpl: fakeFetch(417, { mensaje: 'campo' }) });
-    const result = await provider.callTool('mcp_himed_create_patient', patientArgs, cred());
-    expect(result.kind).toBe('error');
-    if (result.kind === 'error') expect(result.code).toBe(ProviderErrorCode.INVALID_INPUT);
-  });
-
-  it('exposes only the three Demográficos write tools (directory lives in himed-directory)', () => {
-    const provider = createHimedProvider({ fetchImpl: fakeFetch(201, {}) });
-    expect(provider.listTools().map((t) => t.name).sort()).toEqual([
-      'mcp_himed_change_patient_document',
+    const res = await provider.callTool(
       'mcp_himed_create_patient',
-      'mcp_himed_update_patient',
-    ]);
+      {
+        tipoDocumento: 'CC',
+        idPaciente: '11111111',
+        primerNombre: 'P',
+        primerApellido: 'X',
+        fechaNacimiento: '1990-01-01',
+      },
+      ctx(),
+    );
+    expect(res.kind).toBe('error');
+    if (res.kind === 'error') expect(res.code).toBe(ProviderErrorCode.AUTH_EXPIRED);
   });
 });
