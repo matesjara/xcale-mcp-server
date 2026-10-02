@@ -111,7 +111,8 @@ export function createProvider<M = unknown>(spec: ProviderSpec<M>): IProvider {
         // materialized request stays inside this core span — it never passes through provider code.
         request: (reqSpec) =>
           sendRequest(
-            materialize(spec.auth, ctx.credential, reqSpec),
+            // Multi-credential providers: the called tool's group picks which secret/field to inject.
+            materialize(spec.auth, ctx.credential, reqSpec, tool.credentialGroup),
             spec.fetchImpl ? { fetchImpl: spec.fetchImpl } : {},
           ),
         metadata,

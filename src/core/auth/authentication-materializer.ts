@@ -1,4 +1,5 @@
 import type { ResolvedCredential } from '../credential/resolved-credential';
+import type { SecretString } from '../secret-string';
 import { assertNever } from '../errors';
 import type { ProviderAuthDescriptor } from '../provider-port';
 import type { HttpRequest, RequestSpec } from './http-request';
@@ -19,21 +20,28 @@ export function materialize(
   auth: ProviderAuthDescriptor,
   resolved: ResolvedCredential,
   spec: RequestSpec,
+  /**
+   * The called tool's `credentialGroup` (multi-credential providers). When set, the secret comes from
+   * `resolved.secrets[group]` and — for `api_key` — the field comes from `auth.groups[group]`. Absent ⇒
+   * single-secret (the sole `resolved.secret` + `fields[0]`), byte-identical to before.
+   */
+  group?: string,
 ): HttpRequest {
   const headers: Record<string, string> = { ...(spec.headers ?? {}) };
   let url = spec.url;
   let body = spec.body;
-  const secret = resolved.secret.reveal(); // ← the ONLY reveal in the runtime
+  const secret = secretFor(resolved, group).reveal(); // ← the ONLY reveal in the runtime
 
   switch (auth.type) {
     case 'bearer':
       headers.authorization = `Bearer ${secret}`;
       break;
     case 'api_key': {
-      // A single resolved secret placed per the (first) declared field. Multiple distinct secrets
-      // are not expressible with today's single-secret ResolvedCredential (that is the imperative /
-      // multi-material future, ADR-gated).
-      const field = auth.fields[0];
+      // Single-secret: the one declared field. Multi-credential: the field of the called tool's group.
+      const field =
+        group !== undefined && auth.groups
+          ? auth.groups.find((g) => g.key === group)?.field
+          : auth.fields[0];
       if (field === undefined) {
         throw new Error('api_key auth descriptor declares no fields');
       }
@@ -72,6 +80,23 @@ export function materialize(
     headers,
     ...(body !== undefined ? { body } : {}),
   };
+}
+
+/**
+ * The secret to reveal for this call: a multi-credential provider's call carries a `group`, so the
+ * secret comes from the named bundle (`resolved.secrets[group]`) — fail closed if the bundle has none.
+ * Without a group it is the provider's single `resolved.secret`. Keeps the single `.reveal()` site in
+ * `materialize` (this returns the SecretString; it never reveals).
+ */
+function secretFor(resolved: ResolvedCredential, group?: string): SecretString {
+  if (group !== undefined) {
+    const s = resolved.secrets?.[group];
+    if (s === undefined) {
+      throw new Error(`no resolved secret for credential group "${group}"`);
+    }
+    return s;
+  }
+  return resolved.secret;
 }
 
 function appendQueryParam(url: string, key: string, value: string): string {

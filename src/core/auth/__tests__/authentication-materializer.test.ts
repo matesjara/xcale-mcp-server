@@ -116,3 +116,49 @@ describe('AuthenticationMaterializer', () => {
     expect(String(cred.secret)).toBe('[REDACTED]');
   });
 });
+
+describe('AuthenticationMaterializer — credential groups (multi-credential providers)', () => {
+  const grouped: ProviderAuthDescriptor = {
+    type: 'api_key',
+    fields: [
+      { key: 'api_key', label: 'Directory', placement: 'body' },
+      { key: 'token', label: 'Scheduling', placement: 'body' },
+    ],
+    groups: [
+      { key: 'directorio', label: 'Directory', field: { key: 'api_key', label: 'Directory', placement: 'body' } },
+      { key: 'autoagendamiento', label: 'Scheduling', field: { key: 'token', label: 'Scheduling', placement: 'body' } },
+    ],
+  };
+  const postSpec: RequestSpec = {
+    method: 'POST',
+    url: 'https://api.test/resource',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ accion: 'listarSedes' }),
+  };
+  const bundle = () => ({
+    secret: new SecretString('IGNORED'),
+    secrets: {
+      directorio: new SecretString('DIR_SEC'),
+      autoagendamiento: new SecretString('SCHED_SEC'),
+    },
+  });
+
+  it("injects the called tool's group field using that group's secret", () => {
+    const dir = materialize(grouped, bundle(), postSpec, 'directorio');
+    expect(JSON.parse(dir.body as string)).toEqual({ accion: 'listarSedes', api_key: 'DIR_SEC' });
+
+    const sched = materialize(grouped, bundle(), postSpec, 'autoagendamiento');
+    expect(JSON.parse(sched.body as string)).toEqual({ accion: 'listarSedes', token: 'SCHED_SEC' });
+  });
+
+  it('without a group, a grouped descriptor still uses fields[0] and the single secret (byte-identical)', () => {
+    const req = materialize(grouped, { secret: new SecretString('SINGLE') }, postSpec);
+    expect(JSON.parse(req.body as string)).toEqual({ accion: 'listarSedes', api_key: 'SINGLE' });
+  });
+
+  it('throws (fail closed) when the bundle has no secret for the requested group', () => {
+    expect(() =>
+      materialize(grouped, { secret: new SecretString('x') }, postSpec, 'directorio'),
+    ).toThrow(/credential group "directorio"/);
+  });
+});
