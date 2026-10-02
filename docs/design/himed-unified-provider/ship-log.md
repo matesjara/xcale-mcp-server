@@ -83,6 +83,62 @@ confirmación de un comando, no como trabajo de integración.
   `agent-templates/data/himed-clinic-agent.ts`, atado a `requiredIntegrations: ['whatsapp', 'himed']`,
   con registros + directorio + agenda en un solo agente de clínica. Guarda de contrato nueva: exactamente
   un template HiMed, sobre `himed`, y ningún template referencia el slug retirado `himed-scheduling`.
-- **Ejemplos en tests genéricos de mcp** (`mcp-tool-loader`, `mcp-client`, `tool-result-observers`)
-  usan `himed-scheduling` como string de muestra; inocuo, pero conviene alinearlos al renombrar.
-  Deuda cosmética, no un fallo.
+- ✅ **Muestras `himed-scheduling` en tests genéricos (S10 cleanup):** alineadas a `himed`
+  (`mcp-tool-loader`, `mcp-client`, `tool-result-observers` + su test). El escenario "dos providers en
+  un eje" de `vertical-scope-registry.test.ts` (que era el split viejo de HiMed, QB1) se **re-basó** a
+  `himed` + `saludtools`, que es el par real vigente. Las únicas menciones a `himed-scheduling` que
+  quedan son **aserciones negativas** (prueban que el slug ya no existe) y una nota histórica — no son
+  referencias huérfanas.
+
+---
+
+## Estado as-built — cómo quedó funcionando la Opción B
+
+HiMed es **un solo provider multi-credencial** de punta a punta. Una conexión por clínica lleva los
+tres secretos + el `codigo_servicio`; cada tool resuelve el secreto de SU grupo y pega a SU host, y el
+agente de clínica usa las 14 tools en un mismo turno.
+
+**1. mcp-server (`feat/himed-provider`) — el provider `himed`**
+- `authDescriptor.groups: CredentialGroup[]` con tres grupos: `demograficos` (api_key, body),
+  `directorio` (api_key, body), `autoagendamiento` (token, body). `fields` lista los dos nombres de
+  wire distintos (`api_key`, `token`); el formulario se deriva de `groups` (una entrada por grupo).
+- Cada `ToolDefinition` declara su `credentialGroup`. El **materializer group-aware**
+  (`materialize(auth, resolved, spec, group?)`) inyecta el secreto del grupo llamado; se conserva el
+  invariante de **un solo `.reveal()`** (helper `secretFor`). Las 14 tools: writes de Demográficos +
+  lecturas de directorio + Autoagendamiento. Probe = `mcp_himed_list_locations` (lectura de directorio).
+- El client rutea por host: Demográficos + directorio a `…/Controllers/{op}.php`; Autoagendamiento al
+  endpoint RPC único (dispatch por `accion`). `HIMED_BASE_URL` / `HIMED_SCHEDULING_BASE_URL` por env
+  apuntan al sandbox sin tocar código.
+
+**2. El cable (wire) — bundle de secretos**
+- El backend reenvía el bundle como header `X-Provider-Credentials` (JSON base64), separado de
+  `X-Provider-Token`. El protocolo del gateway (`mcp-server.ts`) envuelve cada valor del bundle en un
+  `SecretString` (sin reveal-parse) → `ResolvedCredential.secrets`. El materializer lee de ahí.
+
+**3. backend (`feat/himed-connect`) — conexión + consumo**
+- `buildCredentialConfig` (mcp-bootstrap): cuando el descriptor trae `groups`, arma el formulario
+  multi-secreto, **prueba con `list_locations`** pasando el bundle, y guarda el bundle como **JSON
+  cifrado en `credentialSecret`** (estilo `credential_exchange`). `accountKey = codigo_servicio`.
+- El `McpToolExecutor` reenvía el bundle como `credentials` para providers con `credentialGroups`
+  (`resolveCredentialBundle` descifra `credentialSecret`). Single-secret sigue mandando solo `token`.
+- Catálogo (`toolboxes.ts`): **una** tarjeta `himed`. Vertical scope: **un** registro `himed` en
+  `health` (junto a `saludtools`). i18n (es/en): **un** bloque `himed.connect.*` con `codigo_servicio`
+  + los tres tokens por grupo.
+
+**4. lifecycle-messages (Fase 3)** — el slug y los tool-names hablan el provider unificado:
+`LifecycleIntegration` `'himed'`, `HIMED_BOOKING_TOOL_NAME = 'mcp_himed_create_appointment'`, el
+verifier lee `connectionsOf('himed')` y llama `mcp_himed_list_patient_appointments`. El verifier arma
+su `callTool` a mano, así que **reenvía el bundle** (`parseCredentialBundle`) para que la lectura de
+Autoagendamiento encuentre su secreto de grupo (si no, fallaría cerrado con el token equivocado).
+
+**5. agent-templates** — **un** `himed-clinic-agent` (registros + directorio + agenda), atado a
+`requiredIntegrations: ['whatsapp', 'himed']`. Reemplaza el par `himed-patient-admin` +
+`himed-scheduling-agent` del modelo viejo.
+
+**Verificación (S9):** unit de ruteo por grupo verde (9 tests); PROBE en vivo contra el sandbox verde
+(cada grupo pega a su host y clasifica auth); happy-path completo a un comando cuando se exporten los
+tres tokens + `codigo_servicio` (ventana sandbox hasta 2026-10-09).
+
+**Lo que revirtió de la Opción A:** se eliminaron el provider `himed-directory`, el flag
+`connectWithoutProbe` y su ADR `probe-less-credential-connect`, y se plegaron `himed-directory` +
+`himed-scheduling` dentro de `himed`. ADR que gobierna el modelo nuevo: `himed-multi-credential-provider`.
