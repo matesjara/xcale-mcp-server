@@ -92,6 +92,26 @@ confirmación de un comando, no como trabajo de integración.
 
 ---
 
+## 2026-10-03 — Re-corrida del E2E: sandbox de HiMed caído (504)
+
+Al re-ejecutar `scripts/himed-unified-sandbox-e2e.ts` (modo PROBE), los tres grupos fallaron — pero
+**no por nuestro código**: el sandbox de HiMed está devolviendo **`504 Gateway Time-out`** en los
+endpoints POST.
+
+- `GET` a los hosts responde 200 (`demo.medsas.co`, `m.medsas.co`); DNS y red locales OK (example.com 200).
+- `POST` a los tres grupos cae (verificado con `curl` —HTTP 000 por timeout— y con `node fetch` directo,
+  cuerpo HTML de nginx): `Sedes/consultarSedes.php` → **504 (~60s)**, `Demograficos/crearPaciente.php` →
+  **504 (~60s)**, `…/envioConsumoAutoagendamiento` → **502 Bad Gateway (~32s)**. Ayer (2026-10-02) esos
+  mismos POST respondían **401 en <1s**.
+- Nuestro provider clasificó el timeout como `PROVIDER_UNAVAILABLE` (fail-closed) — comportamiento
+  correcto: no inventa éxito ante una caída del proveedor.
+
+**Veredicto:** caída/degradación del lado del sandbox, transitoria. El PROBE y el happy-path quedan
+pendientes de re-correr cuando el sandbox vuelva (ventana hasta 2026-10-09) y con los cuatro env de
+credenciales presentes. Sin cambios de código: el harness y el provider están listos.
+
+---
+
 ## Estado as-built — cómo quedó funcionando la Opción B
 
 HiMed es **un solo provider multi-credencial** de punta a punta. Una conexión por clínica lleva los
