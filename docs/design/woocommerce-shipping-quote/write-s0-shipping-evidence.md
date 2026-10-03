@@ -83,6 +83,13 @@ come from the store, never estimated by us.
 - **`create_order`** — add optional `shippingLines:[{methodId, methodTitle, total}]` → WooCommerce
   `shipping_lines`. Additive; absent ⇒ current behaviour (no freight).
 
+- **`create_order` / `reconcile_order` output** (backend #1303 review, 2026-10-03) — `WooOrderCreated`
+  also echoes `currency` and `shippingTotal` beside `total`, so the consumer quotes what the order really
+  charges (freight included) on a fresh create and on a reconciled order alike.
+- **Variations** — the backend sends a variation's OWN id as the cart item `productId` (the Store API
+  `add-item` takes a product or variation id; a variable product added by its parent is refused). This
+  write-S0 only exercised a simple product (26): a variable product is still to be confirmed live.
+
 ## Residual / cleanup
 
 - Test **order 32** (`pending`, total 218.000, with the flat-rate line) left in the sandbox — a real but
