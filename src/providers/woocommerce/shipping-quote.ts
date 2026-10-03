@@ -43,6 +43,11 @@ export interface WooShippingOption {
   readonly currencyCode: string;
   readonly currencyMinorUnit: number;
   readonly selected: boolean;
+  /**
+   * The cart package this rate prices. The store selects ONE rate per package, so a split cart
+   * (shipping classes, bulky items) charges one rate from each package.
+   */
+  readonly packageId: string;
 }
 
 export type ShippingQuoteResult =
@@ -59,7 +64,10 @@ interface RawRate {
   readonly selected?: boolean;
 }
 interface RawCart {
-  readonly shipping_rates?: ReadonlyArray<{ readonly shipping_rates?: readonly RawRate[] }>;
+  readonly shipping_rates?: ReadonlyArray<{
+    readonly package_id?: number | string;
+    readonly shipping_rates?: readonly RawRate[];
+  }>;
 }
 
 /** A minor-unit integer string → a major-unit decimal string per the currency's minor unit. */
@@ -130,18 +138,20 @@ export async function quoteShipping(
     const cart = (await upd.json()) as RawCart;
     // 4) Flatten the per-package rates into curated options. Empty ⇒ the store does not serve the
     //    destination (the caller says so; it never estimates).
-    const options: WooShippingOption[] = (cart.shipping_rates ?? [])
-      .flatMap((pkg) => pkg.shipping_rates ?? [])
-      .filter((r): r is RawRate & { rate_id: string } => typeof r.rate_id === 'string')
-      .map((r) => ({
-        rateId: r.rate_id,
-        methodId: r.method_id ?? '',
-        title: r.name ?? '',
-        cost: toMajorUnit(r.price ?? '0', r.currency_minor_unit ?? 0),
-        currencyCode: r.currency_code ?? '',
-        currencyMinorUnit: r.currency_minor_unit ?? 0,
-        selected: Boolean(r.selected),
-      }));
+    const options: WooShippingOption[] = (cart.shipping_rates ?? []).flatMap((pkg, index) =>
+      (pkg.shipping_rates ?? [])
+        .filter((r): r is RawRate & { rate_id: string } => typeof r.rate_id === 'string')
+        .map((r) => ({
+          rateId: r.rate_id,
+          methodId: r.method_id ?? '',
+          title: r.name ?? '',
+          cost: toMajorUnit(r.price ?? '0', r.currency_minor_unit ?? 0),
+          currencyCode: r.currency_code ?? '',
+          currencyMinorUnit: r.currency_minor_unit ?? 0,
+          selected: Boolean(r.selected),
+          packageId: String(pkg.package_id ?? index),
+        })),
+    );
     return { ok: true, options };
   } catch {
     return {

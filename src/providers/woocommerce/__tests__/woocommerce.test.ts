@@ -984,6 +984,7 @@ describe('woocommerce provider — quote_shipping (Store API)', () => {
           currencyCode: 'COP',
           currencyMinorUnit: 0,
           selected: false,
+          packageId: '0',
         },
         {
           rateId: 'free_shipping:1',
@@ -993,6 +994,7 @@ describe('woocommerce provider — quote_shipping (Store API)', () => {
           currencyCode: 'COP',
           currencyMinorUnit: 0,
           selected: true,
+          packageId: '0',
         },
       ],
     });
@@ -1001,6 +1003,40 @@ describe('woocommerce provider — quote_shipping (Store API)', () => {
     );
     expect(calls.some((c) => c.startsWith('POST') && c.endsWith('/cart/add-item'))).toBe(true);
     expect(calls.some((c) => c.endsWith('/cart/update-customer'))).toBe(true);
+  });
+
+  it('tags each option with its package, so a split cart can charge one rate per package', async () => {
+    const rate = (id: string, selected: boolean) => ({
+      rate_id: id,
+      name: id,
+      method_id: id.split(':')[0],
+      price: '1000',
+      currency_code: 'COP',
+      currency_minor_unit: 0,
+      selected,
+    });
+    const { impl } = storeApiFetch({
+      shipping_rates: [
+        {
+          package_id: 0,
+          shipping_rates: [rate('flat_rate:2', true), rate('local_pickup:3', false)],
+        },
+        { package_id: 1, shipping_rates: [rate('flat_rate:5', true)] },
+      ],
+    });
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+    const result = await p.callTool(
+      'mcp_woocommerce_quote_shipping',
+      { items: [{ productId: '26', quantity: 1 }], destination: { country: 'CO' } },
+      CTX,
+    );
+    const options = (successData(result) as { options: { rateId: string; packageId: string }[] })
+      .options;
+    expect(options.map((o) => [o.rateId, o.packageId])).toEqual([
+      ['flat_rate:2', '0'],
+      ['local_pickup:3', '0'],
+      ['flat_rate:5', '1'],
+    ]);
   });
 
   it('converts minor units to a major-unit decimal for a 2-decimal currency', async () => {
