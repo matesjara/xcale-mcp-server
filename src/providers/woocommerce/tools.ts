@@ -603,6 +603,10 @@ export interface WooOrderCreated {
   readonly number: string;
   readonly status: string;
   readonly total: string | null;
+  /** ISO 4217 currency of `total`/`shippingTotal` (e.g. "COP"). */
+  readonly currency: string | null;
+  /** The freight the order charges (major-unit decimal string), already inside `total`. */
+  readonly shippingTotal: string | null;
   readonly orderReference: string;
   readonly paymentUrl: string | null;
   readonly orderKey: string | null;
@@ -612,6 +616,8 @@ interface RawOrderRef {
   readonly number?: string | number;
   readonly status?: string;
   readonly total?: string;
+  readonly currency?: string;
+  readonly shipping_total?: string;
   readonly payment_url?: string;
   readonly order_key?: string;
   readonly meta_data?: ReadonlyArray<{ key: string; value: unknown }>;
@@ -622,6 +628,8 @@ function toOrderCreated(r: RawOrderRef, orderReference: string): WooOrderCreated
     number: r.number !== undefined ? String(r.number) : String(r.id),
     status: r.status ?? 'unknown',
     total: r.total ?? null,
+    currency: r.currency ?? null,
+    shippingTotal: r.shipping_total ?? null,
     orderReference,
     // WooCommerce returns an empty string for `payment_url` on an order with nothing to pay; curate
     // that to null so the consumer's "is there a pay link?" is a plain null check, not "" vs absent.

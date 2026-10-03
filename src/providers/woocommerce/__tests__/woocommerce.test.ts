@@ -491,6 +491,23 @@ describe('woocommerce provider — create_order (write, S4)', () => {
     });
   });
 
+  it('echoes the order currency and the freight it charges, so a consumer can quote the real total', async () => {
+    const { provider: p } = provider(
+      { ...CREATED, total: '218000', currency: 'COP', shipping_total: '18000' },
+      201,
+    );
+    const result = await p.callTool(
+      'mcp_woocommerce_create_order',
+      { orderReference: 'x', lineItems: [{ productId: '26', quantity: 2 }] },
+      CTX,
+    );
+    expect(successData(result)).toMatchObject({
+      total: '218000',
+      currency: 'COP',
+      shippingTotal: '18000',
+    });
+  });
+
   it('maps an empty payment_url to null (nothing to pay — terminal/COD)', async () => {
     const { provider: p } = provider({ ...CREATED, payment_url: '', order_key: undefined }, 201);
     const result = await p.callTool(
