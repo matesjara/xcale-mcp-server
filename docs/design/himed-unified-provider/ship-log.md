@@ -110,6 +110,19 @@ endpoints POST.
 pendientes de re-correr cuando el sandbox vuelva (ventana hasta 2026-10-09) y con los cuatro env de
 credenciales presentes. Sin cambios de código: el harness y el provider están listos.
 
+**Re-corrida con credenciales reales (mismo día):** con los cuatro tokens del sandbox cargados, el
+harness entró en modo FULL (credenciales bien cableadas, las 4 parseadas), pero **las siete llamadas
+siguieron dando `PROVIDER_UNAVAILABLE` / `HTTP 0`** — el POST al directorio sigue en timeout (>20s,
+sin respuesta) horas después. Confirma que el bloqueo es exclusivamente la caída del sandbox, no las
+credenciales ni el código. El happy-path queda pendiente de reintentar cuando HiMed restablezca el
+sandbox.
+
+**Cómo cargar credenciales sin exponerlas:** el harness bloquea secretos en línea de comando (bien).
+El script ahora lee un archivo local gitignoreado (`.env.himed.sandbox`, patrón `.env.*`) vía un loader
+tolerante (`KEY=value`, comillas, comentarios); `process.env` explícito gana. Se corre con
+`npx tsx scripts/himed-unified-sandbox-e2e.ts` — ningún token pasa por el comando. El archivo nunca
+se commitea.
+
 ---
 
 ## Estado as-built — cómo quedó funcionando la Opción B

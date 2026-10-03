@@ -31,8 +31,40 @@
  * Run: npx tsx scripts/himed-unified-sandbox-e2e.ts
  */
 
+import fs from 'fs';
+import path from 'path';
+
 import { createHimedProvider } from '../src/providers/himed/provider';
 import { SecretString } from '../src/core/secret-string';
+
+/**
+ * Load credentials from a git-ignored local env file into process.env, so the secrets never pass
+ * through a shell command (the harness blocks inline credentials, rightly). Tolerant of `KEY=value`,
+ * `KEY = value`, surrounding quotes, blank lines and `#` comments. Explicit process.env wins. Path:
+ * `HIMED_ENV_FILE` or the default `.env.himed.sandbox` (matches .gitignore `.env.*`). Never committed.
+ */
+function loadLocalEnv(): void {
+  const file = process.env.HIMED_ENV_FILE ?? '.env.himed.sandbox';
+  const full = path.resolve(process.cwd(), file);
+  if (!fs.existsSync(full)) return;
+  for (const raw of fs.readFileSync(full, 'utf8').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq === -1) continue;
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (key && process.env[key] === undefined) process.env[key] = value;
+  }
+}
+
+loadLocalEnv();
 
 const BASE_URL =
   process.env.HIMED_BASE_URL ??
