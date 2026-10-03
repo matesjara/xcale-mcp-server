@@ -664,6 +664,41 @@ describe('woocommerce provider — v1 scope expansion (round 2)', () => {
     expect(JSON.parse(sentBodies[0]!).customer_id).toBe(7);
   });
 
+  it('create_order maps shippingLines to WooCommerce shipping_lines (charges the freight)', async () => {
+    const { provider: p, sentBodies } = provider(
+      { id: 32, number: '32', status: 'pending', total: '218000', meta_data: [] },
+      201,
+    );
+    await p.callTool(
+      'mcp_woocommerce_create_order',
+      {
+        orderReference: 'xco-s1',
+        lineItems: [{ productId: '26', quantity: 2 }],
+        shippingLines: [{ methodId: 'flat_rate', methodTitle: 'Flat rate', total: '18000' }],
+      },
+      CTX,
+    );
+    expect(JSON.parse(sentBodies[0]!).shipping_lines).toEqual([
+      { method_id: 'flat_rate', method_title: 'Flat rate', total: '18000' },
+    ]);
+  });
+
+  it('create_order rejects a non-numeric shippingLines total as INVALID_INPUT, no network', async () => {
+    const { provider: p, calls } = provider({}, 201);
+    const result = await p.callTool(
+      'mcp_woocommerce_create_order',
+      {
+        orderReference: 'xco-s2',
+        lineItems: [{ productId: '26', quantity: 1 }],
+        shippingLines: [{ methodId: 'flat_rate', methodTitle: 'Flat rate', total: 'free' }],
+      },
+      CTX,
+    );
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe('PROVIDER_INVALID_INPUT');
+    expect(calls).toHaveLength(0);
+  });
+
   it('create_category POSTs name/parent/description', async () => {
     const {
       provider: p,

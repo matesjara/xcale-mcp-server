@@ -522,6 +522,20 @@ const createOrderInput = z
     // passes the id here to attribute the order to that customer.
     customerId: z.string().regex(/^\d+$/, 'customerId must be a numeric id').optional(),
     status: z.enum(['pending', 'processing', 'on-hold']).default('pending'),
+    // Freight line(s). WooCommerce does NOT calculate shipping on a REST-created order, so the cost
+    // must be sent explicitly or the pay link charges products only. `total` is a major-unit decimal
+    // string (e.g. "18000" COP, "15.00" USD) — typically the `cost` from `quote_shipping`. Absent ⇒
+    // no freight charged (the prior behaviour).
+    shippingLines: z
+      .array(
+        z.object({
+          methodId: z.string().min(1),
+          methodTitle: z.string().min(1),
+          total: z.string().regex(/^\d+(\.\d+)?$/, 'total must be a decimal amount string'),
+        }),
+      )
+      .min(1)
+      .optional(),
   })
   .strict();
 
@@ -866,6 +880,13 @@ export function buildWoocommerceTools(
             ...(s.lastName !== undefined ? { last_name: s.lastName } : {}),
             ...(s.phone !== undefined ? { phone: s.phone } : {}),
           };
+        }
+        if (args.shippingLines !== undefined) {
+          body.shipping_lines = args.shippingLines.map((l) => ({
+            method_id: l.methodId,
+            method_title: l.methodTitle,
+            total: l.total,
+          }));
         }
         const res = await client.post('orders', body, ctx.request, ctx.metadata);
         if (!res.ok) return wooError(res);
