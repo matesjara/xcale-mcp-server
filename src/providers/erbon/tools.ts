@@ -161,6 +161,10 @@ export function buildErbonTools(
           idSegment: z.number().int().optional(),
           isRateDefault: z.boolean().optional(),
           commentsBooking: z.string().optional(),
+          // Sending 0 makes Erbon register the hotel's tax SEPARATELY rather than folding it into the
+          // rate (Giovanni, 2026-10-01); the backend composes the tax-inclusive quote from its own
+          // per-hotel IVA rate (#1252).
+          totalWithTax: z.number().nonnegative().optional(),
         })
         .strict()
         // Irreversible write (no Erbon cancel/modify): reject a reversed or zero-night range here
