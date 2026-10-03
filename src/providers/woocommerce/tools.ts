@@ -1,11 +1,13 @@
 import { z } from 'zod';
 
+import type { FetchLike } from '../../core/http';
 import { definePaginatedList } from '../../core/pagination';
-import { type ToolDefinition, ok, toolFactory } from '../../core/tool';
+import { type ToolDefinition, err, ok, toolFactory } from '../../core/tool';
 import type { WoocommerceClient } from './client';
 import type { WoocommerceContext } from './context';
 import { wooError } from './errors';
 import { SLUG } from './manifest';
+import { quoteShipping } from './shipping-quote';
 
 const tool = toolFactory<WoocommerceContext>();
 
@@ -369,6 +371,26 @@ const getProductInput = z.object({ id: z.string().min(1) }).strict();
 const getProductVariationsInput = z.object({ id: z.string().min(1) }).strict();
 const noArgsInput = z.object({}).strict();
 const getShippingZoneInput = z.object({ id: z.string().min(1) }).strict();
+const quoteShippingInput = z
+  .object({
+    items: z
+      .array(
+        z.object({
+          productId: z.string().regex(/^\d+$/, 'productId must be a numeric id'),
+          quantity: z.number().int().positive(),
+        }),
+      )
+      .min(1),
+    destination: z
+      .object({
+        country: z.string().min(2), // ISO 3166-1 alpha-2, e.g. "CO"
+        state: z.string().optional(), // ISO 3166-2 subdivision, e.g. "CO-QUI" / "CO-DC"
+        city: z.string().optional(),
+        postcode: z.string().optional(),
+      })
+      .strict(),
+  })
+  .strict();
 const listOrdersInput = z
   .object({
     status: z.string().optional(),
@@ -733,6 +755,9 @@ function customerWriteBody(a: {
  */
 export function buildWoocommerceTools(
   client: WoocommerceClient,
+  // The provider's SSRF-safe fetch, used directly by `quote_shipping` for the public Store API (the
+  // authed client can't: the Store API needs no credential and the cart flow reads response headers).
+  fetchImpl: FetchLike,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- erased input type (heterogeneous tool collection); per-tool types stay sound
 ): ToolDefinition<any, WoocommerceContext>[] {
   return [
@@ -1117,6 +1142,27 @@ export function buildWoocommerceTools(
         );
         if (!res.ok) return wooError(res);
         return ok((res.data as RawShippingZoneMethod[]).map(toShippingZoneMethod));
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_quote_shipping`,
+      description:
+        "Quote the store's REAL shipping options for the given items and a destination — the " +
+        'cart-accurate freight the buyer would pay at checkout (via the Store API), NOT the configured ' +
+        'base rate. Returns options each with a `cost` ready to pass to create_order as a shippingLine. ' +
+        'Empty options ⇒ the store does not ship to that destination (say so; never estimate). `state` ' +
+        'is the ISO 3166-2 subdivision (e.g. CO-QUI, CO-DC).',
+      input: quoteShippingInput,
+      handler: async (args, ctx) => {
+        const result = await quoteShipping(
+          fetchImpl,
+          ctx.metadata.storeUrl,
+          args.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          args.destination,
+        );
+        if (!result.ok) return err(result.code, result.message);
+        return ok({ options: result.options });
       },
     }),
 

@@ -898,8 +898,158 @@ describe('woocommerce provider — v1 scope expansion (round 2)', () => {
       'mcp_woocommerce_create_customer',
       'mcp_woocommerce_update_customer',
       'mcp_woocommerce_create_product',
+      'mcp_woocommerce_quote_shipping',
     ]) {
       expect(names).toContain(n);
     }
+  });
+});
+
+describe('woocommerce provider — quote_shipping (Store API)', () => {
+  /** A fetch double scripted for the Store API cart flow, with Nonce + Cart-Token response headers. */
+  function storeApiFetch(updateCustomerCart: unknown) {
+    const calls: string[] = [];
+    const h = { 'content-type': 'application/json', Nonce: 'n-123', 'Cart-Token': 'tok-abc' };
+    const impl = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const u = String(url);
+      calls.push(`${init?.method ?? 'GET'} ${u}`);
+      if (u.endsWith('/cart/add-item'))
+        return new Response('{"items_count":1}', { status: 200, headers: h });
+      if (u.endsWith('/cart/update-customer'))
+        return new Response(JSON.stringify(updateCustomerCart), { status: 200, headers: h });
+      if (u.endsWith('/cart')) return new Response('{}', { status: 200, headers: h });
+      return new Response('{}', { status: 404, headers: h });
+    });
+    return { impl: impl as unknown as typeof globalThis.fetch, calls };
+  }
+
+  const cartWith = (rates: unknown[]) => ({ shipping_rates: [{ shipping_rates: rates }] });
+
+  it('returns curated options from the Store API cart rates, threading prime→add→update', async () => {
+    const { impl, calls } = storeApiFetch(
+      cartWith([
+        {
+          rate_id: 'flat_rate:2',
+          name: 'Flat rate',
+          method_id: 'flat_rate',
+          price: '18000',
+          currency_code: 'COP',
+          currency_minor_unit: 0,
+          selected: false,
+        },
+        {
+          rate_id: 'free_shipping:1',
+          name: 'Free shipping',
+          method_id: 'free_shipping',
+          price: '0',
+          currency_code: 'COP',
+          currency_minor_unit: 0,
+          selected: true,
+        },
+      ]),
+    );
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+    const result = await p.callTool(
+      'mcp_woocommerce_quote_shipping',
+      {
+        items: [{ productId: '26', quantity: 2 }],
+        destination: { country: 'CO', state: 'CO-QUI' },
+      },
+      CTX,
+    );
+    expect(successData(result)).toEqual({
+      options: [
+        {
+          rateId: 'flat_rate:2',
+          methodId: 'flat_rate',
+          title: 'Flat rate',
+          cost: '18000',
+          currencyCode: 'COP',
+          currencyMinorUnit: 0,
+          selected: false,
+        },
+        {
+          rateId: 'free_shipping:1',
+          methodId: 'free_shipping',
+          title: 'Free shipping',
+          cost: '0',
+          currencyCode: 'COP',
+          currencyMinorUnit: 0,
+          selected: true,
+        },
+      ],
+    });
+    expect(calls.some((c) => c === 'GET https://store.example.com/wp-json/wc/store/v1/cart')).toBe(
+      true,
+    );
+    expect(calls.some((c) => c.startsWith('POST') && c.endsWith('/cart/add-item'))).toBe(true);
+    expect(calls.some((c) => c.endsWith('/cart/update-customer'))).toBe(true);
+  });
+
+  it('converts minor units to a major-unit decimal for a 2-decimal currency', async () => {
+    const { impl } = storeApiFetch(
+      cartWith([
+        {
+          rate_id: 'flat_rate:1',
+          name: 'Flat',
+          method_id: 'flat_rate',
+          price: '1500',
+          currency_code: 'USD',
+          currency_minor_unit: 2,
+          selected: true,
+        },
+      ]),
+    );
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+    const result = await p.callTool(
+      'mcp_woocommerce_quote_shipping',
+      { items: [{ productId: '1', quantity: 1 }], destination: { country: 'US', state: 'US-CA' } },
+      CTX,
+    );
+    expect((successData(result) as { options: Array<{ cost: string }> }).options[0]!.cost).toBe(
+      '15.00',
+    );
+  });
+
+  it('empty rates → empty options (store does not serve the destination)', async () => {
+    const { impl } = storeApiFetch({ shipping_rates: [] });
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+    const result = await p.callTool(
+      'mcp_woocommerce_quote_shipping',
+      { items: [{ productId: '1', quantity: 1 }], destination: { country: 'CO' } },
+      CTX,
+    );
+    expect(successData(result)).toEqual({ options: [] });
+  });
+
+  it('a Store API 400 (e.g. invalid state) maps to PROVIDER_INVALID_INPUT', async () => {
+    const h = { Nonce: 'n', 'Cart-Token': 't' };
+    const impl = vi.fn(async (url: string | URL) => {
+      const u = String(url);
+      if (u.endsWith('/cart/update-customer'))
+        return new Response('{"code":"rest_invalid_param"}', { status: 400, headers: h });
+      return new Response('{}', { status: 200, headers: h });
+    }) as unknown as typeof globalThis.fetch;
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+    const result = await p.callTool(
+      'mcp_woocommerce_quote_shipping',
+      { items: [{ productId: '1', quantity: 1 }], destination: { country: 'CO', state: 'BAD' } },
+      CTX,
+    );
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe('PROVIDER_INVALID_INPUT');
+  });
+
+  it('rejects a non-numeric productId as INVALID_INPUT, no network', async () => {
+    const { impl, calls } = storeApiFetch({ shipping_rates: [] });
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+    const result = await p.callTool(
+      'mcp_woocommerce_quote_shipping',
+      { items: [{ productId: 'abc', quantity: 1 }], destination: { country: 'CO' } },
+      CTX,
+    );
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe('PROVIDER_INVALID_INPUT');
+    expect(calls).toHaveLength(0);
   });
 });
