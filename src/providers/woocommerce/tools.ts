@@ -371,6 +371,23 @@ const getProductInput = z.object({ id: z.string().min(1) }).strict();
 const getProductVariationsInput = z.object({ id: z.string().min(1) }).strict();
 const noArgsInput = z.object({}).strict();
 const getShippingZoneInput = z.object({ id: z.string().min(1) }).strict();
+const ensureOrderWebhookInput = z
+  .object({
+    deliveryUrl: z.string().url().startsWith('https://', 'deliveryUrl must be https'),
+    // Per-connection signing secret; WooCommerce signs each delivery with it (HMAC-SHA256).
+    secret: z.string().min(16),
+  })
+  .strict();
+
+/** A store webhook, as WooCommerce lists it. */
+interface RawWebhook {
+  readonly id: number;
+  readonly status?: string;
+  readonly topic?: string;
+  readonly delivery_url?: string;
+}
+const ORDER_WEBHOOK_TOPIC = 'order.updated';
+
 const getCountryStatesInput = z
   .object({
     // ISO 3166-1 alpha-2. Absent ⇒ the store's country list (code + name), no states.
@@ -1135,6 +1152,54 @@ export function buildWoocommerceTools(
         );
         if (!res.ok) return wooError(res);
         return ok(toCustomer(res.data as RawCustomer));
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_ensure_order_webhook`,
+      description:
+        'Control-plane: subscribe the store to order updates (`order.updated`) at the consumer delivery ' +
+        'URL, signed with the given per-connection secret. Withdrawn from the agent menu.',
+      input: ensureOrderWebhookInput,
+      controlPlane: true,
+      handler: async (args, ctx) => {
+        // Never a duplicate: a webhook already pointing here for this topic is reused — its secret
+        // refreshed (the consumer's current one) and re-activated (WooCommerce disables a webhook
+        // after repeated failed deliveries).
+        const list = await client.get('webhooks', ctx.request, ctx.metadata, { per_page: 100 });
+        if (!list.ok) return wooError(list);
+        const existing = (list.data as RawWebhook[]).find(
+          (w) => w.topic === ORDER_WEBHOOK_TOPIC && w.delivery_url === args.deliveryUrl,
+        );
+        const res = existing
+          ? await client.put(
+              `webhooks/${existing.id}`,
+              { secret: args.secret, status: 'active' },
+              ctx.request,
+              ctx.metadata,
+            )
+          : await client.post(
+              'webhooks',
+              {
+                name: 'xcale order updates',
+                topic: ORDER_WEBHOOK_TOPIC,
+                delivery_url: args.deliveryUrl,
+                secret: args.secret,
+                status: 'active',
+              },
+              ctx.request,
+              ctx.metadata,
+            );
+        if (!res.ok) return wooError(res);
+        const w = res.data as RawWebhook;
+        // The secret is never echoed back.
+        return ok({
+          id: String(w.id),
+          status: w.status ?? 'unknown',
+          topic: w.topic ?? ORDER_WEBHOOK_TOPIC,
+          deliveryUrl: w.delivery_url ?? args.deliveryUrl,
+          created: !existing,
+        });
       },
     }),
 

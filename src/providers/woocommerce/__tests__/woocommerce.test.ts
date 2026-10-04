@@ -1222,3 +1222,83 @@ describe('woocommerce provider — get_country_states (control-plane, #1309 phas
     expect(p.routableToolNames()).toContain('mcp_woocommerce_get_country_states');
   });
 });
+
+describe('woocommerce provider — ensure_order_webhook (control-plane, #1309 phase 3)', () => {
+  const DELIVERY = 'https://api.xcale.app/api/v1/webhooks/woocommerce/conn-1';
+
+  /** A fetch double scripted per method: the store's webhook list, and what a create returns. */
+  function webhookFetch(existing: unknown[]) {
+    const calls: { method: string; url: string; body?: unknown }[] = [];
+    const impl = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      calls.push({
+        method,
+        url: String(url),
+        body: init?.body ? JSON.parse(init.body as string) : undefined,
+      });
+      const body =
+        method === 'POST' || method === 'PUT'
+          ? {
+              id: 41,
+              name: 'xcale order updates',
+              status: 'active',
+              topic: 'order.updated',
+              delivery_url: DELIVERY,
+            }
+          : existing;
+      return new Response(JSON.stringify(body), {
+        status: method === 'POST' ? 201 : 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    return { impl: impl as unknown as typeof globalThis.fetch, calls };
+  }
+
+  it('subscribes the store to order updates at our delivery URL, signed with the given secret', async () => {
+    const { impl, calls } = webhookFetch([]);
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+
+    const result = await p.callTool(
+      'mcp_woocommerce_ensure_order_webhook',
+      { deliveryUrl: DELIVERY, secret: 's3cr3t-per-connection' },
+      CTX,
+    );
+
+    const post = calls.find((c) => c.method === 'POST');
+    expect(post?.url).toContain('/wp-json/wc/v3/webhooks');
+    expect(post?.body).toMatchObject({
+      topic: 'order.updated',
+      delivery_url: DELIVERY,
+      secret: 's3cr3t-per-connection',
+      status: 'active',
+    });
+    // The secret never travels back.
+    expect(successData(result)).toEqual({
+      id: '41',
+      status: 'active',
+      topic: 'order.updated',
+      deliveryUrl: DELIVERY,
+      created: true,
+    });
+  });
+
+  it('never duplicates: a webhook already at our URL is reused — its secret refreshed, re-activated', async () => {
+    const { impl, calls } = webhookFetch([
+      { id: 7, status: 'disabled', topic: 'order.created', delivery_url: DELIVERY },
+      { id: 41, status: 'disabled', topic: 'order.updated', delivery_url: DELIVERY },
+    ]);
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+
+    const result = await p.callTool(
+      'mcp_woocommerce_ensure_order_webhook',
+      { deliveryUrl: DELIVERY, secret: 's3cr3t-per-connection' },
+      CTX,
+    );
+
+    expect(calls.some((c) => c.method === 'POST')).toBe(false);
+    const put = calls.find((c) => c.method === 'PUT');
+    expect(put?.url).toContain('/wp-json/wc/v3/webhooks/41');
+    expect(put?.body).toEqual({ secret: 's3cr3t-per-connection', status: 'active' });
+    expect(successData(result)).toMatchObject({ id: '41', created: false });
+  });
+});
