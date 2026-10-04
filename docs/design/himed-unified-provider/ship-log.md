@@ -123,6 +123,24 @@ tolerante (`KEY=value`, comillas, comentarios); `process.env` explícito gana. S
 `npx tsx scripts/himed-unified-sandbox-e2e.ts` — ningún token pasa por el comando. El archivo nunca
 se commitea.
 
+## 2026-10-04 — Re-corrida del E2E: sandbox de HiMed sigue caído (día 2)
+
+Re-ejecutado `scripts/himed-unified-sandbox-e2e.ts` en modo FULL (credenciales cargadas): **mismas siete
+fallas** — `PROVIDER_UNAVAILABLE` / `HTTP 0` en directorio, Demográficos y Autoagendamiento (el
+`cancel_appointment` da `PROVIDER_INVALID_INPUT` solo porque no hubo `idCita` que cancelar).
+
+Diagnóstico manual con `curl`:
+
+- `GET https://demo.medsas.co/` → **200 (~1s)**; `GET …/interoperabilidad/` → 403 (~0.3s). Host y DNS OK.
+- `POST …/Sedes/consultarSedes.php` y `…/Usuarios/consultarUsuarios.php` → **sin respuesta (timeout
+  20–40s)**, con o sin body.
+- `POST …/envioConsumoAutoagendamiento` vacío → **400 (~0.8s)**, pero con body JSON → **sin respuesta
+  (timeout 40s)**.
+
+**Veredicto:** el front (nginx) de HiMed responde; la capa de aplicación detrás no termina las
+requests. Caída del lado del proveedor, no del código ni de las credenciales. Escalado a HiMed.
+Happy-path sigue pendiente (ventana hasta 2026-10-09).
+
 ---
 
 ## Estado as-built — cómo quedó funcionando la Opción B
