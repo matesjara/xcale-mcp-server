@@ -417,6 +417,8 @@ function toCountryStates(c: RawCountry): WooCountryStates {
   };
 }
 const getHoldStockMinutesInput = z.object({}).strict();
+const UNPAID_ORDER_PAGE_SIZE = 100;
+const UNPAID_ORDER_PAGES = 10;
 const listUnpaidOrdersInput = z
   .object({
     // ISO 8601 UTC: orders created before this instant (sent with `dates_are_gmt`, so the store's
@@ -1273,20 +1275,28 @@ export function buildWoocommerceTools(
       input: listUnpaidOrdersInput,
       controlPlane: true,
       handler: async (args, ctx) => {
-        // One page, oldest first: what is left over expires on the next run.
-        const res = await client.get('orders', ctx.request, ctx.metadata, {
-          status: 'pending',
-          before: args.before,
-          dates_are_gmt: 'true',
-          orderby: 'date',
-          order: 'asc',
-          per_page: 100,
-        });
-        if (!res.ok) return wooError(res);
-        const orders = (res.data as RawOrderRef[]).flatMap((o) => {
-          const orderReference = orderRef(o);
-          return orderReference ? [{ id: String(o.id), orderReference }] : [];
-        });
+        // Oldest first, page by page: orders without a reference (sold elsewhere) are kept by the
+        // store forever, so a single page could fill up with them and hide every newer consumer
+        // order. Bounded per call; anything past the bound is read on the next call.
+        const orders: { id: string; orderReference: string }[] = [];
+        for (let page = 1; page <= UNPAID_ORDER_PAGES; page++) {
+          const res = await client.get('orders', ctx.request, ctx.metadata, {
+            status: 'pending',
+            before: args.before,
+            dates_are_gmt: 'true',
+            orderby: 'date',
+            order: 'asc',
+            per_page: UNPAID_ORDER_PAGE_SIZE,
+            page,
+          });
+          if (!res.ok) return wooError(res);
+          const batch = res.data as RawOrderRef[];
+          for (const o of batch) {
+            const orderReference = orderRef(o);
+            if (orderReference) orders.push({ id: String(o.id), orderReference });
+          }
+          if (batch.length < UNPAID_ORDER_PAGE_SIZE) break;
+        }
         return ok({ orders });
       },
     }),

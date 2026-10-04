@@ -1366,6 +1366,35 @@ describe('woocommerce provider — list_unpaid_orders (control-plane, unpaid-ord
     expect(successData(result)).toEqual({ orders: [{ id: '61', orderReference: 'xco-intent-1' }] });
   });
 
+  it('reads past a full page of orders it keeps (no reference) — newer consumer orders are still found', async () => {
+    const calls: string[] = [];
+    const foreign = Array.from({ length: 100 }, (_, i) => ({ id: i + 1, status: 'pending' }));
+    const impl = vi.fn(async (url: string | URL) => {
+      calls.push(String(url));
+      const page = new URL(String(url)).searchParams.get('page');
+      const body =
+        page === '2'
+          ? [
+              {
+                id: 201,
+                status: 'pending',
+                meta_data: [{ key: '_xcale_order_ref', value: 'xco-late' }],
+              },
+            ]
+          : foreign;
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as unknown as typeof globalThis.fetch;
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+
+    const result = await p.callTool('mcp_woocommerce_list_unpaid_orders', { before: BEFORE }, CTX);
+
+    expect(calls).toHaveLength(2);
+    expect(successData(result)).toEqual({ orders: [{ id: '201', orderReference: 'xco-late' }] });
+  });
+
   it('is control-plane: never on the agent menu, but routable for the backend', () => {
     const { provider: p } = provider([]);
     expect(p.listTools().map((t) => t.name)).not.toContain('mcp_woocommerce_list_unpaid_orders');
