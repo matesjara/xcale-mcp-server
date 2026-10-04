@@ -93,6 +93,13 @@ come from the store, never estimated by us.
 - **Unreadable prices** — a Store API rate whose `price` is missing or non-numeric is dropped, never
   defaulted to `"0"` (that would charge free freight the store did not offer); a real free rate stays.
 
+- **Reused sessions** (backend #1303 e2e, 2026-10-03) — the "throwaway" cart is not always empty: on
+  the Local sandbox anonymous Store API requests resolve to the admin (`user_id: 1` in the Cart-Token),
+  whose persistent cart had accumulated 53 items from earlier quotes — freight priced on a polluted cart,
+  then add-item overflowed stock (HTTP 400). `quote_shipping` now empties the cart (`DELETE /cart/items`)
+  before adding and again after reading the rates. Worth confirming on a live store that anonymous
+  requests get a fresh guest session.
+
 ## Residual / cleanup
 
 - Test **order 32** (`pending`, total 218.000, with the flat-rate line) left in the sandbox — a real but

@@ -25,7 +25,7 @@ provider's pattern: curated responses, typed provider errors, safe egress, addit
 |:--|:-----|:----------------|:---------|
 | 1 | Shipment Tracking | `get_order_tracking` (read): reads the `_wc_shipment_tracking_items` meta from `GET /orders/{id}` and, when present, `wc-shipment-tracking/v3/orders/{id}/shipment-trackings`. Curated: `{ trackings: [{ carrier, trackingNumber, trackingUrl?, shippedAt? }] }`; empty ⇒ no tracking recorded yet | New tool, additive |
 | 2 | Order Status & Tracking | `get_order`: add to `WooOrderDetail` what status needs (`datePaid`, `dateCompleted`, shipping lines). The buyer scope is the backend's, not the provider's | Additive fields |
-| 3 | Shipping Zones & Methods | `get_country_states` (read): `GET /wc/v3/data/countries/{cc}` → `{ states: [{ code, name }] }`, so the backend can normalize "Quindío" → `CO-QUI` | New tool, additive |
+| 3 | Shipping Zones & Methods | ✅ **Done (2026-10-03):** `get_country_states` (control-plane): `{ country }` → `GET /wc/v3/data/countries/{CC}` → `{ code, name, states: [{ code, name }] }`; no country → `{ countries: [{ code, name }] }`. The backend normalizes "Quindío" → `CO-QUI` | New tool, additive |
 | 4 | Store API / Cart API | `quote_cart` over the `quote_shipping` flow (`apply-coupon`, `totals`) → `{ subtotal, discounts, shipping, taxes, total, currency }`; reuses the nonce/cart-token handling and the minor-unit conversion | New tool, additive |
 | 5 | Webhooks | Control-plane (`ToolDefinition.controlPlane`, never shown to a model): `ensure_order_webhook` / `remove_order_webhook` over `wc/v3/webhooks` (`order.updated`, `delivery_url`, `secret`). Receiving and HMAC verification live in the backend | Control-plane tools |
 
