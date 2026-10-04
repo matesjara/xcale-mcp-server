@@ -27,7 +27,7 @@ provider's pattern: curated responses, typed provider errors, safe egress, addit
 | 2 | Order Status & Tracking | `get_order`: add to `WooOrderDetail` what status needs (`datePaid`, `dateCompleted`, shipping lines). The buyer scope is the backend's, not the provider's | Additive fields |
 | 3 | Shipping Zones & Methods | ✅ **Done (2026-10-03):** `get_country_states` (control-plane): `{ country }` → `GET /wc/v3/data/countries/{CC}` → `{ code, name, states: [{ code, name }] }`; no country → `{ countries: [{ code, name }] }`. The backend normalizes "Quindío" → `CO-QUI` | New tool, additive |
 | 4 | Store API / Cart API | `quote_cart` over the `quote_shipping` flow (`apply-coupon`, `totals`) → `{ subtotal, discounts, shipping, taxes, total, currency }`; reuses the nonce/cart-token handling and the minor-unit conversion | New tool, additive |
-| 5 | Webhooks | Control-plane (`ToolDefinition.controlPlane`, never shown to a model): `ensure_order_webhook` / `remove_order_webhook` over `wc/v3/webhooks` (`order.updated`, `delivery_url`, `secret`). Receiving and HMAC verification live in the backend | Control-plane tools |
+| 5 | Webhooks | ✅ **Done (2026-10-03):** `ensure_order_webhook` (control-plane) over `wc/v3/webhooks` — subscribes `order.updated` at the delivery URL with the per-connection secret; idempotent (an existing webhook at that URL is reused, secret refreshed, re-activated). Receiving and HMAC verification live in the backend. `remove_order_webhook` not built yet | Control-plane tool |
 
 ## Open questions (before design)
 
