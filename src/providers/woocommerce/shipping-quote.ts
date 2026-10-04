@@ -110,6 +110,13 @@ export async function quoteShipping(
   try {
     // 1) Prime — obtain the Nonce + Cart-Token from the response headers.
     capture(await fetchImpl(`${base}/cart`, { method: 'GET' }));
+    // 1b) Start from an EMPTY cart. The session is not always fresh: a store whose anonymous
+    //     requests resolve to a persistent session (a session/auth plugin; the Local sandbox resolves
+    //     them to its admin) hands back a cart that already holds items — and they would be priced
+    //     into the freight, then overflow stock (backend #1303 e2e, 2026-10-03).
+    const emptied = await fetchImpl(`${base}/cart/items`, { method: 'DELETE', headers: headers() });
+    capture(emptied);
+    if (!emptied.ok) return storeError(emptied.status);
     // 2) Add each item to the throwaway cart.
     for (const it of items) {
       const res = await fetchImpl(`${base}/cart/add-item`, {
@@ -167,5 +174,13 @@ export async function quoteShipping(
       code: ProviderErrorCode.PROVIDER_UNAVAILABLE,
       message: 'WooCommerce shipping quote: transport failure',
     };
+  } finally {
+    // Leave nothing of ours in the session, whatever happened above. Best-effort: the quote's answer
+    // is already decided, so a failed cleanup must not change it.
+    if (cartToken) {
+      await fetchImpl(`${base}/cart/items`, { method: 'DELETE', headers: headers() }).catch(
+        () => undefined,
+      );
+    }
   }
 }

@@ -930,6 +930,8 @@ describe('woocommerce provider — quote_shipping (Store API)', () => {
     const impl = vi.fn(async (url: string | URL, init?: RequestInit) => {
       const u = String(url);
       calls.push(`${init?.method ?? 'GET'} ${u}`);
+      if (u.endsWith('/cart/items') && init?.method === 'DELETE')
+        return new Response('[]', { status: 200, headers: h });
       if (u.endsWith('/cart/add-item'))
         return new Response('{"items_count":1}', { status: 200, headers: h });
       if (u.endsWith('/cart/update-customer'))
@@ -1003,6 +1005,37 @@ describe('woocommerce provider — quote_shipping (Store API)', () => {
     );
     expect(calls.some((c) => c.startsWith('POST') && c.endsWith('/cart/add-item'))).toBe(true);
     expect(calls.some((c) => c.endsWith('/cart/update-customer'))).toBe(true);
+  });
+
+  it('quotes on an EMPTIED cart and empties it after — a reused session never pollutes the freight', async () => {
+    const { impl, calls } = storeApiFetch(
+      cartWith([
+        {
+          rate_id: 'flat_rate:2',
+          name: 'Flat rate',
+          method_id: 'flat_rate',
+          price: '18000',
+          currency_code: 'COP',
+          currency_minor_unit: 0,
+          selected: true,
+        },
+      ]),
+    );
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+    await p.callTool(
+      'mcp_woocommerce_quote_shipping',
+      { items: [{ productId: '26', quantity: 1 }], destination: { country: 'CO' } },
+      CTX,
+    );
+
+    const steps = calls.map((c) => c.replace(/^(\w+) .*\/wc\/store\/v1/, '$1 '));
+    expect(steps).toEqual([
+      'GET /cart',
+      'DELETE /cart/items', // whatever the session already held is gone before we add
+      'POST /cart/add-item',
+      'POST /cart/update-customer',
+      'DELETE /cart/items', // and nothing of ours is left behind
+    ]);
   });
 
   it('drops a rate whose price is missing or unreadable — never a defaulted free "0"', async () => {
@@ -1138,5 +1171,54 @@ describe('woocommerce provider — quote_shipping (Store API)', () => {
     expect(result.kind).toBe('error');
     if (result.kind === 'error') expect(result.code).toBe('PROVIDER_INVALID_INPUT');
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe('woocommerce provider — get_country_states (control-plane, #1309 phase 1)', () => {
+  const COLOMBIA = {
+    code: 'CO',
+    name: 'Colombia',
+    states: [
+      { code: 'CO-DC', name: 'Capital District' },
+      { code: 'CO-QUI', name: 'Quindío' },
+    ],
+    _links: { self: [{ href: 'x' }] },
+  };
+
+  it("returns the store's own state codes and names for a country", async () => {
+    const { provider: p, calls } = provider(COLOMBIA);
+    const result = await p.callTool('mcp_woocommerce_get_country_states', { country: 'CO' }, CTX);
+
+    expect(calls[0]).toContain('/wp-json/wc/v3/data/countries/CO');
+    expect(successData(result)).toEqual({
+      code: 'CO',
+      name: 'Colombia',
+      states: [
+        { code: 'CO-DC', name: 'Capital District' },
+        { code: 'CO-QUI', name: 'Quindío' },
+      ],
+    });
+  });
+
+  it('without a country, lists the store countries by code and name — no state payload', async () => {
+    const { provider: p, calls } = provider([
+      COLOMBIA,
+      { code: 'US', name: 'United States (US)', states: [{ code: 'CA', name: 'California' }] },
+    ]);
+    const result = await p.callTool('mcp_woocommerce_get_country_states', {}, CTX);
+
+    expect(calls[0]).toMatch(/\/wp-json\/wc\/v3\/data\/countries(\?|$)/);
+    expect(successData(result)).toEqual({
+      countries: [
+        { code: 'CO', name: 'Colombia' },
+        { code: 'US', name: 'United States (US)' },
+      ],
+    });
+  });
+
+  it('is control-plane: never on the agent menu, but routable for the backend', () => {
+    const { provider: p } = provider({});
+    expect(p.listTools().map((t) => t.name)).not.toContain('mcp_woocommerce_get_country_states');
+    expect(p.routableToolNames()).toContain('mcp_woocommerce_get_country_states');
   });
 });

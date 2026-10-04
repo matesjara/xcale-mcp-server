@@ -371,6 +371,34 @@ const getProductInput = z.object({ id: z.string().min(1) }).strict();
 const getProductVariationsInput = z.object({ id: z.string().min(1) }).strict();
 const noArgsInput = z.object({}).strict();
 const getShippingZoneInput = z.object({ id: z.string().min(1) }).strict();
+const getCountryStatesInput = z
+  .object({
+    // ISO 3166-1 alpha-2. Absent ⇒ the store's country list (code + name), no states.
+    country: z
+      .string()
+      .regex(/^[A-Za-z]{2}$/, 'country must be an ISO 3166-1 alpha-2 code')
+      .optional(),
+  })
+  .strict();
+
+/** A country as the store knows it, and the state codes its shipping zones match by. */
+interface RawCountry {
+  readonly code: string;
+  readonly name: string;
+  readonly states?: ReadonlyArray<{ code: string; name: string }>;
+}
+export interface WooCountryStates {
+  readonly code: string;
+  readonly name: string;
+  readonly states: ReadonlyArray<{ code: string; name: string }>;
+}
+function toCountryStates(c: RawCountry): WooCountryStates {
+  return {
+    code: c.code,
+    name: c.name,
+    states: (c.states ?? []).map((st) => ({ code: st.code, name: st.name })),
+  };
+}
 const quoteShippingInput = z
   .object({
     items: z
@@ -1107,6 +1135,33 @@ export function buildWoocommerceTools(
         );
         if (!res.ok) return wooError(res);
         return ok(toCustomer(res.data as RawCustomer));
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_get_country_states`,
+      description:
+        "Control-plane lookup: the store's own state codes (and names) for a country — the codes its " +
+        'shipping zones match by (e.g. "CO-QUI" for Quindío) — or, without a country, its country list. ' +
+        'Lets a consumer turn the name a buyer gives ("Quindío") into the code the store needs. Withdrawn from the agent menu.',
+      input: getCountryStatesInput,
+      controlPlane: true,
+      handler: async (args, ctx) => {
+        const res = await client.get(
+          args.country
+            ? `data/countries/${encodeURIComponent(args.country.toUpperCase())}`
+            : 'data/countries',
+          ctx.request,
+          ctx.metadata,
+        );
+        if (!res.ok) return wooError(res);
+        if (!args.country) {
+          // The list alone, no state payload: a consumer asks for one country's states when it needs them.
+          return ok({
+            countries: (res.data as RawCountry[]).map((c) => ({ code: c.code, name: c.name })),
+          });
+        }
+        return ok(toCountryStates(res.data as RawCountry));
       },
     }),
 
