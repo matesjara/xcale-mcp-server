@@ -937,9 +937,11 @@ export function buildWoocommerceTools(
     tool({
       name: `mcp_${SLUG}_create_order`,
       description:
-        "Create an order for a buyer. `orderReference` is the CALLER's own id and is required: it is " +
-        'the only handle by which a failed call can be reconciled (via reconcile_order) — never retry ' +
-        'a create blind.',
+        'Owner-facing: the store owner enters an order by hand. It charges only the lines and ' +
+        'shippingLines it is given — no freight is quoted, nothing is checked against the catalog — so it ' +
+        'is not a buyer checkout: a consumer that sells to buyers places their orders through its own ' +
+        "checkout flow. `orderReference` is the CALLER's own id and is required: it is the only handle " +
+        'by which a failed call can be reconciled (via reconcile_order) — never retry a create blind.',
       input: createOrderInput,
       handler: async (args, ctx) => {
         const body: Record<string, unknown> = {

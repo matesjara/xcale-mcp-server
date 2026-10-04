@@ -1401,3 +1401,13 @@ describe('woocommerce provider — list_unpaid_orders (control-plane, unpaid-ord
     expect(p.routableToolNames()).toContain('mcp_woocommerce_list_unpaid_orders');
   });
 });
+
+describe('woocommerce provider — create_order says who it is for', () => {
+  it('is owner-facing: manual order entry, not the buyer checkout path', () => {
+    const { provider: p } = provider({});
+    const createOrder = p.listTools().find((t) => t.name === 'mcp_woocommerce_create_order');
+
+    expect(createOrder?.description).toMatch(/^Owner-facing/);
+    expect(createOrder?.description).not.toMatch(/for a buyer/);
+  });
+});
