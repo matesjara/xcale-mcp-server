@@ -1302,3 +1302,73 @@ describe('woocommerce provider — ensure_order_webhook (control-plane, #1309 ph
     expect(successData(result)).toMatchObject({ id: '41', created: false });
   });
 });
+
+describe('woocommerce provider — get_hold_stock_minutes (control-plane, unpaid-order expiry)', () => {
+  /** `GET settings/products` — the group the two inventory settings live in. */
+  function inventory(manageStock: string, holdMinutes: string) {
+    return [
+      { id: 'woocommerce_weight_unit', value: 'kg' },
+      { id: 'woocommerce_manage_stock', value: manageStock },
+      { id: 'woocommerce_hold_stock_minutes', value: holdMinutes },
+    ];
+  }
+
+  it("reads the store's own hold-stock minutes — how long it keeps an unpaid order", async () => {
+    const { provider: p, calls } = provider(inventory('yes', '60'));
+    const result = await p.callTool('mcp_woocommerce_get_hold_stock_minutes', {}, CTX);
+
+    expect(calls[0]).toContain('/wp-json/wc/v3/settings/products');
+    expect(successData(result)).toEqual({ minutes: 60 });
+  });
+
+  it('no expiry when the store keeps unpaid orders forever: empty minutes, or stock not managed — as WooCommerce itself', async () => {
+    for (const [manage, hold] of [
+      ['yes', ''],
+      ['yes', '0'],
+      ['no', '60'],
+    ]) {
+      const { provider: p } = provider(inventory(manage!, hold!));
+      const result = await p.callTool('mcp_woocommerce_get_hold_stock_minutes', {}, CTX);
+      expect(successData(result), `manage=${manage} hold=${hold}`).toEqual({ minutes: null });
+    }
+  });
+
+  it('is control-plane: never on the agent menu, but routable for the backend', () => {
+    const { provider: p } = provider([]);
+    expect(p.listTools().map((t) => t.name)).not.toContain(
+      'mcp_woocommerce_get_hold_stock_minutes',
+    );
+    expect(p.routableToolNames()).toContain('mcp_woocommerce_get_hold_stock_minutes');
+  });
+});
+
+describe('woocommerce provider — list_unpaid_orders (control-plane, unpaid-order expiry)', () => {
+  const BEFORE = '2026-10-04T12:00:00.000Z';
+
+  it('lists the pending orders created before the cutoff (UTC, oldest first) that carry a consumer order reference', async () => {
+    const { provider: p, calls } = provider([
+      {
+        id: 61,
+        status: 'pending',
+        meta_data: [{ key: '_xcale_order_ref', value: 'xco-intent-1' }],
+      },
+      { id: 62, status: 'pending', meta_data: [{ key: 'other', value: 'x' }] },
+      { id: 63, status: 'pending' },
+    ]);
+    const result = await p.callTool('mcp_woocommerce_list_unpaid_orders', { before: BEFORE }, CTX);
+
+    const url = new URL(calls[0]!);
+    expect(url.pathname).toContain('/wp-json/wc/v3/orders');
+    expect(url.searchParams.get('status')).toBe('pending');
+    expect(url.searchParams.get('before')).toBe(BEFORE);
+    expect(url.searchParams.get('dates_are_gmt')).toBe('true');
+    expect(url.searchParams.get('order')).toBe('asc');
+    expect(successData(result)).toEqual({ orders: [{ id: '61', orderReference: 'xco-intent-1' }] });
+  });
+
+  it('is control-plane: never on the agent menu, but routable for the backend', () => {
+    const { provider: p } = provider([]);
+    expect(p.listTools().map((t) => t.name)).not.toContain('mcp_woocommerce_list_unpaid_orders');
+    expect(p.routableToolNames()).toContain('mcp_woocommerce_list_unpaid_orders');
+  });
+});

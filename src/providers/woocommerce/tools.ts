@@ -416,6 +416,21 @@ function toCountryStates(c: RawCountry): WooCountryStates {
     states: (c.states ?? []).map((st) => ({ code: st.code, name: st.name })),
   };
 }
+const getHoldStockMinutesInput = z.object({}).strict();
+const listUnpaidOrdersInput = z
+  .object({
+    // ISO 8601 UTC: orders created before this instant (sent with `dates_are_gmt`, so the store's
+    // own timezone never shifts the cutoff).
+    before: z.string().datetime({ offset: true }),
+  })
+  .strict();
+
+/** A store setting as `GET settings/{group}` lists it. */
+interface RawSetting {
+  readonly id: string;
+  readonly value?: unknown;
+}
+
 const quoteShippingInput = z
   .object({
     items: z
@@ -1227,6 +1242,52 @@ export function buildWoocommerceTools(
           });
         }
         return ok(toCountryStates(res.data as RawCountry));
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_get_hold_stock_minutes`,
+      description:
+        'Control-plane lookup: the store\'s own "Hold stock (minutes)" — how long it keeps an unpaid ' +
+        'order before cancelling it. Withdrawn from the agent menu.',
+      input: getHoldStockMinutesInput,
+      controlPlane: true,
+      handler: async (_args, ctx) => {
+        const res = await client.get('settings/products', ctx.request, ctx.metadata);
+        if (!res.ok) return wooError(res);
+        const settings = res.data as RawSetting[];
+        const value = (id: string) => settings.find((st) => st.id === id)?.value;
+        // WooCommerce's own rule (`wc_cancel_unpaid_orders`): it cancels nothing unless it manages
+        // stock and holds it for at least a minute. Anything else is "keeps unpaid orders" (null).
+        const minutes = Math.floor(Number(value('woocommerce_hold_stock_minutes')));
+        const holds = value('woocommerce_manage_stock') === 'yes' && minutes >= 1;
+        return ok({ minutes: holds ? minutes : null });
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_list_unpaid_orders`,
+      description:
+        'Control-plane: the pending (unpaid) orders created before a UTC instant that carry a consumer ' +
+        'order reference, oldest first — the orders a consumer placed and may expire. Withdrawn from the agent menu.',
+      input: listUnpaidOrdersInput,
+      controlPlane: true,
+      handler: async (args, ctx) => {
+        // One page, oldest first: what is left over expires on the next run.
+        const res = await client.get('orders', ctx.request, ctx.metadata, {
+          status: 'pending',
+          before: args.before,
+          dates_are_gmt: 'true',
+          orderby: 'date',
+          order: 'asc',
+          per_page: 100,
+        });
+        if (!res.ok) return wooError(res);
+        const orders = (res.data as RawOrderRef[]).flatMap((o) => {
+          const orderReference = orderRef(o);
+          return orderReference ? [{ id: String(o.id), orderReference }] : [];
+        });
+        return ok({ orders });
       },
     }),
 
