@@ -34,5 +34,4 @@ provider's pattern: curated responses, typed provider errors, safe egress, addit
 - **Tracking at The Chair:** a plugin (which one) or a manual order note? That decides tool 1's source.
 - **Webhooks:** does the tenants' REST key (`read_write`) allow creating webhooks on every install?
   Verify on the sandbox, as #120's write-S0 did.
-- **Variations on the Store API:** confirm live that `add-item` with a variation id quotes correctly
-  (#120's write-S0 only exercised a simple product).
+- ~~Variations on the Store API~~ — resolved: confirmed live by the backend #1303 e2e (2026-10-03).

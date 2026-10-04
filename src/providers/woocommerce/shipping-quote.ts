@@ -15,9 +15,9 @@ import { mapHttpStatusToErrorCode } from '../../core/http';
  * headers; the nonce ROTATES per response, so it is re-captured and carried forward. The cart is a
  * throwaway server-side session that expires and places no order.
  *
- * v1 quotes by `productId` + quantity. WooCommerce shipping is shipping-class based and classes live
- * on the parent product, so the parent id yields the store's shipping cost; variation-level weight
- * nuances are a documented follow-up.
+ * Items are added by `productId` + quantity, where `productId` is a product OR a variation id — a
+ * consumer must send a variation's OWN id: the Store API refuses a variable product added by its
+ * parent (verified live on the sandbox, backend #1303 e2e).
  */
 
 const STORE_API = 'wp-json/wc/store/v1';
@@ -140,12 +140,20 @@ export async function quoteShipping(
     //    destination (the caller says so; it never estimates).
     const options: WooShippingOption[] = (cart.shipping_rates ?? []).flatMap((pkg, index) =>
       (pkg.shipping_rates ?? [])
-        .filter((r): r is RawRate & { rate_id: string } => typeof r.rate_id === 'string')
+        // A rate without a readable price is dropped, never defaulted: a "0" would charge free
+        // freight the store did not offer. A real free rate arrives as "0" and stays.
+        .filter(
+          (r): r is RawRate & { rate_id: string; price: string } =>
+            typeof r.rate_id === 'string' &&
+            typeof r.price === 'string' &&
+            r.price.trim() !== '' &&
+            Number.isFinite(Number(r.price)),
+        )
         .map((r) => ({
           rateId: r.rate_id,
           methodId: r.method_id ?? '',
           title: r.name ?? '',
-          cost: toMajorUnit(r.price ?? '0', r.currency_minor_unit ?? 0),
+          cost: toMajorUnit(r.price, r.currency_minor_unit ?? 0),
           currencyCode: r.currency_code ?? '',
           currencyMinorUnit: r.currency_minor_unit ?? 0,
           selected: Boolean(r.selected),

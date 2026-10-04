@@ -74,7 +74,7 @@ come from the store, never estimated by us.
 
 ## Contract decisions (drive the api-contract)
 
-- **`mcp_woocommerce_quote_shipping`** (read) — input: `items:[{productId, variationId?, quantity}]` +
+- **`mcp_woocommerce_quote_shipping`** (read) — input: `items:[{productId, quantity}]` (`productId` = a product or a variation's own id) +
   `destination:{country, state?, city?, postcode?}`. Output: `options:[{rateId, methodId, title, cost,
   currencyMinorUnit, currencyCode, selected}]`, where `cost` is the major-unit decimal string ready for
   `create_order`. A destination the store does not serve → empty `options` (the agent says so, never
@@ -87,8 +87,11 @@ come from the store, never estimated by us.
   also echoes `currency` and `shippingTotal` beside `total`, so the consumer quotes what the order really
   charges (freight included) on a fresh create and on a reconciled order alike.
 - **Variations** — the backend sends a variation's OWN id as the cart item `productId` (the Store API
-  `add-item` takes a product or variation id; a variable product added by its parent is refused). This
-  write-S0 only exercised a simple product (26): a variable product is still to be confirmed live.
+  `add-item` takes a product or variation id; a variable product added by its parent is refused).
+  Confirmed live by the backend #1303 e2e (2026-10-03): variation 20 of product 14 quoted and sold with
+  freight (order 38, $168.000 = $150.000 + $18.000).
+- **Unreadable prices** — a Store API rate whose `price` is missing or non-numeric is dropped, never
+  defaulted to `"0"` (that would charge free freight the store did not offer); a real free rate stays.
 
 ## Residual / cleanup
 

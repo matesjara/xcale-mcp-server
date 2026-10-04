@@ -1005,6 +1005,40 @@ describe('woocommerce provider — quote_shipping (Store API)', () => {
     expect(calls.some((c) => c.endsWith('/cart/update-customer'))).toBe(true);
   });
 
+  it('drops a rate whose price is missing or unreadable — never a defaulted free "0"', async () => {
+    const rate = (id: string, price: unknown) => ({
+      rate_id: id,
+      name: id,
+      method_id: 'flat_rate',
+      price,
+      currency_code: 'COP',
+      currency_minor_unit: 0,
+      selected: false,
+    });
+    const { impl } = storeApiFetch(
+      cartWith([
+        rate('flat_rate:1', '18000'),
+        rate('flat_rate:2', null),
+        rate('flat_rate:3', ''),
+        rate('flat_rate:4', 'abc'),
+        rate('free_shipping:5', '0'),
+      ]),
+    );
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+    const result = await p.callTool(
+      'mcp_woocommerce_quote_shipping',
+      { items: [{ productId: '26', quantity: 1 }], destination: { country: 'CO' } },
+      CTX,
+    );
+    const options = (successData(result) as { options: { rateId: string; cost: string }[] })
+      .options;
+    // A real free rate ("0") stays; a price the store did not give is not invented.
+    expect(options.map((o) => [o.rateId, o.cost])).toEqual([
+      ['flat_rate:1', '18000'],
+      ['free_shipping:5', '0'],
+    ]);
+  });
+
   it('tags each option with its package, so a split cart can charge one rate per package', async () => {
     const rate = (id: string, selected: boolean) => ({
       rate_id: id,
