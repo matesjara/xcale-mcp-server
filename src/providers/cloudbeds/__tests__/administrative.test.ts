@@ -29,14 +29,41 @@ const scopeDenied = {
 };
 
 describe('cloudbeds administrative tools', () => {
-  describe('get_property_configuration — four endpoints, one question', () => {
-    it('composes the four reads into a single answer', async () => {
+  describe('get_property_configuration — five endpoints, one question', () => {
+    /**
+     * A reservation source as `getSources` returns it (property 199593, observed 2026-09-28): the
+     * source list nested one level inside `data`, amounts as strings. `s-1` is where direct and API
+     * reservations land; it carries only the taxes the property APPLIED to it — the card and PayPal
+     * surcharges the property configures for manual use appear in `getTaxesAndFees`, never here.
+     */
+    const S1 = {
+      propertyID: '199593',
+      sourceID: 's-1',
+      sourceName: 'Website/Booking Engine',
+      isThirdParty: false,
+      status: true,
+      commission: 0,
+      paymentCollect: 'hotel',
+      taxes: [
+        {
+          taxID: '201836',
+          name: 'IVA',
+          amount: '0.00000',
+          amountType: 'percentage',
+          type: 'inclusive',
+        },
+      ],
+      fees: [],
+    };
+
+    it('composes the five reads into a single answer', async () => {
       const provider = createCloudbedsProvider({
         fetchImpl: fakeFetch({
           getAppPropertySettings: { body: okBody({ checkInTime: '15:00' }) },
           getCurrencySettings: { body: okBody({ currencyCode: 'COP' }) },
           getTaxesAndFees: { body: okBody([{ name: 'IVA', amount: 19 }]) },
           getCustomFields: { body: okBody([{ shortcode: 'nit' }]) },
+          getSources: { body: okBody([[S1]]) },
         }),
       });
       const res = await provider.callTool('mcp_cloudbeds_get_property_configuration', {}, ctx());
@@ -47,7 +74,57 @@ describe('cloudbeds administrative tools', () => {
         currency: { currencyCode: 'COP' },
         taxesAndFees: [{ name: 'IVA', amount: 19 }],
         customFields: [{ shortcode: 'nit' }],
+        sources: [S1],
       });
+    });
+
+    it('flattens the one level of nesting getSources wraps its list in', async () => {
+      const provider = createCloudbedsProvider({
+        fetchImpl: fakeFetch({
+          getAppPropertySettings: { body: okBody({}) },
+          getCurrencySettings: { body: okBody({}) },
+          getTaxesAndFees: { body: okBody([]) },
+          getCustomFields: { body: okBody([]) },
+          getSources: { body: okBody([[S1, { ...S1, sourceID: 's-2', taxes: [] }]]) },
+        }),
+      });
+      const res = await provider.callTool('mcp_cloudbeds_get_property_configuration', {}, ctx());
+      if (res.kind !== 'success') throw new Error('expected success');
+      const sources = (res.data as { sources: Array<{ sourceID: string }> }).sources;
+      expect(sources.map((s) => s.sourceID)).toEqual(['s-1', 's-2']);
+    });
+
+    it('accepts a flat source list too', async () => {
+      const provider = createCloudbedsProvider({
+        fetchImpl: fakeFetch({
+          getAppPropertySettings: { body: okBody({}) },
+          getCurrencySettings: { body: okBody({}) },
+          getTaxesAndFees: { body: okBody([]) },
+          getCustomFields: { body: okBody([]) },
+          getSources: { body: okBody([S1]) },
+        }),
+      });
+      const res = await provider.callTool('mcp_cloudbeds_get_property_configuration', {}, ctx());
+      if (res.kind !== 'success') throw new Error('expected success');
+      expect((res.data as { sources: unknown[] }).sources).toEqual([S1]);
+    });
+
+    it('reports sources as unavailable, not as empty, when getSources is denied', async () => {
+      // An empty list would read as "this property applies no tax to any source" — a claim.
+      const provider = createCloudbedsProvider({
+        fetchImpl: fakeFetch({
+          getAppPropertySettings: { body: okBody({}) },
+          getCurrencySettings: { body: okBody({}) },
+          getTaxesAndFees: { body: okBody([]) },
+          getCustomFields: { body: okBody([]) },
+          getSources: scopeDenied,
+        }),
+      });
+      const res = await provider.callTool('mcp_cloudbeds_get_property_configuration', {}, ctx());
+      if (res.kind !== 'success') throw new Error('expected success');
+      const data = res.data as Record<string, unknown>;
+      expect(data).not.toHaveProperty('sources');
+      expect(data.unavailable).toMatchObject({ sources: expect.stringContaining('Scope') });
     });
 
     it('reports a partial answer rather than failing everything', async () => {
@@ -81,6 +158,7 @@ describe('cloudbeds administrative tools', () => {
           getCurrencySettings: scopeDenied,
           getTaxesAndFees: scopeDenied,
           getCustomFields: scopeDenied,
+          getSources: scopeDenied,
         }),
       });
       const res = await provider.callTool('mcp_cloudbeds_get_property_configuration', {}, ctx());
