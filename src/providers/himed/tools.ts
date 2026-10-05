@@ -52,7 +52,10 @@ export function buildHimedTools(
     credentialGroup: 'demograficos',
     input: z
       .object({
-        tipoDocumento: z.string().min(1).describe('Document type code (see HiMed reference catalog)'),
+        tipoDocumento: z
+          .string()
+          .min(1)
+          .describe('Document type code (see HiMed reference catalog)'),
         idPaciente: z.string().min(4).max(20).describe('Patient document number'),
         primerNombre: z.string().min(1),
         primerApellido: z.string().min(1),
@@ -209,7 +212,9 @@ export function buildHimedTools(
       const first = rows(out.data)[0];
       const found = !!first && Number(first.cantidad ?? 0) > 0;
       return ok(
-        found ? { found: true, nombre: first.nombre, idEntidad: first.idEntidad } : { found: false },
+        found
+          ? { found: true, nombre: first.nombre, idEntidad: first.idEntidad }
+          : { found: false },
       );
     },
   });
@@ -226,14 +231,18 @@ export function buildHimedTools(
       );
       if (!out.ok) return err(out.code, out.message);
       return ok(
-        rows(out.data).map((r) => ({ idEspecialidad: r.idEspecialidad, descripcion: r.descripcion })),
+        rows(out.data).map((r) => ({
+          idEspecialidad: r.idEspecialidad,
+          descripcion: r.descripcion,
+        })),
       );
     },
   });
 
   const listProfessionals = tool({
     name: 'mcp_himed_list_professionals',
-    description: 'List health professionals at a sede for a specialty. idUsuario is the booking id.',
+    description:
+      'List health professionals at a sede for a specialty. idUsuario is the booking id.',
     credentialGroup: 'autoagendamiento',
     input: z
       .object({
@@ -242,7 +251,10 @@ export function buildHimedTools(
       })
       .strict(),
     handler: async (args, ctx) => {
-      const out = unwrapHimedScheduling(await call(ctx, 'listarUsuarios', args), 'list_professionals');
+      const out = unwrapHimedScheduling(
+        await call(ctx, 'listarUsuarios', args),
+        'list_professionals',
+      );
       if (!out.ok) return err(out.code, out.message);
       return ok(
         rows(out.data).map((r) => ({
@@ -256,7 +268,8 @@ export function buildHimedTools(
 
   const listModalities = tool({
     name: 'mcp_himed_list_modalities',
-    description: 'List attention modalities (in-person, telemedicine, home) for a professional/sede.',
+    description:
+      'List attention modalities (in-person, telemedicine, home) for a professional/sede.',
     credentialGroup: 'autoagendamiento',
     input: z
       .object({
@@ -265,9 +278,14 @@ export function buildHimedTools(
       })
       .strict(),
     handler: async (args, ctx) => {
-      const out = unwrapHimedScheduling(await call(ctx, 'listarModalidades', args), 'list_modalities');
+      const out = unwrapHimedScheduling(
+        await call(ctx, 'listarModalidades', args),
+        'list_modalities',
+      );
       if (!out.ok) return err(out.code, out.message);
-      return ok(rows(out.data).map((r) => ({ idModalidad: r.idModalidad, descripcion: r.descripcion })));
+      return ok(
+        rows(out.data).map((r) => ({ idModalidad: r.idModalidad, descripcion: r.descripcion })),
+      );
     },
   });
 
@@ -282,7 +300,9 @@ export function buildHimedTools(
         'list_appointment_types',
       );
       if (!out.ok) return err(out.code, out.message);
-      return ok(rows(out.data).map((r) => ({ id: r.ID, nombre: r.nombre, recomendacion: r.recomendacion })));
+      return ok(
+        rows(out.data).map((r) => ({ id: r.ID, nombre: r.nombre, recomendacion: r.recomendacion })),
+      );
     },
   });
 
@@ -345,7 +365,9 @@ export function buildHimedTools(
         parentescoPideCita: z
           .string()
           .optional()
-          .describe('Relationship catalog code — 15 = patient books own, 17 = unknown (default 15)'),
+          .describe(
+            'Relationship catalog code — 15 = patient books own, 17 = unknown (default 15)',
+          ),
       })
       .strict(),
     handler: async (args, ctx) => {
@@ -365,7 +387,8 @@ export function buildHimedTools(
 
   const listPatientAppointments = tool({
     name: 'mcp_himed_list_patient_appointments',
-    description: "List a patient's appointments (also the primitive the reminder verifier re-reads).",
+    description:
+      "List a patient's appointments (also the primitive the reminder verifier re-reads).",
     credentialGroup: 'autoagendamiento',
     identityPolicy: { mode: 'subject-scoped' },
     input: z
@@ -397,7 +420,10 @@ export function buildHimedTools(
       })
       .strict(),
     handler: async (args, ctx) => {
-      const out = unwrapHimedScheduling(await call(ctx, 'cancelarCita', args), 'cancel_appointment');
+      const out = unwrapHimedScheduling(
+        await call(ctx, 'cancelarCita', args),
+        'cancel_appointment',
+      );
       return out.ok ? ok(out.data) : err(out.code, out.message);
     },
   });

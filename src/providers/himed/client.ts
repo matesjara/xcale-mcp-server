@@ -28,10 +28,7 @@ export interface HimedClient {
     request: AuthedRequest,
     body: Record<string, unknown>,
   ): Promise<RequestResult>;
-  callScheduling(
-    request: AuthedRequest,
-    body: Record<string, unknown>,
-  ): Promise<RequestResult>;
+  callScheduling(request: AuthedRequest, body: Record<string, unknown>): Promise<RequestResult>;
 }
 
 export function createHimedClient(deps: HimedClientDeps = {}): HimedClient {

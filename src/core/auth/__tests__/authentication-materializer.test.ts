@@ -125,8 +125,16 @@ describe('AuthenticationMaterializer — credential groups (multi-credential pro
       { key: 'token', label: 'Scheduling', placement: 'body' },
     ],
     groups: [
-      { key: 'directorio', label: 'Directory', field: { key: 'api_key', label: 'Directory', placement: 'body' } },
-      { key: 'autoagendamiento', label: 'Scheduling', field: { key: 'token', label: 'Scheduling', placement: 'body' } },
+      {
+        key: 'directorio',
+        label: 'Directory',
+        field: { key: 'api_key', label: 'Directory', placement: 'body' },
+      },
+      {
+        key: 'autoagendamiento',
+        label: 'Scheduling',
+        field: { key: 'token', label: 'Scheduling', placement: 'body' },
+      },
     ],
   };
   const postSpec: RequestSpec = {

@@ -70,15 +70,11 @@ export function createMcpServer(
     const delivery = provider.auth.credentialDelivery ?? 'forwarded';
     // Multi-credential providers: wrap the wire bundle's raw values into SecretStrings so the resolver
     // carries them as `ResolvedCredential.secrets` (the materializer injects per the called tool's group).
-    const groups =
-      provider.auth.type === 'api_key' ? provider.auth.groups : undefined;
+    const groups = provider.auth.type === 'api_key' ? provider.auth.groups : undefined;
     const secrets =
       groups !== undefined && ctx.credentials !== undefined
         ? Object.fromEntries(
-            Object.entries(ctx.credentials).map(([k, v]) => [
-              k,
-              new SecretString(v),
-            ]),
+            Object.entries(ctx.credentials).map(([k, v]) => [k, new SecretString(v)]),
           )
         : undefined;
     let credential;
