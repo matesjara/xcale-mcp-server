@@ -48,6 +48,7 @@ The identity claim is an **account GUID**, not the `hotelID` — proving the cre
 [{"date":"2026-10-20","roomTypeDescription":"SUITE ESTANDAR","statusAvailability":8},
  {"date":"2026-10-20","roomTypeDescription":"SUITE JUNIOR","statusAvailability":12}, …]
 ```
+
 Note: rows key on `roomTypeDescription`, **no id**.
 
 **`GET /hotel/{hotelID}/mapping/roomtype`**:
@@ -61,11 +62,13 @@ Note: rows key on `roomTypeDescription`, **no id**.
 ```json
 [{"id":3,"code":"Estandar RC-Channel","description":"Estandar RC-Channel","allowRO":true,"allowBB":true,"allowHB":true,"allowFB":true,"allowAI":true,"isDerived":false,"derivation":null}, …]
 ```
+
 Meal plans are flags per rate: `allowRO/BB/HB/FB/AI` (Room Only / Bed&Breakfast / Half Board / Full Board / All Inclusive).
 
 ## 4. Reads that returned empty or error
 
 **`GET /hotel/{hotelID}/mapping/rateprices`** — headers `dateFrom`/`dateTo`/`idRate`/`idRoomType` → **HTTP 200 but `[]`** for every combo tried:
+
 - rates {1,3,4,5,6} × roomTypes {2,4,5} × Nov date range → all `[]`
 - year-end window (rate 1 = "Tarifa Fin de ano") × roomTypes {2,5} → `[]`
 - near-date range, no roomType filter, and datetime-format dates → `[]`
@@ -87,8 +90,18 @@ Giovanni provided a hotel with prices loaded and shipped the create endpoint.
 - **New hotelID with prices:** `964d9ad8-d143-4d29-bd09-114afecdd99a`. A credential reaches multiple hotels (he will send the accessible hotelIds) — confirms `hotelID` is per-call context, not the credential identity.
 - **`GET /mapping/rateprices` now returns data (Observed).** Row shape carries **per-meal-plan prices inline** (not a single `price` field as A.8 inferred):
   ```json
-  { "id":157308, "idRoomType":2, "idRate":1, "date":"2026-09-29",
-    "priceRO":346.00, "priceBB":396.00, "priceHB":446.00, "priceFB":496.00, "priceAI":546.00, "currencyCode":"..." }
+  {
+    "id": 157308,
+    "idRoomType": 2,
+    "idRate": 1,
+    "date": "2026-09-29",
+    "priceRO": 346.0,
+    "priceBB": 396.0,
+    "priceHB": 446.0,
+    "priceFB": 496.0,
+    "priceAI": 546.0,
+    "currencyCode": "..."
+  }
   ```
   One row per date; the meal plan (`RO/BB/HB/FB/AI`) selects the price field. This resolves the price-composition question — meal-plan pricing is inline, no separate read. **A.8 in api-contract must be updated to this Observed shape.** (Sweep: `rate=1 room=2` → 14 rows; other combos in that hotel returned `[]`, i.e. only priced combos carry rows.)
 - **`POST /hotel/{hotelID}/booking/new` is LIVE** ("AE79 - Create a new booking"). Swagger `required: []` (Erbon validates server-side); Giovanni's "principal" fields: `idBookingStatus, checkInDate, checkOutDate, idRoomTypeReserved, idRoomTypeOccupied, numberAdults/Children/Children2/Babies, idConfigPension, idRate, ratePrices[], isDirect, isCompany, idCompany, idAgency, idSource, idSegment, voucher, isRateDefault, commentsBooking, guests[]`. Full prop set also has `idRoom, manualValue, totalWithTax, contact*`, etc.
@@ -102,17 +115,31 @@ A deliberate test booking was created in the sandbox (`hotelID 964d9ad8…`, hol
 - **`POST guest/new`** → id field is **`id`**: `{ "id":20652, "name":"…", "email":null, "phone":null, "address":{…}, "documents":[] }`.
 - **`POST booking/new`** (one room, 2 adults, RO) → **HTTP 200**:
   ```json
-  { "bookingInternalID":61706, "number":1713, "serie":"RSVN1" }
+  { "bookingInternalID": 61706, "number": 1713, "serie": "RSVN1" }
   ```
   Create returns `bookingInternalID` (internal anchor), `number` (guest-facing = `erbonNumber` on reads), `serie`. **No `voucher`/`status` in the create response.**
 - **`GET /hotel/{hotelID}/booking/{bookingInternalID}`** and **`POST .../booking/search`** rows share one shape. Key fields (Observed):
   ```json
-  { "bookingInternalID":61706, "erbonNumber":1713, "onlineSaleChannelNumber":"xbk-qa-…",
-    "status":"BOOKING", "confirmedStatus":"CONFIRMED", "roomTypeID":2, "roomTypeDescription":"LUXO SOLTEIRO",
-    "checkInDateTime":"2026-11-10T15:00:00", "checkOutDateTime":"2026-11-12T12:00:00",
-    "adultQuantity":2, "childrenQuantity":0, "totalBookingRate":742, "totalBookingRateWithTax":779.1,
-    "rateId":1, "rateDesc":"Balcony", "currencyId":2, "observations":"…(=commentsBooking)",
-    "guestList":[{ "id":20653, "mainGuest":true, "name":"…", "email":null, "phone":null }] }
+  {
+    "bookingInternalID": 61706,
+    "erbonNumber": 1713,
+    "onlineSaleChannelNumber": "xbk-qa-…",
+    "status": "BOOKING",
+    "confirmedStatus": "CONFIRMED",
+    "roomTypeID": 2,
+    "roomTypeDescription": "LUXO SOLTEIRO",
+    "checkInDateTime": "2026-11-10T15:00:00",
+    "checkOutDateTime": "2026-11-12T12:00:00",
+    "adultQuantity": 2,
+    "childrenQuantity": 0,
+    "totalBookingRate": 742,
+    "totalBookingRateWithTax": 779.1,
+    "rateId": 1,
+    "rateDesc": "Balcony",
+    "currencyId": 2,
+    "observations": "…(=commentsBooking)",
+    "guestList": [{ "id": 20653, "mainGuest": true, "name": "…", "email": null, "phone": null }]
+  }
   ```
   - **The voucher round-trips as `onlineSaleChannelNumber`** (NOT a field named `voucher`). ⇒ reconcile matches on `onlineSaleChannelNumber` client-side.
   - Guest-facing number is **`erbonNumber`**; the main guest sits in **`guestList[]`** (`mainGuest:true`); check-in is **`checkInDateTime`**; state is **`status`/`confirmedStatus`**.
@@ -120,3 +147,15 @@ A deliberate test booking was created in the sandbox (`hotelID 964d9ad8…`, hol
 - **`rateprices` is keyed by occupancy.** One row **per `numberPAX`** per date (not one row per date): `numberPAX=2 priceRO=370` and `numberPAX=1 priceRO=660` for the same night. Also carries `paxType` ("ADULT") and **`isTaxIncluded`**. ⇒ price MUST be selected by the party's pax; occupancy pricing is available (resolves the `occupancyPriced` question).
 - **⚠️ Tax is contradictory — keep the scar.** The rate row says `isTaxIncluded:true`, yet the created booking shows `totalBookingRate 742` vs `totalBookingRateWithTax 779.1` (**+5% added on top**). So the rate price is NOT a settled, tax-final figure. Quote stays `taxesIncluded:false` + caveat until Erbon's tax treatment is pinned (backend #1252). **Question for Giovanni:** what does `isTaxIncluded:true` mean if the booking still adds 5%? and is that 5% always applied?
 - **Odd (verify with Giovanni):** 1-pax price (660) > 2-pax price (370) for the same room/date — confirm the `numberPAX` semantics before relying on single-occupancy pricing.
+
+## 8. Update 2026-10-04 — final payload (multi-room + BB + tax) exercised end-to-end
+
+The real backend Gate + Erbon adapters drove the real MCP tool handlers (zod-validated) against the sandbox (`hotelID 964d9ad8…`): 2 rooms of `LUXO SOLTEIRO` (id 2), rate 1, **BB**, 4 adults split 2+2, `2026-11-17 → 2026-11-19`, `totalWithTax: 0` sent. **All Observed.**
+
+- **Prices:** BB rows exist only for `numberPAX=2` (`priceBB` is `null` for `numberPAX=1`). 2-pax BB = 374 + 376 = 750 per room.
+- **Create:** two calls, two reservations — `bookingInternalID 61714 / number 1721` (voucher `…-r0`) and `61715 / 1722` (voucher `…-r1`).
+- **Readback (`GET booking/{id}`):** `totalBookingRate: 750` (the BB prices were taken), `adultQuantity: 2`, `onlineSaleChannelNumber` = the per-room voucher, `status: BOOKING`, `confirmedStatus: CONFIRMED`. The read row carries **no meal-plan field** — the board is only visible through the price.
+- **⚠️ `totalBookingRateWithTax: 0`.** Erbon stores the sent `totalWithTax` verbatim; it does NOT compute the tax separately. Compare §7 (field omitted): `742 → 779.1`, i.e. Erbon applied the hotel's own 5%. **Decision (Sara, 2026-10-04): omit `totalWithTax`** — the hotel configures its tax in Erbon and the PMS owns that calculation.
+- **Reconcile:** a second run found both rooms by voucher and created nothing (creates before/after: 2/2).
+- **No lodging-tax read exists.** `GET /hotel/{hotelID}/settings/taxes` (AE76) lists taxes for services/products only, and returns `[]` for a BR-fiscal hotel. The hotel profile (`GET /hotel/{hotelID}`) carries no tax rate either. So the backend cannot read the tax Erbon will apply — its quote still uses the per-hotel `ivaRate` set on the connection. **Question for Giovanni:** is there a read for the lodging tax rate (or a tax-inclusive price) so the quote can come from Erbon too?
+- **Option A confirmed live (same day).** One room, BB, 2 adults, same dates, `totalWithTax` **omitted** → `bookingInternalID 61716 / number 1723`. Readback: `totalBookingRate: 750`, `totalBookingRateWithTax: 787.5` — Erbon applied the hotel's own 5%, matching the backend quote to the cent (`subtotal 750 + taxes 37.5 = total 787.5`, `ivaRate: 5`). Reconcile adopted it by voucher with no second create.

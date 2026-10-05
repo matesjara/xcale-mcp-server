@@ -161,9 +161,9 @@ export function buildErbonTools(
           idSegment: z.number().int().optional(),
           isRateDefault: z.boolean().optional(),
           commentsBooking: z.string().optional(),
-          // Sending 0 makes Erbon register the hotel's tax SEPARATELY rather than folding it into the
-          // rate (Giovanni, 2026-10-01); the backend composes the tax-inclusive quote from its own
-          // per-hotel IVA rate (#1252).
+          // Optional passthrough. OMITTED, Erbon applies the hotel's own configured tax (Observed:
+          // 742 → 779.1). Sent, it is stored VERBATIM as the tax-inclusive total — `0` lands as a 0
+          // total (Observed 2026-10-04, bookings 61714/61715). The backend omits it.
           totalWithTax: z.number().nonnegative().optional(),
         })
         .strict()
