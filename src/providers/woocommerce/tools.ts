@@ -1,11 +1,13 @@
 import { z } from 'zod';
 
+import type { FetchLike } from '../../core/http';
 import { definePaginatedList } from '../../core/pagination';
-import { type ToolDefinition, ok, toolFactory } from '../../core/tool';
+import { type ToolDefinition, err, ok, toolFactory } from '../../core/tool';
 import type { WoocommerceClient } from './client';
 import type { WoocommerceContext } from './context';
 import { wooError } from './errors';
 import { SLUG } from './manifest';
+import { quoteShipping } from './shipping-quote';
 
 const tool = toolFactory<WoocommerceContext>();
 
@@ -369,6 +371,88 @@ const getProductInput = z.object({ id: z.string().min(1) }).strict();
 const getProductVariationsInput = z.object({ id: z.string().min(1) }).strict();
 const noArgsInput = z.object({}).strict();
 const getShippingZoneInput = z.object({ id: z.string().min(1) }).strict();
+const ensureOrderWebhookInput = z
+  .object({
+    deliveryUrl: z.string().url().startsWith('https://', 'deliveryUrl must be https'),
+    // Per-connection signing secret; WooCommerce signs each delivery with it (HMAC-SHA256).
+    secret: z.string().min(16),
+  })
+  .strict();
+
+/** A store webhook, as WooCommerce lists it. */
+interface RawWebhook {
+  readonly id: number;
+  readonly status?: string;
+  readonly topic?: string;
+  readonly delivery_url?: string;
+}
+const ORDER_WEBHOOK_TOPIC = 'order.updated';
+
+const getCountryStatesInput = z
+  .object({
+    // ISO 3166-1 alpha-2. Absent ⇒ the store's country list (code + name), no states.
+    country: z
+      .string()
+      .regex(/^[A-Za-z]{2}$/, 'country must be an ISO 3166-1 alpha-2 code')
+      .optional(),
+  })
+  .strict();
+
+/** A country as the store knows it, and the state codes its shipping zones match by. */
+interface RawCountry {
+  readonly code: string;
+  readonly name: string;
+  readonly states?: ReadonlyArray<{ code: string; name: string }>;
+}
+export interface WooCountryStates {
+  readonly code: string;
+  readonly name: string;
+  readonly states: ReadonlyArray<{ code: string; name: string }>;
+}
+function toCountryStates(c: RawCountry): WooCountryStates {
+  return {
+    code: c.code,
+    name: c.name,
+    states: (c.states ?? []).map((st) => ({ code: st.code, name: st.name })),
+  };
+}
+const getHoldStockMinutesInput = z.object({}).strict();
+const UNPAID_ORDER_PAGE_SIZE = 100;
+const UNPAID_ORDER_PAGES = 10;
+const listUnpaidOrdersInput = z
+  .object({
+    // ISO 8601 UTC: orders created before this instant (sent with `dates_are_gmt`, so the store's
+    // own timezone never shifts the cutoff).
+    before: z.string().datetime({ offset: true }),
+  })
+  .strict();
+
+/** A store setting as `GET settings/{group}` lists it. */
+interface RawSetting {
+  readonly id: string;
+  readonly value?: unknown;
+}
+
+const quoteShippingInput = z
+  .object({
+    items: z
+      .array(
+        z.object({
+          productId: z.string().regex(/^\d+$/, 'productId must be a numeric id'),
+          quantity: z.number().int().positive(),
+        }),
+      )
+      .min(1),
+    destination: z
+      .object({
+        country: z.string().min(2), // ISO 3166-1 alpha-2, e.g. "CO"
+        state: z.string().optional(), // ISO 3166-2 subdivision, e.g. "CO-QUI" / "CO-DC"
+        city: z.string().optional(),
+        postcode: z.string().optional(),
+      })
+      .strict(),
+  })
+  .strict();
 const listOrdersInput = z
   .object({
     status: z.string().optional(),
@@ -522,6 +606,20 @@ const createOrderInput = z
     // passes the id here to attribute the order to that customer.
     customerId: z.string().regex(/^\d+$/, 'customerId must be a numeric id').optional(),
     status: z.enum(['pending', 'processing', 'on-hold']).default('pending'),
+    // Freight line(s). WooCommerce does NOT calculate shipping on a REST-created order, so the cost
+    // must be sent explicitly or the pay link charges products only. `total` is a major-unit decimal
+    // string (e.g. "18000" COP, "15.00" USD) — typically the `cost` from `quote_shipping`. Absent ⇒
+    // no freight charged (the prior behaviour).
+    shippingLines: z
+      .array(
+        z.object({
+          methodId: z.string().min(1),
+          methodTitle: z.string().min(1),
+          total: z.string().regex(/^\d+(\.\d+)?$/, 'total must be a decimal amount string'),
+        }),
+      )
+      .min(1)
+      .optional(),
   })
   .strict();
 
@@ -567,6 +665,10 @@ export interface WooOrderCreated {
   readonly number: string;
   readonly status: string;
   readonly total: string | null;
+  /** ISO 4217 currency of `total`/`shippingTotal` (e.g. "COP"). */
+  readonly currency: string | null;
+  /** The freight the order charges (major-unit decimal string), already inside `total`. */
+  readonly shippingTotal: string | null;
   readonly orderReference: string;
   readonly paymentUrl: string | null;
   readonly orderKey: string | null;
@@ -576,6 +678,8 @@ interface RawOrderRef {
   readonly number?: string | number;
   readonly status?: string;
   readonly total?: string;
+  readonly currency?: string;
+  readonly shipping_total?: string;
   readonly payment_url?: string;
   readonly order_key?: string;
   readonly meta_data?: ReadonlyArray<{ key: string; value: unknown }>;
@@ -586,6 +690,8 @@ function toOrderCreated(r: RawOrderRef, orderReference: string): WooOrderCreated
     number: r.number !== undefined ? String(r.number) : String(r.id),
     status: r.status ?? 'unknown',
     total: r.total ?? null,
+    currency: r.currency ?? null,
+    shippingTotal: r.shipping_total ?? null,
     orderReference,
     // WooCommerce returns an empty string for `payment_url` on an order with nothing to pay; curate
     // that to null so the consumer's "is there a pay link?" is a plain null check, not "" vs absent.
@@ -719,6 +825,9 @@ function customerWriteBody(a: {
  */
 export function buildWoocommerceTools(
   client: WoocommerceClient,
+  // The provider's SSRF-safe fetch, used directly by `quote_shipping` for the public Store API (the
+  // authed client can't: the Store API needs no credential and the cart flow reads response headers).
+  fetchImpl: FetchLike,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- erased input type (heterogeneous tool collection); per-tool types stay sound
 ): ToolDefinition<any, WoocommerceContext>[] {
   return [
@@ -828,9 +937,11 @@ export function buildWoocommerceTools(
     tool({
       name: `mcp_${SLUG}_create_order`,
       description:
-        "Create an order for a buyer. `orderReference` is the CALLER's own id and is required: it is " +
-        'the only handle by which a failed call can be reconciled (via reconcile_order) — never retry ' +
-        'a create blind.',
+        'Owner-facing: the store owner enters an order by hand. It charges only the lines and ' +
+        'shippingLines it is given — no freight is quoted, nothing is checked against the catalog — so it ' +
+        'is not a buyer checkout: a consumer that sells to buyers places their orders through its own ' +
+        "checkout flow. `orderReference` is the CALLER's own id and is required: it is the only handle " +
+        'by which a failed call can be reconciled (via reconcile_order) — never retry a create blind.',
       input: createOrderInput,
       handler: async (args, ctx) => {
         const body: Record<string, unknown> = {
@@ -866,6 +977,13 @@ export function buildWoocommerceTools(
             ...(s.lastName !== undefined ? { last_name: s.lastName } : {}),
             ...(s.phone !== undefined ? { phone: s.phone } : {}),
           };
+        }
+        if (args.shippingLines !== undefined) {
+          body.shipping_lines = args.shippingLines.map((l) => ({
+            method_id: l.methodId,
+            method_title: l.methodTitle,
+            total: l.total,
+          }));
         }
         const res = await client.post('orders', body, ctx.request, ctx.metadata);
         if (!res.ok) return wooError(res);
@@ -1057,6 +1175,135 @@ export function buildWoocommerceTools(
     }),
 
     tool({
+      name: `mcp_${SLUG}_ensure_order_webhook`,
+      description:
+        'Control-plane: subscribe the store to order updates (`order.updated`) at the consumer delivery ' +
+        'URL, signed with the given per-connection secret. Withdrawn from the agent menu.',
+      input: ensureOrderWebhookInput,
+      controlPlane: true,
+      handler: async (args, ctx) => {
+        // Never a duplicate: a webhook already pointing here for this topic is reused — its secret
+        // refreshed (the consumer's current one) and re-activated (WooCommerce disables a webhook
+        // after repeated failed deliveries).
+        const list = await client.get('webhooks', ctx.request, ctx.metadata, { per_page: 100 });
+        if (!list.ok) return wooError(list);
+        const existing = (list.data as RawWebhook[]).find(
+          (w) => w.topic === ORDER_WEBHOOK_TOPIC && w.delivery_url === args.deliveryUrl,
+        );
+        const res = existing
+          ? await client.put(
+              `webhooks/${existing.id}`,
+              { secret: args.secret, status: 'active' },
+              ctx.request,
+              ctx.metadata,
+            )
+          : await client.post(
+              'webhooks',
+              {
+                name: 'xcale order updates',
+                topic: ORDER_WEBHOOK_TOPIC,
+                delivery_url: args.deliveryUrl,
+                secret: args.secret,
+                status: 'active',
+              },
+              ctx.request,
+              ctx.metadata,
+            );
+        if (!res.ok) return wooError(res);
+        const w = res.data as RawWebhook;
+        // The secret is never echoed back.
+        return ok({
+          id: String(w.id),
+          status: w.status ?? 'unknown',
+          topic: w.topic ?? ORDER_WEBHOOK_TOPIC,
+          deliveryUrl: w.delivery_url ?? args.deliveryUrl,
+          created: !existing,
+        });
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_get_country_states`,
+      description:
+        "Control-plane lookup: the store's own state codes (and names) for a country — the codes its " +
+        'shipping zones match by (e.g. "CO-QUI" for Quindío) — or, without a country, its country list. ' +
+        'Lets a consumer turn the name a buyer gives ("Quindío") into the code the store needs. Withdrawn from the agent menu.',
+      input: getCountryStatesInput,
+      controlPlane: true,
+      handler: async (args, ctx) => {
+        const res = await client.get(
+          args.country
+            ? `data/countries/${encodeURIComponent(args.country.toUpperCase())}`
+            : 'data/countries',
+          ctx.request,
+          ctx.metadata,
+        );
+        if (!res.ok) return wooError(res);
+        if (!args.country) {
+          // The list alone, no state payload: a consumer asks for one country's states when it needs them.
+          return ok({
+            countries: (res.data as RawCountry[]).map((c) => ({ code: c.code, name: c.name })),
+          });
+        }
+        return ok(toCountryStates(res.data as RawCountry));
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_get_hold_stock_minutes`,
+      description:
+        'Control-plane lookup: the store\'s own "Hold stock (minutes)" — how long it keeps an unpaid ' +
+        'order before cancelling it. Withdrawn from the agent menu.',
+      input: getHoldStockMinutesInput,
+      controlPlane: true,
+      handler: async (_args, ctx) => {
+        const res = await client.get('settings/products', ctx.request, ctx.metadata);
+        if (!res.ok) return wooError(res);
+        const settings = res.data as RawSetting[];
+        const value = (id: string) => settings.find((st) => st.id === id)?.value;
+        // WooCommerce's own rule (`wc_cancel_unpaid_orders`): it cancels nothing unless it manages
+        // stock and holds it for at least a minute. Anything else is "keeps unpaid orders" (null).
+        const minutes = Math.floor(Number(value('woocommerce_hold_stock_minutes')));
+        const holds = value('woocommerce_manage_stock') === 'yes' && minutes >= 1;
+        return ok({ minutes: holds ? minutes : null });
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_list_unpaid_orders`,
+      description:
+        'Control-plane: the pending (unpaid) orders created before a UTC instant that carry a consumer ' +
+        'order reference, oldest first — the orders a consumer placed and may expire. Withdrawn from the agent menu.',
+      input: listUnpaidOrdersInput,
+      controlPlane: true,
+      handler: async (args, ctx) => {
+        // Oldest first, page by page: orders without a reference (sold elsewhere) are kept by the
+        // store forever, so a single page could fill up with them and hide every newer consumer
+        // order. Bounded per call; anything past the bound is read on the next call.
+        const orders: { id: string; orderReference: string }[] = [];
+        for (let page = 1; page <= UNPAID_ORDER_PAGES; page++) {
+          const res = await client.get('orders', ctx.request, ctx.metadata, {
+            status: 'pending',
+            before: args.before,
+            dates_are_gmt: 'true',
+            orderby: 'date',
+            order: 'asc',
+            per_page: UNPAID_ORDER_PAGE_SIZE,
+            page,
+          });
+          if (!res.ok) return wooError(res);
+          const batch = res.data as RawOrderRef[];
+          for (const o of batch) {
+            const orderReference = orderRef(o);
+            if (orderReference) orders.push({ id: String(o.id), orderReference });
+          }
+          if (batch.length < UNPAID_ORDER_PAGE_SIZE) break;
+        }
+        return ok({ orders });
+      },
+    }),
+
+    tool({
       name: `mcp_${SLUG}_list_shipping_zones`,
       description:
         'List the store\'s configured shipping zones (includes the "rest of world" zone, id 0).',
@@ -1096,6 +1343,27 @@ export function buildWoocommerceTools(
         );
         if (!res.ok) return wooError(res);
         return ok((res.data as RawShippingZoneMethod[]).map(toShippingZoneMethod));
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_quote_shipping`,
+      description:
+        "Quote the store's REAL shipping options for the given items and a destination — the " +
+        'cart-accurate freight the buyer would pay at checkout (via the Store API), NOT the configured ' +
+        'base rate. Returns options each with a `cost` ready to pass to create_order as a shippingLine. ' +
+        'Empty options ⇒ the store does not ship to that destination (say so; never estimate). `state` ' +
+        'is the ISO 3166-2 subdivision (e.g. CO-QUI, CO-DC).',
+      input: quoteShippingInput,
+      handler: async (args, ctx) => {
+        const result = await quoteShipping(
+          fetchImpl,
+          ctx.metadata.storeUrl,
+          args.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          args.destination,
+        );
+        if (!result.ok) return err(result.code, result.message);
+        return ok({ options: result.options });
       },
     }),
 

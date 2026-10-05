@@ -491,6 +491,23 @@ describe('woocommerce provider — create_order (write, S4)', () => {
     });
   });
 
+  it('echoes the order currency and the freight it charges, so a consumer can quote the real total', async () => {
+    const { provider: p } = provider(
+      { ...CREATED, total: '218000', currency: 'COP', shipping_total: '18000' },
+      201,
+    );
+    const result = await p.callTool(
+      'mcp_woocommerce_create_order',
+      { orderReference: 'x', lineItems: [{ productId: '26', quantity: 2 }] },
+      CTX,
+    );
+    expect(successData(result)).toMatchObject({
+      total: '218000',
+      currency: 'COP',
+      shippingTotal: '18000',
+    });
+  });
+
   it('maps an empty payment_url to null (nothing to pay — terminal/COD)', async () => {
     const { provider: p } = provider({ ...CREATED, payment_url: '', order_key: undefined }, 201);
     const result = await p.callTool(
@@ -662,6 +679,41 @@ describe('woocommerce provider — v1 scope expansion (round 2)', () => {
       CTX,
     );
     expect(JSON.parse(sentBodies[0]!).customer_id).toBe(7);
+  });
+
+  it('create_order maps shippingLines to WooCommerce shipping_lines (charges the freight)', async () => {
+    const { provider: p, sentBodies } = provider(
+      { id: 32, number: '32', status: 'pending', total: '218000', meta_data: [] },
+      201,
+    );
+    await p.callTool(
+      'mcp_woocommerce_create_order',
+      {
+        orderReference: 'xco-s1',
+        lineItems: [{ productId: '26', quantity: 2 }],
+        shippingLines: [{ methodId: 'flat_rate', methodTitle: 'Flat rate', total: '18000' }],
+      },
+      CTX,
+    );
+    expect(JSON.parse(sentBodies[0]!).shipping_lines).toEqual([
+      { method_id: 'flat_rate', method_title: 'Flat rate', total: '18000' },
+    ]);
+  });
+
+  it('create_order rejects a non-numeric shippingLines total as INVALID_INPUT, no network', async () => {
+    const { provider: p, calls } = provider({}, 201);
+    const result = await p.callTool(
+      'mcp_woocommerce_create_order',
+      {
+        orderReference: 'xco-s2',
+        lineItems: [{ productId: '26', quantity: 1 }],
+        shippingLines: [{ methodId: 'flat_rate', methodTitle: 'Flat rate', total: 'free' }],
+      },
+      CTX,
+    );
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe('PROVIDER_INVALID_INPUT');
+    expect(calls).toHaveLength(0);
   });
 
   it('create_category POSTs name/parent/description', async () => {
@@ -863,8 +915,499 @@ describe('woocommerce provider — v1 scope expansion (round 2)', () => {
       'mcp_woocommerce_create_customer',
       'mcp_woocommerce_update_customer',
       'mcp_woocommerce_create_product',
+      'mcp_woocommerce_quote_shipping',
     ]) {
       expect(names).toContain(n);
     }
+  });
+});
+
+describe('woocommerce provider — quote_shipping (Store API)', () => {
+  /** A fetch double scripted for the Store API cart flow, with Nonce + Cart-Token response headers. */
+  function storeApiFetch(updateCustomerCart: unknown) {
+    const calls: string[] = [];
+    const h = { 'content-type': 'application/json', Nonce: 'n-123', 'Cart-Token': 'tok-abc' };
+    const impl = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const u = String(url);
+      calls.push(`${init?.method ?? 'GET'} ${u}`);
+      if (u.endsWith('/cart/items') && init?.method === 'DELETE')
+        return new Response('[]', { status: 200, headers: h });
+      if (u.endsWith('/cart/add-item'))
+        return new Response('{"items_count":1}', { status: 200, headers: h });
+      if (u.endsWith('/cart/update-customer'))
+        return new Response(JSON.stringify(updateCustomerCart), { status: 200, headers: h });
+      if (u.endsWith('/cart')) return new Response('{}', { status: 200, headers: h });
+      return new Response('{}', { status: 404, headers: h });
+    });
+    return { impl: impl as unknown as typeof globalThis.fetch, calls };
+  }
+
+  const cartWith = (rates: unknown[]) => ({ shipping_rates: [{ shipping_rates: rates }] });
+
+  it('returns curated options from the Store API cart rates, threading prime→add→update', async () => {
+    const { impl, calls } = storeApiFetch(
+      cartWith([
+        {
+          rate_id: 'flat_rate:2',
+          name: 'Flat rate',
+          method_id: 'flat_rate',
+          price: '18000',
+          currency_code: 'COP',
+          currency_minor_unit: 0,
+          selected: false,
+        },
+        {
+          rate_id: 'free_shipping:1',
+          name: 'Free shipping',
+          method_id: 'free_shipping',
+          price: '0',
+          currency_code: 'COP',
+          currency_minor_unit: 0,
+          selected: true,
+        },
+      ]),
+    );
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+    const result = await p.callTool(
+      'mcp_woocommerce_quote_shipping',
+      {
+        items: [{ productId: '26', quantity: 2 }],
+        destination: { country: 'CO', state: 'CO-QUI' },
+      },
+      CTX,
+    );
+    expect(successData(result)).toEqual({
+      options: [
+        {
+          rateId: 'flat_rate:2',
+          methodId: 'flat_rate',
+          title: 'Flat rate',
+          cost: '18000',
+          currencyCode: 'COP',
+          currencyMinorUnit: 0,
+          selected: false,
+          packageId: '0',
+        },
+        {
+          rateId: 'free_shipping:1',
+          methodId: 'free_shipping',
+          title: 'Free shipping',
+          cost: '0',
+          currencyCode: 'COP',
+          currencyMinorUnit: 0,
+          selected: true,
+          packageId: '0',
+        },
+      ],
+    });
+    expect(calls.some((c) => c === 'GET https://store.example.com/wp-json/wc/store/v1/cart')).toBe(
+      true,
+    );
+    expect(calls.some((c) => c.startsWith('POST') && c.endsWith('/cart/add-item'))).toBe(true);
+    expect(calls.some((c) => c.endsWith('/cart/update-customer'))).toBe(true);
+  });
+
+  it('quotes on an EMPTIED cart and empties it after — a reused session never pollutes the freight', async () => {
+    const { impl, calls } = storeApiFetch(
+      cartWith([
+        {
+          rate_id: 'flat_rate:2',
+          name: 'Flat rate',
+          method_id: 'flat_rate',
+          price: '18000',
+          currency_code: 'COP',
+          currency_minor_unit: 0,
+          selected: true,
+        },
+      ]),
+    );
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+    await p.callTool(
+      'mcp_woocommerce_quote_shipping',
+      { items: [{ productId: '26', quantity: 1 }], destination: { country: 'CO' } },
+      CTX,
+    );
+
+    const steps = calls.map((c) => c.replace(/^(\w+) .*\/wc\/store\/v1/, '$1 '));
+    expect(steps).toEqual([
+      'GET /cart',
+      'DELETE /cart/items', // whatever the session already held is gone before we add
+      'POST /cart/add-item',
+      'POST /cart/update-customer',
+      'DELETE /cart/items', // and nothing of ours is left behind
+    ]);
+  });
+
+  it('drops a rate whose price is missing or unreadable — never a defaulted free "0"', async () => {
+    const rate = (id: string, price: unknown) => ({
+      rate_id: id,
+      name: id,
+      method_id: 'flat_rate',
+      price,
+      currency_code: 'COP',
+      currency_minor_unit: 0,
+      selected: false,
+    });
+    const { impl } = storeApiFetch(
+      cartWith([
+        rate('flat_rate:1', '18000'),
+        rate('flat_rate:2', null),
+        rate('flat_rate:3', ''),
+        rate('flat_rate:4', 'abc'),
+        rate('free_shipping:5', '0'),
+      ]),
+    );
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+    const result = await p.callTool(
+      'mcp_woocommerce_quote_shipping',
+      { items: [{ productId: '26', quantity: 1 }], destination: { country: 'CO' } },
+      CTX,
+    );
+    const options = (successData(result) as { options: { rateId: string; cost: string }[] })
+      .options;
+    // A real free rate ("0") stays; a price the store did not give is not invented.
+    expect(options.map((o) => [o.rateId, o.cost])).toEqual([
+      ['flat_rate:1', '18000'],
+      ['free_shipping:5', '0'],
+    ]);
+  });
+
+  it('tags each option with its package, so a split cart can charge one rate per package', async () => {
+    const rate = (id: string, selected: boolean) => ({
+      rate_id: id,
+      name: id,
+      method_id: id.split(':')[0],
+      price: '1000',
+      currency_code: 'COP',
+      currency_minor_unit: 0,
+      selected,
+    });
+    const { impl } = storeApiFetch({
+      shipping_rates: [
+        {
+          package_id: 0,
+          shipping_rates: [rate('flat_rate:2', true), rate('local_pickup:3', false)],
+        },
+        { package_id: 1, shipping_rates: [rate('flat_rate:5', true)] },
+      ],
+    });
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+    const result = await p.callTool(
+      'mcp_woocommerce_quote_shipping',
+      { items: [{ productId: '26', quantity: 1 }], destination: { country: 'CO' } },
+      CTX,
+    );
+    const options = (successData(result) as { options: { rateId: string; packageId: string }[] })
+      .options;
+    expect(options.map((o) => [o.rateId, o.packageId])).toEqual([
+      ['flat_rate:2', '0'],
+      ['local_pickup:3', '0'],
+      ['flat_rate:5', '1'],
+    ]);
+  });
+
+  it('converts minor units to a major-unit decimal for a 2-decimal currency', async () => {
+    const { impl } = storeApiFetch(
+      cartWith([
+        {
+          rate_id: 'flat_rate:1',
+          name: 'Flat',
+          method_id: 'flat_rate',
+          price: '1500',
+          currency_code: 'USD',
+          currency_minor_unit: 2,
+          selected: true,
+        },
+      ]),
+    );
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+    const result = await p.callTool(
+      'mcp_woocommerce_quote_shipping',
+      { items: [{ productId: '1', quantity: 1 }], destination: { country: 'US', state: 'US-CA' } },
+      CTX,
+    );
+    expect((successData(result) as { options: Array<{ cost: string }> }).options[0]!.cost).toBe(
+      '15.00',
+    );
+  });
+
+  it('empty rates → empty options (store does not serve the destination)', async () => {
+    const { impl } = storeApiFetch({ shipping_rates: [] });
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+    const result = await p.callTool(
+      'mcp_woocommerce_quote_shipping',
+      { items: [{ productId: '1', quantity: 1 }], destination: { country: 'CO' } },
+      CTX,
+    );
+    expect(successData(result)).toEqual({ options: [] });
+  });
+
+  it('a Store API 400 (e.g. invalid state) maps to PROVIDER_INVALID_INPUT', async () => {
+    const h = { Nonce: 'n', 'Cart-Token': 't' };
+    const impl = vi.fn(async (url: string | URL) => {
+      const u = String(url);
+      if (u.endsWith('/cart/update-customer'))
+        return new Response('{"code":"rest_invalid_param"}', { status: 400, headers: h });
+      return new Response('{}', { status: 200, headers: h });
+    }) as unknown as typeof globalThis.fetch;
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+    const result = await p.callTool(
+      'mcp_woocommerce_quote_shipping',
+      { items: [{ productId: '1', quantity: 1 }], destination: { country: 'CO', state: 'BAD' } },
+      CTX,
+    );
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe('PROVIDER_INVALID_INPUT');
+  });
+
+  it('rejects a non-numeric productId as INVALID_INPUT, no network', async () => {
+    const { impl, calls } = storeApiFetch({ shipping_rates: [] });
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+    const result = await p.callTool(
+      'mcp_woocommerce_quote_shipping',
+      { items: [{ productId: 'abc', quantity: 1 }], destination: { country: 'CO' } },
+      CTX,
+    );
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe('PROVIDER_INVALID_INPUT');
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe('woocommerce provider — get_country_states (control-plane, #1309 phase 1)', () => {
+  const COLOMBIA = {
+    code: 'CO',
+    name: 'Colombia',
+    states: [
+      { code: 'CO-DC', name: 'Capital District' },
+      { code: 'CO-QUI', name: 'Quindío' },
+    ],
+    _links: { self: [{ href: 'x' }] },
+  };
+
+  it("returns the store's own state codes and names for a country", async () => {
+    const { provider: p, calls } = provider(COLOMBIA);
+    const result = await p.callTool('mcp_woocommerce_get_country_states', { country: 'CO' }, CTX);
+
+    expect(calls[0]).toContain('/wp-json/wc/v3/data/countries/CO');
+    expect(successData(result)).toEqual({
+      code: 'CO',
+      name: 'Colombia',
+      states: [
+        { code: 'CO-DC', name: 'Capital District' },
+        { code: 'CO-QUI', name: 'Quindío' },
+      ],
+    });
+  });
+
+  it('without a country, lists the store countries by code and name — no state payload', async () => {
+    const { provider: p, calls } = provider([
+      COLOMBIA,
+      { code: 'US', name: 'United States (US)', states: [{ code: 'CA', name: 'California' }] },
+    ]);
+    const result = await p.callTool('mcp_woocommerce_get_country_states', {}, CTX);
+
+    expect(calls[0]).toMatch(/\/wp-json\/wc\/v3\/data\/countries(\?|$)/);
+    expect(successData(result)).toEqual({
+      countries: [
+        { code: 'CO', name: 'Colombia' },
+        { code: 'US', name: 'United States (US)' },
+      ],
+    });
+  });
+
+  it('is control-plane: never on the agent menu, but routable for the backend', () => {
+    const { provider: p } = provider({});
+    expect(p.listTools().map((t) => t.name)).not.toContain('mcp_woocommerce_get_country_states');
+    expect(p.routableToolNames()).toContain('mcp_woocommerce_get_country_states');
+  });
+});
+
+describe('woocommerce provider — ensure_order_webhook (control-plane, #1309 phase 3)', () => {
+  const DELIVERY = 'https://api.xcale.app/api/v1/webhooks/woocommerce/conn-1';
+
+  /** A fetch double scripted per method: the store's webhook list, and what a create returns. */
+  function webhookFetch(existing: unknown[]) {
+    const calls: { method: string; url: string; body?: unknown }[] = [];
+    const impl = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      calls.push({
+        method,
+        url: String(url),
+        body: init?.body ? JSON.parse(init.body as string) : undefined,
+      });
+      const body =
+        method === 'POST' || method === 'PUT'
+          ? {
+              id: 41,
+              name: 'xcale order updates',
+              status: 'active',
+              topic: 'order.updated',
+              delivery_url: DELIVERY,
+            }
+          : existing;
+      return new Response(JSON.stringify(body), {
+        status: method === 'POST' ? 201 : 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    return { impl: impl as unknown as typeof globalThis.fetch, calls };
+  }
+
+  it('subscribes the store to order updates at our delivery URL, signed with the given secret', async () => {
+    const { impl, calls } = webhookFetch([]);
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+
+    const result = await p.callTool(
+      'mcp_woocommerce_ensure_order_webhook',
+      { deliveryUrl: DELIVERY, secret: 's3cr3t-per-connection' },
+      CTX,
+    );
+
+    const post = calls.find((c) => c.method === 'POST');
+    expect(post?.url).toContain('/wp-json/wc/v3/webhooks');
+    expect(post?.body).toMatchObject({
+      topic: 'order.updated',
+      delivery_url: DELIVERY,
+      secret: 's3cr3t-per-connection',
+      status: 'active',
+    });
+    // The secret never travels back.
+    expect(successData(result)).toEqual({
+      id: '41',
+      status: 'active',
+      topic: 'order.updated',
+      deliveryUrl: DELIVERY,
+      created: true,
+    });
+  });
+
+  it('never duplicates: a webhook already at our URL is reused — its secret refreshed, re-activated', async () => {
+    const { impl, calls } = webhookFetch([
+      { id: 7, status: 'disabled', topic: 'order.created', delivery_url: DELIVERY },
+      { id: 41, status: 'disabled', topic: 'order.updated', delivery_url: DELIVERY },
+    ]);
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+
+    const result = await p.callTool(
+      'mcp_woocommerce_ensure_order_webhook',
+      { deliveryUrl: DELIVERY, secret: 's3cr3t-per-connection' },
+      CTX,
+    );
+
+    expect(calls.some((c) => c.method === 'POST')).toBe(false);
+    const put = calls.find((c) => c.method === 'PUT');
+    expect(put?.url).toContain('/wp-json/wc/v3/webhooks/41');
+    expect(put?.body).toEqual({ secret: 's3cr3t-per-connection', status: 'active' });
+    expect(successData(result)).toMatchObject({ id: '41', created: false });
+  });
+});
+
+describe('woocommerce provider — get_hold_stock_minutes (control-plane, unpaid-order expiry)', () => {
+  /** `GET settings/products` — the group the two inventory settings live in. */
+  function inventory(manageStock: string, holdMinutes: string) {
+    return [
+      { id: 'woocommerce_weight_unit', value: 'kg' },
+      { id: 'woocommerce_manage_stock', value: manageStock },
+      { id: 'woocommerce_hold_stock_minutes', value: holdMinutes },
+    ];
+  }
+
+  it("reads the store's own hold-stock minutes — how long it keeps an unpaid order", async () => {
+    const { provider: p, calls } = provider(inventory('yes', '60'));
+    const result = await p.callTool('mcp_woocommerce_get_hold_stock_minutes', {}, CTX);
+
+    expect(calls[0]).toContain('/wp-json/wc/v3/settings/products');
+    expect(successData(result)).toEqual({ minutes: 60 });
+  });
+
+  it('no expiry when the store keeps unpaid orders forever: empty minutes, or stock not managed — as WooCommerce itself', async () => {
+    for (const [manage, hold] of [
+      ['yes', ''],
+      ['yes', '0'],
+      ['no', '60'],
+    ]) {
+      const { provider: p } = provider(inventory(manage!, hold!));
+      const result = await p.callTool('mcp_woocommerce_get_hold_stock_minutes', {}, CTX);
+      expect(successData(result), `manage=${manage} hold=${hold}`).toEqual({ minutes: null });
+    }
+  });
+
+  it('is control-plane: never on the agent menu, but routable for the backend', () => {
+    const { provider: p } = provider([]);
+    expect(p.listTools().map((t) => t.name)).not.toContain(
+      'mcp_woocommerce_get_hold_stock_minutes',
+    );
+    expect(p.routableToolNames()).toContain('mcp_woocommerce_get_hold_stock_minutes');
+  });
+});
+
+describe('woocommerce provider — list_unpaid_orders (control-plane, unpaid-order expiry)', () => {
+  const BEFORE = '2026-10-04T12:00:00.000Z';
+
+  it('lists the pending orders created before the cutoff (UTC, oldest first) that carry a consumer order reference', async () => {
+    const { provider: p, calls } = provider([
+      {
+        id: 61,
+        status: 'pending',
+        meta_data: [{ key: '_xcale_order_ref', value: 'xco-intent-1' }],
+      },
+      { id: 62, status: 'pending', meta_data: [{ key: 'other', value: 'x' }] },
+      { id: 63, status: 'pending' },
+    ]);
+    const result = await p.callTool('mcp_woocommerce_list_unpaid_orders', { before: BEFORE }, CTX);
+
+    const url = new URL(calls[0]!);
+    expect(url.pathname).toContain('/wp-json/wc/v3/orders');
+    expect(url.searchParams.get('status')).toBe('pending');
+    expect(url.searchParams.get('before')).toBe(BEFORE);
+    expect(url.searchParams.get('dates_are_gmt')).toBe('true');
+    expect(url.searchParams.get('order')).toBe('asc');
+    expect(successData(result)).toEqual({ orders: [{ id: '61', orderReference: 'xco-intent-1' }] });
+  });
+
+  it('reads past a full page of orders it keeps (no reference) — newer consumer orders are still found', async () => {
+    const calls: string[] = [];
+    const foreign = Array.from({ length: 100 }, (_, i) => ({ id: i + 1, status: 'pending' }));
+    const impl = vi.fn(async (url: string | URL) => {
+      calls.push(String(url));
+      const page = new URL(String(url)).searchParams.get('page');
+      const body =
+        page === '2'
+          ? [
+              {
+                id: 201,
+                status: 'pending',
+                meta_data: [{ key: '_xcale_order_ref', value: 'xco-late' }],
+              },
+            ]
+          : foreign;
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as unknown as typeof globalThis.fetch;
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+
+    const result = await p.callTool('mcp_woocommerce_list_unpaid_orders', { before: BEFORE }, CTX);
+
+    expect(calls).toHaveLength(2);
+    expect(successData(result)).toEqual({ orders: [{ id: '201', orderReference: 'xco-late' }] });
+  });
+
+  it('is control-plane: never on the agent menu, but routable for the backend', () => {
+    const { provider: p } = provider([]);
+    expect(p.listTools().map((t) => t.name)).not.toContain('mcp_woocommerce_list_unpaid_orders');
+    expect(p.routableToolNames()).toContain('mcp_woocommerce_list_unpaid_orders');
+  });
+});
+
+describe('woocommerce provider — create_order says who it is for', () => {
+  it('is owner-facing: manual order entry, not the buyer checkout path', () => {
+    const { provider: p } = provider({});
+    const createOrder = p.listTools().find((t) => t.name === 'mcp_woocommerce_create_order');
+
+    expect(createOrder?.description).toMatch(/^Owner-facing/);
+    expect(createOrder?.description).not.toMatch(/for a buyer/);
   });
 });
