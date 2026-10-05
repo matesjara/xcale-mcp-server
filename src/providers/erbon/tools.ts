@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-import { ok, toolFactory, type ToolDefinition } from '../../core/tool';
+import { ProviderErrorCode } from '../../core/errors';
+import { err, ok, toolFactory, type ToolDefinition } from '../../core/tool';
 import type { ErbonClient } from './client';
 import type { ErbonContext } from './context';
 import { unwrapErbon } from './errors';
@@ -37,6 +38,27 @@ const isoDate = z
  * but withdrawn from this menu, so the agent can never narrate a raw, pre-tax price (AD-2). See
  * `docs/design/erbon-read-only-provider/implementation-plan.md`.
  */
+/** The nights of a stay, `YYYY-MM-DD`: check-in up to the night before check-out. */
+function stayNights(checkIn: string, checkOut: string): string[] {
+  const nights: string[] = [];
+  const end = new Date(`${checkOut}T00:00:00Z`).getTime();
+  for (
+    let d = new Date(`${checkIn}T00:00:00Z`);
+    d.getTime() < end;
+    d.setUTCDate(d.getUTCDate() + 1)
+  ) {
+    nights.push(d.toISOString().slice(0, 10));
+  }
+  return nights;
+}
+
+/** Same multiset of dates — a duplicate or a missing night fails. */
+function sameNights(given: string[], expected: string[]): boolean {
+  return (
+    given.length === expected.length && [...given].sort().join() === [...expected].sort().join()
+  );
+}
+
 export function buildErbonTools(
   client: ErbonClient,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- erased input type (heterogeneous tool collection)
@@ -144,7 +166,15 @@ export function buildErbonTools(
         if (!list.ok) return list;
         // The list does not say which services are daily rates — only each service's detail does. Read
         // the services' details (products never carry a lodging tax), a few at a time.
-        const serviceIds = (Array.isArray(list.data) ? list.data : [])
+        // An unexpected shape is an error, never "this hotel has no daily-rate service": the backend
+        // would quote without the tax Erbon then adds at create. An EMPTY array is a real answer.
+        if (!Array.isArray(list.data)) {
+          return err(
+            ProviderErrorCode.PROVIDER_ERROR,
+            'Erbon list services returned an unexpected shape',
+          );
+        }
+        const serviceIds = list.data
           .filter(
             (s: { isService?: unknown; isProduct?: unknown }) =>
               s?.isService === true && s?.isProduct !== true,
@@ -234,7 +264,21 @@ export function buildErbonTools(
         .refine((v) => v.checkOutDate > v.checkInDate, {
           message: 'checkOutDate must be after checkInDate',
           path: ['checkOutDate'],
-        }),
+        })
+        // Erbon sets the booking's total from `ratePrices` (Observed: 374 + 376 = 750) and the booking
+        // cannot be modified afterwards, so the prices must cover EXACTLY the stay's nights — one per
+        // night from check-in to the night before check-out, no gaps, no extras, no duplicates.
+        .refine(
+          (v) =>
+            sameNights(
+              v.ratePrices.map((p) => p.date),
+              stayNights(v.checkInDate, v.checkOutDate),
+            ),
+          {
+            message: 'ratePrices must have exactly one entry per night of the stay',
+            path: ['ratePrices'],
+          },
+        ),
       handler: async (args, ctx) =>
         unwrapErbon(
           await client.post('booking/new', ctx.request, ctx.metadata, args),

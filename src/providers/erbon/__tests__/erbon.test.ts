@@ -537,3 +537,73 @@ describe('erbon provider — get_lodging_tax', () => {
     expect(res.kind).not.toBe('success');
   });
 });
+
+describe('erbon provider — review hardening', () => {
+  it('get_lodging_tax fails on an unexpected service-list shape instead of answering "no tax"', async () => {
+    const provider = createErbonProvider({
+      fetchImpl: routedFetch({
+        '/mapping/serviceproducts': { body: { items: [] } }, // wrapped, not an array
+        '/settings/taxes': { body: [] },
+      }),
+    });
+
+    const res = await provider.callTool('mcp_erbon_get_lodging_tax', {}, ctx);
+
+    expect(res.kind).not.toBe('success');
+  });
+
+  const booking = {
+    checkInDate: '2026-11-17',
+    checkOutDate: '2026-11-19',
+    idRoomTypeReserved: 2,
+    idRoomTypeOccupied: 2,
+    idRate: 1,
+    idConfigPension: 'BB',
+    numberAdults: 2,
+    guests: [{ idGuest: 7, isHolder: true }],
+  };
+
+  it('create_booking refuses ratePrices that do not cover exactly the stay nights (irreversible write)', async () => {
+    const capture: Captured[] = [];
+    const provider = createErbonProvider({ fetchImpl: fakeFetch({ body: {}, capture }) });
+    for (const ratePrices of [
+      [{ date: '2026-11-17', price: 374 }], // a night missing
+      [
+        { date: '2026-11-17', price: 374 },
+        { date: '2026-11-17', price: 374 },
+      ], // duplicated night
+      [
+        { date: '2026-11-17', price: 374 },
+        { date: '2026-11-19', price: 376 },
+      ], // the check-out day is not a night
+    ]) {
+      const res = await provider.callTool(
+        'mcp_erbon_create_booking',
+        { ...booking, ratePrices },
+        ctx,
+      );
+      expect(res.kind).not.toBe('success');
+    }
+    expect(capture.length).toBe(0); // nothing reached Erbon
+  });
+
+  it('create_booking accepts one price per night', async () => {
+    const capture: Captured[] = [];
+    const provider = createErbonProvider({
+      fetchImpl: fakeFetch({ body: { bookingInternalID: 1, number: 1 }, capture }),
+    });
+    const res = await provider.callTool(
+      'mcp_erbon_create_booking',
+      {
+        ...booking,
+        ratePrices: [
+          { date: '2026-11-18', price: 376 },
+          { date: '2026-11-17', price: 374 },
+        ],
+      },
+      ctx,
+    );
+    expect(res.kind).toBe('success');
+    expect(capture.length).toBe(1);
+  });
+});
