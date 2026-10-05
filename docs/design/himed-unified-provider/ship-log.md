@@ -141,6 +141,24 @@ Diagnóstico manual con `curl`:
 requests. Caída del lado del proveedor, no del código ni de las credenciales. Escalado a HiMed.
 Happy-path sigue pendiente (ventana hasta 2026-10-09).
 
+## 2026-10-05 — Sandbox intermitente: 6/7 en verde + bug de idempotencia en create_patient
+
+En la mañana seguía caído (timeout, igual que el 03 y 04). A las **16:57** volvió (401/403 en <0.5s
+con token dummy) y el E2E FULL dio **6/7 en verde**: `list_locations`, `create_appointment` (idCita
+1030), el verifier `list_patient_appointments` (holds), `cancel_appointment` y el verifier (resolved).
+**El ciclo completo de agendamiento funciona contra el sandbox real a través del provider unificado.**
+
+El único rojo fue `create_patient` → `PROVIDER_INVALID_INPUT (HTTP 400)`, y era **bug nuestro**: el
+paciente de prueba `1099999001` ya existía y HiMed responde un paciente existente con **`400` +
+`"El paciente ya existe en HiMed Web"`** (+ `datos_paciente`), no con `201` como asumía `unwrapHimed`.
+La tool promete idempotencia, así que un paciente recurrente habría frenado el agendamiento. Un
+paciente nuevo sí responde `207 warning` (almacenado, campos opcionales vacíos) — verificado con un
+id aleatorio. Fix: ese `400` se mapea a éxito con un envelope sin PHI (`{ estado: 'exists', mensaje }`);
+cualquier otro `400` sigue `INVALID_INPUT`. Tests nuevos, suite completa 460/460.
+
+Al re-correr con el fix (**17:06**) el sandbox ya estaba **caído de nuevo** (timeout). Falta una
+corrida 7/7 cuando vuelva a estar arriba.
+
 ---
 
 ## Estado as-built — cómo quedó funcionando la Opción B
