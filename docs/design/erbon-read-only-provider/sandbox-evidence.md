@@ -175,3 +175,5 @@ Giovanni (2026-10-04): Erbon rates are **always net**; there is **no dedicated t
 - The `POST .../sales/rate/prices*` endpoints are **writes** ("Insert rate prices"), not quotes — never called.
 
 **`mcp_erbon_get_lodging_tax`** (controlPlane, backend-only) returns `{ dailyRateServices, taxes }` verbatim: it reads the service list, the detail of every service (products skipped, 5 at a time; one failed read fails the tool rather than answering partly) and the tax catalog. The backend derives the rate. Live check (dry run, no booking): the backend quote for the §8 stay is `subtotal 750 + taxes 37.5 = 787.5` — what Erbon recorded on 61716 — with no rate typed by anyone.
+
+- **Final code, live (2026-10-05).** Real backend Gate + adapters → these tool handlers, 1 room BB, 2 adults, `2026-11-17 → 2026-11-19`: the quote read the tax from Erbon (`get_lodging_tax` → "Daily" ISS 5%) → `750 + 37.5 = 787.5`; the create omitted `totalWithTax` → `bookingInternalID 61717 / number 1724`; the read-back put `grandTotal: 787.5` on the handoff (what Erbon recorded = the quote, no `TOTAL DRIFT`); a retry reconciled by voucher with no second create.
