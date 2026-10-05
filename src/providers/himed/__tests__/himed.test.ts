@@ -47,9 +47,9 @@ describe('HiMed unified provider — credential groups', () => {
     expect(provider.listTools()).toHaveLength(14);
     expect(provider.listTools().map((t) => t.name)).toContain('mcp_himed_create_appointment');
     // The scheduling list_locations was dropped — only the directory one remains (OQ-1).
-    expect(
-      provider.listTools().filter((t) => t.name === 'mcp_himed_list_locations'),
-    ).toHaveLength(1);
+    expect(provider.listTools().filter((t) => t.name === 'mcp_himed_list_locations')).toHaveLength(
+      1,
+    );
   });
 
   it('publishes subject-scoped identityPolicy on the patient-exposing scheduling reads', () => {
@@ -101,7 +101,13 @@ describe('HiMed unified provider — credential groups', () => {
     expect((JSON.parse(req.body ?? '{}') as Record<string, unknown>).api_key).toBe('DIR_SEC');
     if (res.kind === 'success') {
       expect(res.data).toEqual([
-        { idSede: '1', sede: 'Poblado', direccion: undefined, telefono: undefined, municipio: undefined },
+        {
+          idSede: '1',
+          sede: 'Poblado',
+          direccion: undefined,
+          telefono: undefined,
+          municipio: undefined,
+        },
       ]);
       expect(JSON.stringify(res.data)).not.toContain('x@x.com'); // PHI curated out
     }
@@ -167,5 +173,54 @@ describe('HiMed unified provider — credential groups', () => {
     );
     expect(res.kind).toBe('error');
     if (res.kind === 'error') expect(res.code).toBe(ProviderErrorCode.AUTH_EXPIRED);
+  });
+
+  it('create_patient treats "patient already exists" (HTTP 400) as idempotent success, without echoing PHI', async () => {
+    // Sandbox-verified 2026-10-05: an existing patient comes back 400 + estado:error + datos_paciente.
+    const provider = createHimedProvider({
+      fetchImpl: fakeFetch(400, {
+        estado: 'error',
+        mensaje: 'El paciente ya existe en HiMed Web',
+        datos_paciente: {
+          id_paciente: '11111111',
+          primer_nombre: 'P',
+          fecha_nacimiento: '1990-01-01',
+        },
+      }),
+    });
+    const res = await provider.callTool(
+      'mcp_himed_create_patient',
+      {
+        tipoDocumento: 'CC',
+        idPaciente: '11111111',
+        primerNombre: 'P',
+        primerApellido: 'X',
+        fechaNacimiento: '1990-01-01',
+      },
+      ctx(),
+    );
+    expect(res.kind).toBe('success');
+    if (res.kind === 'success') {
+      expect(res.data).toEqual({ estado: 'exists', mensaje: 'El paciente ya existe en HiMed Web' });
+    }
+  });
+
+  it('create_patient keeps any other 400 as PROVIDER_INVALID_INPUT', async () => {
+    const provider = createHimedProvider({
+      fetchImpl: fakeFetch(400, { estado: 'error', mensaje: 'Fecha de nacimiento inválida' }),
+    });
+    const res = await provider.callTool(
+      'mcp_himed_create_patient',
+      {
+        tipoDocumento: 'CC',
+        idPaciente: '11111111',
+        primerNombre: 'P',
+        primerApellido: 'X',
+        fechaNacimiento: '1990-01-01',
+      },
+      ctx(),
+    );
+    expect(res.kind).toBe('error');
+    if (res.kind === 'error') expect(res.code).toBe(ProviderErrorCode.INVALID_INPUT);
   });
 });

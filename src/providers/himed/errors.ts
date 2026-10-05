@@ -8,16 +8,24 @@ export type Unwrapped =
 /**
  * Unwrap a HiMed Demográficos response.
  *
- * Unlike Autoagendamiento, Demográficos uses **real HTTP status codes**: `201` success (created or
- * already exists), `207` a non-blocking optional-field warning (still 2xx → success), and `401/406/
- * 417/404` errors. The generic `mapHttpStatusToErrorCode` only routes `400/422` to `INVALID_INPUT`,
- * so we refine the caller-fixable Demográficos codes (`406/417/404`) here; `401` stays `AUTH_EXPIRED`,
- * `5xx`/transport stay `PROVIDER_UNAVAILABLE`.
+ * Unlike Autoagendamiento, Demográficos uses **real HTTP status codes**: `201` success, `207` a
+ * non-blocking optional-field warning (still 2xx → success), and `401/406/417/404` errors. The generic
+ * `mapHttpStatusToErrorCode` only routes `400/422` to `INVALID_INPUT`, so we refine the caller-fixable
+ * Demográficos codes (`406/417/404`) here; `401` stays `AUTH_EXPIRED`, `5xx`/transport stay
+ * `PROVIDER_UNAVAILABLE`.
+ *
+ * An already-existing patient comes back `400` + `"El paciente ya existe en HiMed Web"` (sandbox-verified
+ * 2026-10-05) — that is the idempotent success create_patient promises, so it maps to ok with a
+ * PHI-free envelope (the provider body echoes `datos_paciente`, which we drop).
  *
  * The message carries status + operation only — never the response body (PHI) or the request.
  */
 export function unwrapHimed(res: RequestResult, operation: string): Unwrapped {
   if (!res.ok) {
+    const mensaje = parseBody(res.body)?.mensaje;
+    if (res.status === 400 && (mensaje ?? '').toLowerCase().includes('ya existe')) {
+      return { ok: true, data: { estado: 'exists', mensaje } };
+    }
     const code =
       res.status === 406 || res.status === 417 || res.status === 404
         ? ProviderErrorCode.INVALID_INPUT
@@ -29,10 +37,7 @@ export function unwrapHimed(res: RequestResult, operation: string): Unwrapped {
 }
 
 /** Pull a named array out of an `{ estado, <key>: [...] }` HiMed directory envelope. */
-export function envelopeRows(
-  data: unknown,
-  key: string,
-): ReadonlyArray<Record<string, unknown>> {
+export function envelopeRows(data: unknown, key: string): ReadonlyArray<Record<string, unknown>> {
   const arr = (data as Record<string, unknown> | null)?.[key];
   return Array.isArray(arr) ? (arr as Array<Record<string, unknown>>) : [];
 }
@@ -66,11 +71,7 @@ function classifyScheduling(mensaje: string | undefined): ProviderErrorCode {
     : ProviderErrorCode.INVALID_INPUT;
 }
 
-function failScheduling(
-  operation: string,
-  mensaje: string | undefined,
-  status: number,
-): Unwrapped {
+function failScheduling(operation: string, mensaje: string | undefined, status: number): Unwrapped {
   return {
     ok: false,
     code: classifyScheduling(mensaje),
