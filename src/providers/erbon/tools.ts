@@ -1,12 +1,15 @@
 import { z } from 'zod';
 
-import { toolFactory, type ToolDefinition } from '../../core/tool';
+import { ok, toolFactory, type ToolDefinition } from '../../core/tool';
 import type { ErbonClient } from './client';
 import type { ErbonContext } from './context';
 import { unwrapErbon } from './errors';
 import { SLUG } from './manifest';
 
 const tool = toolFactory<ErbonContext>();
+
+/** How many service details `get_lodging_tax` reads at once (a sandbox hotel has ~20 services). */
+const LODGING_TAX_READ_BATCH = 5;
 
 /** No-argument input — the reference reads that take no filter (hotelID rides the call context). */
 const noArgs = z.object({}).strict();
@@ -119,6 +122,65 @@ export function buildErbonTools(
           }),
           'get rate prices',
         ),
+    }),
+    tool({
+      // BACKEND-ONLY (controlPlane): the hotel's own lodging tax configuration, so the backend quotes a
+      // tax-inclusive total from Erbon's truth instead of asking the tenant for a rate. Erbon has no
+      // dedicated endpoint (Giovanni, 2026-10-04): the tax lives on the hotel's DAILY-RATE service(s)
+      // (`isDailyRate`) — `taxesBR` for a BR hotel, a `taxes` block of ids for any other, whose
+      // percentages are in `settings/taxes`. Returned VERBATIM; interpreting it is the backend's job.
+      name: `mcp_${SLUG}_get_lodging_tax`,
+      description:
+        'BACKEND-ONLY. The connected Erbon hotel’s lodging tax configuration: its daily-rate services ' +
+        '(`isDailyRate: true`) with their tax blocks, plus the hotel’s tax catalog (`settings/taxes`). ' +
+        'Verbatim; the backend derives the rate. No arguments.',
+      controlPlane: true,
+      input: noArgs,
+      handler: async (_args, ctx) => {
+        const list = unwrapErbon(
+          await client.get('mapping/serviceproducts', ctx.request, ctx.metadata),
+          'list services',
+        );
+        if (!list.ok) return list;
+        // The list does not say which services are daily rates — only each service's detail does. Read
+        // the services' details (products never carry a lodging tax), a few at a time.
+        const serviceIds = (Array.isArray(list.data) ? list.data : [])
+          .filter(
+            (s: { isService?: unknown; isProduct?: unknown }) =>
+              s?.isService === true && s?.isProduct !== true,
+          )
+          .map((s: { id?: unknown }) => s.id)
+          .filter((id): id is number => typeof id === 'number');
+        const details: unknown[] = [];
+        for (let i = 0; i < serviceIds.length; i += LODGING_TAX_READ_BATCH) {
+          const batch = await Promise.all(
+            serviceIds
+              .slice(i, i + LODGING_TAX_READ_BATCH)
+              .map(async (id) =>
+                unwrapErbon(
+                  await client.get(`service/${id}`, ctx.request, ctx.metadata),
+                  'get service',
+                ),
+              ),
+          );
+          for (const out of batch) {
+            // One unreadable service makes the configuration incomplete — fail rather than answer partly.
+            if (!out.ok) return out;
+            details.push(out.data);
+          }
+        }
+        const taxes = unwrapErbon(
+          await client.get('settings/taxes', ctx.request, ctx.metadata),
+          'get tax settings',
+        );
+        if (!taxes.ok) return taxes;
+        return ok({
+          dailyRateServices: details.filter(
+            (d) => (d as { isDailyRate?: unknown })?.isDailyRate === true,
+          ),
+          taxes: taxes.data,
+        });
+      },
     }),
     tool({
       // BACKEND-ONLY WRITE (controlPlane, ADR 0013 + 0015): thin passthrough. Erbon has NO cancel/modify

@@ -159,3 +159,19 @@ The real backend Gate + Erbon adapters drove the real MCP tool handlers (zod-val
 - **Reconcile:** a second run found both rooms by voucher and created nothing (creates before/after: 2/2).
 - **No lodging-tax read exists.** `GET /hotel/{hotelID}/settings/taxes` (AE76) lists taxes for services/products only, and returns `[]` for a BR-fiscal hotel. The hotel profile (`GET /hotel/{hotelID}`) carries no tax rate either. So the backend cannot read the tax Erbon will apply — its quote still uses the per-hotel `ivaRate` set on the connection. **Question for Giovanni:** is there a read for the lodging tax rate (or a tax-inclusive price) so the quote can come from Erbon too?
 - **Option A confirmed live (same day).** One room, BB, 2 adults, same dates, `totalWithTax` **omitted** → `bookingInternalID 61716 / number 1723`. Readback: `totalBookingRate: 750`, `totalBookingRateWithTax: 787.5` — Erbon applied the hotel's own 5%, matching the backend quote to the cent (`subtotal 750 + taxes 37.5 = total 787.5`, `ivaRate: 5`). Reconcile adopted it by voucher with no second create.
+
+## 9. Update 2026-10-04 — the lodging tax is readable (new tool `get_lodging_tax`)
+
+Giovanni (2026-10-04): Erbon rates are **always net**; there is **no dedicated tax endpoint** — it depends on how each hotel is configured; most hotels charge the tax on top of the daily rate (Colombia 19%, Brazil 5%). The swagger's own description of `CreateBookingModel.totalWithTax` agrees: when absent, Erbon adds "the taxes the hotel charges on top of the room price (e.g. ISS in Brazil, ISH in Mexico), calculated with the tax settings of the hotel".
+
+**Where those settings live (Observed, read-only):**
+
+- `GET mapping/serviceproducts` (AE49) lists services; it does **not** say which one is the daily rate.
+- `GET service/{id}` (AE72) does. On the BR sandbox hotel:
+  - `id 2 "Daily"` → `isDailyRate: true`, `isServiceTax: true`, `fiscalCountry: "BR"`, `taxesBR.iss: 5` — **the 5% Erbon added to our bookings** (750 → 787.5).
+  - `id 88 "DayUse"` → `isDailyRate: true`, `taxesBR.iss: 0` (`pis: 5`, `cofins: 5`).
+- `GET settings/taxes` (AE76) is the tax catalog for **non-BR** hotels (a service's `taxes` block holds ids into it, with `iva` as the percentage); it returns `[]` for this BR hotel. **No non-BR hotel observed yet.**
+- `RatePriceModel.isTaxIncluded` is ignored: per Giovanni, rate prices are always net.
+- The `POST .../sales/rate/prices*` endpoints are **writes** ("Insert rate prices"), not quotes — never called.
+
+**`mcp_erbon_get_lodging_tax`** (controlPlane, backend-only) returns `{ dailyRateServices, taxes }` verbatim: it reads the service list, the detail of every service (products skipped, 5 at a time; one failed read fails the tool rather than answering partly) and the tax catalog. The backend derives the rate. Live check (dry run, no booking): the backend quote for the §8 stay is `subtotal 750 + taxes 37.5 = 787.5` — what Erbon recorded on 61716 — with no rate typed by anyone.

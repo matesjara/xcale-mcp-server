@@ -451,3 +451,89 @@ describe('erbon provider — booking reads (get_booking / search_booking)', () =
     expect(capture[0]?.init.headers?.bookingCreatedAtEnd).toBe('2026-10-21');
   });
 });
+
+// ---------------------------------------------------------------------------
+// get_lodging_tax — the hotel's own tax configuration (backend-only)
+// ---------------------------------------------------------------------------
+
+/** A fake `fetch` that answers by URL suffix, so a multi-call tool can be driven end to end. */
+function routedFetch(
+  routes: Record<string, { status?: number; body: unknown }>,
+  capture: string[] = [],
+): typeof fetch {
+  return (async (url: string) => {
+    capture.push(url);
+    const hit = Object.entries(routes).find(([suffix]) => url.endsWith(suffix));
+    const status = hit?.[1].status ?? (hit ? 200 : 404);
+    const body = hit?.[1].body ?? {};
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => body,
+      text: async () => JSON.stringify(body),
+    } as unknown as Response;
+  }) as unknown as typeof fetch;
+}
+
+// Observed on the BR sandbox hotel (2026-10-04): "Daily" carries ISS 5% — the rate Erbon applied.
+const DAILY = {
+  id: 2,
+  description: 'Daily',
+  isDailyRate: true,
+  fiscalCountry: 'BR',
+  taxesBR: { iss: 5, pis: 0, cofins: 0 },
+  taxes: null,
+};
+const PARKING = { id: 6, description: 'Estacionamento', isDailyRate: false, fiscalCountry: 'BR' };
+
+describe('erbon provider — get_lodging_tax', () => {
+  it('is backend-only: off the agent menu, routable by the backend', () => {
+    expect(erbonProvider.listTools().map((t) => t.name)).not.toContain('mcp_erbon_get_lodging_tax');
+    expect(erbonProvider.routableToolNames()).toContain('mcp_erbon_get_lodging_tax');
+  });
+
+  it('returns the daily-rate services verbatim plus the tax catalog, skipping products', async () => {
+    const capture: string[] = [];
+    const provider = createErbonProvider({
+      fetchImpl: routedFetch(
+        {
+          '/mapping/serviceproducts': {
+            body: [
+              { id: 2, isService: true, isProduct: false },
+              { id: 6, isService: true, isProduct: false },
+              { id: 9, isService: false, isProduct: true },
+            ],
+          },
+          '/service/2': { body: DAILY },
+          '/service/6': { body: PARKING },
+          '/settings/taxes': { body: [] },
+        },
+        capture,
+      ),
+    });
+
+    const res = await provider.callTool('mcp_erbon_get_lodging_tax', {}, ctx);
+
+    expect(res.kind).toBe('success');
+    if (res.kind === 'success') {
+      expect(res.data).toEqual({ dailyRateServices: [DAILY], taxes: [] });
+    }
+    // A product is never read; every call stays on the connected hotel.
+    expect(capture.some((u) => u.endsWith('/service/9'))).toBe(false);
+    expect(capture.every((u) => u.includes('/hotel/H1/'))).toBe(true);
+  });
+
+  it('fails instead of answering partly when a service detail cannot be read', async () => {
+    const provider = createErbonProvider({
+      fetchImpl: routedFetch({
+        '/mapping/serviceproducts': { body: [{ id: 2, isService: true, isProduct: false }] },
+        '/service/2': { status: 500, body: {} },
+        '/settings/taxes': { body: [] },
+      }),
+    });
+
+    const res = await provider.callTool('mcp_erbon_get_lodging_tax', {}, ctx);
+
+    expect(res.kind).not.toBe('success');
+  });
+});
