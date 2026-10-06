@@ -13,6 +13,7 @@ export const himedManifest: ProviderManifest = {
   slug: SLUG,
   displayName: 'HiMed',
   category: 'health',
+  logoUrl: '/assets/himed.svg',
   schemaVersion: '2026-09-25',
   providerVersion: '0.3.0',
   connectionProbe: { tool: `mcp_${SLUG}_list_locations` },
