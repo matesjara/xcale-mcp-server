@@ -1131,6 +1131,30 @@ describe('woocommerce provider — quote_shipping (Store API)', () => {
     );
   });
 
+  it('a 401/403 from the PUBLIC Store API is a store error, not an expired credential — none was sent', async () => {
+    const h = { 'content-type': 'application/json', Nonce: 'n-1', 'Cart-Token': 't-1' };
+    const impl = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.endsWith('/cart/items') && init?.method === 'DELETE')
+        return new Response('[]', { status: 200, headers: h });
+      if (u.endsWith('/cart/add-item')) return new Response('{}', { status: 403, headers: h });
+      return new Response('{}', { status: 200, headers: h });
+    }) as unknown as typeof globalThis.fetch;
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+
+    const result = await p.callTool(
+      'mcp_woocommerce_quote_shipping',
+      {
+        items: [{ productId: '26', quantity: 1 }],
+        destination: { country: 'CO', state: 'CO-QUI' },
+      },
+      CTX,
+    );
+
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe('PROVIDER_ERROR');
+  });
+
   it('empty rates → empty options (store does not serve the destination)', async () => {
     const { impl } = storeApiFetch({ shipping_rates: [] });
     const p = createWoocommerceProvider({ fetchImpl: impl });
