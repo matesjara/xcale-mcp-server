@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { ProviderErrorCode } from '../../../core/errors';
@@ -646,5 +649,14 @@ describe('erbon provider — get_segment_sources', () => {
     });
     const res = await provider.callTool('mcp_erbon_get_segment_sources', { hotelID: 'other' }, ctx);
     expect(res.kind).not.toBe('success');
+  });
+});
+
+describe('erbon provider — logo', () => {
+  it('advertises a logo the gateway actually serves', () => {
+    const logoUrl = erbonProvider.manifest.logoUrl;
+    expect(logoUrl).toBe('/assets/erbon.webp');
+    // Served from the repo's assets/ folder by GET /assets/:filename (no auth).
+    expect(existsSync(join(process.cwd(), 'assets', 'erbon.webp'))).toBe(true);
   });
 });

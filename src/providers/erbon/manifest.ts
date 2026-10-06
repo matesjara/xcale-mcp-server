@@ -21,6 +21,7 @@ export const erbonManifest: ProviderManifest = {
   slug: SLUG,
   displayName: 'Erbon',
   category: 'hospitality',
+  logoUrl: `/assets/${SLUG}.webp`,
   schemaVersion: '2026-10-06',
   providerVersion: '0.3.0',
 };
