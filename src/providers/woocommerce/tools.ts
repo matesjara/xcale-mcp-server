@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-import type { FetchLike } from '../../core/http';
+import type { FetchLike, RequestResult } from '../../core/http';
 import { definePaginatedList } from '../../core/pagination';
 import { type ToolDefinition, err, ok, toolFactory } from '../../core/tool';
-import type { WoocommerceClient } from './client';
+import type { AuthedRequest, QueryParams, WoocommerceClient } from './client';
 import type { WoocommerceContext } from './context';
 import { wooError } from './errors';
 import { SLUG } from './manifest';
@@ -419,8 +419,31 @@ function toCountryStates(c: RawCountry): WooCountryStates {
   };
 }
 const getHoldStockMinutesInput = z.object({}).strict();
-const UNPAID_ORDER_PAGE_SIZE = 100;
-const UNPAID_ORDER_PAGES = 10;
+const PAGE_SIZE = 100;
+const MAX_PAGES = 10;
+
+/**
+ * Every page of a store collection, until a short page — bounded at MAX_PAGES (1,000 items) per call.
+ * A single page is not the whole collection: a busy store has more than 100 webhooks or pending
+ * orders, and reading page 1 alone made the rest invisible (a duplicate webhook, a stuck expiry).
+ */
+async function readPages<T>(
+  client: WoocommerceClient,
+  path: string,
+  request: AuthedRequest,
+  metadata: WoocommerceContext,
+  params: QueryParams,
+): Promise<{ ok: true; items: T[] } | Extract<RequestResult, { ok: false }>> {
+  const items: T[] = [];
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const res = await client.get(path, request, metadata, { ...params, per_page: PAGE_SIZE, page });
+    if (!res.ok) return res;
+    const batch = res.data as T[];
+    items.push(...batch);
+    if (batch.length < PAGE_SIZE) break;
+  }
+  return { ok: true, items };
+}
 const listUnpaidOrdersInput = z
   .object({
     // ISO 8601 UTC: orders created before this instant (sent with `dates_are_gmt`, so the store's
@@ -1187,9 +1210,9 @@ export function buildWoocommerceTools(
         // Never a duplicate: a webhook already pointing here for this topic is reused — its secret
         // refreshed (the consumer's current one) and re-activated (WooCommerce disables a webhook
         // after repeated failed deliveries).
-        const list = await client.get('webhooks', ctx.request, ctx.metadata, { per_page: 100 });
+        const list = await readPages<RawWebhook>(client, 'webhooks', ctx.request, ctx.metadata, {});
         if (!list.ok) return wooError(list);
-        const existing = (list.data as RawWebhook[]).find(
+        const existing = list.items.find(
           (w) => w.topic === ORDER_WEBHOOK_TOPIC && w.delivery_url === args.deliveryUrl,
         );
         const res = existing
@@ -1281,26 +1304,19 @@ export function buildWoocommerceTools(
       handler: async (args, ctx) => {
         // Oldest first, page by page: orders without a reference (sold elsewhere) are kept by the
         // store forever, so a single page could fill up with them and hide every newer consumer
-        // order. Bounded per call; anything past the bound is read on the next call.
-        const orders: { id: string; orderReference: string }[] = [];
-        for (let page = 1; page <= UNPAID_ORDER_PAGES; page++) {
-          const res = await client.get('orders', ctx.request, ctx.metadata, {
-            status: 'pending',
-            before: args.before,
-            dates_are_gmt: 'true',
-            orderby: 'date',
-            order: 'asc',
-            per_page: UNPAID_ORDER_PAGE_SIZE,
-            page,
-          });
-          if (!res.ok) return wooError(res);
-          const batch = res.data as RawOrderRef[];
-          for (const o of batch) {
-            const orderReference = orderRef(o);
-            if (orderReference) orders.push({ id: String(o.id), orderReference });
-          }
-          if (batch.length < UNPAID_ORDER_PAGE_SIZE) break;
-        }
+        // order. Anything past the bound is read on the next call.
+        const pending = await readPages<RawOrderRef>(client, 'orders', ctx.request, ctx.metadata, {
+          status: 'pending',
+          before: args.before,
+          dates_are_gmt: 'true',
+          orderby: 'date',
+          order: 'asc',
+        });
+        if (!pending.ok) return wooError(pending);
+        const orders = pending.items.flatMap((o) => {
+          const orderReference = orderRef(o);
+          return orderReference ? [{ id: String(o.id), orderReference }] : [];
+        });
         return ok({ orders });
       },
     }),

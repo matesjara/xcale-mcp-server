@@ -1306,6 +1306,40 @@ describe('woocommerce provider — ensure_order_webhook (control-plane, #1309 ph
     });
   });
 
+  it('finds our webhook past the first page of a busy store — never a duplicate', async () => {
+    const calls: { method: string; url: string }[] = [];
+    const others = Array.from({ length: 100 }, (_, i) => ({
+      id: i + 1,
+      topic: 'order.created',
+      delivery_url: `https://elsewhere.example/${i}`,
+    }));
+    const impl = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      calls.push({ method, url: String(url) });
+      const page = new URL(String(url)).searchParams.get('page');
+      const body =
+        method === 'PUT'
+          ? { id: 141, status: 'active', topic: 'order.updated', delivery_url: DELIVERY }
+          : page === '2'
+            ? [{ id: 141, status: 'disabled', topic: 'order.updated', delivery_url: DELIVERY }]
+            : others;
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as unknown as typeof globalThis.fetch;
+
+    const result = await createWoocommerceProvider({ fetchImpl: impl }).callTool(
+      'mcp_woocommerce_ensure_order_webhook',
+      { deliveryUrl: DELIVERY, secret: 's3cr3t-per-connection' },
+      CTX,
+    );
+
+    expect(calls.some((c) => c.method === 'POST')).toBe(false);
+    expect(calls.find((c) => c.method === 'PUT')?.url).toContain('/webhooks/141');
+    expect(successData(result)).toMatchObject({ id: '141', created: false });
+  });
+
   it('names the webhook neutrally — no consumer brand — unless the caller gives its own name', async () => {
     const neutral = webhookFetch([]);
     await createWoocommerceProvider({ fetchImpl: neutral.impl }).callTool(
