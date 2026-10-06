@@ -159,6 +159,19 @@ cualquier otro `400` sigue `INVALID_INPUT`. Tests nuevos, suite completa 460/460
 Al re-correr con el fix (**17:06**) el sandbox ya estaba **caído de nuevo** (timeout). Falta una
 corrida 7/7 cuando vuelva a estar arriba.
 
+## 2026-10-06 — S9 en verde: E2E 7/7 contra el sandbox real
+
+Sandbox arriba a las **07:35**. La primera corrida siguió en 6/7: el fix de ayer **no se disparaba en
+vivo**. Causa: el transporte (`src/core/http.ts`) corta el body de error a 500 caracteres y HiMed
+devuelve todo el `datos_paciente`, así que el JSON llegaba truncado, `parseBody` devolvía `null` y el
+`mensaje` nunca se leía. El test unitario no lo veía porque usaba un body corto. Fix: leer el `mensaje`
+del texto crudo con una regex (va al inicio del body, antes del corte); el test ahora usa un body de
+más de 500 caracteres y se vio en rojo antes del fix. Sin tocar `src/core`.
+
+Re-corrida: **7/7 en verde** — `list_locations`, `create_patient` (paciente existente → `exists`),
+`create_appointment` (idCita 1032), verifier holds, `cancel_appointment`, verifier resolved.
+**S9 cerrado.** Suite completa 460/460.
+
 ---
 
 ## Estado as-built — cómo quedó funcionando la Opción B
