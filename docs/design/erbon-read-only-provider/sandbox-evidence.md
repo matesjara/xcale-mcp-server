@@ -177,3 +177,24 @@ Giovanni (2026-10-04): Erbon rates are **always net**; there is **no dedicated t
 **`mcp_erbon_get_lodging_tax`** (controlPlane, backend-only) returns `{ dailyRateServices, taxes }` verbatim: it reads the service list, the detail of every service (products skipped, 5 at a time; one failed read fails the tool rather than answering partly) and the tax catalog. The backend derives the rate. Live check (dry run, no booking): the backend quote for the §8 stay is `subtotal 750 + taxes 37.5 = 787.5` — what Erbon recorded on 61716 — with no rate typed by anyone.
 
 - **Final code, live (2026-10-05).** Real backend Gate + adapters → these tool handlers, 1 room BB, 2 adults, `2026-11-17 → 2026-11-19`: the quote read the tax from Erbon (`get_lodging_tax` → "Daily" ISS 5%) → `750 + 37.5 = 787.5`; the create omitted `totalWithTax` → `bookingInternalID 61717 / number 1724`; the read-back put `grandTotal: 787.5` on the handoff (what Erbon recorded = the quote, no `TOTAL DRIFT`); a retry reconciled by voucher with no second create.
+
+## 10. Update 2026-10-06 — origin and segment are the hotel's (new tool `get_segment_sources`)
+
+Erbon (2026-10-06), showing booking 61717 in the PMS with **Origin** and **Segment** empty: "none of them
+included the origin and segment information; you must send it, or the hotel has to associate it by hand."
+
+- `create_booking` already took `idSource` (origin) and `idSegment` (segment) as optional passthrough;
+  the backend sent neither.
+- The ids are per hotel: **`GET /hotel/{hotelID}/settings/segmentsources`** ("AE80 — Get the booking
+  segments and sources", active only; "use the returned ids in the idSegment and idSource fields of
+  AE79"). Observed on the sandbox hotel:
+  - sources: `4 DIRETO`, `8 EMPRESA`, `7 INSTAGRAM`, `9 OPERADORA`, `2 OTA`, `5 TELEFONE`, `10 TESTE`,
+    `3 WebSite`, `6 WHATSAPP`;
+  - segments: `5 Agencia de Viagem`, `2 Direto`, `7 Empresa`, `8 Não informado`, `6 Operadora`.
+- **`mcp_erbon_get_segment_sources`** (controlPlane, backend-only) returns that catalogue verbatim. Which
+  pair an xcale booking carries is the HOTEL's choice (stored on its backend connection); nothing here
+  names one.
+- Also observed on 61717: our `voucher` shows in the PMS as **Coupon Code** (open question for Erbon:
+  the expected field for an external channel's reference).
+- Not exposed by the API (open question for Erbon): which daily-rate service a RATE charges — Giovanni
+  confirmed the rate decides it, but `mapping/rates` carries no service id.

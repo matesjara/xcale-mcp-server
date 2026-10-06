@@ -213,6 +213,25 @@ export function buildErbonTools(
       },
     }),
     tool({
+      // BACKEND-ONLY (controlPlane): the hotel's own booking classification — the market segments and
+      // sources (origins) its front desk files every reservation under (AE80). The backend lists them so
+      // the HOTEL picks the pair an xcale booking carries (`idSegment` / `idSource` on create_booking);
+      // without them the hotel classifies every xcale booking by hand (Erbon, 2026-10-06). Each hotel
+      // has its own catalogue, so nothing here names one. Returned VERBATIM (active entries only).
+      name: `mcp_${SLUG}_get_segment_sources`,
+      description:
+        'BACKEND-ONLY. The connected Erbon hotel’s active booking segments and sources (origins): ' +
+        '`{ segments: [{ id, key, description, idGroup }], sources: [...] }`. Their ids are what ' +
+        'create_booking takes as `idSegment` / `idSource`. Verbatim. No arguments.',
+      controlPlane: true,
+      input: noArgs,
+      handler: async (_args, ctx) =>
+        unwrapErbon(
+          await client.get('settings/segmentsources', ctx.request, ctx.metadata),
+          'get segments and sources',
+        ),
+    }),
+    tool({
       // BACKEND-ONLY WRITE (controlPlane, ADR 0013 + 0015): thin passthrough. Erbon has NO cancel/modify
       // — a created booking cannot be undone via API — so it is withdrawn from the agent menu; the
       // backend creates it behind its own availability-guard + voucher-idempotency + human-gated confirm.

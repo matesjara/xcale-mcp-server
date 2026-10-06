@@ -21,6 +21,6 @@ export const erbonManifest: ProviderManifest = {
   slug: SLUG,
   displayName: 'Erbon',
   category: 'hospitality',
-  schemaVersion: '2026-10-04',
-  providerVersion: '0.2.0',
+  schemaVersion: '2026-10-06',
+  providerVersion: '0.3.0',
 };

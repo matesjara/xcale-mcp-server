@@ -607,3 +607,44 @@ describe('erbon provider — review hardening', () => {
     expect(capture.length).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// get_segment_sources — the hotel's booking classification (backend-only)
+// ---------------------------------------------------------------------------
+
+// Observed on the BR sandbox hotel (2026-10-06, AE80): active sources and segments, per hotel.
+const SEGMENT_SOURCES = {
+  segments: [{ id: 2, key: 'Direto', description: 'Direto', idGroup: 2 }],
+  sources: [{ id: 6, key: 'WHATSAPP', description: 'WHATSAPP', idGroup: 2 }],
+};
+
+describe('erbon provider — get_segment_sources', () => {
+  it('is backend-only: off the agent menu, routable by the backend', () => {
+    expect(erbonProvider.listTools().map((t) => t.name)).not.toContain(
+      'mcp_erbon_get_segment_sources',
+    );
+    expect(erbonProvider.routableToolNames()).toContain('mcp_erbon_get_segment_sources');
+  });
+
+  it('reads settings/segmentsources of the connected hotel, verbatim', async () => {
+    const capture: string[] = [];
+    const provider = createErbonProvider({
+      fetchImpl: routedFetch({ '/settings/segmentsources': { body: SEGMENT_SOURCES } }, capture),
+    });
+
+    const res = await provider.callTool('mcp_erbon_get_segment_sources', {}, ctx);
+
+    expect(res.kind).toBe('success');
+    if (res.kind === 'success') expect(res.data).toEqual(SEGMENT_SOURCES);
+    expect(capture).toHaveLength(1);
+    expect(capture[0]).toMatch(/\/hotel\/H1\/settings\/segmentsources$/);
+  });
+
+  it('takes no arguments', async () => {
+    const provider = createErbonProvider({
+      fetchImpl: routedFetch({ '/settings/segmentsources': { body: SEGMENT_SOURCES } }),
+    });
+    const res = await provider.callTool('mcp_erbon_get_segment_sources', { hotelID: 'other' }, ctx);
+    expect(res.kind).not.toBe('success');
+  });
+});
