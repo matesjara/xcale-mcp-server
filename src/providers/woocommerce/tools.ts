@@ -1371,7 +1371,9 @@ export function buildWoocommerceTools(
         'cart-accurate freight the buyer would pay at checkout (via the Store API), NOT the configured ' +
         'base rate. Returns options each with a `cost` ready to pass to create_order as a shippingLine. ' +
         'Empty options ⇒ the store does not ship to that destination (say so; never estimate). `state` ' +
-        'is the ISO 3166-2 subdivision (e.g. CO-QUI, CO-DC).',
+        'is the ISO 3166-2 subdivision (e.g. CO-QUI, CO-DC). How: it opens a throwaway, anonymous Store ' +
+        'API cart session (no credential sent), empties it, adds the items, sets the destination and ' +
+        'reads the rates, then empties it again — no order is placed and nothing is left in the cart.',
       input: quoteShippingInput,
       handler: async (args, ctx) => {
         const result = await quoteShipping(

@@ -1491,3 +1491,15 @@ describe('woocommerce provider — create_order says who it is for', () => {
     expect(createOrder?.description).not.toMatch(/for a buyer/);
   });
 });
+
+describe('woocommerce provider — quote_shipping says what it touches', () => {
+  it('its description states it uses a throwaway Store API cart, emptied, and places no order', () => {
+    const quote = createWoocommerceProvider()
+      .listTools()
+      .find((t) => t.name === 'mcp_woocommerce_quote_shipping');
+
+    expect(quote?.description).toMatch(/cart/i);
+    expect(quote?.description).toMatch(/empt/i);
+    expect(quote?.description).toMatch(/no order/i);
+  });
+});
