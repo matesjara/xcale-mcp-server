@@ -36,10 +36,18 @@ export function createHimedProvider(deps: HimedProviderDeps = {}): IProvider {
 
 /**
  * Default instance registered in src/providers/index.ts. `HIMED_BASE_URL` (Demográficos + directory) and
- * `HIMED_SCHEDULING_BASE_URL` (Autoagendamiento) let a deployment point at the sandbox
- * (`demo.medsas.co/...` and `demo-notificaciones.medsas.co/...`) without a code change; absent, the
- * production defaults stand.
+ * `HIMED_SCHEDULING_BASE_URL` (Autoagendamiento) come from each environment's Doppler config — the
+ * sandbox (`demo.medsas.co/...`, `demo-notificaciones.medsas.co/...`) in dev, HiMed's production hosts in
+ * prd. There is no fallback: an unset host makes HiMed's tools fail closed (see client.ts), and the
+ * server says so at boot instead of at a clinic's first booking. The rest of the server is unaffected.
  */
+const missingHosts = ['HIMED_BASE_URL', 'HIMED_SCHEDULING_BASE_URL'].filter((k) => !process.env[k]);
+if (missingHosts.length > 0 && process.env.NODE_ENV !== 'test') {
+  console.warn(
+    `[himed] ${missingHosts.join(', ')} not set — HiMed tools will fail closed until configured.`,
+  );
+}
+
 export const himedProvider = createHimedProvider({
   ...(process.env.HIMED_BASE_URL ? { baseUrl: process.env.HIMED_BASE_URL } : {}),
   ...(process.env.HIMED_SCHEDULING_BASE_URL

@@ -1,18 +1,20 @@
 import type { RequestSpec } from '../../core/auth/http-request';
+import { ProviderErrorCode } from '../../core/errors';
 import type { RequestResult } from '../../core/http';
 
 /**
  * The HiMed transport for all three groups:
- *  - `post(endpoint, …)` → Demográficos + directory: `m.medsas.co/.../{Controller}/{op}.php`, one POST
- *    per `.php` endpoint (e.g. `Demograficos/crearPaciente.php`, `Sedes/consultarSedes.php`).
+ *  - `post(endpoint, …)` → Demográficos + directory: `{baseUrl}/{Controller}/{op}.php`, one POST per
+ *    `.php` endpoint (e.g. `Demograficos/crearPaciente.php`, `Sedes/consultarSedes.php`).
  *  - `callScheduling(…)` → Autoagendamiento: a single RPC endpoint dispatched by the `accion` body field.
  * The secret is NOT set here — the core materializer injects the called tool's group secret into the
- * JSON body (placement:'body'). The two groups that share `m.medsas.co` share `baseUrl`; scheduling has
- * its own `schedulingBaseUrl`.
+ * JSON body (placement:'body'). Demográficos + directory share `baseUrl`; scheduling has its own
+ * `schedulingBaseUrl`.
+ *
+ * There is NO default host. The previous scheduling default was HiMed's TEST endpoint, so a deploy
+ * that forgot `HIMED_SCHEDULING_BASE_URL` would have booked real patients into the sandbox with nobody
+ * noticing. Each environment sets both (Doppler); an unset one fails closed — no request leaves.
  */
-const DEFAULT_BASE_URL = 'https://m.medsas.co/interoperabilidad/Api/Controllers';
-const DEFAULT_SCHEDULING_BASE_URL =
-  'https://socket.medsas.co/test/notificaciones/envioConsumoAutoagendamiento';
 
 /** Executes an authenticated request; the core reveals the group secret and injects it into the body. */
 export type AuthedRequest = (spec: RequestSpec) => Promise<RequestResult>;
@@ -31,23 +33,36 @@ export interface HimedClient {
   callScheduling(request: AuthedRequest, body: Record<string, unknown>): Promise<RequestResult>;
 }
 
+function notConfigured(envVar: string): Promise<RequestResult> {
+  return Promise.resolve({
+    ok: false,
+    status: 0,
+    errorCode: ProviderErrorCode.PROVIDER_UNAVAILABLE,
+    body: `HiMed host not configured (${envVar})`,
+  });
+}
+
 export function createHimedClient(deps: HimedClientDeps = {}): HimedClient {
-  const baseUrl = (deps.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
-  const schedulingUrl = deps.schedulingBaseUrl ?? DEFAULT_SCHEDULING_BASE_URL;
+  const baseUrl = deps.baseUrl?.replace(/\/+$/, '');
+  const schedulingUrl = deps.schedulingBaseUrl;
   return {
     post: (endpoint, request, body) =>
-      request({
-        method: 'POST',
-        url: `${baseUrl}/${endpoint}`,
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      }),
+      baseUrl
+        ? request({
+            method: 'POST',
+            url: `${baseUrl}/${endpoint}`,
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+        : notConfigured('HIMED_BASE_URL'),
     callScheduling: (request, body) =>
-      request({
-        method: 'POST',
-        url: schedulingUrl,
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      }),
+      schedulingUrl
+        ? request({
+            method: 'POST',
+            url: schedulingUrl,
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+        : notConfigured('HIMED_SCHEDULING_BASE_URL'),
   };
 }

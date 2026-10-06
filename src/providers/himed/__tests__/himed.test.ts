@@ -23,6 +23,12 @@ function fakeFetch(status: number, jsonBody: unknown, sink?: Captured[]): FetchL
   }) as unknown as FetchLike;
 }
 
+/** HiMed has no default host; every test that expects a request to leave configures one. */
+const HOSTS = {
+  baseUrl: 'https://himed.test/interoperabilidad/Api/Controllers',
+  schedulingBaseUrl: 'https://himed-scheduling.test/envioConsumoAutoagendamiento',
+};
+
 /** A context carrying the three-group credential bundle + the codigo_servicio service context. */
 const ctx = () => ({
   credential: {
@@ -38,11 +44,11 @@ const ctx = () => ({
 
 describe('HiMed unified provider — credential groups', () => {
   it('passes provider conformance', async () => {
-    await runProviderConformance(createHimedProvider({ fetchImpl: fakeFetch(200, []) }));
+    await runProviderConformance(createHimedProvider({ ...HOSTS, fetchImpl: fakeFetch(200, []) }));
   });
 
   it('declares one provider with all 14 tools and list_locations as the probe', () => {
-    const provider = createHimedProvider({ fetchImpl: fakeFetch(200, []) });
+    const provider = createHimedProvider({ ...HOSTS, fetchImpl: fakeFetch(200, []) });
     expect(provider.manifest.connectionProbe).toEqual({ tool: 'mcp_himed_list_locations' });
     expect(provider.listTools()).toHaveLength(14);
     expect(provider.listTools().map((t) => t.name)).toContain('mcp_himed_create_appointment');
@@ -53,7 +59,7 @@ describe('HiMed unified provider — credential groups', () => {
   });
 
   it('publishes subject-scoped identityPolicy on the patient-exposing scheduling reads', () => {
-    const provider = createHimedProvider({ fetchImpl: fakeFetch(200, []) });
+    const provider = createHimedProvider({ ...HOSTS, fetchImpl: fakeFetch(200, []) });
     const byName = Object.fromEntries(provider.listTools().map((t) => [t.name, t]));
     expect(byName['mcp_himed_patient_exists']?.identityPolicy).toEqual({ mode: 'subject-scoped' });
     expect(byName['mcp_himed_list_patient_appointments']?.identityPolicy).toEqual({
@@ -64,6 +70,7 @@ describe('HiMed unified provider — credential groups', () => {
   it('create_patient (demograficos group) injects the Demográficos secret as body.api_key', async () => {
     const sink: Captured[] = [];
     const provider = createHimedProvider({
+      ...HOSTS,
       fetchImpl: fakeFetch(201, { estado: 'success' }, sink),
     });
     const res = await provider.callTool(
@@ -88,6 +95,7 @@ describe('HiMed unified provider — credential groups', () => {
   it('list_locations (directorio group, the probe) injects the Service secret as body.api_key', async () => {
     const sink: Captured[] = [];
     const provider = createHimedProvider({
+      ...HOSTS,
       fetchImpl: fakeFetch(
         200,
         { estado: 'success', info_sede: [{ id_sede: '1', sede: 'Poblado', email: 'x@x.com' }] },
@@ -116,6 +124,7 @@ describe('HiMed unified provider — credential groups', () => {
   it('create_appointment (autoagendamiento group) injects the scheduling token + codigo_servicio', async () => {
     const sink: Captured[] = [];
     const provider = createHimedProvider({
+      ...HOSTS,
       fetchImpl: fakeFetch(200, { success: true, idCita: 1029 }, sink),
     });
     const res = await provider.callTool(
@@ -140,7 +149,7 @@ describe('HiMed unified provider — credential groups', () => {
 
   it('get_availability sends the professional as idEspecialista (not idUsuario)', async () => {
     const sink: Captured[] = [];
-    const provider = createHimedProvider({ fetchImpl: fakeFetch(200, [], sink) });
+    const provider = createHimedProvider({ ...HOSTS, fetchImpl: fakeFetch(200, [], sink) });
     await provider.callTool(
       'mcp_himed_get_availability',
       { idUsuario: '42', idSede: '1', fechaInicial: '14-10-2026' },
@@ -155,7 +164,7 @@ describe('HiMed unified provider — credential groups', () => {
     // Sandbox-verified 2026-10-06: list_locations hands the agent `idSede: 1` (a number), the agent
     // passes it straight on, and consultarDisponibilidad rejects it; `"1"` returns the real slots.
     const sink: Captured[] = [];
-    const provider = createHimedProvider({ fetchImpl: fakeFetch(200, [], sink) });
+    const provider = createHimedProvider({ ...HOSTS, fetchImpl: fakeFetch(200, [], sink) });
     await provider.callTool(
       'mcp_himed_get_availability',
       { idUsuario: '42', idSede: 1, fechaInicial: '14-10-2026' },
@@ -177,6 +186,7 @@ describe('HiMed unified provider — credential groups', () => {
       hora: '11:00:00',
     };
     const provider = createHimedProvider({
+      ...HOSTS,
       now: () => new Date('2026-10-01T12:00:00Z'), // before every slot, so only the dedupe is under test
       fetchImpl: fakeFetch(200, [slot, slot, slot, other]),
     });
@@ -197,6 +207,7 @@ describe('HiMed unified provider — credential groups', () => {
     // Live 2026-10-06 12:36 COT: HiMed still listed today 11:00 and the agent offered it.
     const now = () => new Date('2026-10-06T17:36:00Z'); // 12:36 in Bogotá (UTC-5, no DST)
     const provider = createHimedProvider({
+      ...HOSTS,
       now,
       fetchImpl: fakeFetch(200, [
         { disponibilidad: 'past', fecha: '06-10-2026', hora: '11:00:00' },
@@ -218,15 +229,37 @@ describe('HiMed unified provider — credential groups', () => {
     }
   });
 
+  it('with no host configured, HiMed fails closed — no request leaves, PROVIDER_UNAVAILABLE', async () => {
+    // There is no default host any more: the old one was HiMed's TEST endpoint, so a production deploy
+    // without HIMED_SCHEDULING_BASE_URL would have booked real patients into the sandbox.
+    const sink: Captured[] = [];
+    const provider = createHimedProvider({ fetchImpl: fakeFetch(200, [], sink) });
+    for (const [tool, args] of [
+      ['mcp_himed_list_locations', {}],
+      ['mcp_himed_patient_exists', { idPaciente: '11111111' }],
+    ] as const) {
+      const res = await provider.callTool(tool, args, ctx());
+      expect(res.kind).toBe('error');
+      if (res.kind === 'error') expect(res.code).toBe(ProviderErrorCode.PROVIDER_UNAVAILABLE);
+    }
+    expect(sink).toHaveLength(0);
+  });
+
   it('cancel_appointment requires idPaciente', async () => {
-    const provider = createHimedProvider({ fetchImpl: fakeFetch(200, { success: true }) });
+    const provider = createHimedProvider({
+      ...HOSTS,
+      fetchImpl: fakeFetch(200, { success: true }),
+    });
     const res = await provider.callTool('mcp_himed_cancel_appointment', { idCita: '25' }, ctx());
     expect(res.kind).toBe('error');
     if (res.kind === 'error') expect(res.code).toBe(ProviderErrorCode.INVALID_INPUT);
   });
 
   it('maps a Demográficos 401 to PROVIDER_AUTH_EXPIRED', async () => {
-    const provider = createHimedProvider({ fetchImpl: fakeFetch(401, { mensaje: 'token' }) });
+    const provider = createHimedProvider({
+      ...HOSTS,
+      fetchImpl: fakeFetch(401, { mensaje: 'token' }),
+    });
     const res = await provider.callTool(
       'mcp_himed_create_patient',
       {
@@ -247,6 +280,7 @@ describe('HiMed unified provider — credential groups', () => {
     // datos_paciente record — well past the transport's 500-char error-body cap, so the body the
     // provider sees is truncated (invalid) JSON. The padding reproduces that.
     const provider = createHimedProvider({
+      ...HOSTS,
       fetchImpl: fakeFetch(400, {
         estado: 'error',
         mensaje: 'El paciente ya existe en HiMed Web',
@@ -279,6 +313,7 @@ describe('HiMed unified provider — credential groups', () => {
     // Live 2026-10-06: a surname with a digit came back 400 + campos_fallidos.primer_apellido. With
     // only "HTTP 400" the agent guessed the birth date, retried, and escalated.
     const provider = createHimedProvider({
+      ...HOSTS,
       fetchImpl: fakeFetch(400, {
         estado: 'error',
         mensaje: 'Los datos no son validos',
@@ -310,6 +345,7 @@ describe('HiMed unified provider — credential groups', () => {
     // Code review 2026-10-06: the idempotency rule lived in the shared unwrap, so change_patient_document
     // onto another patient's number reported success while HiMed changed nothing.
     const provider = createHimedProvider({
+      ...HOSTS,
       fetchImpl: fakeFetch(400, { estado: 'error', mensaje: 'El paciente ya existe en HiMed Web' }),
     });
     const res = await provider.callTool(
@@ -329,7 +365,10 @@ describe('HiMed unified provider — credential groups', () => {
 
   it('update_patient refuses identity keys inside `fields` — they would retarget another patient', async () => {
     const sink: Captured[] = [];
-    const provider = createHimedProvider({ fetchImpl: fakeFetch(200, { estado: 'ok' }, sink) });
+    const provider = createHimedProvider({
+      ...HOSTS,
+      fetchImpl: fakeFetch(200, { estado: 'ok' }, sink),
+    });
     const res = await provider.callTool(
       'mcp_himed_update_patient',
       {
@@ -346,6 +385,7 @@ describe('HiMed unified provider — credential groups', () => {
 
   it('create_patient keeps any other 400 as PROVIDER_INVALID_INPUT', async () => {
     const provider = createHimedProvider({
+      ...HOSTS,
       fetchImpl: fakeFetch(400, { estado: 'error', mensaje: 'Fecha de nacimiento inválida' }),
     });
     const res = await provider.callTool(
