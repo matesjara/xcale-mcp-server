@@ -324,9 +324,11 @@ export function buildHimedTools(
         // HiMed keys the professional on `idEspecialista` for availability (not `idUsuario`, which it
         // rejects as missing — sandbox 2026-10-01 + Autoagendamiento docs). The agent-facing input stays
         // `idUsuario` (what list_professionals returns); map it to the wire field here.
+        // `idSede` goes as a string: consultarDisponibilidad answers 400 to a numeric one, which is
+        // exactly what list_locations hands the agent (sandbox 2026-10-06).
         await call(ctx, 'consultarDisponibilidad', {
           idEspecialista: args.idUsuario,
-          idSede: args.idSede,
+          idSede: String(args.idSede),
           fechaInicial: args.fechaInicial,
           fechaFinal: args.fechaFinal ?? 'none',
           forma: args.forma,
@@ -334,13 +336,22 @@ export function buildHimedTools(
         'get_availability',
       );
       if (!out.ok) return err(out.code, out.message);
+      // HiMed repeats the same slot across rows; offer each one once.
+      const seen = new Set<string>();
       return ok(
-        rows(out.data).map((r) => ({
-          disponibilidad: r.disponibilidad,
-          fecha: r.fecha,
-          hora: r.hora,
-          duracion: r.duracion,
-        })),
+        rows(out.data)
+          .filter((r) => {
+            const key = `${String(r.fecha)} ${String(r.hora)}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          })
+          .map((r) => ({
+            disponibilidad: r.disponibilidad,
+            fecha: r.fecha,
+            hora: r.hora,
+            duracion: r.duracion,
+          })),
       );
     },
   });

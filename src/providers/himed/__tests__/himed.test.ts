@@ -151,6 +151,45 @@ describe('HiMed unified provider — credential groups', () => {
     expect(body.idUsuario).toBeUndefined();
   });
 
+  it('get_availability sends idSede as a string — HiMed answers 400 to a numeric one', async () => {
+    // Sandbox-verified 2026-10-06: list_locations hands the agent `idSede: 1` (a number), the agent
+    // passes it straight on, and consultarDisponibilidad rejects it; `"1"` returns the real slots.
+    const sink: Captured[] = [];
+    const provider = createHimedProvider({ fetchImpl: fakeFetch(200, [], sink) });
+    await provider.callTool(
+      'mcp_himed_get_availability',
+      { idUsuario: '42', idSede: 1, fechaInicial: '14-10-2026' },
+      ctx(),
+    );
+    const body = JSON.parse(sink[0]!.body ?? '{}') as Record<string, unknown>;
+    expect(body.idSede).toBe('1');
+  });
+
+  it('get_availability returns each slot once — HiMed repeats rows', async () => {
+    const slot = {
+      disponibilidad: 'Martes, 06 de Octubre - 11:00 AM',
+      fecha: '06-10-2026',
+      hora: '11:00:00',
+    };
+    const other = {
+      disponibilidad: 'Miércoles, 07 de Octubre - 11:00 AM',
+      fecha: '07-10-2026',
+      hora: '11:00:00',
+    };
+    const provider = createHimedProvider({ fetchImpl: fakeFetch(200, [slot, slot, slot, other]) });
+    const res = await provider.callTool(
+      'mcp_himed_get_availability',
+      { idUsuario: '42', idSede: '1', fechaInicial: '06-10-2026' },
+      ctx(),
+    );
+    expect(res.kind).toBe('success');
+    if (res.kind === 'success') {
+      expect(
+        (res.data as Array<{ fecha: string; hora: string }>).map((s) => `${s.fecha} ${s.hora}`),
+      ).toEqual(['06-10-2026 11:00:00', '07-10-2026 11:00:00']);
+    }
+  });
+
   it('cancel_appointment requires idPaciente', async () => {
     const provider = createHimedProvider({ fetchImpl: fakeFetch(200, { success: true }) });
     const res = await provider.callTool('mcp_himed_cancel_appointment', { idCita: '25' }, ctx());
