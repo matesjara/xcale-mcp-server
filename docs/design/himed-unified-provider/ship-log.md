@@ -191,7 +191,35 @@ Verificado en vivo después de cada fix (llamada directa al provider contra el s
 el chat. Suite completa **464/464**, `tsc` limpio. Hallazgos del lado del backend (skill, plantilla,
 schema, zona horaria) en `xcale-backend` `docs/design/himed-connect/ship-log.md` › Sesión 4.
 
-Pendiente menor de este repo: `GET /assets/himed.svg` responde 404 (la tarjeta de HiMed sale sin logo).
+Logo: `assets/himed.svg` + `logoUrl` en el manifest (`63c4e85`).
+
+## 2026-10-06 — Code review de la rama
+
+`/code-review` sobre `feat/himed-provider` (10 hallazgos, verificados a mano contra el código actual).
+
+**Corregidos (`ea9a8d5`, E2E 7/7 después del cambio, suite 467/467):**
+- "Ya existe" → éxito vivía en el unwrap compartido: `change_patient_document` hacia el número de otro
+  paciente reportaba éxito sin que HiMed cambiara nada. Ahora es opt-in, solo `create_patient`.
+- `update_patient` esparcía `fields` (libre) después de la identidad: un `id_paciente` dentro de
+  `fields` reescribía a **otro paciente** sin el motivo auditado. Ahora se rechazan las llaves de
+  identidad y de credencial, y la identidad va al final.
+- El logger no redactaba `X-Provider-Credentials` (los tres tokens en claro).
+
+**Decisiones para Mateo (abiertas, no se tocan en esta rama):**
+- **Identity policy de las tools de paciente.** Las lecturas están `subject-scoped` ("no recibe
+  identificador") pero reciben el documento; las 5 escrituras no declaran política. Hoy nada del lado del
+  backend impide que alguien por WhatsApp lea o cancele citas de **otra cédula** — solo la skill de
+  privacidad (prompt). No basta con cambiar a `subject-bound`: el gate del backend compara contra el
+  teléfono y aquí la identidad es la cédula. Falta decidir cómo se amarra la cédula al paciente que
+  escribe.
+- **Host de producción de Autoagendamiento.** El default es `socket.medsas.co/test/...` (el de
+  pruebas). Hay que confirmarlo con HiMed y fijar `HIMED_SCHEDULING_BASE_URL` en producción.
+- **Self-containment.** La rama toca `src/core`, `src/protocol` y `src/auth` (provider multi-credencial,
+  ADR `himed-multi-credential-provider`). La regla del repo exige su aprobación explícita.
+
+**Menores, anotados:** un token de grupo faltante sale como error genérico en vez de "reconectar" y el
+`connectionProbe` solo valida el grupo `directorio`; ambigüedad `fields` vs `groups` en la doc del
+descriptor; el redact de errores no limpia secretos en el body (no se ha visto a HiMed devolverlos).
 
 ---
 
