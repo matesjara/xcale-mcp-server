@@ -172,6 +172,27 @@ Re-corrida: **7/7 en verde** — `list_locations`, `create_patient` (paciente ex
 `create_appointment` (idCita 1032), verifier holds, `cancel_appointment`, verifier resolved.
 **S9 cerrado.** Suite completa 460/460.
 
+## 2026-10-06 — Prueba desde el frontend: el agente real contra el sandbox
+
+Con el stack local completo (este server en `:8080` apuntando al sandbox, backend `feat/himed-connect`,
+frontend), una clínica de prueba conectó HiMed desde la UI, instaló el agente "Clinic Agent (HiMed)" y
+conversó con él: identificar paciente, sedes, especialidades, profesionales, disponibilidad, agendar,
+ver, mover, cancelar y registrar un paciente nuevo. El harness S9 no podía ver lo que sigue porque
+llama a las tools con valores "perfectos"; un LLM las llama con lo que le devolvió la tool anterior.
+
+| # | Síntoma en la conversación | Causa | Fix (commit) |
+|:--|:--|:--|:--|
+| 1 | "Problemas técnicos para consultar la agenda" en cada intento | `consultarDisponibilidad` responde **400 a un `idSede` numérico** — justo lo que `list_locations` le entrega al agente. `"1"` funciona, `1` no | `get_availability` envía `idSede` como texto (`4855c81`) |
+| 2 | El mismo horario aparecía hasta 3 veces | HiMed repite filas | Dedupe por fecha+hora (`4855c81`) |
+| 3 | A las 12:36 ofreció "hoy a las 11:00" | HiMed sigue listando los horarios de hoy ya empezados | Se descartan los horarios ≤ ahora en hora de Colombia (UTC-5, sin DST); reloj inyectable para tests (`ef2be9f`) |
+| 4 | Registrar un paciente nuevo terminaba escalado a un humano | Un apellido con dígito (`pruebasq1`) → `400` + `campos_fallidos.primer_apellido`, pero el provider lo reducía a "HTTP 400" y el agente adivinó otro campo | El mensaje lleva los campos rechazados y el texto de validación de HiMed — nunca un valor enviado (`fba0713`) |
+
+Verificado en vivo después de cada fix (llamada directa al provider contra el sandbox) y con el agente en
+el chat. Suite completa **464/464**, `tsc` limpio. Hallazgos del lado del backend (skill, plantilla,
+schema, zona horaria) en `xcale-backend` `docs/design/himed-connect/ship-log.md` › Sesión 4.
+
+Pendiente menor de este repo: `GET /assets/himed.svg` responde 404 (la tarjeta de HiMed sale sin logo).
+
 ---
 
 ## Estado as-built — cómo quedó funcionando la Opción B
