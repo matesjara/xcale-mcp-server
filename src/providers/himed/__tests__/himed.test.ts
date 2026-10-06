@@ -176,7 +176,10 @@ describe('HiMed unified provider — credential groups', () => {
       fecha: '07-10-2026',
       hora: '11:00:00',
     };
-    const provider = createHimedProvider({ fetchImpl: fakeFetch(200, [slot, slot, slot, other]) });
+    const provider = createHimedProvider({
+      now: () => new Date('2026-10-01T12:00:00Z'), // before every slot, so only the dedupe is under test
+      fetchImpl: fakeFetch(200, [slot, slot, slot, other]),
+    });
     const res = await provider.callTool(
       'mcp_himed_get_availability',
       { idUsuario: '42', idSede: '1', fechaInicial: '06-10-2026' },
@@ -187,6 +190,31 @@ describe('HiMed unified provider — credential groups', () => {
       expect(
         (res.data as Array<{ fecha: string; hora: string }>).map((s) => `${s.fecha} ${s.hora}`),
       ).toEqual(['06-10-2026 11:00:00', '07-10-2026 11:00:00']);
+    }
+  });
+
+  it('get_availability drops slots that already started, in clinic (Colombia) time', async () => {
+    // Live 2026-10-06 12:36 COT: HiMed still listed today 11:00 and the agent offered it.
+    const now = () => new Date('2026-10-06T17:36:00Z'); // 12:36 in Bogotá (UTC-5, no DST)
+    const provider = createHimedProvider({
+      now,
+      fetchImpl: fakeFetch(200, [
+        { disponibilidad: 'past', fecha: '06-10-2026', hora: '11:00:00' },
+        { disponibilidad: 'later today', fecha: '06-10-2026', hora: '15:00:00' },
+        { disponibilidad: 'tomorrow', fecha: '07-10-2026', hora: '11:00:00' },
+      ]),
+    });
+    const res = await provider.callTool(
+      'mcp_himed_get_availability',
+      { idUsuario: '42', idSede: '1', fechaInicial: '06-10-2026' },
+      ctx(),
+    );
+    expect(res.kind).toBe('success');
+    if (res.kind === 'success') {
+      expect((res.data as Array<{ disponibilidad: string }>).map((s) => s.disponibilidad)).toEqual([
+        'later today',
+        'tomorrow',
+      ]);
     }
   });
 

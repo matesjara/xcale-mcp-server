@@ -30,8 +30,20 @@ function rows(data: unknown): ReadonlyArray<Record<string, unknown>> {
  * / times HH:mm:ss; availability keys the professional on `idEspecialista`; cancel needs `idPaciente`.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+/**
+ * A HiMed slot (`DD-MM-YYYY` + `HH:mm:ss`, clinic-local) as an instant. HiMed is Colombia-only and
+ * Colombia is UTC-5 with no daylight saving, so the offset is fixed. `null` when unparseable.
+ */
+function slotInstant(fecha: unknown, hora: unknown): Date | null {
+  const d = /^(\d{2})-(\d{2})-(\d{4})$/.exec(String(fecha));
+  const t = /^(\d{2}):(\d{2})/.exec(String(hora));
+  if (!d || !t) return null;
+  return new Date(`${d[3]}-${d[2]}-${d[1]}T${t[1]}:${t[2]}:00-05:00`);
+}
+
 export function buildHimedTools(
   client: HimedClient,
+  now: () => Date = () => new Date(),
 ): ReadonlyArray<ToolDefinition<any, HimedContext>> {
   const tool = toolFactory<HimedContext>();
 
@@ -336,11 +348,16 @@ export function buildHimedTools(
         'get_availability',
       );
       if (!out.ok) return err(out.code, out.message);
-      // HiMed repeats the same slot across rows; offer each one once.
+      // HiMed repeats the same slot across rows, and still lists today's slots after they started
+      // (live 2026-10-06: 11:00 offered at 12:36). Offer each future slot once. An unparseable slot
+      // is kept — dropping it silently would hide availability HiMed did report.
       const seen = new Set<string>();
+      const cutoff = now().getTime();
       return ok(
         rows(out.data)
           .filter((r) => {
+            const at = slotInstant(r.fecha, r.hora);
+            if (at && at.getTime() <= cutoff) return false;
             const key = `${String(r.fecha)} ${String(r.hora)}`;
             if (seen.has(key)) return false;
             seen.add(key);

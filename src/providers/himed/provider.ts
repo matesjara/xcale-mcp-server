@@ -15,6 +15,8 @@ export interface HimedProviderDeps {
   readonly baseUrl?: string;
   /** Autoagendamiento endpoint URL override. */
   readonly schedulingBaseUrl?: string;
+  /** Injectable clock for deterministic tests (default: the real time). */
+  readonly now?: () => Date;
 }
 
 /** Factory with DI. Multi-credential provider; `codigo_servicio` is its call context. */
@@ -27,7 +29,7 @@ export function createHimedProvider(deps: HimedProviderDeps = {}): IProvider {
     manifest: himedManifest,
     auth: himedAuth,
     metadataSchema: himedContext,
-    tools: buildHimedTools(client),
+    tools: buildHimedTools(client, deps.now),
     ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
   });
 }
