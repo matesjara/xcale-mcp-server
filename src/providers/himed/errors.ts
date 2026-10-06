@@ -16,7 +16,9 @@ export type Unwrapped =
  *
  * An already-existing patient comes back `400` + `"El paciente ya existe en HiMed Web"` (sandbox-verified
  * 2026-10-05) — that is the idempotent success create_patient promises, so it maps to ok with a
- * PHI-free envelope (the provider body echoes `datos_paciente`, which we drop).
+ * PHI-free envelope (the provider body echoes `datos_paciente`, which we drop). ONLY when the caller
+ * opts in with `existsIsSuccess`: for any other Demográficos write "already exists" means the write did
+ * NOT happen (e.g. a document change onto another patient's number) and must stay an error.
  *
  * A validation `400` names the rejected fields in `campos_fallidos` (`{ primer_apellido: "...no cumple
  * parámetros" }`, sandbox 2026-10-06). Those go in the message — field names and HiMed's own
@@ -36,12 +38,20 @@ function failedFields(body: string): string {
   }
 }
 
-export function unwrapHimed(res: RequestResult, operation: string): Unwrapped {
+export function unwrapHimed(
+  res: RequestResult,
+  operation: string,
+  opts: { readonly existsIsSuccess?: boolean } = {},
+): Unwrapped {
   if (!res.ok) {
     // The transport caps error bodies at 500 chars and this one echoes the whole patient record, so
     // the JSON arrives truncated: read the leading `mensaje` field off the raw text instead of parsing.
     const mensaje = /"mensaje"\s*:\s*"([^"]*)"/.exec(res.body)?.[1];
-    if (res.status === 400 && (mensaje ?? '').toLowerCase().includes('ya existe')) {
+    if (
+      opts.existsIsSuccess &&
+      res.status === 400 &&
+      (mensaje ?? '').toLowerCase().includes('ya existe')
+    ) {
       return { ok: true, data: { estado: 'exists', mensaje } };
     }
     const code =

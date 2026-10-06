@@ -306,6 +306,44 @@ describe('HiMed unified provider — credential groups', () => {
     }
   });
 
+  it('"ya existe" is success ONLY for create_patient — a document change onto a taken number is an error', async () => {
+    // Code review 2026-10-06: the idempotency rule lived in the shared unwrap, so change_patient_document
+    // onto another patient's number reported success while HiMed changed nothing.
+    const provider = createHimedProvider({
+      fetchImpl: fakeFetch(400, { estado: 'error', mensaje: 'El paciente ya existe en HiMed Web' }),
+    });
+    const res = await provider.callTool(
+      'mcp_himed_change_patient_document',
+      {
+        tipoIdActual: 'CC',
+        idPacienteActual: '11111111',
+        tipoIdNuevo: 'CC',
+        idPacienteNuevo: '22222222',
+        motivoCambio: 'typo',
+      },
+      ctx(),
+    );
+    expect(res.kind).toBe('error');
+    if (res.kind === 'error') expect(res.code).toBe(ProviderErrorCode.INVALID_INPUT);
+  });
+
+  it('update_patient refuses identity keys inside `fields` — they would retarget another patient', async () => {
+    const sink: Captured[] = [];
+    const provider = createHimedProvider({ fetchImpl: fakeFetch(200, { estado: 'ok' }, sink) });
+    const res = await provider.callTool(
+      'mcp_himed_update_patient',
+      {
+        tipoDocumento: 'CC',
+        idPaciente: '11111111',
+        fields: { id_paciente: '22222222', telefono: '3000000000' },
+      },
+      ctx(),
+    );
+    expect(res.kind).toBe('error');
+    if (res.kind === 'error') expect(res.code).toBe(ProviderErrorCode.INVALID_INPUT);
+    expect(sink).toHaveLength(0); // nothing left the building
+  });
+
   it('create_patient keeps any other 400 as PROVIDER_INVALID_INPUT', async () => {
     const provider = createHimedProvider({
       fetchImpl: fakeFetch(400, { estado: 'error', mensaje: 'Fecha de nacimiento inválida' }),

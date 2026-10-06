@@ -30,6 +30,9 @@ function rows(data: unknown): ReadonlyArray<Record<string, unknown>> {
  * / times HH:mm:ss; availability keys the professional on `idEspecialista`; cancel needs `idPaciente`.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+/** Keys update_patient's free-form `fields` may never carry (identity + the injected credential fields). */
+const RESERVED_UPDATE_KEYS = new Set(['tipo_documento', 'id_paciente', 'api_key', 'token']);
+
 /**
  * A HiMed slot (`DD-MM-YYYY` + `HH:mm:ss`, clinic-local) as an instant. HiMed is Colombia-only and
  * Colombia is UTC-5 with no daylight saving, so the offset is fixed. `null` when unparseable.
@@ -85,7 +88,7 @@ export function buildHimedTools(
         primer_apellido: args.primerApellido,
         fecha_nacimiento: args.fechaNacimiento,
       });
-      const out = unwrapHimed(res, 'create_patient');
+      const out = unwrapHimed(res, 'create_patient', { existsIsSuccess: true });
       return out.ok ? ok(out.data) : err(out.code, out.message);
     },
   });
@@ -102,14 +105,21 @@ export function buildHimedTools(
         idPaciente: z.string().min(4).max(20),
         fields: z
           .record(z.string(), z.union([z.string(), z.number()]))
+          // Identity and credential keys inside `fields` would retarget the write at ANOTHER patient
+          // (or overwrite the injected secret), bypassing change_patient_document's audit reason.
+          .refine((f) => !Object.keys(f).some((k) => RESERVED_UPDATE_KEYS.has(k.toLowerCase())), {
+            message:
+              'fields cannot carry tipo_documento, id_paciente, api_key or token — use change_patient_document to change a document',
+          })
           .describe('Modifiable demographic fields to update (allow-listed at the consumer)'),
       })
       .strict(),
     handler: async (args, ctx) => {
+      // Identity last, so even a key the refine missed can never override which patient is written.
       const res = await client.post('Demograficos/modificarPaciente.php', ctx.request, {
+        ...args.fields,
         tipo_documento: args.tipoDocumento,
         id_paciente: args.idPaciente,
-        ...args.fields,
       });
       const out = unwrapHimed(res, 'update_patient');
       return out.ok ? ok(out.data) : err(out.code, out.message);
