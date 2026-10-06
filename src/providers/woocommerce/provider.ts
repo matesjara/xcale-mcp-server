@@ -27,7 +27,7 @@ export function createWoocommerceProvider(deps: WoocommerceProviderDeps = {}): I
     manifest: woocommerceManifest,
     auth: woocommerceAuth,
     metadataSchema: woocommerceContext,
-    tools: buildWoocommerceTools(client),
+    tools: buildWoocommerceTools(client, fetchImpl),
     fetchImpl,
   });
 }
