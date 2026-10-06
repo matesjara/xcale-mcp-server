@@ -376,6 +376,8 @@ const ensureOrderWebhookInput = z
     deliveryUrl: z.string().url().startsWith('https://', 'deliveryUrl must be https'),
     // Per-connection signing secret; WooCommerce signs each delivery with it (HMAC-SHA256).
     secret: z.string().min(16),
+    // How the webhook is labelled in the store's admin. The caller's own name; absent ⇒ neutral.
+    name: z.string().min(1).max(100).optional(),
   })
   .strict();
 
@@ -1200,7 +1202,7 @@ export function buildWoocommerceTools(
           : await client.post(
               'webhooks',
               {
-                name: 'xcale order updates',
+                name: args.name ?? 'Order updates',
                 topic: ORDER_WEBHOOK_TOPIC,
                 delivery_url: args.deliveryUrl,
                 secret: args.secret,

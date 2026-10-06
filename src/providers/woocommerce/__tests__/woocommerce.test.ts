@@ -1306,6 +1306,28 @@ describe('woocommerce provider — ensure_order_webhook (control-plane, #1309 ph
     });
   });
 
+  it('names the webhook neutrally — no consumer brand — unless the caller gives its own name', async () => {
+    const neutral = webhookFetch([]);
+    await createWoocommerceProvider({ fetchImpl: neutral.impl }).callTool(
+      'mcp_woocommerce_ensure_order_webhook',
+      { deliveryUrl: DELIVERY, secret: 's3cr3t-per-connection' },
+      CTX,
+    );
+    expect(neutral.calls.find((c) => c.method === 'POST')?.body).toMatchObject({
+      name: 'Order updates',
+    });
+
+    const named = webhookFetch([]);
+    await createWoocommerceProvider({ fetchImpl: named.impl }).callTool(
+      'mcp_woocommerce_ensure_order_webhook',
+      { deliveryUrl: DELIVERY, secret: 's3cr3t-per-connection', name: 'Acme — order updates' },
+      CTX,
+    );
+    expect(named.calls.find((c) => c.method === 'POST')?.body).toMatchObject({
+      name: 'Acme — order updates',
+    });
+  });
+
   it('never duplicates: a webhook already at our URL is reused — its secret refreshed, re-activated', async () => {
     const { impl, calls } = webhookFetch([
       { id: 7, status: 'disabled', topic: 'order.created', delivery_url: DELIVERY },
