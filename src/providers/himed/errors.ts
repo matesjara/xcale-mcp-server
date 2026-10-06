@@ -18,8 +18,24 @@ export type Unwrapped =
  * 2026-10-05) — that is the idempotent success create_patient promises, so it maps to ok with a
  * PHI-free envelope (the provider body echoes `datos_paciente`, which we drop).
  *
- * The message carries status + operation only — never the response body (PHI) or the request.
+ * A validation `400` names the rejected fields in `campos_fallidos` (`{ primer_apellido: "...no cumple
+ * parámetros" }`, sandbox 2026-10-06). Those go in the message — field names and HiMed's own
+ * validation text, never a submitted value — so the agent can ask the patient for THAT field instead
+ * of guessing. Otherwise the message carries status + operation only — never the body (PHI).
  */
+function failedFields(body: string): string {
+  const inner = /"campos_fallidos"\s*:\s*\{([^{}]*)\}/.exec(body)?.[1];
+  if (!inner) return '';
+  try {
+    const fields = JSON.parse(`{${inner}}`) as Record<string, unknown>;
+    return Object.entries(fields)
+      .map(([field, why]) => `${field} (${String(why).trim()})`)
+      .join('; ');
+  } catch {
+    return '';
+  }
+}
+
 export function unwrapHimed(res: RequestResult, operation: string): Unwrapped {
   if (!res.ok) {
     // The transport caps error bodies at 500 chars and this one echoes the whole patient record, so
@@ -32,7 +48,14 @@ export function unwrapHimed(res: RequestResult, operation: string): Unwrapped {
       res.status === 406 || res.status === 417 || res.status === 404
         ? ProviderErrorCode.INVALID_INPUT
         : res.errorCode;
-    return { ok: false, code, message: `HiMed ${operation} failed (HTTP ${res.status})` };
+    const fields = failedFields(res.body);
+    return {
+      ok: false,
+      code,
+      message: fields
+        ? `HiMed ${operation} rejected fields: ${fields}`
+        : `HiMed ${operation} failed (HTTP ${res.status})`,
+    };
   }
   // 2xx (201 / 207): the provider body is a plain status envelope ({ estado, mensaje }) with no PHI.
   return { ok: true, data: res.data };

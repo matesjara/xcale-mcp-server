@@ -275,6 +275,37 @@ describe('HiMed unified provider — credential groups', () => {
     }
   });
 
+  it('create_patient tells the agent WHICH field HiMed rejected, so it can ask for that one', async () => {
+    // Live 2026-10-06: a surname with a digit came back 400 + campos_fallidos.primer_apellido. With
+    // only "HTTP 400" the agent guessed the birth date, retried, and escalated.
+    const provider = createHimedProvider({
+      fetchImpl: fakeFetch(400, {
+        estado: 'error',
+        mensaje: 'Los datos no son validos',
+        campos_fallidos: {
+          primer_apellido: 'El primer apellido del paciente no cumple parámetros ',
+        },
+      }),
+    });
+    const res = await provider.callTool(
+      'mcp_himed_create_patient',
+      {
+        tipoDocumento: 'CC',
+        idPaciente: '11111111',
+        primerNombre: 'P',
+        primerApellido: 'X1',
+        fechaNacimiento: '1990-01-01',
+      },
+      ctx(),
+    );
+    expect(res.kind).toBe('error');
+    if (res.kind === 'error') {
+      expect(res.code).toBe(ProviderErrorCode.INVALID_INPUT);
+      expect(res.message).toContain('primer_apellido');
+      expect(res.message).toContain('El primer apellido del paciente no cumple parámetros');
+    }
+  });
+
   it('create_patient keeps any other 400 as PROVIDER_INVALID_INPUT', async () => {
     const provider = createHimedProvider({
       fetchImpl: fakeFetch(400, { estado: 'error', mensaje: 'Fecha de nacimiento inválida' }),
