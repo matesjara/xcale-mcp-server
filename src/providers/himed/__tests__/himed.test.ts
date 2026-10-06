@@ -176,7 +176,9 @@ describe('HiMed unified provider — credential groups', () => {
   });
 
   it('create_patient treats "patient already exists" (HTTP 400) as idempotent success, without echoing PHI', async () => {
-    // Sandbox-verified 2026-10-05: an existing patient comes back 400 + estado:error + datos_paciente.
+    // Sandbox-verified 2026-10-05: an existing patient comes back 400 + estado:error + the full
+    // datos_paciente record — well past the transport's 500-char error-body cap, so the body the
+    // provider sees is truncated (invalid) JSON. The padding reproduces that.
     const provider = createHimedProvider({
       fetchImpl: fakeFetch(400, {
         estado: 'error',
@@ -185,6 +187,7 @@ describe('HiMed unified provider — credential groups', () => {
           id_paciente: '11111111',
           primer_nombre: 'P',
           fecha_nacimiento: '1990-01-01',
+          direccion: 'x'.repeat(600),
         },
       }),
     });

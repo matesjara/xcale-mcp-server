@@ -22,7 +22,9 @@ export type Unwrapped =
  */
 export function unwrapHimed(res: RequestResult, operation: string): Unwrapped {
   if (!res.ok) {
-    const mensaje = parseBody(res.body)?.mensaje;
+    // The transport caps error bodies at 500 chars and this one echoes the whole patient record, so
+    // the JSON arrives truncated: read the leading `mensaje` field off the raw text instead of parsing.
+    const mensaje = /"mensaje"\s*:\s*"([^"]*)"/.exec(res.body)?.[1];
     if (res.status === 400 && (mensaje ?? '').toLowerCase().includes('ya existe')) {
       return { ok: true, data: { estado: 'exists', mensaje } };
     }
