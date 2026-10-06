@@ -67,8 +67,7 @@ function loadLocalEnv(): void {
 loadLocalEnv();
 
 const BASE_URL =
-  process.env.HIMED_BASE_URL ??
-  'https://demo.medsas.co/interoperabilidad/Api/Controllers';
+  process.env.HIMED_BASE_URL ?? 'https://demo.medsas.co/interoperabilidad/Api/Controllers';
 const SCHEDULING_BASE_URL =
   process.env.HIMED_SCHEDULING_BASE_URL ??
   'https://demo-notificaciones.medsas.co/notificaciones/envioConsumoAutoagendamiento';
@@ -78,9 +77,7 @@ const directorio = process.env.HIMED_DIRECTORIO_TOKEN;
 const autoagendamiento = process.env.HIMED_AUTOAGENDAMIENTO_TOKEN;
 const codigoServicio = process.env.HIMED_CODIGO_SERVICIO;
 
-const HAVE_CREDS = Boolean(
-  demograficos && directorio && autoagendamiento && codigoServicio,
-);
+const HAVE_CREDS = Boolean(demograficos && directorio && autoagendamiento && codigoServicio);
 
 const provider = createHimedProvider({
   baseUrl: BASE_URL,
@@ -194,19 +191,28 @@ async function fullFlow(): Promise<void> {
     },
     c,
   );
-  check('create_patient (demograficos, fecha YYYY-MM-DD) succeeds', patient.kind === 'success', patient);
+  check(
+    'create_patient (demograficos, fecha YYYY-MM-DD) succeeds',
+    patient.kind === 'success',
+    patient,
+  );
 
   // 3) book — autoagendamiento group. CrearCita returns ONLY idCita.
   const booked = await provider.callTool(
     'mcp_himed_create_appointment',
-    { idPaciente, idSede: Number(idSede), idUsuario, fechaCita, horaInicioCita, modalidadAtencion: 1 },
+    {
+      idPaciente,
+      idSede: Number(idSede),
+      idUsuario,
+      fechaCita,
+      horaInicioCita,
+      modalidadAtencion: 1,
+    },
     c,
   );
   check('create_appointment (autoagendamiento) succeeds', booked.kind === 'success', booked);
   const idCita =
-    booked.kind === 'success'
-      ? String((booked.data as { idCita?: unknown })?.idCita ?? '')
-      : '';
+    booked.kind === 'success' ? String((booked.data as { idCita?: unknown })?.idCita ?? '') : '';
   check('create_appointment returned an idCita', idCita !== '', idCita);
 
   // 4) the verifier read — the booked cita must be present
@@ -216,8 +222,7 @@ async function fullFlow(): Promise<void> {
     c,
   );
   const present =
-    listed.kind === 'success' &&
-    JSON.stringify((listed.data as unknown) ?? '').includes(idCita);
+    listed.kind === 'success' && JSON.stringify((listed.data as unknown) ?? '').includes(idCita);
   check('list_patient_appointments lists the new cita (verifier: holds)', present, listed);
 
   // 5) cancel — autoagendamiento group, idPaciente required
@@ -226,7 +231,11 @@ async function fullFlow(): Promise<void> {
     { idCita, idPaciente },
     c,
   );
-  check('cancel_appointment (idPaciente required) succeeds', cancelled.kind === 'success', cancelled);
+  check(
+    'cancel_appointment (idPaciente required) succeeds',
+    cancelled.kind === 'success',
+    cancelled,
+  );
 
   // 6) the cancelled cita disappears (verifier: resolved)
   const after = await provider.callTool(
@@ -235,8 +244,7 @@ async function fullFlow(): Promise<void> {
     c,
   );
   const gone =
-    after.kind === 'success' &&
-    !JSON.stringify((after.data as unknown) ?? '').includes(idCita);
+    after.kind === 'success' && !JSON.stringify((after.data as unknown) ?? '').includes(idCita);
   check('the cancelled cita is gone (verifier: resolved)', gone, after);
 }
 
