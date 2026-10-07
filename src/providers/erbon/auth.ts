@@ -11,7 +11,7 @@ import type { ProviderAuthDescriptor } from '../../core/provider-port';
  * `bodyFields` maps LOGICAL credential keys → Erbon's WIRE field names (used verbatim). The wire name
  * for the secret is literally `password` — dictated by Erbon's API (`{"username","password"}`) — which
  * is a non-secret field NAME, not the credential value. That the published catalog contains this name
- * is intentional and safe; see ADR `authdescriptor-field-names-are-non-secret.md`.
+ * is intentional and safe; see ADR `0020-authdescriptor-field-names-are-non-secret.md`.
  *
  * `responseFields.expiry` is `expirationUTCDate`, an ABSOLUTE UTC datetime (not `expires_in` seconds).
  * Parsing it is Rail A's concern (deferred to the backend grill); this server, on the `reference` path,

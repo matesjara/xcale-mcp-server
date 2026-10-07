@@ -1,11 +1,9 @@
-# ADR: authDescriptor field names are non-secret; the catalog secret-scan targets values, not the field name `password`
+# ADR 0020: authDescriptor field names are non-secret; the catalog secret-scan targets values, not the field name `password`
 
-- **Status:** Proposed
+- **Status:** Accepted (Mateo, 2026-10-06)
 - **Date:** 2026-09-28
 - **Decision makers:** Mateo
 - **Tags:** integrations, auth, security
-
-> ⚠️ **Note to Mateo — needs your sign-off.** This ADR authorizes a change to a **security guard test** (`src/core/__tests__/catalog.test.ts`), so it is `Proposed`, not `Accepted`. It does not weaken what the guard protects (no secret *values* may reach the published catalog); it makes the guard stop flagging a non-secret *field name*. Raised by the Erbon read-only provider (`docs/design/erbon-read-only-provider/`); nothing merges until you accept this.
 
 ## Context
 

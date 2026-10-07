@@ -22,7 +22,7 @@ describe('buildCatalog', () => {
     // which legitimately holds non-secret WIRE FIELD NAMES like `password` (Erbon's /auth/login expects
     // `{username,password}`). Secret VALUES never enter the descriptor (SecretString +
     // Credential-in-Transit-Only), so excluding only the name-map keeps the `password` term catching a
-    // real leak ANYWHERE ELSE in the catalog. See ADR authdescriptor-field-names-are-non-secret.md.
+    // real leak ANYWHERE ELSE in the catalog. See ADR 0020 (0020-authdescriptor-field-names-are-non-secret.md).
     const scrubbed = catalog.map((e) => {
       const auth = { ...(e.authDescriptor as Record<string, unknown>) };
       delete auth.bodyFields;
