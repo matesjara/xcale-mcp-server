@@ -453,6 +453,30 @@ describe('erbon provider — booking reads (get_booking / search_booking)', () =
     expect(capture[0]?.init.headers?.bookingCreatedAtStart).toBe('2026-10-19');
     expect(capture[0]?.init.headers?.bookingCreatedAtEnd).toBe('2026-10-21');
   });
+
+  it('search_booking refuses an unfiltered search — never every booking of the hotel', async () => {
+    const capture: Captured[] = [];
+    const provider = createErbonProvider({ fetchImpl: fakeFetch({ body: [], capture }) });
+
+    const res = await provider.callTool('mcp_erbon_search_booking', {}, ctx);
+
+    expect(res.kind).not.toBe('success');
+    expect(capture).toHaveLength(0); // refused before anything reaches Erbon
+  });
+
+  it('search_booking by voucher alone is enough (the reconcile call)', async () => {
+    const capture: Captured[] = [];
+    const provider = createErbonProvider({ fetchImpl: fakeFetch({ body: [], capture }) });
+
+    const res = await provider.callTool(
+      'mcp_erbon_search_booking',
+      { onlineSaleChannelNumber: 'xbk-1-r0' },
+      ctx,
+    );
+
+    expect(res.kind).toBe('success');
+    expect(capture[0]?.init.headers?.onlineSaleChannelNumber).toBe('xbk-1-r0');
+  });
 });
 
 // ---------------------------------------------------------------------------

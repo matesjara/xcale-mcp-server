@@ -387,15 +387,19 @@ export function buildErbonTools(
         ),
     }),
     tool({
-      // BACKEND-ONLY read: Erbon has NO server-side voucher filter, so reconcile lists a window
-      // (check-in/out or created-at) and matches the stamped `voucher` CLIENT-SIDE (anti-duplicate,
-      // since Erbon has no cancel). Filters travel in HEADERS. Withdrawn from the agent menu.
+      // BACKEND-ONLY read. Reconcile finds our booking by the stamped voucher: Erbon filters
+      // `onlineSaleChannelNumber` SERVER-SIDE (Observed, sandbox-evidence §7), and the backend still
+      // confirms the match client-side before trusting it (anti-duplicate, since Erbon has no cancel).
+      // The lookup filters by `bookingNumber`. Filters travel in HEADERS. At least one is required: an
+      // unfiltered search returns every booking of the hotel — every guest's data, unbounded — and no
+      // caller needs that. Withdrawn from the agent menu.
       name: `mcp_${SLUG}_search_booking`,
       description:
         'BACKEND-ONLY. Search bookings at the connected Erbon hotel by a window (checkin/checkout or ' +
         'bookingCreatedAtStart/End), by `bookingNumber`, or by `onlineSaleChannelNumber` (the ' +
         'caller-stamped voucher — the reconcile filter, Observed to match server-side). Returns a flat ' +
-        'array verbatim; the backend still confirms the voucher client-side.',
+        'array verbatim; the backend still confirms the voucher client-side. At least one filter is ' +
+        'required.',
       controlPlane: true,
       input: z
         .object({
@@ -410,7 +414,11 @@ export function buildErbonTools(
           mainguestEmail: z.string().optional(),
           mainguestTel: z.string().optional(),
         })
-        .strict(),
+        .strict()
+        .refine((args) => Object.values(args).some((v) => v !== undefined), {
+          message:
+            'search_booking needs at least one filter (a window, bookingNumber, onlineSaleChannelNumber, …)',
+        }),
       handler: async (args, ctx) => {
         const headers: Record<string, string> = {};
         for (const [k, v] of Object.entries(args)) {
