@@ -3,8 +3,10 @@ import type { ProviderManifest } from '../../core/provider-port';
 export const SLUG = 'erbon';
 
 /**
- * Erbon — a LATAM hotel PMS. Read-only (quote) phase: availability + rates + prices, no booking write
- * (Erbon has not shipped the write API — see `docs/design/erbon-read-only-provider/`).
+ * Erbon — a LATAM hotel PMS. The agent's menu holds the hotel catalog reads (hotel, room types, rates,
+ * availability); the money, guest and booking tools — including the booking write, live since
+ * 2026-09-28 — are backend-only (`controlPlane`). See `docs/design/erbon-read-only-provider/` and
+ * `docs/design/erbon-booking/`.
  *
  * No `connectionProbe`: like Siigo, a `credential_exchange` provider proves its credential by MINTING
  * once at connect (a mint-200 is the fail-closed gate) — there is no cheap no-argument Erbon read to
