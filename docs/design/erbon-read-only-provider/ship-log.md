@@ -60,6 +60,9 @@ on `dev` with #123 (the standalone PR #126 carried the same three commits).
   header (the write path is live, backend-only).
 - `search_booking` now requires at least one filter: unfiltered, it returned every booking of the
   hotel. Both consumer calls always filter (`bookingNumber`, `onlineSaleChannelNumber`).
+- Review note on #127, fixed after release (`fix/erbon-search-booking-empty-filter`): a text filter
+  must be non-blank — `""` or spaces passed the "at least one filter" check and would have reached
+  Erbon as an empty header. Every text filter is now trimmed and refused when empty.
 
 ## Deploy verification (prod)
 

@@ -464,6 +464,20 @@ describe('erbon provider — booking reads (get_booking / search_booking)', () =
     expect(capture).toHaveLength(0); // refused before anything reaches Erbon
   });
 
+  it.each([
+    [{ bookingNumber: '' }],
+    [{ onlineSaleChannelNumber: '   ' }],
+    [{ checkin: '2026-12-01', status: '' }],
+  ])('search_booking refuses an empty text filter (%o) — nothing reaches Erbon', async (args) => {
+    const capture: Captured[] = [];
+    const provider = createErbonProvider({ fetchImpl: fakeFetch({ body: [], capture }) });
+
+    const res = await provider.callTool('mcp_erbon_search_booking', args, ctx);
+
+    expect(res.kind).not.toBe('success');
+    expect(capture).toHaveLength(0);
+  });
+
   it('search_booking by voucher alone is enough (the reconcile call)', async () => {
     const capture: Captured[] = [];
     const provider = createErbonProvider({ fetchImpl: fakeFetch({ body: [], capture }) });
