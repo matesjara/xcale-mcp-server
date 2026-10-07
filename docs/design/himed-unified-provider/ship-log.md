@@ -221,6 +221,25 @@ Logo: `assets/himed.svg` + `logoUrl` en el manifest (`63c4e85`).
 `connectionProbe` solo valida el grupo `directorio`; ambigüedad `fields` vs `groups` en la doc del
 descriptor; el redact de errores no limpia secretos en el body (no se ha visto a HiMed devolverlos).
 
+## 2026-10-06 → 07 — Sin host por defecto, deps, PR #125 y E2E por WhatsApp
+
+- **Sin host por defecto** (`fc4a6dd`): el default de Autoagendamiento era el endpoint de **pruebas**
+  de HiMed; un deploy sin `HIMED_SCHEDULING_BASE_URL` habría mandado citas reales al sandbox. Ahora las
+  dos URLs salen solo del entorno (Doppler: sandbox en `dev`/`dev_sara`, producción en `prd`); sin ellas
+  HiMed falla cerrado, el server lo avisa al arrancar y los demás providers no se enteran
+  (`docs/deploy.md`). Config personal `dev_sara` creada en el proyecto `xcale-mcp-server` (hereda `dev`
+  + las dos URLs del sandbox).
+- **Audit de dependencias:** `dev` quedó rojo el 2026-10-06 por avisos nuevos (proxy-addr, MCP SDK,
+  vitest/tinypool). Arreglado en el PR #126 (lockfile + vitest 5, sin cambio de código; probado: 0
+  vulnerabilidades, todos los tests en verde) y traído a esta rama para que el CI del PR #125 pase.
+- **PR #125** abierto como borrador hacia `dev`; CI verde.
+- **E2E con el backend `feat/himed`** (chat y WhatsApp vía relay, detalle en el ship-log del backend,
+  Sesión 5): todo el flujo funcionó contra el sandbox. Encontró un bug de este repo:
+  **disponibilidad de un solo día** (`fechaFinal = fechaInicial`) → 400 de HiMed. Arreglado en
+  `513d94c`: se pide [día, día+1] y se devuelve solo el día (cruza fin de mes); verificado en vivo.
+- **Pregunta abierta para HiMed:** el sandbox devuelve horarios distintos para el mismo profesional y día
+  según el rango pedido (lunes 12: 17:00 sin fecha final o hasta el 13; 11:00 hasta el 19).
+
 ---
 
 ## Estado as-built — cómo quedó funcionando la Opción B
