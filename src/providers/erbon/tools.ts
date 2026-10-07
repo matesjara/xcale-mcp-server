@@ -14,6 +14,8 @@ const LODGING_TAX_READ_BATCH = 5;
 
 /** No-argument input — the reference reads that take no filter (hotelID rides the call context). */
 const noArgs = z.object({}).strict();
+/** A search filter's text: never empty or blank (trimmed before it travels as a header). */
+const searchText = z.string().trim().min(1);
 
 /**
  * Erbon takes stay dates as ISO calendar dates, `YYYY-MM-DD`. The shape check is not enough — a
@@ -407,12 +409,14 @@ export function buildErbonTools(
           checkout: isoDate.optional(),
           bookingCreatedAtStart: isoDate.optional(),
           bookingCreatedAtEnd: isoDate.optional(),
-          status: z.string().optional(),
-          bookingNumber: z.string().optional(),
+          // A text filter must say something: "" (or blanks) would reach Erbon as an empty header —
+          // at best ignored, at worst the unfiltered search the refine below exists to refuse.
+          status: searchText.optional(),
+          bookingNumber: searchText.optional(),
           // The caller-stamped voucher, round-tripped on reads; filters bookings server-side (Observed).
-          onlineSaleChannelNumber: z.string().optional(),
-          mainguestEmail: z.string().optional(),
-          mainguestTel: z.string().optional(),
+          onlineSaleChannelNumber: searchText.optional(),
+          mainguestEmail: searchText.optional(),
+          mainguestTel: searchText.optional(),
         })
         .strict()
         .refine((args) => Object.values(args).some((v) => v !== undefined), {
