@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { ProviderErrorCode } from '../../core/errors';
 import {
   err,
   ok,
@@ -229,6 +230,50 @@ export function buildHimedTools(
   });
 
   // ─── Autoagendamiento (group: autoagendamiento) ──────────────────────────
+  // ─── Per-group credential probes (control-plane: never on the agent's menu) ───────────────────
+  // The consumer runs every group's probe at connect (auth.ts `groups[].probe`), so no token is stored
+  // unverified. The directory group's probe is the read `list_locations`.
+
+  const verifyDemograficos = tool({
+    name: 'mcp_himed_verify_demograficos',
+    description:
+      'Control-plane: prove the Demográficos token. Writes nothing — sends a create with an EMPTY body; ' +
+      'HiMed answers 401 to a bad token and 400 (invalid data, nothing created) to a good one.',
+    credentialGroup: 'demograficos',
+    controlPlane: true,
+    input: z.object({}).strict(),
+    handler: async (_args, ctx) => {
+      const res = await client.post('Demograficos/crearPaciente.php', ctx.request, {});
+      if (res.ok) return ok({ verified: true });
+      if (res.errorCode === ProviderErrorCode.AUTH_EXPIRED) {
+        return err(ProviderErrorCode.AUTH_EXPIRED, 'HiMed rejected the Demográficos token');
+      }
+      // HiMed down / unreachable: we cannot vouch for the token — fail closed.
+      if (res.errorCode === ProviderErrorCode.PROVIDER_UNAVAILABLE) {
+        return err(res.errorCode, `HiMed verify_demograficos failed (HTTP ${res.status})`);
+      }
+      // Any other answer (400 "Los datos no son validos") came AFTER the token check passed.
+      return ok({ verified: true });
+    },
+  });
+
+  const verifyAutoagendamiento = tool({
+    name: 'mcp_himed_verify_autoagendamiento',
+    description:
+      'Control-plane: prove the Autoagendamiento token and service code with a read (patient-exists on ' +
+      'a document no clinic issues). A bad token is AUTH_EXPIRED.',
+    credentialGroup: 'autoagendamiento',
+    controlPlane: true,
+    input: z.object({}).strict(),
+    handler: async (_args, ctx) => {
+      const out = unwrapHimedScheduling(
+        await call(ctx, 'existePaciente', { idPaciente: '0000000000' }),
+        'verify_autoagendamiento',
+      );
+      return out.ok ? ok({ verified: true }) : err(out.code, out.message);
+    },
+  });
+
   const patientExists = tool({
     name: 'mcp_himed_patient_exists',
     description:
@@ -497,5 +542,7 @@ export function buildHimedTools(
     createAppointment,
     listPatientAppointments,
     cancelAppointment,
+    verifyDemograficos,
+    verifyAutoagendamiento,
   ];
 }

@@ -27,6 +27,13 @@ export interface CredentialGroup {
     readonly label: string;
     readonly placement: 'header' | 'query' | 'body';
   };
+  /**
+   * A no-argument tool that proves THIS group's secret — a consumer calls every group's probe before it
+   * persists the bundle, so a connection never stores a token nobody verified (the provider-level
+   * `connectionProbe` exercises one group only). Typically a control-plane tool: it must have no side
+   * effect and answer AUTH_EXPIRED for a bad secret.
+   */
+  readonly probe?: string;
 }
 
 export type ProviderAuthDescriptor =

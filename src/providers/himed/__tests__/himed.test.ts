@@ -453,3 +453,77 @@ describe('HiMed unified provider — credential groups', () => {
     if (res.kind === 'error') expect(res.code).toBe(ProviderErrorCode.INVALID_INPUT);
   });
 });
+
+describe('HiMed per-group credential probes (connect verifies EVERY token)', () => {
+  // A connect that proved only the directory token stored a mistyped Demográficos or Autoagendamiento
+  // token as CONNECTED; the clinic found out mid-booking, in front of a patient (code review
+  // 2026-10-07). Each group now names a probe the consumer runs before it stores the bundle.
+  it('every credential group declares a probe tool', () => {
+    const provider = createHimedProvider({ ...HOSTS, fetchImpl: fakeFetch(200, []) });
+    const groups =
+      (provider.auth as { groups?: Array<{ key: string; probe?: string }> }).groups ?? [];
+    expect(Object.fromEntries(groups.map((g) => [g.key, g.probe]))).toEqual({
+      demograficos: 'mcp_himed_verify_demograficos',
+      directorio: 'mcp_himed_list_locations',
+      autoagendamiento: 'mcp_himed_verify_autoagendamiento',
+    });
+  });
+
+  it('the probes are control-plane: callable by name, never on the agent menu', async () => {
+    const provider = createHimedProvider({
+      ...HOSTS,
+      fetchImpl: fakeFetch(400, { estado: 'error' }),
+    });
+    const listed = provider.listTools().map((t) => t.name);
+    expect(listed).not.toContain('mcp_himed_verify_demograficos');
+    expect(listed).not.toContain('mcp_himed_verify_autoagendamiento');
+    const res = await provider.callTool('mcp_himed_verify_demograficos', {}, ctx());
+    expect(res.kind).toBe('success');
+  });
+
+  it('verify_demograficos writes nothing: it sends only the token, and a 400 means the token is good', async () => {
+    // Sandbox 2026-10-07: crearPaciente with an empty body → 400 "Los datos no son validos" with a
+    // valid token (nothing created), 401 "El token no es válido" with a bad one.
+    const sink: Captured[] = [];
+    const provider = createHimedProvider({
+      ...HOSTS,
+      fetchImpl: fakeFetch(400, { estado: 'error', mensaje: 'Los datos no son validos' }, sink),
+    });
+    const res = await provider.callTool('mcp_himed_verify_demograficos', {}, ctx());
+    expect(res.kind).toBe('success');
+    expect(Object.keys(JSON.parse(sink[0]!.body ?? '{}'))).toEqual(['api_key']);
+    expect(sink[0]!.url).toContain('/Demograficos/crearPaciente.php');
+  });
+
+  it('verify_demograficos maps a bad token to PROVIDER_AUTH_EXPIRED', async () => {
+    const provider = createHimedProvider({
+      ...HOSTS,
+      fetchImpl: fakeFetch(401, { estado: 'error', mensaje: 'El token no es válido' }),
+    });
+    const res = await provider.callTool('mcp_himed_verify_demograficos', {}, ctx());
+    expect(res.kind).toBe('error');
+    if (res.kind === 'error') expect(res.code).toBe(ProviderErrorCode.AUTH_EXPIRED);
+  });
+
+  it('verify_demograficos cannot vouch for a token when HiMed is down', async () => {
+    const provider = createHimedProvider({ ...HOSTS, fetchImpl: fakeFetch(503, {}) });
+    const res = await provider.callTool('mcp_himed_verify_demograficos', {}, ctx());
+    expect(res.kind).toBe('error');
+    if (res.kind === 'error') expect(res.code).toBe(ProviderErrorCode.PROVIDER_UNAVAILABLE);
+  });
+
+  it('verify_autoagendamiento is a read: a good token answers, a bad one is AUTH_EXPIRED', async () => {
+    const ok = createHimedProvider({ ...HOSTS, fetchImpl: fakeFetch(200, [{ cantidad: 0 }]) });
+    expect((await ok.callTool('mcp_himed_verify_autoagendamiento', {}, ctx())).kind).toBe(
+      'success',
+    );
+
+    const bad = createHimedProvider({
+      ...HOSTS,
+      fetchImpl: fakeFetch(401, { success: false, mensaje: 'El token no es valido' }),
+    });
+    const res = await bad.callTool('mcp_himed_verify_autoagendamiento', {}, ctx());
+    expect(res.kind).toBe('error');
+    if (res.kind === 'error') expect(res.code).toBe(ProviderErrorCode.AUTH_EXPIRED);
+  });
+});
