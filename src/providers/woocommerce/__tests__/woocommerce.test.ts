@@ -1131,6 +1131,30 @@ describe('woocommerce provider — quote_shipping (Store API)', () => {
     );
   });
 
+  it('a 401/403 from the PUBLIC Store API is a store error, not an expired credential — none was sent', async () => {
+    const h = { 'content-type': 'application/json', Nonce: 'n-1', 'Cart-Token': 't-1' };
+    const impl = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.endsWith('/cart/items') && init?.method === 'DELETE')
+        return new Response('[]', { status: 200, headers: h });
+      if (u.endsWith('/cart/add-item')) return new Response('{}', { status: 403, headers: h });
+      return new Response('{}', { status: 200, headers: h });
+    }) as unknown as typeof globalThis.fetch;
+    const p = createWoocommerceProvider({ fetchImpl: impl });
+
+    const result = await p.callTool(
+      'mcp_woocommerce_quote_shipping',
+      {
+        items: [{ productId: '26', quantity: 1 }],
+        destination: { country: 'CO', state: 'CO-QUI' },
+      },
+      CTX,
+    );
+
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') expect(result.code).toBe('PROVIDER_ERROR');
+  });
+
   it('empty rates → empty options (store does not serve the destination)', async () => {
     const { impl } = storeApiFetch({ shipping_rates: [] });
     const p = createWoocommerceProvider({ fetchImpl: impl });
@@ -1282,6 +1306,62 @@ describe('woocommerce provider — ensure_order_webhook (control-plane, #1309 ph
     });
   });
 
+  it('finds our webhook past the first page of a busy store — never a duplicate', async () => {
+    const calls: { method: string; url: string }[] = [];
+    const others = Array.from({ length: 100 }, (_, i) => ({
+      id: i + 1,
+      topic: 'order.created',
+      delivery_url: `https://elsewhere.example/${i}`,
+    }));
+    const impl = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      calls.push({ method, url: String(url) });
+      const page = new URL(String(url)).searchParams.get('page');
+      const body =
+        method === 'PUT'
+          ? { id: 141, status: 'active', topic: 'order.updated', delivery_url: DELIVERY }
+          : page === '2'
+            ? [{ id: 141, status: 'disabled', topic: 'order.updated', delivery_url: DELIVERY }]
+            : others;
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as unknown as typeof globalThis.fetch;
+
+    const result = await createWoocommerceProvider({ fetchImpl: impl }).callTool(
+      'mcp_woocommerce_ensure_order_webhook',
+      { deliveryUrl: DELIVERY, secret: 's3cr3t-per-connection' },
+      CTX,
+    );
+
+    expect(calls.some((c) => c.method === 'POST')).toBe(false);
+    expect(calls.find((c) => c.method === 'PUT')?.url).toContain('/webhooks/141');
+    expect(successData(result)).toMatchObject({ id: '141', created: false });
+  });
+
+  it('names the webhook neutrally — no consumer brand — unless the caller gives its own name', async () => {
+    const neutral = webhookFetch([]);
+    await createWoocommerceProvider({ fetchImpl: neutral.impl }).callTool(
+      'mcp_woocommerce_ensure_order_webhook',
+      { deliveryUrl: DELIVERY, secret: 's3cr3t-per-connection' },
+      CTX,
+    );
+    expect(neutral.calls.find((c) => c.method === 'POST')?.body).toMatchObject({
+      name: 'Order updates',
+    });
+
+    const named = webhookFetch([]);
+    await createWoocommerceProvider({ fetchImpl: named.impl }).callTool(
+      'mcp_woocommerce_ensure_order_webhook',
+      { deliveryUrl: DELIVERY, secret: 's3cr3t-per-connection', name: 'Acme — order updates' },
+      CTX,
+    );
+    expect(named.calls.find((c) => c.method === 'POST')?.body).toMatchObject({
+      name: 'Acme — order updates',
+    });
+  });
+
   it('never duplicates: a webhook already at our URL is reused — its secret refreshed, re-activated', async () => {
     const { impl, calls } = webhookFetch([
       { id: 7, status: 'disabled', topic: 'order.created', delivery_url: DELIVERY },
@@ -1409,5 +1489,17 @@ describe('woocommerce provider — create_order says who it is for', () => {
 
     expect(createOrder?.description).toMatch(/^Owner-facing/);
     expect(createOrder?.description).not.toMatch(/for a buyer/);
+  });
+});
+
+describe('woocommerce provider — quote_shipping says what it touches', () => {
+  it('its description states it uses a throwaway Store API cart, emptied, and places no order', () => {
+    const quote = createWoocommerceProvider()
+      .listTools()
+      .find((t) => t.name === 'mcp_woocommerce_quote_shipping');
+
+    expect(quote?.description).toMatch(/cart/i);
+    expect(quote?.description).toMatch(/empt/i);
+    expect(quote?.description).toMatch(/no order/i);
   });
 });

@@ -1,6 +1,7 @@
 import type { IProvider } from '../core/provider-port';
 import { cloudbedsProvider } from './cloudbeds';
 import { echoProvider } from './echo';
+import { erbonProvider } from './erbon';
 import { siigoProvider } from './siigo';
 import { toteatProvider } from './toteat';
 import { woocommerceProvider } from './woocommerce';
@@ -15,6 +16,7 @@ import { woocommerceProvider } from './woocommerce';
 export const PROVIDERS: readonly IProvider[] = [
   echoProvider,
   cloudbedsProvider,
+  erbonProvider,
   toteatProvider,
   siigoProvider,
   woocommerceProvider,
