@@ -1,0 +1,434 @@
+import { z } from 'zod';
+
+import { ProviderErrorCode } from '../../core/errors';
+import { err, ok, toolFactory, type ToolDefinition } from '../../core/tool';
+import type { ErbonClient } from './client';
+import type { ErbonContext } from './context';
+import { unwrapErbon } from './errors';
+import { SLUG } from './manifest';
+
+const tool = toolFactory<ErbonContext>();
+
+/** How many service details `get_lodging_tax` reads at once (a sandbox hotel has ~20 services). */
+const LODGING_TAX_READ_BATCH = 5;
+
+/** No-argument input — the reference reads that take no filter (hotelID rides the call context). */
+const noArgs = z.object({}).strict();
+
+/**
+ * Erbon takes stay dates as ISO calendar dates, `YYYY-MM-DD`. The shape check is not enough — a
+ * syntactically valid but non-existent date (`2026-02-30`, `2026-13-45`) would otherwise be forwarded
+ * to Erbon, and on the irreversible `create_booking` that is a booking on the wrong (or no) date with
+ * no API undo. The refine confirms the date round-trips, i.e. it is a real calendar day.
+ */
+const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use an ISO calendar date (YYYY-MM-DD)')
+  .refine((s) => {
+    const d = new Date(`${s}T00:00:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+  }, 'Not a real calendar date');
+
+/**
+ * The curated Erbon menu — money-free reads only. `hotelID` comes from the call context, never a tool
+ * arg. Data is returned VERBATIM (Fidelity over Unification); no canonical DTO. Erbon filter params
+ * travel in HEADERS, not the query string.
+ *
+ * The money read (`get_rate_prices`) is added in S3 as a `controlPlane` tool — routable by the backend
+ * but withdrawn from this menu, so the agent can never narrate a raw, pre-tax price (AD-2). See
+ * `docs/design/erbon-read-only-provider/implementation-plan.md`.
+ */
+/** The nights of a stay, `YYYY-MM-DD`: check-in up to the night before check-out. */
+function stayNights(checkIn: string, checkOut: string): string[] {
+  const nights: string[] = [];
+  const end = new Date(`${checkOut}T00:00:00Z`).getTime();
+  for (
+    let d = new Date(`${checkIn}T00:00:00Z`);
+    d.getTime() < end;
+    d.setUTCDate(d.getUTCDate() + 1)
+  ) {
+    nights.push(d.toISOString().slice(0, 10));
+  }
+  return nights;
+}
+
+/** Same multiset of dates — a duplicate or a missing night fails. */
+function sameNights(given: string[], expected: string[]): boolean {
+  return (
+    given.length === expected.length && [...given].sort().join() === [...expected].sort().join()
+  );
+}
+
+export function buildErbonTools(
+  client: ErbonClient,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- erased input type (heterogeneous tool collection)
+): ReadonlyArray<ToolDefinition<any, ErbonContext>> {
+  return [
+    tool({
+      name: `mcp_${SLUG}_check_availability`,
+      description:
+        'Check room availability at the connected Erbon hotel for a stay window. Takes `checkinDate` ' +
+        'and `checkoutDate` (YYYY-MM-DD). Returns a flat array (verbatim) of rows — each `{ date, ' +
+        'roomTypeDescription, statusAvailability }` — where `statusAvailability` is the count of that ' +
+        'room type free on that date. Does NOT return prices; use it to see what is available, then ' +
+        'quote through the booking flow. The hotel is the connected one (no hotel id argument).',
+      input: z.object({ checkinDate: isoDate, checkoutDate: isoDate }).strict(),
+      handler: async (args, ctx) =>
+        unwrapErbon(
+          await client.get('availability', ctx.request, ctx.metadata, {
+            checkinDate: args.checkinDate,
+            checkoutDate: args.checkoutDate,
+          }),
+          'check availability',
+        ),
+    }),
+    tool({
+      name: `mcp_${SLUG}_list_room_types`,
+      description:
+        'List the room types at the connected Erbon hotel. Returns a flat array (verbatim); each ' +
+        'carries `id`, `code`, `description`, `minPax`, `maxPax`, `roomCount`. Use `description` to ' +
+        'join with check_availability rows, and min/max pax to match a party size.',
+      input: noArgs,
+      handler: async (_args, ctx) =>
+        unwrapErbon(
+          await client.get('mapping/roomtype', ctx.request, ctx.metadata),
+          'list room types',
+        ),
+    }),
+    tool({
+      name: `mcp_${SLUG}_list_rates`,
+      description:
+        'List the rate plans at the connected Erbon hotel. Returns a flat array (verbatim); each ' +
+        'carries `id`, `code`, `description` and meal-plan flags `allowRO`/`allowBB`/`allowHB`/' +
+        '`allowFB`/`allowAI` (Room Only / Bed & Breakfast / Half / Full board / All Inclusive). Rate ' +
+        'definitions only — not prices.',
+      input: noArgs,
+      handler: async (_args, ctx) =>
+        unwrapErbon(await client.get('mapping/rates', ctx.request, ctx.metadata), 'list rates'),
+    }),
+    tool({
+      name: `mcp_${SLUG}_get_hotel`,
+      description:
+        'Get the connected Erbon hotel profile (name, contact, currency), verbatim. Use it for the ' +
+        'hotel name and contact details when handing a guest off to the hotel to complete a booking.',
+      input: noArgs,
+      handler: async (_args, ctx) =>
+        unwrapErbon(await client.get('', ctx.request, ctx.metadata), 'get hotel'),
+    }),
+    tool({
+      // BACKEND-ONLY (AD-2, the money guard): `controlPlane: true` keeps this OUT of `listTools()` — the
+      // agent's menu — while it stays in `routableToolNames()`, callable by the backend. It is the only
+      // Erbon read that returns money; the backend `erbon-stay-truth` adapter consumes it to compose a
+      // tax-correct StayQuote. Off the menu, the agent can never narrate a raw, pre-tax price.
+      name: `mcp_${SLUG}_get_rate_prices`,
+      description:
+        'BACKEND-ONLY (withdrawn from the agent menu). Rate prices for one rate + room type over a date ' +
+        'range at the connected Erbon hotel. Consumed by the backend to compose a tax-correct quote — ' +
+        'the agent never narrates a raw price. Returns a flat array (verbatim); params travel in headers.',
+      controlPlane: true,
+      input: z
+        .object({
+          dateFrom: isoDate,
+          dateTo: isoDate,
+          idRate: z.number().int().positive(),
+          idRoomType: z.number().int().positive(),
+        })
+        .strict(),
+      handler: async (args, ctx) =>
+        unwrapErbon(
+          await client.get('mapping/rateprices', ctx.request, ctx.metadata, {
+            dateFrom: args.dateFrom,
+            dateTo: args.dateTo,
+            idRate: String(args.idRate),
+            idRoomType: String(args.idRoomType),
+          }),
+          'get rate prices',
+        ),
+    }),
+    tool({
+      // BACKEND-ONLY (controlPlane): the hotel's own lodging tax configuration, so the backend quotes a
+      // tax-inclusive total from Erbon's truth instead of asking the tenant for a rate. Erbon has no
+      // dedicated endpoint (Giovanni, 2026-10-04): the tax lives on the hotel's DAILY-RATE service(s)
+      // (`isDailyRate`) — `taxesBR` for a BR hotel, a `taxes` block of ids for any other, whose
+      // percentages are in `settings/taxes`. Returned VERBATIM; interpreting it is the backend's job.
+      name: `mcp_${SLUG}_get_lodging_tax`,
+      description:
+        'BACKEND-ONLY. The connected Erbon hotel’s lodging tax configuration: its daily-rate services ' +
+        '(`isDailyRate: true`) with their tax blocks, plus the hotel’s tax catalog (`settings/taxes`). ' +
+        'Verbatim; the backend derives the rate. No arguments.',
+      controlPlane: true,
+      input: noArgs,
+      handler: async (_args, ctx) => {
+        const list = unwrapErbon(
+          await client.get('mapping/serviceproducts', ctx.request, ctx.metadata),
+          'list services',
+        );
+        if (!list.ok) return list;
+        // The list does not say which services are daily rates — only each service's detail does. Read
+        // the services' details (products never carry a lodging tax), a few at a time.
+        // An unexpected shape is an error, never "this hotel has no daily-rate service": the backend
+        // would quote without the tax Erbon then adds at create. An EMPTY array is a real answer.
+        if (!Array.isArray(list.data)) {
+          return err(
+            ProviderErrorCode.PROVIDER_ERROR,
+            'Erbon list services returned an unexpected shape',
+          );
+        }
+        const serviceIds = list.data
+          .filter(
+            (s: { isService?: unknown; isProduct?: unknown }) =>
+              s?.isService === true && s?.isProduct !== true,
+          )
+          .map((s: { id?: unknown }) => s.id)
+          .filter((id): id is number => typeof id === 'number');
+        const details: unknown[] = [];
+        for (let i = 0; i < serviceIds.length; i += LODGING_TAX_READ_BATCH) {
+          const batch = await Promise.all(
+            serviceIds
+              .slice(i, i + LODGING_TAX_READ_BATCH)
+              .map(async (id) =>
+                unwrapErbon(
+                  await client.get(`service/${id}`, ctx.request, ctx.metadata),
+                  'get service',
+                ),
+              ),
+          );
+          for (const out of batch) {
+            // One unreadable service makes the configuration incomplete — fail rather than answer partly.
+            if (!out.ok) return out;
+            details.push(out.data);
+          }
+        }
+        const taxes = unwrapErbon(
+          await client.get('settings/taxes', ctx.request, ctx.metadata),
+          'get tax settings',
+        );
+        if (!taxes.ok) return taxes;
+        return ok({
+          dailyRateServices: details.filter(
+            (d) => (d as { isDailyRate?: unknown })?.isDailyRate === true,
+          ),
+          taxes: taxes.data,
+        });
+      },
+    }),
+    tool({
+      // BACKEND-ONLY (controlPlane): the hotel's own booking classification — the market segments and
+      // sources (origins) its front desk files every reservation under (AE80). The backend lists them so
+      // the HOTEL picks the pair an xcale booking carries (`idSegment` / `idSource` on create_booking);
+      // without them the hotel classifies every xcale booking by hand (Erbon, 2026-10-06). Each hotel
+      // has its own catalogue, so nothing here names one. Returned VERBATIM (active entries only).
+      name: `mcp_${SLUG}_get_segment_sources`,
+      description:
+        'BACKEND-ONLY. The connected Erbon hotel’s active booking segments and sources (origins): ' +
+        '`{ segments: [{ id, key, description, idGroup }], sources: [...] }`. Their ids are what ' +
+        'create_booking takes as `idSegment` / `idSource`. Verbatim. No arguments.',
+      controlPlane: true,
+      input: noArgs,
+      handler: async (_args, ctx) =>
+        unwrapErbon(
+          await client.get('settings/segmentsources', ctx.request, ctx.metadata),
+          'get segments and sources',
+        ),
+    }),
+    tool({
+      // BACKEND-ONLY WRITE (controlPlane, ADR 0013 + 0015): thin passthrough. Erbon has NO cancel/modify
+      // — a created booking cannot be undone via API — so it is withdrawn from the agent menu; the
+      // backend creates it behind its own availability-guard + voucher-idempotency + human-gated confirm.
+      name: `mcp_${SLUG}_create_booking`,
+      description:
+        'BACKEND-ONLY. Create ONE reservation at the connected Erbon hotel (one room per call). Thin ' +
+        'passthrough — the backend owns the availability check, idempotency (voucher) and confirmation; ' +
+        'Erbon cannot cancel/modify via API. Returns Erbon’s create response verbatim.',
+      controlPlane: true,
+      input: z
+        .object({
+          checkInDate: isoDate,
+          checkOutDate: isoDate,
+          idRoomTypeReserved: z.number().int().positive(),
+          idRoomTypeOccupied: z.number().int().positive(),
+          idRate: z.number().int().positive(),
+          idConfigPension: z.enum(['RO', 'BB', 'HB', 'FB', 'AI']),
+          numberAdults: z.number().int().positive(),
+          ratePrices: z
+            .array(z.object({ date: isoDate, price: z.number().nonnegative() }).strict())
+            .min(1),
+          guests: z
+            .array(
+              z.object({ idGuest: z.number().int().positive(), isHolder: z.boolean() }).strict(),
+            )
+            .min(1),
+          // optional passthrough — the backend fills or omits these (voucher = idempotency, ADR 0015)
+          voucher: z.string().optional(),
+          idBookingStatus: z.string().optional(),
+          numberChildren: z.number().int().nonnegative().optional(),
+          numberChildren2: z.number().int().nonnegative().optional(),
+          numberBabies: z.number().int().nonnegative().optional(),
+          isDirect: z.boolean().optional(),
+          isCompany: z.boolean().optional(),
+          idCompany: z.number().int().optional(),
+          idAgency: z.number().int().optional(),
+          idSource: z.number().int().optional(),
+          idSegment: z.number().int().optional(),
+          isRateDefault: z.boolean().optional(),
+          commentsBooking: z.string().optional(),
+          // Optional passthrough. OMITTED, Erbon applies the hotel's own configured tax (Observed:
+          // 742 → 779.1). Sent, it is stored VERBATIM as the tax-inclusive total — `0` lands as a 0
+          // total (Observed 2026-10-04, bookings 61714/61715). The backend omits it.
+          totalWithTax: z.number().nonnegative().optional(),
+        })
+        .strict()
+        // Irreversible write (no Erbon cancel/modify): reject a reversed or zero-night range here
+        // rather than let Erbon create an un-undoable booking. ISO YYYY-MM-DD compares as dates.
+        .refine((v) => v.checkOutDate > v.checkInDate, {
+          message: 'checkOutDate must be after checkInDate',
+          path: ['checkOutDate'],
+        })
+        // Erbon sets the booking's total from `ratePrices` (Observed: 374 + 376 = 750) and the booking
+        // cannot be modified afterwards, so the prices must cover EXACTLY the stay's nights — one per
+        // night from check-in to the night before check-out, no gaps, no extras, no duplicates.
+        .refine(
+          (v) =>
+            sameNights(
+              v.ratePrices.map((p) => p.date),
+              stayNights(v.checkInDate, v.checkOutDate),
+            ),
+          {
+            message: 'ratePrices must have exactly one entry per night of the stay',
+            path: ['ratePrices'],
+          },
+        ),
+      handler: async (args, ctx) =>
+        unwrapErbon(
+          await client.post('booking/new', ctx.request, ctx.metadata, args),
+          'create booking',
+        ),
+    }),
+    tool({
+      name: `mcp_${SLUG}_search_guest`,
+      description:
+        'BACKEND-ONLY. Find a guest at the connected Erbon hotel by `guestID`, or by `documentType` + ' +
+        '`documentNumber`. Resolves an existing guest before a booking (idGuest is required). Verbatim.',
+      controlPlane: true,
+      input: z
+        .object({
+          guestID: z.number().int().positive().optional(),
+          documentType: z.string().min(1).optional(),
+          documentNumber: z.string().min(1).optional(),
+        })
+        .strict()
+        .refine(
+          (v) =>
+            v.guestID !== undefined ||
+            (v.documentType !== undefined && v.documentNumber !== undefined),
+          'Provide guestID, or both documentType and documentNumber',
+        ),
+      handler: async (args, ctx) => {
+        const headers: Record<string, string> = {};
+        if (args.guestID !== undefined) headers.guestID = String(args.guestID);
+        if (args.documentType !== undefined) headers.documenttype = args.documentType;
+        if (args.documentNumber !== undefined) headers.documentnumber = args.documentNumber;
+        return unwrapErbon(
+          await client.get('guest/search', ctx.request, ctx.metadata, headers),
+          'search guest',
+        );
+      },
+    }),
+    tool({
+      name: `mcp_${SLUG}_create_guest`,
+      description:
+        'BACKEND-ONLY. Create (or update, when `id` is present) a guest at the connected Erbon hotel — ' +
+        'the prerequisite for a booking. A correctable write (editable via Erbon). Returns it verbatim.',
+      controlPlane: true,
+      // Bounded allow-list of Erbon's documented `guest/new` fields (swagger AE23) + `.strict()` — same
+      // tightness as create_booking, so a stray/misnamed field is rejected here instead of silently
+      // reaching Erbon. Extend this list when Erbon documents a new guest field.
+      input: z
+        .object({
+          name: z.string().min(1),
+          id: z.number().int().positive().optional(),
+          email: z.string().optional(),
+          phone: z.string().optional(),
+          birthDate: isoDate.optional(),
+          genderID: z.number().int().optional(),
+          nationality: z.string().optional(),
+          professionID: z.number().int().optional(),
+          profession: z.string().optional(),
+          vehicleRegistration: z.string().optional(),
+          isClient: z.boolean().optional(),
+          isProvider: z.boolean().optional(),
+          address: z.unknown().optional(),
+          documents: z.array(z.record(z.unknown())).optional(),
+        })
+        .strict(),
+      handler: async (args, ctx) =>
+        unwrapErbon(
+          await client.post('guest/new', ctx.request, ctx.metadata, args),
+          'create guest',
+        ),
+    }),
+    tool({
+      // BACKEND-ONLY read: the backend looks a reservation up by id and reconciles a create whose
+      // response was lost. Withdrawn from the agent menu (a booking read is not the agent's to make).
+      name: `mcp_${SLUG}_get_booking`,
+      description:
+        'BACKEND-ONLY. Get one booking at the connected Erbon hotel by its internal ID. Returns the ' +
+        'booking verbatim. Used by the backend for reservation lookup and reconcile.',
+      controlPlane: true,
+      input: z.object({ bookingInternalID: z.union([z.string().min(1), z.number()]) }).strict(),
+      handler: async (args, ctx) =>
+        unwrapErbon(
+          await client.get(
+            `booking/${encodeURIComponent(String(args.bookingInternalID))}`,
+            ctx.request,
+            ctx.metadata,
+          ),
+          'get booking',
+        ),
+    }),
+    tool({
+      // BACKEND-ONLY read. Reconcile finds our booking by the stamped voucher: Erbon filters
+      // `onlineSaleChannelNumber` SERVER-SIDE (Observed, sandbox-evidence §7), and the backend still
+      // confirms the match client-side before trusting it (anti-duplicate, since Erbon has no cancel).
+      // The lookup filters by `bookingNumber`. Filters travel in HEADERS. At least one is required: an
+      // unfiltered search returns every booking of the hotel — every guest's data, unbounded — and no
+      // caller needs that. Withdrawn from the agent menu.
+      name: `mcp_${SLUG}_search_booking`,
+      description:
+        'BACKEND-ONLY. Search bookings at the connected Erbon hotel by a window (checkin/checkout or ' +
+        'bookingCreatedAtStart/End), by `bookingNumber`, or by `onlineSaleChannelNumber` (the ' +
+        'caller-stamped voucher — the reconcile filter, Observed to match server-side). Returns a flat ' +
+        'array verbatim; the backend still confirms the voucher client-side. At least one filter is ' +
+        'required.',
+      controlPlane: true,
+      input: z
+        .object({
+          checkin: isoDate.optional(),
+          checkout: isoDate.optional(),
+          bookingCreatedAtStart: isoDate.optional(),
+          bookingCreatedAtEnd: isoDate.optional(),
+          status: z.string().optional(),
+          bookingNumber: z.string().optional(),
+          // The caller-stamped voucher, round-tripped on reads; filters bookings server-side (Observed).
+          onlineSaleChannelNumber: z.string().optional(),
+          mainguestEmail: z.string().optional(),
+          mainguestTel: z.string().optional(),
+        })
+        .strict()
+        .refine((args) => Object.values(args).some((v) => v !== undefined), {
+          message:
+            'search_booking needs at least one filter (a window, bookingNumber, onlineSaleChannelNumber, …)',
+        }),
+      handler: async (args, ctx) => {
+        const headers: Record<string, string> = {};
+        for (const [k, v] of Object.entries(args)) {
+          if (v !== undefined) headers[k] = String(v);
+        }
+        return unwrapErbon(
+          await client.post('booking/search', ctx.request, ctx.metadata, {}, headers),
+          'search booking',
+        );
+      },
+    }),
+  ];
+}
