@@ -11,6 +11,7 @@ import {
 } from '../core/credential/credential-resolver';
 import { ReferenceAuthExpiredError } from '../core/credential/reference-resolver';
 import { ProviderErrorCode } from '../core/errors';
+import { SecretString } from '../core/secret-string';
 import type { ProviderRegistry } from '../core/registry';
 import { IDENTITY_POLICY_META_KEY, type InboundCallContext } from '../core/types';
 import { toMcpResult } from './result-mapping';
@@ -67,9 +68,18 @@ export function createMcpServer(
     // Credential Resolution phase: turn the inbound wire value into a ResolvedCredential, dispatched
     // by the provider's declared delivery strategy. Exactly one resolution per tools/call.
     const delivery = provider.auth.credentialDelivery ?? 'forwarded';
+    // Multi-credential providers: wrap the wire bundle's raw values into SecretStrings so the resolver
+    // carries them as `ResolvedCredential.secrets` (the materializer injects per the called tool's group).
+    const groups = provider.auth.type === 'api_key' ? provider.auth.groups : undefined;
+    const secrets =
+      groups !== undefined && ctx.credentials !== undefined
+        ? Object.fromEntries(
+            Object.entries(ctx.credentials).map(([k, v]) => [k, new SecretString(v)]),
+          )
+        : undefined;
     let credential;
     try {
-      credential = await resolveCredential(delivery, ctx.token, resolverDeps);
+      credential = await resolveCredential(delivery, ctx.token, resolverDeps, secrets);
     } catch (err) {
       // Error-ownership boundary: a revoked durable credential is PROVIDER-owned → a typed
       // PROVIDER_AUTH_EXPIRED ToolResult (reconnect). A transport-owned failure (bad/expired

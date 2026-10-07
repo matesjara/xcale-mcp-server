@@ -13,4 +13,10 @@ import type { SecretString } from '../secret-string';
  */
 export interface ResolvedCredential {
   readonly secret: SecretString;
+  /**
+   * Named-secret bundle for multi-credential providers (ADR: himed-multi-credential-provider): keyed by
+   * `CredentialGroup.key`. The materializer, given a tool's `credentialGroup`, reveals `secrets[group]`
+   * instead of `secret`. Absent ⇒ single-secret providers (the sole `secret`), unchanged.
+   */
+  readonly secrets?: Readonly<Record<string, SecretString>>;
 }

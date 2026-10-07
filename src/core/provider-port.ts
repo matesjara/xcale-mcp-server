@@ -13,6 +13,29 @@ export type CredentialDelivery = 'forwarded' | 'reference';
  * provider-knowledge-vs-credential-custody). Adaptive — as rich as the auth type requires.
  * SECRETS (clientId/clientSecret/keys) NEVER appear here; they are the consumer's generic config.
  */
+/**
+ * A named credential a SUBSET of a provider's tools use (ADR: himed-multi-credential-provider). A tool
+ * selects its group via `ToolDefinition.credentialGroup`, and the materializer injects that group's
+ * `field`. Used by providers whose surfaces authenticate with different tokens (HiMed: Demográficos /
+ * directory / Autoagendamiento). Single-credential providers declare no groups.
+ */
+export interface CredentialGroup {
+  readonly key: string; // e.g. 'demograficos' | 'directorio' | 'autoagendamiento'
+  readonly label: string;
+  readonly field: {
+    readonly key: string;
+    readonly label: string;
+    readonly placement: 'header' | 'query' | 'body';
+  };
+  /**
+   * A no-argument tool that proves THIS group's secret — a consumer calls every group's probe before it
+   * persists the bundle, so a connection never stores a token nobody verified (the provider-level
+   * `connectionProbe` exercises one group only). Typically a control-plane tool: it must have no side
+   * effect and answer AUTH_EXPIRED for a bad secret.
+   */
+  readonly probe?: string;
+}
+
 export type ProviderAuthDescriptor =
   | {
       readonly type: 'api_key' | 'bearer';
@@ -20,8 +43,20 @@ export type ProviderAuthDescriptor =
       readonly fields: ReadonlyArray<{
         readonly key: string;
         readonly label: string;
-        readonly placement: 'header' | 'query';
+        /**
+         * Where the credential is applied. `body` injects it as a field of the JSON request body
+         * (ADR: body-placement-for-api-key) — used by providers that authenticate from the body
+         * (HiMed). Requires a JSON string body; a URLSearchParams/absent body is a descriptor bug.
+         */
+        readonly placement: 'header' | 'query' | 'body';
       }>;
+      /**
+       * Multi-credential providers: each `CredentialGroup` names a secret a subset of the tools use.
+       * When present, `fields` lists every group's `field` (flattened) so the consumer's connect form
+       * stays derivable from `fields` alone, and the materializer injects per the called tool's group.
+       * Absent ⇒ single-secret (the sole `fields[0]`).
+       */
+      readonly groups?: ReadonlyArray<CredentialGroup>;
     }
   | {
       /**

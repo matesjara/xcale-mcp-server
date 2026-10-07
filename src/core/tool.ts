@@ -84,6 +84,12 @@ export interface ToolDefinition<I extends z.ZodTypeAny = z.ZodTypeAny, M = unkno
    * still call it. It removes the agent as an attack surface, not the caller.
    */
   readonly controlPlane?: boolean;
+  /**
+   * Which `CredentialGroup` (on the provider's `authDescriptor.groups`) this tool's secret comes from.
+   * The materializer injects that group's field for this tool's calls. Absent ⇒ the provider's single
+   * credential (`fields[0]`). Only meaningful for multi-credential providers (HiMed).
+   */
+  readonly credentialGroup?: string;
   readonly handler: (args: z.infer<I>, ctx: ToolHandlerContext<M>) => Promise<ToolOutcome>;
 }
 

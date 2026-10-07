@@ -76,6 +76,12 @@ export interface InboundCallContext {
   readonly token: SecretString;
   /** Opaque, provider-scoped routing data (e.g. accountKey, storeDomain). Validated per adapter. */
   readonly metadata?: Record<string, unknown>;
+  /**
+   * Multi-credential providers only: the named-secret bundle `{ groupKey: secretValue }` from the
+   * `X-Provider-Credentials` header (raw strings; the protocol wraps each into a `SecretString` and
+   * builds `ResolvedCredential.secrets`). Absent ⇒ single-secret (the `token`).
+   */
+  readonly credentials?: Readonly<Record<string, string>>;
 }
 
 /**
