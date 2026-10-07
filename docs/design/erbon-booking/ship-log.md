@@ -1,7 +1,8 @@
 # Erbon Booking (write path) — Ship Log
 
-- **Status:** **on `dev`** — merged 2026-10-06 with the provider, **PR #123**. **Not yet released to
-  prod.** The provider-wide log (tools, reviews, release order, open questions) is
+- **Status:** in-soak — merged into `dev` 2026-10-06 with the provider, **PR #123**.
+- **Released to prod:** 2026-10-07 via release PR **#128** (merge `59c10d1`), before the backend
+  release `matesjara/xcale-backend#1432` (#1401), which is ACTIVE. The provider-wide log (tools, reviews, release order, open questions) is
   `../erbon-read-only-provider/ship-log.md`; this one covers the write path only.
 - **Related:** `grill-notes.md` · `api-contract.md` · `implementation-plan.md` ·
   `../erbon-read-only-provider/sandbox-evidence.md` §6–§10 · ADR 0015 (the backend owns the
@@ -36,6 +37,13 @@ Five `controlPlane` tools the backend's booking adapters call — never the agen
 61706 (first write), 61714/61715 (multi-room BB), 61716/61717 (tax applied by Erbon, quote = recorded
 total), 61726, 61727, #1735, #1736 and #1774 / 61767 (through the backend agent on WhatsApp; 61767
 filed under origin WHATSAPP / segment Direto).
+
+## Deploy verification (prod)
+
+- ✅ done (2026-10-07) — DigitalOcean deployment `5f5c6326` ACTIVE (~14:30 UTC); `/health` ok,
+  `/discover` 401 unauthenticated, authenticated `/discover` lists `erbon` (schemaVersion 2026-10-06,
+  providerVersion 0.3.0). Full record in `../erbon-read-only-provider/ship-log.md`.
+- ✅ done (2026-10-07) — #127 (`search_booking` requires a filter) shipped in the same release.
 
 ## Known gaps
 
