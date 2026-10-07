@@ -239,6 +239,11 @@ descriptor; el redact de errores no limpia secretos en el body (no se ha visto a
   `513d94c`: se pide [día, día+1] y se devuelve solo el día (cruza fin de mes); verificado en vivo.
 - **Pregunta abierta para HiMed:** el sandbox devuelve horarios distintos para el mismo profesional y día
   según el rango pedido (lunes 12: 17:00 sin fecha final o hasta el 13; 11:00 hasta el 19).
+- **Una prueba por grupo de credenciales** (`b9a45ce`, code review del backend): `CredentialGroup.probe`
+  (core) y HiMed declara `list_locations` (directorio) + dos tools control-plane que el agente nunca ve:
+  `verify_demograficos` (crear con cuerpo vacío — 401 token malo, 400 token bueno, nada se escribe) y
+  `verify_autoagendamiento` (existePaciente sobre un documento inexistente). Verificado en vivo: cada una
+  pasa con el token bueno y da AUTH_EXPIRED con uno malo; ningún paciente creado.
 
 ---
 
