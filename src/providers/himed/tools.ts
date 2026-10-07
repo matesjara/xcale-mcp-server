@@ -44,6 +44,15 @@ function slotInstant(fecha: unknown, hora: unknown): Date | null {
   return new Date(`${d[3]}-${d[2]}-${d[1]}T${t[1]}:${t[2]}:00-05:00`);
 }
 
+/** The day after a `DD-MM-YYYY` date, in the same format (calendar arithmetic in UTC). `null` if unparseable. */
+function nextDay(fecha: string): string | null {
+  const d = /^(\d{2})-(\d{2})-(\d{4})$/.exec(fecha);
+  if (!d) return null;
+  const next = new Date(Date.UTC(Number(d[3]), Number(d[2]) - 1, Number(d[1]) + 1));
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(next.getUTCDate())}-${pad(next.getUTCMonth() + 1)}-${next.getUTCFullYear()}`;
+}
+
 export function buildHimedTools(
   client: HimedClient,
   now: () => Date = () => new Date(),
@@ -342,6 +351,12 @@ export function buildHimedTools(
       })
       .strict(),
     handler: async (args, ctx) => {
+      // A single-day request (fechaFinal = fechaInicial — "el lunes 12") gets a 400 from HiMed (live
+      // 2026-10-07). Ask for [day, day+1] on the wire and keep only that day below.
+      const singleDay = args.fechaFinal !== undefined && args.fechaFinal === args.fechaInicial;
+      const wireFechaFinal = singleDay
+        ? (nextDay(args.fechaInicial) ?? 'none')
+        : (args.fechaFinal ?? 'none');
       const out = unwrapHimedScheduling(
         // HiMed keys the professional on `idEspecialista` for availability (not `idUsuario`, which it
         // rejects as missing — sandbox 2026-10-01 + Autoagendamiento docs). The agent-facing input stays
@@ -352,7 +367,7 @@ export function buildHimedTools(
           idEspecialista: args.idUsuario,
           idSede: String(args.idSede),
           fechaInicial: args.fechaInicial,
-          fechaFinal: args.fechaFinal ?? 'none',
+          fechaFinal: wireFechaFinal,
           forma: args.forma,
         }),
         'get_availability',
@@ -366,6 +381,7 @@ export function buildHimedTools(
       return ok(
         rows(out.data)
           .filter((r) => {
+            if (singleDay && String(r.fecha) !== args.fechaInicial) return false;
             const at = slotInstant(r.fecha, r.hora);
             if (at && at.getTime() <= cutoff) return false;
             const key = `${String(r.fecha)} ${String(r.hora)}`;

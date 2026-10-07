@@ -245,6 +245,56 @@ describe('HiMed unified provider — credential groups', () => {
     expect(sink).toHaveLength(0);
   });
 
+  it('get_availability for a single day widens to the next day on the wire and returns only that day', async () => {
+    // Live 2026-10-07: fechaInicial = fechaFinal ("el lunes 12") → HiMed 400. A one-day request is the
+    // most natural one a patient makes, so the provider asks for [day, day+1] and keeps only the day.
+    const sink: Captured[] = [];
+    const provider = createHimedProvider({
+      ...HOSTS,
+      now: () => new Date('2026-10-01T12:00:00Z'),
+      fetchImpl: fakeFetch(
+        200,
+        [
+          { disponibilidad: 'mon 11', fecha: '12-10-2026', hora: '11:00:00' },
+          { disponibilidad: 'mon 17', fecha: '12-10-2026', hora: '17:00:00' },
+          { disponibilidad: 'tue 11', fecha: '13-10-2026', hora: '11:00:00' },
+        ],
+        sink,
+      ),
+    });
+    const res = await provider.callTool(
+      'mcp_himed_get_availability',
+      { idUsuario: '42', idSede: '1', fechaInicial: '12-10-2026', fechaFinal: '12-10-2026' },
+      ctx(),
+    );
+    const body = JSON.parse(sink[0]!.body ?? '{}') as Record<string, unknown>;
+    expect(body.fechaInicial).toBe('12-10-2026');
+    expect(body.fechaFinal).toBe('13-10-2026');
+    expect(res.kind).toBe('success');
+    if (res.kind === 'success') {
+      expect((res.data as Array<{ disponibilidad: string }>).map((s) => s.disponibilidad)).toEqual([
+        'mon 11',
+        'mon 17',
+      ]);
+    }
+  });
+
+  it('get_availability crosses a month end when widening a single day', async () => {
+    const sink: Captured[] = [];
+    const provider = createHimedProvider({
+      ...HOSTS,
+      now: () => new Date('2026-10-01T12:00:00Z'),
+      fetchImpl: fakeFetch(200, [], sink),
+    });
+    await provider.callTool(
+      'mcp_himed_get_availability',
+      { idUsuario: '42', idSede: '1', fechaInicial: '31-10-2026', fechaFinal: '31-10-2026' },
+      ctx(),
+    );
+    const body = JSON.parse(sink[0]!.body ?? '{}') as Record<string, unknown>;
+    expect(body.fechaFinal).toBe('01-11-2026');
+  });
+
   it('cancel_appointment requires idPaciente', async () => {
     const provider = createHimedProvider({
       ...HOSTS,
