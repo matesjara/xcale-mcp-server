@@ -79,9 +79,13 @@ export function toMajorUnit(price: string, minorUnit: number): string {
 }
 
 function storeError(status: number): ShippingQuoteResult {
+  // The Store API is public and carries no credential, so a 401/403 here is the store refusing the
+  // cart (a security plugin, carts disabled) — never an expired credential. Mapping it to
+  // AUTH_EXPIRED would send the consumer into a reconnect flow for a credential it never sent.
+  const mapped = mapHttpStatusToErrorCode(status);
   return {
     ok: false,
-    code: mapHttpStatusToErrorCode(status),
+    code: mapped === ProviderErrorCode.AUTH_EXPIRED ? ProviderErrorCode.PROVIDER_ERROR : mapped,
     message: `WooCommerce shipping quote error (HTTP ${status})`,
   };
 }
