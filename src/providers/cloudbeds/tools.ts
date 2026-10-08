@@ -898,7 +898,10 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_get_property_configuration`,
-      audience: 'operator',
+      // `customer` (S4, xcale-backend#1243, 2026-10-08): five reads of how the PROPERTY is set up —
+      // settings, currency, taxes and fees, custom field DEFINITIONS, sources. None returns a guest's
+      // record, so a guest asking "does Booking.com add a fee?" may be answered from it.
+      audience: 'customer',
       // Five single-GET endpoints, ONE question an agent actually asks: "how is this property set
       // up?". Splitting them would be five trivial tools competing for the agent's attention — the
       // curation trade-off this repo already documents (Shopify 490 → ~41).

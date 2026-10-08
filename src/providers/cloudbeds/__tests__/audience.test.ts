@@ -30,6 +30,8 @@ const CUSTOMER_TOOLS = [
   'list_items',
   'get_payment_options',
   'list_addons',
+  // Property configuration, not anyone's record (S4, 2026-10-08).
+  'get_property_configuration',
 ].map((verb) => `mcp_cloudbeds_${verb}`);
 
 describe('cloudbeds publishes who each tool may serve', () => {
