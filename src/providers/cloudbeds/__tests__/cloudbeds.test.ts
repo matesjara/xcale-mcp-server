@@ -467,6 +467,64 @@ describe('cloudbeds provider', () => {
     expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
   });
 
+  // xcale-backend#1243 (F1): the room-change shape is the published `PutReservationRequest.rooms`.
+  // Live, the old shape (roomTypeID, quantity, roomRateID) was refused: "Parameter checkinDate is
+  // required" (evidence P4, 2026-10-08).
+  it('modify_reservation sends a room change in the spec shape, aimed at one booked room', async () => {
+    let body = '';
+    const capturingFetch = (async (_url: string | URL, init?: RequestInit) => {
+      body = init?.body?.toString() ?? '';
+      return new Response(JSON.stringify({ success: true, data: {} }), { status: 200 });
+    }) as FetchLike;
+    const provider = createCloudbedsProvider({ fetchImpl: capturingFetch });
+    const r = await provider.callTool(
+      'mcp_cloudbeds_modify_reservation',
+      {
+        reservationID: 'R-1',
+        rooms: [
+          {
+            subReservationID: 'R-1-1',
+            roomTypeID: '426977',
+            checkinDate: '2027-02-09',
+            checkoutDate: '2027-02-11',
+            adults: 2,
+            children: 0,
+            rateID: '1259705',
+            adjustPrice: true,
+          },
+        ],
+      },
+      ctx({ propertyID: 'PROP1' }),
+    );
+    expect(r).toMatchObject({ kind: 'success' });
+    const qs = new URLSearchParams(body);
+    expect(qs.get('rooms[0][subReservationID]')).toBe('R-1-1');
+    expect(qs.get('rooms[0][roomTypeID]')).toBe('426977');
+    expect(qs.get('rooms[0][checkinDate]')).toBe('2027-02-09');
+    expect(qs.get('rooms[0][checkoutDate]')).toBe('2027-02-11');
+    expect(qs.get('rooms[0][adults]')).toBe('2');
+    expect(qs.get('rooms[0][children]')).toBe('0');
+    expect(qs.get('rooms[0][rateID]')).toBe('1259705');
+    // A boolean reaches the form body as text, like sendEmailConfirmation on create.
+    expect(qs.get('rooms[0][adjustPrice]')).toBe('true');
+    expect(qs.has('rooms[0][roomRateID]')).toBe(false);
+  });
+
+  it('modify_reservation refuses a room without its dates or party, and the old shape', async () => {
+    const provider = createCloudbedsProvider({ fetchImpl: fakeFetch({}) });
+    for (const room of [
+      { roomTypeID: '426977', quantity: 1, roomRateID: '1259705' },
+      { roomTypeID: '426977', checkinDate: '2027-02-09', checkoutDate: '2027-02-11', adults: 2 },
+    ]) {
+      const r = await provider.callTool(
+        'mcp_cloudbeds_modify_reservation',
+        { reservationID: 'R-1', rooms: [room] },
+        ctx({ propertyID: 'PROP1' }),
+      );
+      expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+    }
+  });
+
   it('publishes contextDiscovery in the manifest (propertyID via list_properties)', () => {
     const provider = createCloudbedsProvider();
     expect(provider.manifest.contextDiscovery).toEqual({

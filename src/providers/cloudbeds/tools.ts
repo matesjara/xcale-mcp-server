@@ -574,9 +574,11 @@ export function buildCloudbedsTools(
       requiredScopes: ['write:reservation'], // spec: putReservation
       description:
         'Modify an existing reservation: cancel it (status: "canceled"), extend or shorten the stay ' +
-        '(checkoutDate), change the rooms, or set the estimated arrival time. At least one of those ' +
-        'must be given. NOTE: the check-in date CANNOT be changed — only the check-out date; to move ' +
-        'a check-in, cancel and create a new reservation.',
+        '(checkoutDate), change a room, or set the estimated arrival time. At least one of those ' +
+        'must be given. NOTE: the reservation-level check-in date CANNOT be changed — only the ' +
+        'check-out date. To change a room, send rooms[] with the subReservationID of that room (from ' +
+        'get_reservation assigned[]) and ALL of roomTypeID, checkinDate, checkoutDate, adults and ' +
+        'children; the property re-prices it unless adjustPrice is false.',
       input: z
         .object({
           reservationID: z.string().min(1),
@@ -591,15 +593,37 @@ export function buildCloudbedsTools(
             .string()
             .optional()
             .describe('New check-out date, YYYY-MM-DD (extends/shortens the stay).'),
+          // Shape from the published spec (`PutReservationRequest.rooms`, pms-v1.3-openapi.yaml):
+          // roomTypeID, checkinDate, checkoutDate, adults and children are mandatory per room, the rate
+          // is `rateID` (NOT `roomRateID`, which is postReservation's name), and `subReservationID`
+          // names WHICH booked room changes. The previous shape (roomTypeID, quantity, roomRateID)
+          // matched none of it and Cloudbeds refused it live: "Parameter checkinDate is required"
+          // (xcale-backend#1243, evidence P4, 2026-10-08).
           rooms: z
             .array(
-              z.object({
-                roomTypeID: z.string().min(1),
-                quantity: z.number().int().positive(),
-                roomID: z.string().optional(),
-                roomRateID: z.string().optional(),
-              }),
+              z
+                .object({
+                  subReservationID: z
+                    .string()
+                    .min(1)
+                    .optional()
+                    .describe(
+                      'The booked room to change — getReservation assigned[].subReservationID.',
+                    ),
+                  roomTypeID: z.string().min(1),
+                  checkinDate: z.string().min(1).describe('YYYY-MM-DD, for this room.'),
+                  checkoutDate: z.string().min(1).describe('YYYY-MM-DD, for this room.'),
+                  adults: z.number().int().min(0),
+                  children: z.number().int().min(0),
+                  rateID: z.string().min(1).optional(),
+                  adjustPrice: z
+                    .boolean()
+                    .optional()
+                    .describe('Re-price the room after the change. Cloudbeds default is true.'),
+                })
+                .strict(),
             )
+            .min(1)
             .optional(),
           estimatedArrivalTime: z.string().optional().describe('HH:mm 24h'),
         })
@@ -610,6 +634,14 @@ export function buildCloudbedsTools(
         const res = await client.put('putReservation', ctx.request, {
           propertyID: ctx.metadata.propertyID,
           ...args,
+          // Booleans must reach the wire as strings, as with postReservation's sendEmailConfirmation.
+          ...(args.rooms
+            ? {
+                rooms: args.rooms.map((r) =>
+                  r.adjustPrice === undefined ? r : { ...r, adjustPrice: String(r.adjustPrice) },
+                ),
+              }
+            : {}),
         });
         const u = unwrap(res, 'putReservation');
         return u.ok ? ok(u.data) : err(u.code, u.message);
