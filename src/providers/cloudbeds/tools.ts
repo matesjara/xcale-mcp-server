@@ -208,9 +208,17 @@ export function buildCloudbedsTools(
 ): ReadonlyArray<ToolDefinition<any, CloudbedsContext>> {
   const tool = toolFactory<CloudbedsContext>();
 
+  // Every published tool declares its `audience` (ADR `tool-audience-gate-on-guest-channels`,
+  // xcale#1243). `customer` is reserved for reads that touch nobody's records and write nothing:
+  // inventory, rates, the hotel's own description, what it sells and how it takes payment. Everything
+  // that reads guests, reservations, groups or staff, or writes anything at all, is `operator` — the
+  // consumer refuses it when a guest is on the other end. Its own server-side adapters (verified
+  // cancel, lookup, materialization, payment links) call by name and are unaffected. The control-plane
+  // tools at the bottom are never published, so they carry no mark.
   return [
     definePaginatedList({
       name: `mcp_${SLUG}_list_reservations`,
+      audience: 'operator',
       requiredScopes: ['read:reservation'], // spec: getReservations
       // Takes no person identifier and returns other people's stays anyway — the leak that needs
       // nobody to ask about anyone. Entirely legitimate for the property's own staff reading their
@@ -272,6 +280,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_get_reservation`,
+      audience: 'operator',
       requiredScopes: ['read:reservation'], // spec: getReservation
       description:
         'Get one reservation in full by its reservationID: status, stay dates, rooms, guests and ' +
@@ -290,6 +299,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_get_guest`,
+      audience: 'operator',
       requiredScopes: ['read:guest'], // spec: getGuest
       description:
         'Get one guest by their guestID: name, contact details and profile. Use it when you already ' +
@@ -308,6 +318,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_get_availability`,
+      audience: 'customer',
       requiredScopes: ['read:room'], // spec: getAvailableRoomTypes
       // The most-called tool of the booking path, and it used to say only "Get available room types for
       // a date range" — so what it RETURNS had to be taught in the consumer's prompt instead ("take the
@@ -367,6 +378,7 @@ export function buildCloudbedsTools(
     // ONE window; nobody could see forward. So the sale ended at the first "not available".
     tool({
       name: `mcp_${SLUG}_get_room_calendar`,
+      audience: 'customer',
       requiredScopes: ['read:rate'], // spec: getRatePlans (already granted — no reconnect)
       description:
         'Answer WHEN a room is free, looking forward: per room type, the date ranges that can ' +
@@ -470,6 +482,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_create_reservation`,
+      audience: 'operator',
       // The spec declares `postReservation` as `write:reservation` ONLY, and this tool calls no other
       // method — so `write:guest` is, on paper, unnecessary. It is kept DELIBERATELY: the call creates
       // the guest inline from the args below, we have never exercised it without `write:guest`, and this
@@ -557,6 +570,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_modify_reservation`,
+      audience: 'operator',
       requiredScopes: ['write:reservation'], // spec: putReservation
       description:
         'Modify an existing reservation: cancel it (status: "canceled"), extend or shorten the stay ' +
@@ -604,6 +618,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_get_rate_plans`,
+      audience: 'customer',
       requiredScopes: ['read:rate'], // spec: getRatePlans
       description:
         'Get the priceable rate plans for a date range: per room type its rateID, total rate for the ' +
@@ -634,6 +649,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_list_room_types`,
+      audience: 'customer',
       requiredScopes: ['read:room'], // spec: getRoomTypes
       description:
         'List every room type the property has configured, with its description and capacity — the ' +
@@ -651,6 +667,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_get_hotel_details`,
+      audience: 'customer',
       requiredScopes: ['read:hotel'], // spec: getHotelDetails
       description:
         'Get the hotel itself: address, contact, check-in/out times, policies and amenities. Use it to ' +
@@ -668,6 +685,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_list_properties`,
+      audience: 'customer',
       requiredScopes: ['read:hotel'], // spec: getHotels
       description:
         'List the properties (hotels) this connection can access. Needs no propertyID — used to discover which property to operate on.',
@@ -687,6 +705,7 @@ export function buildCloudbedsTools(
 
     definePaginatedList({
       name: `mcp_${SLUG}_search_guests`,
+      audience: 'operator',
       requiredScopes: ['read:guest'], // spec: getGuestList
       // The property's front door to a person, and it opens two ways. Named — `guestPhone` and the
       // rest identify someone. Unnamed — EVERY filter here is optional, so a call with none
@@ -739,6 +758,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_update_guest`,
+      audience: 'operator',
       requiredScopes: ['write:guest'], // spec: putGuest
       description:
         'Update an existing guest’s details (name, email, phone, address). Only the fields you send ' +
@@ -768,6 +788,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_list_guest_notes`,
+      audience: 'operator',
       requiredScopes: ['read:guest'], // spec: getGuestNotes
       description:
         'List the notes on a guest’s profile. Use it to recall preferences or past issues.',
@@ -784,6 +805,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_add_guest_note`,
+      audience: 'operator',
       requiredScopes: ['write:guest'], // spec: postGuestNote
       description:
         'Add a note to a guest’s profile — a preference, allergy, or anything staff should know next time.',
@@ -804,6 +826,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_list_reservation_notes`,
+      audience: 'operator',
       requiredScopes: ['read:reservation'], // spec: getReservationNotes
       description: 'List the notes on a reservation. Use it to see what was agreed or flagged.',
       input: z.object({ reservationID: z.string().min(1) }).strict(),
@@ -819,6 +842,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_add_reservation_note`,
+      audience: 'operator',
       requiredScopes: ['write:reservation'], // spec: postReservationNote
       description:
         'Add a note to a reservation — a special request or an agreement made with the guest.',
@@ -838,6 +862,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_assign_guest_to_room`,
+      audience: 'operator',
       requiredScopes: ['write:guest'], // spec: postGuestsToRoom
       description:
         'Assign guests to a room already on a reservation, optionally promoting one to main guest. ' +
@@ -873,6 +898,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_get_property_configuration`,
+      audience: 'operator',
       // Five single-GET endpoints, ONE question an agent actually asks: "how is this property set
       // up?". Splitting them would be five trivial tools competing for the agent's attention — the
       // curation trade-off this repo already documents (Shopify 490 → ~41).
@@ -943,6 +969,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_get_payment_options`,
+      audience: 'customer',
       requiredScopes: ['read:payment'], // spec: getPaymentMethods, getPaymentsCapabilities
       description:
         'Get the payment methods this property accepts and what it can do with payments. Use it ' +
@@ -991,6 +1018,7 @@ export function buildCloudbedsTools(
      */
     tool({
       name: `mcp_${SLUG}_create_payment_link`,
+      audience: 'operator',
       requiredScopes: [], // Bearer + role, not a nominal scope — see the block comment above.
       description:
         // Consumer-agnostic wording — this string is published verbatim via tools/list to ANY
@@ -1052,6 +1080,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_get_payment_link_status`,
+      audience: 'operator',
       requiredScopes: [], // Bearer + role, not a nominal scope — see the block comment above.
       description:
         'Get the current status of a pay-by-link (SENT | VIEWED | PAID | EXPIRED | CANCELLED | ' +
@@ -1081,6 +1110,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_list_items`,
+      audience: 'customer',
       requiredScopes: ['read:item'], // spec: getItems, getItemCategories
       description:
         'List the sellable items (extras, products) of this property and their categories. Use it to ' +
@@ -1110,6 +1140,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_list_addons`,
+      audience: 'customer',
       requiredScopes: ['read:addon'], // spec: GET /addons/v1/addons — PMS **v2.0**, not v1.3
       description:
         'List the add-ons the property sells alongside a stay — breakfast, transfers, late checkout ' +
@@ -1137,6 +1168,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_list_email_templates`,
+      audience: 'operator',
       // Read-only, and it is the ONLY way to see what was created: the write half of this scope
       // (`create_email_template` / `schedule_email`, both control-plane) has no delete and no update
       // in the API, so reading back is the whole safety net. Call this before creating anything.
@@ -1166,6 +1198,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_list_users`,
+      audience: 'operator',
       requiredScopes: ['read:user'], // spec: getUsers
       // Staff rather than guests, but still a roster of named people with contact details, and it
       // takes no identifier at all. The property's own team is the audience; a guest in a
@@ -1231,6 +1264,7 @@ export function buildCloudbedsTools(
 
     definePaginatedList({
       name: `mcp_${SLUG}_list_groups`,
+      audience: 'operator',
       requiredScopes: ['read:group'], // spec: getGroups
       description:
         'List the property’s groups (block bookings for a company, wedding, event or tour). Use it to ' +
@@ -1261,6 +1295,7 @@ export function buildCloudbedsTools(
 
     definePaginatedList({
       name: `mcp_${SLUG}_list_group_notes`,
+      audience: 'operator',
       requiredScopes: ['read:group'], // spec: getGroupNotes
       description: 'List the notes on a group. Use it to see what was agreed with the organiser.',
       input: z.object({ groupCode: z.string().min(1) }),
@@ -1281,6 +1316,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_update_group`,
+      audience: 'operator',
       requiredScopes: ['write:group'], // spec: patchGroup
       description:
         'Update an existing group’s details (name, type, status, address). Only the fields you send ' +
@@ -1310,6 +1346,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_add_group_note`,
+      audience: 'operator',
       requiredScopes: ['write:group'], // spec: postGroupNote
       description:
         'Add a note to a group — something agreed with the organiser that staff should know.',
@@ -1329,6 +1366,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_get_dashboard`,
+      audience: 'operator',
       requiredScopes: ['read:dashboard'], // spec: getDashboard
       description:
         'Get the property’s dashboard for a date: the day’s headline numbers (arrivals, departures, ' +
@@ -1350,6 +1388,7 @@ export function buildCloudbedsTools(
 
     definePaginatedList({
       name: `mcp_${SLUG}_list_room_blocks`,
+      audience: 'operator',
       requiredScopes: ['read:roomblock'], // spec: getRoomBlocks
       description:
         'List room blocks — rooms held out of sale (blocked, out of service, or on courtesy hold). ' +
@@ -1380,6 +1419,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_create_room_block`,
+      audience: 'operator',
       requiredScopes: ['write:roomblock'], // spec: postRoomBlock
       description:
         'Hold rooms out of sale for a date range — a maintenance block, an out-of-service room, or a ' +
@@ -1413,6 +1453,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_update_room_block`,
+      audience: 'operator',
       requiredScopes: ['write:roomblock'], // spec: putRoomBlock
       description:
         'Change an existing room block: its reason, dates, or the rooms it covers. Get the ' +
@@ -1440,6 +1481,7 @@ export function buildCloudbedsTools(
 
     definePaginatedList({
       name: `mcp_${SLUG}_list_allotment_blocks`,
+      audience: 'operator',
       requiredScopes: ['read:allotmentBlock'], // spec: getAllotmentBlocks
       description:
         'List allotment blocks — room inventory reserved for a group, event, or contract. Use it to ' +
@@ -1474,6 +1516,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_create_allotment_block`,
+      audience: 'operator',
       requiredScopes: ['write:allotmentBlock'], // spec: createAllotmentBlock
       description:
         'Create an allotment block — inventory held for a group, event or contract, so it is not sold ' +
@@ -1501,6 +1544,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_update_allotment_block`,
+      audience: 'operator',
       requiredScopes: ['write:allotmentBlock'], // spec: updateAllotmentBlock
       description:
         'Change an existing allotment block: its name, status, overbooking or auto-release. Get the ' +
@@ -1529,6 +1573,7 @@ export function buildCloudbedsTools(
 
     definePaginatedList({
       name: `mcp_${SLUG}_list_allotment_block_notes`,
+      audience: 'operator',
       requiredScopes: ['read:allotmentBlock'], // spec: listAllotmentBlockNotes
       description:
         'List the notes on an allotment block — what was agreed about that held inventory.',
@@ -1548,6 +1593,7 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_add_allotment_block_note`,
+      audience: 'operator',
       /**
        * ⚠️ The spec declares `createAllotmentBlockNotes` — a POST that WRITES — under
        * **read**:allotmentBlock. `write` is declared here anyway, deliberately.

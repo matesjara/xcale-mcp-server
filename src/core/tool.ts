@@ -3,7 +3,7 @@ import type { z } from 'zod';
 import type { RequestSpec } from './auth/http-request';
 import type { ProviderErrorCode } from './errors';
 import type { RequestResult } from './http';
-import type { ToolIdentityPolicy } from './types';
+import type { ToolAudience, ToolIdentityPolicy } from './types';
 
 /**
  * The light result a handler returns. The provider dispatcher (createProvider) wraps it into the
@@ -65,6 +65,15 @@ export interface ToolDefinition<I extends z.ZodTypeAny = z.ZodTypeAny, M = unkno
    * Absent means the tool touches nobody's personal records — true of most of them.
    */
   readonly identityPolicy?: ToolIdentityPolicy;
+  /**
+   * Who this tool may serve — a guest (`customer`) or the account's staff (`operator`) — declared
+   * with the tool and PUBLISHED in `tools/list` (ADR `tool-audience-gate-on-guest-channels`).
+   *
+   * Same argument as `identityPolicy`: provider knowledge, so it lives here and not in a name list on
+   * the consumer's side that would fail open for the next tool added. Absent means unclassified; a
+   * provider that marks one published tool must mark all of them (`audience-coverage.test.ts`).
+   */
+  readonly audience?: ToolAudience;
   /**
    * Control-plane tool: dispatched by `tools/call`, **withdrawn from `tools/list`**.
    *
