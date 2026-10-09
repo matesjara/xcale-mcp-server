@@ -575,8 +575,9 @@ export function buildCloudbedsTools(
       description:
         'Modify an existing reservation: cancel it (status: "canceled"), extend or shorten the stay ' +
         '(checkoutDate), change a room, or set the estimated arrival time. At least one of those ' +
-        'must be given. NOTE: the reservation-level check-in date CANNOT be changed — only the ' +
-        'check-out date. To change a room, send rooms[] with the subReservationID of that room (from ' +
+        'must be given. The check-out alone moves with the top-level checkoutDate. To move the ' +
+        'check-in (or the whole stay) or to change a room, send rooms[] with the new checkinDate and ' +
+        'checkoutDate per room — there is no top-level check-in field — and the subReservationID of that room (from ' +
         'get_reservation assigned[]) and ALL of roomTypeID, checkinDate, checkoutDate, adults and ' +
         'children; the property re-prices it unless adjustPrice is false. WARNING: rooms[] REPLACES ' +
         'the whole room list of the reservation — a room not sent is REMOVED. On a multi-room ' +
