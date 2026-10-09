@@ -634,14 +634,6 @@ export function buildCloudbedsTools(
         const res = await client.put('putReservation', ctx.request, {
           propertyID: ctx.metadata.propertyID,
           ...args,
-          // Booleans must reach the wire as strings, as with postReservation's sendEmailConfirmation.
-          ...(args.rooms
-            ? {
-                rooms: args.rooms.map((r) =>
-                  r.adjustPrice === undefined ? r : { ...r, adjustPrice: String(r.adjustPrice) },
-                ),
-              }
-            : {}),
         });
         const u = unwrap(res, 'putReservation');
         return u.ok ? ok(u.data) : err(u.code, u.message);
