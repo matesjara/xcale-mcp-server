@@ -74,7 +74,7 @@ export function materialize(
 }
 
 /**
- * ADR 0020: the secret becomes a top-level property of the client's JSON object body. Anything else
+ * ADR 0021: the secret becomes a top-level property of the client's JSON object body. Anything else
  * is a client or descriptor bug and throws — never a request sent without its credential. A key the
  * client already filled throws too: overwriting it would hide the bug that put it there.
  */

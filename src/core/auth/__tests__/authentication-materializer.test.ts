@@ -35,7 +35,7 @@ describe('AuthenticationMaterializer', () => {
     expect(req.url).toContain('api_key=a%20b');
   });
 
-  describe('api_key json_body placement (ADR 0020)', () => {
+  describe('api_key json_body placement (ADR 0021)', () => {
     const auth: ProviderAuthDescriptor = {
       type: 'api_key',
       fields: [{ key: 'AccessToken', label: 'Access token', placement: 'json_body' }],

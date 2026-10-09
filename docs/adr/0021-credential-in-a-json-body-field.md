@@ -1,4 +1,4 @@
-# ADR 0020: An `api_key` credential may be placed in a JSON body field
+# ADR 0021: An `api_key` credential may be placed in a JSON body field
 
 - **Status:** Proposed
 - **Date:** 2026-09-23

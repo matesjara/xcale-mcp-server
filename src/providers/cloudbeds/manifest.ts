@@ -34,8 +34,11 @@ export const cloudbedsManifest: ProviderManifest = {
   // Reconciled at merge (2026-09-25): both bumps above landed in the same window — the new tool and the
   // published `identityPolicy` — so one date and one version carry the two, and the version steps once
   // more so two independent surface changes do not collapse onto one `providerVersion`.
-  schemaVersion: '2026-09-25',
-  providerVersion: '0.9.0',
+  //
+  // Bumped again (#113): `get_property_configuration` publishes `sources` — the taxes and fees
+  // each reservation source carries — with a new description and `read:reservation` in its scopes.
+  schemaVersion: '2026-10-01',
+  providerVersion: '0.10.0',
   logoUrl: '/assets/cloudbeds.svg',
   capabilities: { pagination: true },
   // A Cloudbeds token is scoped to its property; discover the propertyID via getHotels instead of

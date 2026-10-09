@@ -89,6 +89,15 @@ function classifyTransportFailure(res: Extract<RequestResult, { ok: false }>): {
   return { code: res.errorCode };
 }
 
+/**
+ * `getSources` wraps its source list one level deeper than the rest of the API: `data` is
+ * `[[source, …]]` (observed on the wire, property 199593, 2026-09-28). A flat list is accepted too,
+ * so a Cloudbeds fix to the envelope does not break the read.
+ */
+function sourceListOf(data: unknown): unknown {
+  return Array.isArray(data) && data.length === 1 && Array.isArray(data[0]) ? data[0] : data;
+}
+
 function unwrap(res: RequestResult, method: string): Unwrapped {
   if (!res.ok) {
     const { code, detail } = classifyTransportFailure(res);
@@ -864,18 +873,27 @@ export function buildCloudbedsTools(
 
     tool({
       name: `mcp_${SLUG}_get_property_configuration`,
-      // Four scopes, four single-GET endpoints, ONE question an agent actually asks: "how is this
-      // property set up?". Splitting them would be four trivial tools competing for the agent's
-      // attention — the curation trade-off this repo already documents (Shopify 490 → ~41).
+      // Five single-GET endpoints, ONE question an agent actually asks: "how is this property set
+      // up?". Splitting them would be five trivial tools competing for the agent's attention — the
+      // curation trade-off this repo already documents (Shopify 490 → ~41).
+      //
+      // `sources` (#113): a tax or fee listed by getTaxesAndFees only reaches a reservation when the
+      // property APPLIES it to the reservation's source. Property 199593 configures card and PayPal
+      // surcharges it charges by hand and applies to no source; a consumer that added every
+      // exclusive entry quoted +5% (then +11%) on stays Cloudbeds prices without them. getSources is
+      // the only read that says what each source actually carries.
       requiredScopes: [
         'read:appPropertySettings',
         'read:currency',
         'read:taxesAndFees',
         'read:customFields',
-      ], // spec: getAppPropertySettings, getCurrencySettings, getTaxesAndFees, getCustomFields
+        'read:reservation',
+      ], // spec: getAppPropertySettings, getCurrencySettings, getTaxesAndFees, getCustomFields, getSources
       description:
-        'Get how this property is configured: app settings, currency, taxes and fees, and custom ' +
-        'fields. Use it before quoting prices or filling fields, so amounts and required data are right.',
+        'Get how this property is configured: app settings, currency, taxes and fees, custom fields, ' +
+        'and its reservation sources with the taxes and fees applied to each. A configured tax or fee ' +
+        "is charged on a reservation only when it is applied to that reservation's source. Use it " +
+        'before quoting prices or filling fields, so amounts and required data are right.',
       input: z.object({}).strict(),
       handler: async (_args, ctx) => {
         const { propertyID } = ctx.metadata;
@@ -884,6 +902,7 @@ export function buildCloudbedsTools(
           { key: 'currency', method: 'getCurrencySettings' },
           { key: 'taxesAndFees', method: 'getTaxesAndFees' },
           { key: 'customFields', method: 'getCustomFields' },
+          { key: 'sources', method: 'getSources' },
         ] as const;
 
         const data: Record<string, unknown> = {};
@@ -891,7 +910,7 @@ export function buildCloudbedsTools(
         const failureCodes: ProviderErrorCode[] = [];
         for (const part of parts) {
           const u = unwrap(await client.get(part.method, ctx.request, { propertyID }), part.method);
-          if (u.ok) data[part.key] = u.data;
+          if (u.ok) data[part.key] = part.key === 'sources' ? sourceListOf(u.data) : u.data;
           else {
             unavailable[part.key] = u.message;
             failureCodes.push(u.code);
@@ -900,7 +919,7 @@ export function buildCloudbedsTools(
 
         // Partial results are reported, never silently dropped: a property's PLAN can legitimately
         // lack one of these capabilities (the real meaning of Cloudbeds' "not granted by property"),
-        // and failing all four because one is absent would make the tool useless for that hotel.
+        // and failing all five because one is absent would make the tool useless for that hotel.
         // Everything failing is a real failure, not a partial one.
         if (Object.keys(data).length === 0) {
           // If every read failed on auth (an ungranted scope on a token that predates a scope bump),

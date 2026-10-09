@@ -7,7 +7,7 @@ import type { ProviderAuthDescriptor } from '../../core/provider-port';
  *   AccessToken  one hotel (enterprise)              → the connection's credential (this descriptor)
  *   Client       the integration's name and version  → deployment config
  *
- * The core places the `AccessToken` (ADR 0020, `json_body`); the adapter never sees it. `forwarded`
+ * The core places the `AccessToken` (ADR 0021, `json_body`); the adapter never sees it. `forwarded`
  * is allowed (ADR 0003): Mews is a PMS, not a payment or fiscal provider, and no tool takes a payment.
  * One tool can put money on a guest's bill — `cancel_reservation` with `postCancellationFee` — and
  * that is the hotel's own cancellation policy applied by its PMS, which the consumer gates like any

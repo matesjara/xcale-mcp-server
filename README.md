@@ -50,11 +50,14 @@ xcale-backend (MCP client)  ──/discover · tools/list · tools/call──▶
 - **Credentials never live here.** Two delivery strategies (ADR 0010): `forwarded` — the
   backend sends the usable credential in `X-Provider-Token` on every call (`echo`, `cloudbeds`,
   `toteat`); `reference` — the backend sends a single-use nonce and this server resolves it
-  back at the backend's Credential Authority (`siigo`; needs `CREDENTIAL_RESOLVE_URL` and
-  `CREDENTIAL_RESOLVE_SECRET`, plus `SIIGO_PARTNER_ID`). Routing context (`propertyID`,
+  back at the backend's Credential Authority (`siigo`, `erbon`; needs `CREDENTIAL_RESOLVE_URL` and
+  `CREDENTIAL_RESOLVE_SECRET`, plus `SIIGO_PARTNER_ID`). **Locally** that URL is the backend's
+  self-signed `https://localhost:3200`: start this server with
+  `NODE_EXTRA_CA_CERTS="$(mkcert -CAROOT)/rootCA.pem" npm run dev`, or every `reference` call fails
+  TLS (`UNABLE_TO_VERIFY_LEAF_SIGNATURE`) before reaching the provider. Routing context (`propertyID`,
   Toteat's `xir/xil/xiu`) travels in `X-Provider-Metadata`.
 - **Discovery.** `/discover` publishes the capability catalog derived from the registry —
-  auth *blueprints*, connection probes, context discovery — never secrets. `tools/list` is a flat
+  auth _blueprints_, connection probes, context discovery — never secrets. `tools/list` is a flat
   namespaced list (`mcp_{slug}_{verb}`); `tools/call` routes by name.
 - **Control-plane tools** (webhook subscriptions, app state, email templates…) are routable but
   withdrawn from `tools/list`, so an agent can never choose them (ADR 0013).
