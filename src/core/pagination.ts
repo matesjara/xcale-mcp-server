@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { ProviderErrorCode } from './errors';
 import { type ToolDefinition, type ToolHandlerContext, defineTool, err, ok } from './tool';
-import type { ToolIdentityPolicy } from './types';
+import type { ToolAudience, ToolIdentityPolicy } from './types';
 
 export const DEFAULT_PAGE_SIZE = 25;
 export const MAX_PAGE_SIZE = 100;
@@ -85,6 +85,8 @@ export function definePaginatedList<I extends z.ZodObject<z.ZodRawShape>, T, M =
    * caught it. A field that is declared and not published is worse than one nobody declared.
    */
   identityPolicy?: ToolIdentityPolicy;
+  /** Forwarded verbatim — the warning one field up is why this line exists. */
+  audience?: ToolAudience;
   handler: (
     args: z.infer<I> & PaginationInput,
     ctx: ToolHandlerContext<M>,
@@ -98,6 +100,7 @@ export function definePaginatedList<I extends z.ZodObject<z.ZodRawShape>, T, M =
     input: mergedInput,
     ...(def.requiredScopes ? { requiredScopes: def.requiredScopes } : {}),
     ...(def.identityPolicy ? { identityPolicy: def.identityPolicy } : {}),
+    ...(def.audience ? { audience: def.audience } : {}),
     handler: async (args, ctx) => {
       const result = await def.handler(args as z.infer<I> & PaginationInput, ctx);
       if (!result.ok) {

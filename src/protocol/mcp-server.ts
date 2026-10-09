@@ -12,7 +12,11 @@ import {
 import { ReferenceAuthExpiredError } from '../core/credential/reference-resolver';
 import { ProviderErrorCode } from '../core/errors';
 import type { ProviderRegistry } from '../core/registry';
-import { IDENTITY_POLICY_META_KEY, type InboundCallContext } from '../core/types';
+import {
+  AUDIENCE_META_KEY,
+  IDENTITY_POLICY_META_KEY,
+  type InboundCallContext,
+} from '../core/types';
 import { toMcpResult } from './result-mapping';
 
 /**
@@ -37,16 +41,25 @@ export function createMcpServer(
   // three MCP core fields stops here unless it is named below. That is how `identityPolicy` was
   // shipped and never reached a consumer (review of #101): the providers declared it, the
   // repo's own tests read the provider list and saw it, and the wire never carried it.
+  //
+  // `_meta` carries each declaration only when the tool has it, and both can sit on the same tool
+  // (`search_guests` is person-bound AND operator-only), so the object is assembled key by key rather
+  // than one key per branch — a second branch would overwrite the first. A tool with neither carries
+  // no `_meta` at all, which keeps providers that never classify byte-identical on the wire.
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     const tools: Tool[] = registry.providers.flatMap((provider) =>
-      provider.listTools().map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        inputSchema: tool.inputSchema as Tool['inputSchema'],
-        ...(tool.identityPolicy
-          ? { _meta: { [IDENTITY_POLICY_META_KEY]: tool.identityPolicy } }
-          : {}),
-      })),
+      provider.listTools().map((tool) => {
+        const meta: Record<string, unknown> = {
+          ...(tool.identityPolicy ? { [IDENTITY_POLICY_META_KEY]: tool.identityPolicy } : {}),
+          ...(tool.audience ? { [AUDIENCE_META_KEY]: tool.audience } : {}),
+        };
+        return {
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema as Tool['inputSchema'],
+          ...(Object.keys(meta).length > 0 ? { _meta: meta } : {}),
+        };
+      }),
     );
     return { tools };
   });

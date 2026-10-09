@@ -54,6 +54,24 @@ export type ToolIdentityPolicy =
  */
 export const IDENTITY_POLICY_META_KEY = 'xcale.app/identityPolicy';
 
+/**
+ * Who a tool may serve: the person a consumer's agent is talking to (`customer`), or the account's
+ * own staff on their own surface (`operator`). Provider knowledge, published in `tools/list` for the
+ * same reason as `ToolIdentityPolicy`: nothing in a name and a schema says that `list_reservations`
+ * returns the whole property's book while `get_availability` returns nobody's data.
+ *
+ * A DECLARATION, not an enforcement point — the consumer refuses `operator` tools when a guest is on
+ * the other end (ADR `tool-audience-gate-on-guest-channels`, xcale#1243).
+ *
+ * Absent on a tool = the provider has not classified it. A provider classifies all of its published
+ * tools or none (`core/__tests__/audience-coverage.test.ts`), so a consumer that sees one mark can
+ * read a missing one as a mistake and fail closed.
+ */
+export type ToolAudience = 'customer' | 'operator';
+
+/** The `_meta` key `audience` travels under — same reason as `IDENTITY_POLICY_META_KEY`. */
+export const AUDIENCE_META_KEY = 'xcale.app/audience';
+
 export interface McpToolDefinition {
   /** Namespaced to avoid collisions: `mcp_{slug}_{verb}`. */
   readonly name: string;
@@ -64,6 +82,8 @@ export interface McpToolDefinition {
    * nobody's personal records, which is true of most of them (room types, rate plans, a dashboard).
    */
   readonly identityPolicy?: ToolIdentityPolicy;
+  /** Who this tool may serve — see `ToolAudience`. Absent means the provider has not classified it. */
+  readonly audience?: ToolAudience;
 }
 
 /**

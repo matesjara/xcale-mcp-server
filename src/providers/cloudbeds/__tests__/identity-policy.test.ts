@@ -75,7 +75,9 @@ describe('cloudbeds publishes whose data each tool can reach', () => {
     // dropped the field, so a consumer keyed on this version re-read the menu and found it
     // identical. The version moves with the surface a consumer can actually observe, which is what
     // `mcp.integration.test.ts` now pins over the wire.
-    expect(cloudbedsManifest.schemaVersion).toBe('2026-10-01');
-    expect(cloudbedsManifest.providerVersion).toBe('0.10.0');
+    //
+    // Moved again by xcale#1243 (`audience` in `_meta`), pinned in `audience.test.ts` as well.
+    expect(cloudbedsManifest.schemaVersion).toBe('2026-10-09');
+    expect(cloudbedsManifest.providerVersion).toBe('0.12.0');
   });
 });
