@@ -600,14 +600,17 @@ export function buildCloudbedsTools(
       requiredScopes: ['write:reservation'], // spec: putReservation
       description:
         'Modify an existing reservation: cancel it (status: "canceled"), extend or shorten the stay ' +
-        '(checkoutDate), change a room, or set the estimated arrival time. At least one of those ' +
-        'must be given. The check-out alone moves with the top-level checkoutDate. To move the ' +
-        'check-in (or the whole stay) or to change a room, send rooms[] with the new checkinDate and ' +
-        'checkoutDate per room — there is no top-level check-in field — and the subReservationID of that room (from ' +
-        'get_reservation assigned[]) and ALL of roomTypeID, checkinDate, checkoutDate, adults and ' +
-        'children; the property re-prices it unless adjustPrice is false. WARNING: rooms[] REPLACES ' +
-        'the whole room list of the reservation — a room not sent is REMOVED. On a multi-room ' +
-        'reservation send every room line (unchanged ones as they are).',
+        '(checkoutDate), change a room or its party (adults, children), or set the estimated arrival ' +
+        'time. At least one of those must be given. The check-out alone moves with the top-level ' +
+        'checkoutDate, across the whole reservation. To move the check-in (or the whole stay), to ' +
+        'change a room or to change its party, send rooms[] with the new checkinDate and checkoutDate ' +
+        'per room — there is no top-level check-in field — and the subReservationID of that room ' +
+        '(from get_reservation assigned[]) and ALL of roomTypeID, checkinDate, checkoutDate, adults ' +
+        'and children; send its rateID too (get_reservation_rate_details has the booked one), or the ' +
+        'property picks a rate itself. The property re-prices the room unless adjustPrice is false ' +
+        '(then the price holds and extra guests are NOT charged). WARNING: rooms[] REPLACES the whole ' +
+        'room list of the reservation — a room not sent is REMOVED. On a multi-room reservation send ' +
+        'every room line (unchanged ones as they are, with their booked rateID).',
       input: z
         .object({
           reservationID: z.string().min(1),
