@@ -66,6 +66,18 @@ export interface ToolDefinition<I extends z.ZodTypeAny = z.ZodTypeAny, M = unkno
    */
   readonly identityPolicy?: ToolIdentityPolicy;
   /**
+   * The tool changes nothing at the provider — published as the standard MCP annotation
+   * `readOnlyHint`.
+   *
+   * Provider knowledge, declared by whoever knows the HTTP method behind the handler: a consumer
+   * sees a name and a schema, and `list_*` is a naming habit, not a guarantee. xcale-backend runs a
+   * tool with no conversation behind it — harvesting a connected app into a tenant's knowledge
+   * (xcale-backend#1467) — only when this says so. Absent means "not known to be read-only", and a
+   * consumer must treat it as closed; never set it to `false`, which would read as a classification
+   * nobody made.
+   */
+  readonly readOnly?: true;
+  /**
    * Control-plane tool: dispatched by `tools/call`, **withdrawn from `tools/list`**.
    *
    * Some provider operations are infrastructure the CONSUMER performs (subscribe a webhook receiver,

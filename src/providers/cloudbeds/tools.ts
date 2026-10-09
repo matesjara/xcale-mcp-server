@@ -635,6 +635,7 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_list_room_types`,
       requiredScopes: ['read:room'], // spec: getRoomTypes
+      readOnly: true, // GET only — published as `readOnlyHint` (xcale-backend#1467)
       description:
         'List every room type the property has configured, with its description and capacity — the ' +
         'catalogue, regardless of dates. It says nothing about what is FREE or what it costs: for that ' +
@@ -1082,6 +1083,7 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_list_items`,
       requiredScopes: ['read:item'], // spec: getItems, getItemCategories
+      readOnly: true, // GET only — published as `readOnlyHint` (xcale-backend#1467)
       description:
         'List the sellable items (extras, products) of this property and their categories. Use it to ' +
         'answer what can be added to a stay.',
@@ -1111,16 +1113,33 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_list_addons`,
       requiredScopes: ['read:addon'], // spec: GET /addons/v1/addons — PMS **v2.0**, not v1.3
+      readOnly: true, // GET only — published as `readOnlyHint` (xcale-backend#1467)
       description:
         'List the add-ons the property sells alongside a stay — breakfast, transfers, late checkout ' +
         'and the like — with their prices. Use it to answer "what else can I add?" and to quote an ' +
         'extra before it is promised.',
-      input: z.object({}).strict(),
-      handler: async (_args, ctx) => {
+      // The v2 service answers a page — `{ offset, limit, data }` — so a caller that must read every
+      // add-on (xcale-backend#1467) walks it. Both optional: an agent asking "what can I add?" sends
+      // neither and gets the service's first page, exactly as before.
+      input: z
+        .object({
+          offset: z
+            .number()
+            .int()
+            .min(0)
+            .optional()
+            .describe('Add-ons to skip, to read the next page.'),
+          limit: z.number().int().min(1).max(100).optional().describe('Add-ons per page.'),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
         const { propertyID } = ctx.metadata;
-        const res = await client.getV2(['addons', 'v1', 'addons'], ctx.request, {
-          'X-Property-Id': propertyID,
-        });
+        const res = await client.getV2(
+          ['addons', 'v1', 'addons'],
+          ctx.request,
+          { 'X-Property-Id': propertyID },
+          { offset: args.offset, limit: args.limit },
+        );
         // v2 answers JSON directly and reports failure as an HTTP status — there is no
         // `{success:false}` envelope to unwrap. The one failure we HAVE observed is the important
         // one: `403 {"message":"You do not have correct scope…"}` on a token minted before this tool

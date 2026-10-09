@@ -64,6 +64,8 @@ export interface McpToolDefinition {
    * nobody's personal records, which is true of most of them (room types, rate plans, a dashboard).
    */
   readonly identityPolicy?: ToolIdentityPolicy;
+  /** Changes nothing at the provider — published as `annotations.readOnlyHint` (see `ToolDefinition`). */
+  readonly readOnly?: true;
 }
 
 /**
