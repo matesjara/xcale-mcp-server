@@ -578,7 +578,9 @@ export function buildCloudbedsTools(
         'must be given. NOTE: the reservation-level check-in date CANNOT be changed — only the ' +
         'check-out date. To change a room, send rooms[] with the subReservationID of that room (from ' +
         'get_reservation assigned[]) and ALL of roomTypeID, checkinDate, checkoutDate, adults and ' +
-        'children; the property re-prices it unless adjustPrice is false.',
+        'children; the property re-prices it unless adjustPrice is false. WARNING: rooms[] REPLACES ' +
+        'the whole room list of the reservation — a room not sent is REMOVED. On a multi-room ' +
+        'reservation send every room line (unchanged ones as they are).',
       input: z
         .object({
           reservationID: z.string().min(1),
@@ -598,7 +600,9 @@ export function buildCloudbedsTools(
           // is `rateID` (NOT `roomRateID`, which is postReservation's name), and `subReservationID`
           // names WHICH booked room changes. The previous shape (roomTypeID, quantity, roomRateID)
           // matched none of it and Cloudbeds refused it live: "Parameter checkinDate is required"
-          // (xcale-backend#1243, evidence P4, 2026-10-08).
+          // (xcale-backend#1243, evidence P4, 2026-10-08). Observed live the same day: rooms[] REPLACES
+          // the reservation's whole room list — a two-room booking sent one line lost the other room
+          // (evidence "Multi-habitación"). Hence the warning in the description.
           rooms: z
             .array(
               z
