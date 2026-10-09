@@ -46,6 +46,9 @@ export function createMcpServer(
         ...(tool.identityPolicy
           ? { _meta: { [IDENTITY_POLICY_META_KEY]: tool.identityPolicy } }
           : {}),
+        // The SDK's `ToolSchema` names `annotations`, so the standard hint survives validation —
+        // unlike a custom top-level field, which zod strips (see `IDENTITY_POLICY_META_KEY`).
+        ...(tool.readOnly ? { annotations: { readOnlyHint: true } } : {}),
       })),
     );
     return { tools };

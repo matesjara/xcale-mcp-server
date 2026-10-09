@@ -52,6 +52,8 @@ export function createProvider<M = unknown>(spec: ProviderSpec<M>): IProvider {
       // Published so the consumer can enforce a rule it is TOLD rather than one it has to guess.
       // Omitted when absent, so a tool that names nobody's records stays byte-identical on the wire.
       ...(t.identityPolicy ? { identityPolicy: t.identityPolicy } : {}),
+      // Omitted unless declared, for the same reason: absent is the closed answer.
+      ...(t.readOnly ? { readOnly: true as const } : {}),
     }));
   const contextSchema = spec.metadataSchema ? toJsonSchema(spec.metadataSchema) : undefined;
 

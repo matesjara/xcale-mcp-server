@@ -635,6 +635,7 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_list_room_types`,
       requiredScopes: ['read:room'], // spec: getRoomTypes
+      readOnly: true, // GET only — published as `readOnlyHint` (xcale-backend#1467)
       description:
         'List every room type the property has configured, with its description and capacity — the ' +
         'catalogue, regardless of dates. It says nothing about what is FREE or what it costs: for that ' +
@@ -1082,6 +1083,7 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_list_items`,
       requiredScopes: ['read:item'], // spec: getItems, getItemCategories
+      readOnly: true, // GET only — published as `readOnlyHint` (xcale-backend#1467)
       description:
         'List the sellable items (extras, products) of this property and their categories. Use it to ' +
         'answer what can be added to a stay.',
@@ -1111,6 +1113,7 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_list_addons`,
       requiredScopes: ['read:addon'], // spec: GET /addons/v1/addons — PMS **v2.0**, not v1.3
+      readOnly: true, // GET only — published as `readOnlyHint` (xcale-backend#1467)
       description:
         'List the add-ons the property sells alongside a stay — breakfast, transfers, late checkout ' +
         'and the like — with their prices. Use it to answer "what else can I add?" and to quote an ' +

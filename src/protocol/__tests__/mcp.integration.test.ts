@@ -149,3 +149,38 @@ describe('identityPolicy reaches the consumer over the wire', () => {
     await client.close();
   });
 });
+
+/**
+ * `readOnlyHint` reaches the consumer over the wire — the standard MCP tool annotation.
+ *
+ * xcale-backend runs a tool outside any conversation only when it is told the tool changes nothing
+ * (its harvest of a connected app into a tenant's knowledge, xcale-backend#1467). Absent means "not
+ * known to be read-only", so a tool nobody classified is never run unattended. Declared per tool, by
+ * whoever knows its HTTP method — never inferred from its name.
+ */
+describe('readOnlyHint reaches the consumer over the wire', () => {
+  it.each(['list_room_types', 'list_items', 'list_addons'])(
+    'publishes mcp_cloudbeds_%s as read-only',
+    async (verb) => {
+      const client = await connect();
+      const { tools } = await client.listTools();
+      const tool = tools.find((t) => t.name === `mcp_cloudbeds_${verb}`);
+
+      expect(tool, 'the tool must be published at all').toBeDefined();
+      expect(tool?.annotations?.readOnlyHint).toBe(true);
+      await client.close();
+    },
+  );
+
+  it('says nothing for a tool that writes, rather than false', async () => {
+    // Absent is closed for the consumer; an explicit `false` would read as a classification nobody
+    // made. A write tool simply carries no hint.
+    const client = await connect();
+    const { tools } = await client.listTools();
+    const create = tools.find((t) => t.name === 'mcp_cloudbeds_create_reservation');
+
+    expect(create, 'the tool must be published at all').toBeDefined();
+    expect(create?.annotations?.readOnlyHint).toBeUndefined();
+    await client.close();
+  });
+});
