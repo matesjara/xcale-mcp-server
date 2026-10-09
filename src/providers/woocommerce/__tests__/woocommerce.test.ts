@@ -147,6 +147,9 @@ describe('woocommerce provider — list_products', () => {
       id: '12',
       name: 'Camiseta',
       price: '100000',
+      regularPrice: '125000',
+      salePrice: '100000',
+      onSale: true,
       stockStatus: 'instock',
       stockQuantity: 46,
       permalink: 'https://store.example.com/product/camiseta/',
@@ -154,6 +157,16 @@ describe('woocommerce provider — list_products', () => {
     });
     // A product with manage_stock=false has no quantity — normalized to null, not omitted.
     expect(data.items[1]?.stockStatus).toBe('outofstock');
+  });
+
+  it('exposes the sale pair so the agent can tell a buyer a product is on sale', async () => {
+    const { provider: p } = provider(productsList);
+    const result = await p.callTool('mcp_woocommerce_list_products', {}, CTX);
+    const items = (successData(result) as { items: Record<string, unknown>[] }).items;
+
+    expect(items[0]).toMatchObject({ regularPrice: '125000', salePrice: '100000', onSale: true });
+    // WooCommerce sends sale_price "" when there is no sale — that is no price, so null.
+    expect(items[1]).toMatchObject({ regularPrice: '45000', salePrice: null, onSale: false });
   });
 
   it('forwards search/filter params into the query string', async () => {
@@ -201,6 +214,7 @@ describe('woocommerce provider — get_product', () => {
     expect(data.categories[0]).toEqual({ id: '15', name: 'Uncategorized' });
     expect(data.images[0]?.src).toContain('96541-1.webp');
     expect(data.variations).toEqual([]);
+    expect(data).toMatchObject({ regularPrice: '125000', salePrice: '100000', onSale: true });
   });
 
   it('strips tags even when an attribute value contains ">"', async () => {
@@ -240,6 +254,9 @@ describe('woocommerce provider — get_product_variations', () => {
       id: '18',
       attributes: [{ name: 'Talla', option: 'S' }],
       price: '150000',
+      regularPrice: '150000',
+      salePrice: null,
+      onSale: false,
       stockStatus: 'instock',
       stockQuantity: 76,
     });
