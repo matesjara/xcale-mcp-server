@@ -169,6 +169,30 @@ describe('woocommerce provider — list_products', () => {
     expect(items[1]).toMatchObject({ regularPrice: '45000', salePrice: null, onSale: false });
   });
 
+  it('does not report a stale sale_price the charged price never took', async () => {
+    const stale = {
+      id: 100558,
+      name: 'CUZCO',
+      price: '2573000',
+      regular_price: '2573000',
+      sale_price: '1930000',
+      on_sale: true,
+      stock_status: 'instock',
+      stock_quantity: null,
+      permalink: 'u',
+    };
+    const { provider: p } = provider([stale]);
+    const result = await p.callTool('mcp_woocommerce_list_products', {}, CTX);
+    const items = (successData(result) as { items: Record<string, unknown>[] }).items;
+
+    expect(items[0]).toMatchObject({
+      price: '2573000',
+      regularPrice: '2573000',
+      salePrice: null,
+      onSale: false,
+    });
+  });
+
   it('forwards search/filter params into the query string', async () => {
     const { provider: p, calls } = provider(productsList);
     await p.callTool(

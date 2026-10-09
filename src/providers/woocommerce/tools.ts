@@ -94,21 +94,28 @@ export interface WooProductDetail extends WooProductSummary {
 
 /** Sale fields shared by products and variations. WooCommerce sends `""` for an unset price. */
 interface RawSalePricing {
+  readonly price: string;
   readonly regular_price?: string;
   readonly sale_price?: string;
   readonly on_sale?: boolean;
 }
 
-/** An empty string is not a price, so it becomes null. */
+/**
+ * A sale counts only when it is the price actually charged. A store can carry `on_sale: true` with a
+ * stale `sale_price` the effective `price` never took (seen live: sale_price 1930000, price 2573000);
+ * handing the agent that number would quote a buyer a price nobody charges. An empty string is not a
+ * price, so it becomes null.
+ */
 function toSalePricing(p: RawSalePricing): {
   regularPrice: string | null;
   salePrice: string | null;
   onSale: boolean;
 } {
+  const onSale = p.on_sale === true && !!p.sale_price && p.sale_price === p.price;
   return {
     regularPrice: p.regular_price || null,
-    salePrice: p.sale_price || null,
-    onSale: p.on_sale === true,
+    salePrice: onSale ? (p.sale_price ?? null) : null,
+    onSale,
   };
 }
 
