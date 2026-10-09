@@ -507,6 +507,28 @@ describe('list_addons — the one v2.0 surface (PMS v2 is not v1.3)', () => {
     expect(headers['X-Property-Id']).toBe('PROP1');
   });
 
+  it('walks the catalogue by offset and limit, and asks for nothing extra when given neither', async () => {
+    // The v2 answer is `{ offset, limit, data }` (observed live, 2026-10-09) and one property
+    // answered exactly 10: a page, not a catalogue. A caller that must read every add-on — the
+    // knowledge harvest of xcale-backend#1467 — has to be able to ask for the next one.
+    const urls: string[] = [];
+    const capturingFetch = (async (url: string | URL) => {
+      urls.push(url.toString());
+      return new Response(JSON.stringify({ offset: 0, limit: 10, data: [] }), { status: 200 });
+    }) as FetchLike;
+    const provider = createCloudbedsProvider({ fetchImpl: capturingFetch });
+
+    await provider.callTool(
+      'mcp_cloudbeds_list_addons',
+      { offset: 20, limit: 50 },
+      ctx({ propertyID: 'PROP1' }),
+    );
+    await provider.callTool('mcp_cloudbeds_list_addons', {}, ctx({ propertyID: 'PROP1' }));
+
+    expect(urls[0]).toBe('https://api.cloudbeds.com/addons/v1/addons?offset=20&limit=50');
+    expect(urls[1]).toBe('https://api.cloudbeds.com/addons/v1/addons');
+  });
+
   it('surfaces a scope refusal as AUTH_EXPIRED — "reconnect", not "no addons"', async () => {
     // OBSERVED against the live sandbox (2026-08-02), and the reason this tool can exist at all: the
     // endpoint answered `403 {"message":"You do not have correct scope to perform this action"}`

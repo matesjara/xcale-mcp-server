@@ -95,6 +95,8 @@ export interface CloudbedsClient {
     segments: readonly string[],
     request: AuthedRequest,
     headers: Record<string, string>,
+    /** Query parameters; `undefined` values are dropped, so an empty call stays the bare path. */
+    query?: Record<string, string | number | undefined>,
   ): Promise<RequestResult>;
 }
 
@@ -191,10 +193,15 @@ export function createCloudbedsClient(deps: CloudbedsClientDeps = {}): Cloudbeds
         headers: { ...headers },
       });
     },
-    getV2(segments, request, headers) {
+    getV2(segments, request, headers, query) {
+      const qs = new URLSearchParams();
+      for (const [key, value] of Object.entries(query ?? {})) {
+        if (value !== undefined) qs.set(key, String(value));
+      }
+      const search = qs.toString();
       return request({
         method: 'GET',
-        url: `${V2_BASE_URL}/${paymentsPath(segments)}`,
+        url: `${V2_BASE_URL}/${paymentsPath(segments)}${search ? `?${search}` : ''}`,
         headers: { ...headers },
       });
     },
