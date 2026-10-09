@@ -77,7 +77,7 @@ describe('cloudbeds publishes whose data each tool can reach', () => {
     // `mcp.integration.test.ts` now pins over the wire.
     //
     // Moved again by xcale#1243 (`audience` in `_meta`), pinned in `audience.test.ts` as well.
-    expect(cloudbedsManifest.schemaVersion).toBe('2026-10-07');
-    expect(cloudbedsManifest.providerVersion).toBe('0.11.0');
+    expect(cloudbedsManifest.schemaVersion).toBe('2026-10-09');
+    expect(cloudbedsManifest.providerVersion).toBe('0.12.0');
   });
 });

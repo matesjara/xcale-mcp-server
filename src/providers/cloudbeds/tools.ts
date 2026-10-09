@@ -297,6 +297,32 @@ export function buildCloudbedsTools(
       },
     }),
 
+    // getReservation returns no rate per room, so a consumer rewriting a reservation's rooms[] (which
+    // REPLACES the whole list — evidence "Multi-habitación", xcale-backend#1471) could not send the
+    // booked rate of the rooms it leaves alone, and Cloudbeds would pick one nobody quoted. This
+    // endpoint carries it per room (`rooms[].rateID`, with `subReservationID`, `adults`, `children`).
+    // Operator: it is a list endpoint over the property, filtered here to one reservation.
+    tool({
+      name: `mcp_${SLUG}_get_reservation_rate_details`,
+      audience: 'operator',
+      requiredScopes: ['read:reservation'], // spec: getReservationsWithRateDetails
+      description:
+        'Get the booked rate of every room of one reservation by its reservationID: per room its ' +
+        'subReservationID, roomTypeID and name, rateID and rate name, adults, children, check-in and ' +
+        'check-out, and the per-night rates. get_reservation does not return the rate; use this when ' +
+        'the rate each room was booked at matters (e.g. before rewriting rooms[] with ' +
+        'modify_reservation). Returns the provider list verbatim — at most the one reservation.',
+      input: z.object({ reservationID: z.string().min(1) }).strict(),
+      handler: async (args, ctx) => {
+        const res = await client.get('getReservationsWithRateDetails', ctx.request, {
+          propertyID: ctx.metadata.propertyID,
+          reservationID: args.reservationID,
+        });
+        const u = unwrap(res, 'getReservationsWithRateDetails');
+        return u.ok ? ok(u.data) : err(u.code, u.message);
+      },
+    }),
+
     tool({
       name: `mcp_${SLUG}_get_guest`,
       audience: 'operator',

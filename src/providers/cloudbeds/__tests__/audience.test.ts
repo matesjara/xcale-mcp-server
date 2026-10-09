@@ -55,7 +55,7 @@ describe('cloudbeds publishes who each tool may serve', () => {
   it('marks every other published tool operator', () => {
     const operator = published.filter((t) => t.audience === 'operator');
     expect(operator).toHaveLength(published.length - CUSTOMER_TOOLS.length);
-    expect(published).toHaveLength(39);
+    expect(published).toHaveLength(40);
   });
 
   it('never marks a person-bound or property-wide read customer', () => {
@@ -69,8 +69,8 @@ describe('cloudbeds publishes who each tool may serve', () => {
   });
 
   it('declares the version bump that a changed tools/list requires', () => {
-    expect(cloudbedsManifest.schemaVersion).toBe('2026-10-07');
-    expect(cloudbedsManifest.providerVersion).toBe('0.11.0');
+    expect(cloudbedsManifest.schemaVersion).toBe('2026-10-09');
+    expect(cloudbedsManifest.providerVersion).toBe('0.12.0');
   });
 });
 
@@ -141,7 +141,7 @@ describe('audience reaches the consumer over the wire', () => {
     const tools = await listTools();
     const cloudbeds = tools.filter((t) => t.name.startsWith('mcp_cloudbeds_'));
 
-    expect(cloudbeds).toHaveLength(39);
+    expect(cloudbeds).toHaveLength(40);
     for (const tool of cloudbeds) {
       expect(['customer', 'operator'], tool.name).toContain(tool._meta?.[AUDIENCE_META_KEY]);
     }

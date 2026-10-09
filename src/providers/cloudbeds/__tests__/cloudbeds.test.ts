@@ -85,6 +85,58 @@ describe('cloudbeds provider', () => {
     expect(r).toMatchObject({ kind: 'success', data: { reservationID: 'RES-1001' } });
   });
 
+  it('get_reservation_rate_details asks for ONE reservation and returns the list verbatim', async () => {
+    // Shape from the spec (GetReservationsWithRateDetailsResponse): the booked rate per room, which
+    // getReservation never returns (xcale-backend#1471).
+    const row = {
+      reservationID: 'RES-1001',
+      rooms: [
+        {
+          subReservationID: 'RES-1001',
+          roomTypeID: '11',
+          rateID: '501',
+          adults: '2',
+          children: '0',
+        },
+        {
+          subReservationID: 'RES-1001-2',
+          roomTypeID: '12',
+          rateID: '502',
+          adults: '2',
+          children: '1',
+        },
+      ],
+    };
+    const seen: URL[] = [];
+    const fetchImpl = (async (url: string | URL) => {
+      const u = new URL(url.toString());
+      seen.push(u);
+      return u.pathname.endsWith('/getReservationsWithRateDetails')
+        ? new Response(JSON.stringify({ success: true, data: [row] }), { status: 200 })
+        : new Response('not found', { status: 404 });
+    }) as FetchLike;
+    const provider = createCloudbedsProvider({ fetchImpl });
+    const r = await provider.callTool(
+      'mcp_cloudbeds_get_reservation_rate_details',
+      { reservationID: 'RES-1001' },
+      ctx({ propertyID: 'PROP1' }),
+    );
+    expect(r).toMatchObject({ kind: 'success', data: [row] });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.searchParams.get('reservationID')).toBe('RES-1001');
+    expect(seen[0]!.searchParams.get('propertyID')).toBe('PROP1');
+  });
+
+  it('get_reservation_rate_details requires a reservationID — never lists the property', async () => {
+    const provider = createCloudbedsProvider({ fetchImpl: fakeFetch({}) });
+    const r = await provider.callTool(
+      'mcp_cloudbeds_get_reservation_rate_details',
+      {},
+      ctx({ propertyID: 'PROP1' }),
+    );
+    expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+  });
+
   it('maps a provider 401 to PROVIDER_AUTH_EXPIRED (reconnect signal)', async () => {
     const provider = createCloudbedsProvider({
       fetchImpl: fakeFetch({ getReservation: { status: 401, body: { message: 'token expired' } } }),
