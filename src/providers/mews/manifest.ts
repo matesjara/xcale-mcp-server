@@ -16,6 +16,8 @@ export const mewsManifest: ProviderManifest = {
   slug: SLUG,
   displayName: 'Mews',
   category: 'hospitality',
+  // The house tile (black, rx 6, the mark in white), drawn from Mews's own mark.
+  logoUrl: `/assets/${SLUG}.svg`,
   // 2026-09-29: three read tools publish the `identityPolicy` every provider tool that reaches a
   // person's records now carries (ADR 0019) — a change to `tools/list`, so the version steps.
   // 2026-09-30: list_products, list_reservation_notes and add_reservation_note join the menu (E29).
