@@ -21,6 +21,7 @@ import {
   offersSchema,
   roomsSchema,
 } from '../src/providers/profitroom/schemas';
+import { photosOf } from '../src/providers/profitroom/mappers';
 
 /** The first Profitroom tenant's public engine (La Pausa) — public data, no credential. */
 const HOTEL_KEY = 'hotellapausa';
@@ -46,6 +47,8 @@ export interface DriftProbeOptions {
   readonly fetchImpl?: typeof fetch;
   /** Today, `YYYY-MM-DD` (UTC). The probe looks 30 days ahead so the dates are always bookable. */
   readonly today?: string;
+  /** How long one photo may take before the host counts as unreachable (default 10 s). */
+  readonly photoTimeoutMs?: number;
 }
 
 export async function runDriftProbe(opts: DriftProbeOptions = {}): Promise<DriftReport> {
@@ -66,9 +69,13 @@ export async function runDriftProbe(opts: DriftProbeOptions = {}): Promise<Drift
   ];
 
   const checks: DriftCheck[] = [];
+  let rooms: unknown;
   for (const [resource, query, schema] of targets) {
-    checks.push(await check(fetchImpl, resource, query, schema));
+    const { result, data } = await check(fetchImpl, resource, query, schema);
+    checks.push(result);
+    if (resource === 'rooms' && result.ok) rooms = data;
   }
+  checks.push(await checkPhoto(fetchImpl, rooms, opts.photoTimeoutMs ?? 10_000));
   return {
     ok: checks.every((c) => c.ok),
     drifted: checks.some((c) => c.failure === 'drift'),
@@ -81,7 +88,7 @@ async function check(
   resource: string,
   query: Record<string, string>,
   schema: z.ZodTypeAny,
-): Promise<DriftCheck> {
+): Promise<{ result: DriftCheck; data?: unknown }> {
   const qs = new URLSearchParams(query).toString();
   const url = `${API_BASE}${HOTEL_KEY}/${resource}${qs ? `?${qs}` : ''}`;
   try {
@@ -89,22 +96,91 @@ async function check(
       headers: { accept: 'application/json', 'x-requested-with': 'XMLHttpRequest' },
     });
     if (!res.ok) {
-      return { resource, ok: false, failure: 'unreachable', detail: `HTTP ${res.status}` };
+      return {
+        result: { resource, ok: false, failure: 'unreachable', detail: `HTTP ${res.status}` },
+      };
     }
     const parsed = schema.safeParse(await res.json());
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
       return {
+        result: {
+          resource,
+          ok: false,
+          failure: 'drift',
+          detail: issue ? `${issue.path.join('.')}: ${issue.message}` : 'unknown shape',
+        },
+      };
+    }
+    return { result: { resource, ok: true, detail: 'matches' }, data: parsed.data };
+  } catch (e) {
+    return {
+      result: {
+        resource,
+        ok: false,
+        failure: 'unreachable',
+        detail: e instanceof Error ? e.message : 'request failed',
+      },
+    };
+  }
+}
+
+/**
+ * #145: the photos the provider derives must still be real images — one on each path it uses, the
+ * featured photo (`images/rooms/`) and a gallery photo (`images/gallery/`). A 404 or a non-image (the
+ * engine answers a 1x1 GIF on a wrong path) means Profitroom moved its photos: drift. A 5xx or no
+ * answer (or none within the timeout) is an outage. Rooms that parse with no photo on a path are
+ * drift too.
+ */
+async function checkPhoto(
+  fetchImpl: typeof fetch,
+  rooms: unknown,
+  timeoutMs: number,
+): Promise<DriftCheck> {
+  const resource = 'photo';
+  // The rooms check already reported a rooms failure; there is nothing to derive photos from.
+  if (!Array.isArray(rooms))
+    return { resource, ok: true, detail: 'rooms unavailable — not checked' };
+  const photos = (rooms as Parameters<typeof photosOf>[0][]).flatMap((room) =>
+    photosOf(room, HOTEL_KEY),
+  );
+  for (const path of ['/images/rooms/', '/images/gallery/']) {
+    const url = photos.find((p) => p.url.includes(path))?.url;
+    // The schema reads the gallery leniently (it never fails the room list), so a renamed gallery
+    // shows up here, as rooms with no photo at all. La Pausa has dozens: none is drift.
+    if (url === undefined) {
+      return {
         resource,
         ok: false,
         failure: 'drift',
-        detail: issue ? `${issue.path.join('.')}: ${issue.message}` : 'unknown shape',
+        detail: `rooms parsed but no photo on ${path}`,
       };
     }
-    return { resource, ok: true, detail: 'matches' };
+    const failed = await fetchPhoto(fetchImpl, url, timeoutMs);
+    if (failed) return { resource, ...failed };
+  }
+  return { resource, ok: true, detail: 'featured and gallery photos are images' };
+}
+
+async function fetchPhoto(
+  fetchImpl: typeof fetch,
+  url: string,
+  timeoutMs: number,
+): Promise<Omit<DriftCheck, 'resource'> | null> {
+  try {
+    // A hung photo host must not stall the daily job: it counts as unreachable, never as drift.
+    const res = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
+    await res.body?.cancel(); // only the status and type matter; do not download the image
+    const type = res.headers.get('content-type') ?? '';
+    if (res.status >= 500) {
+      return { ok: false, failure: 'unreachable', detail: `HTTP ${res.status} at ${url}` };
+    }
+    if (!res.ok || !type.startsWith('image/') || type.includes('gif')) {
+      return { ok: false, failure: 'drift', detail: `HTTP ${res.status} ${type} at ${url}` };
+    }
+    return null;
   } catch (e) {
     return {
-      resource,
       ok: false,
       failure: 'unreachable',
       detail: e instanceof Error ? e.message : 'request failed',

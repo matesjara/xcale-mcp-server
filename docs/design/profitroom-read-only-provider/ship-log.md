@@ -69,7 +69,7 @@ catalog cache, and a daily drift probe (`scripts/profitroom-drift.ts` +
 
 ## Known gaps at ship
 
-- ⬜ Provider logo (`logoUrl`) — none yet.
+- ✅ Provider logo (2026-10-16, with #146): `assets/profitroom.webp` (400×400, from the image Sara supplied), `logoUrl: /assets/profitroom.webp`, published by `/discover`.
 - ⬜ Rate limit on the engine: no documented limit; the 15-minute cache keeps calls low. Watch the
   drift workflow and the gateway logs after La Pausa goes live.
 - The API is Profitroom's internal booking-engine API, not a public contract: the drift probe is the
