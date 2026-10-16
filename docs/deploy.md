@@ -85,6 +85,11 @@ follow it immediately with the matching revert on `main`, or the next push re-de
 - `basic-xxs` has no rolling deploy: expect a few seconds of restart per release.
 - The server refuses to start without `MCP_SERVER_SECRET` (fatal, by design) — a missing secret
   shows up as a failed health check, not as an open, unauthenticated server.
+- HiMed has **no default host**: `HIMED_BASE_URL` (Demográficos + directory) and
+  `HIMED_SCHEDULING_BASE_URL` (Autoagendamiento) must be set per environment in Doppler — the sandbox
+  hosts in `dev`, HiMed's production hosts in `prd` (and in `.do/app.yaml`). Unset, the server still
+  starts and logs `[himed] … not set`, and every HiMed tool fails closed with `PROVIDER_UNAVAILABLE`
+  — it never falls back to another host. The old scheduling default was HiMed's TEST endpoint.
 - No custom domain yet: consumers point at the `*.ondigitalocean.app` ingress. `xcale.app` DNS is
   not managed in this DO account, so adding `mcp.xcale.app` means creating the CNAME at the
   external registrar and then adding a `domains:` block to `.do/app.yaml`.

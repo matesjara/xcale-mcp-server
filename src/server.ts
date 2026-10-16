@@ -4,7 +4,11 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { verifyHopB } from './auth/hop-b';
-import { extractProviderMetadata, extractProviderToken } from './auth/token';
+import {
+  extractProviderCredentials,
+  extractProviderMetadata,
+  extractProviderToken,
+} from './auth/token';
 import { type Config, loadConfig } from './config';
 import { buildCatalog } from './core/catalog';
 import type { CredentialResolverDeps } from './core/credential/credential-resolver';
@@ -93,11 +97,15 @@ export function buildApp(config: Config = loadConfig()): FastifyInstance {
     const token = extractProviderToken(typeof rawToken === 'string' ? rawToken : undefined);
     const rawMeta = request.headers['x-provider-metadata'];
     const metadata = extractProviderMetadata(typeof rawMeta === 'string' ? rawMeta : undefined);
+    const rawCreds = request.headers['x-provider-credentials'];
+    const credentials = extractProviderCredentials(
+      typeof rawCreds === 'string' ? rawCreds : undefined,
+    );
     try {
       await handleMcpRequest({
         registry,
         resolverDeps,
-        ctx: { token, metadata },
+        ctx: { token, metadata, ...(credentials ? { credentials } : {}) },
         req: request.raw,
         res: reply.raw,
         body: request.body,

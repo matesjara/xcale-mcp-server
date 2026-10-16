@@ -93,6 +93,8 @@ describe('audience reaches the consumer over the wire', () => {
       credentialResolveUrl: '',
       credentialResolveSecret: '',
       siigoPartnerId: '',
+      himedBaseUrl: '',
+      himedSchedulingBaseUrl: '',
     });
     await app.listen({ port: 0, host: '127.0.0.1' });
     const addr = app.server.address() as AddressInfo;
