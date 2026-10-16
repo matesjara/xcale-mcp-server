@@ -41,6 +41,10 @@ function assertAuthDescriptorShape(auth: ProviderAuthDescriptor, label: string):
       // them at the consumer and only encodes here. At least one field must be declared.
       expect(auth.fields.length, `${label}: basic fields`).toBeGreaterThan(0);
       break;
+    case 'none':
+      // Credential-less: nothing to collect, nothing to deliver. Only the serializability check below
+      // applies. ADR credential-less-provider-auth.
+      break;
     default:
       assertNever(auth);
   }

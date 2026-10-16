@@ -113,6 +113,18 @@ identically (ADR `multiple-connect-methods-per-provider`). _Avoid_: a second mat
 keyed off `additionalAuth`; treating the array as call-time fallback auth (it is connect-time UX
 only, consumed by Rail A's connect flow).
 
+**Credential-less provider** — a provider whose external API needs no secret (e.g. Profitroom's
+public booking engine); it declares auth type `none`, and whatever identifies the target account is
+non-secret routing data carried in [`X-Provider-Metadata`](#) and validated by its `contextSchema`.
+_Avoid_: dressing a public identifier up as an `api_key` in `X-Provider-Token` (it is not a
+credential and must not be treated as one).
+
+**Booking-engine URL** — the public address of a hotel's booking engine (e.g.
+`https://booking.profitroom.com/es/hotellapausa`), the routing data a Profitroom connection carries.
+It is an *identifier the provider parses*, never a URL the server calls: the provider extracts the
+hotel key from it and builds every request from its own fixed base. _Avoid_: fetching the supplied URL
+(SSRF); reading the guest's language from its locale segment.
+
 **`requiredScopes`** — the OAuth scopes one tool needs in order to run, declared **on the tool** beside
 its `input` schema. Provider knowledge, so it lives in the adapter. It is the **single source** of a
 provider's scope surface: the `authDescriptor`'s `scopes` is the **union** of its tools' `requiredScopes`,

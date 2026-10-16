@@ -1,0 +1,52 @@
+name: Profitroom drift
+
+# Profitroom's booking-engine API is internal, not a published contract: it can change without notice.
+# The provider fails closed on a changed response; this daily probe is the early warning. It parses the
+# live API with the provider's own schemas (scripts/profitroom-drift.ts) and, on failure, opens or
+# comments on an issue labeled `profitroom-drift`. Contract: docs/design/profitroom-read-only-provider/
+# api-contract.md §E.
+
+on:
+  schedule:
+    - cron: '17 11 * * *' # daily, 06:17 in Bogotá
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Probe the live engine with the provider schemas
+        id: probe
+        # Exit 1 = drift (opens the issue); 2 = engine unreachable (the run fails, no drift issue).
+        run: |
+          set +e
+          npx tsx scripts/profitroom-drift.ts | tee drift-report.txt
+          code=${PIPESTATUS[0]}
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit $code
+        shell: bash {0}
+      - name: Open or update the drift issue
+        if: failure() && steps.probe.outputs.code == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create profitroom-drift --color B60205 \
+            --description "Profitroom booking-engine API changed shape" 2>/dev/null || true
+          body="$(printf 'The daily probe found drift in the Profitroom booking-engine API (run %s).\n\nThe provider is failing closed for the affected endpoint(s) until its schemas are updated.\n\n```\n%s\n```' \
+            "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" "$(cat drift-report.txt)")"
+          existing="$(gh issue list --label profitroom-drift --state open --json number --jq '.[0].number')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "Profitroom booking-engine API drift" --label profitroom-drift --body "$body"
+          fi

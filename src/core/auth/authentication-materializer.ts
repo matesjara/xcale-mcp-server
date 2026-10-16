@@ -22,6 +22,11 @@ export function materialize(
 ): HttpRequest {
   const headers: Record<string, string> = { ...(spec.headers ?? {}) };
   let url = spec.url;
+  // A credential-less provider (`none`) has nothing to apply, so it leaves BEFORE the reveal: whatever
+  // arrived in the credential slot is never unwrapped. ADR credential-less-provider-auth.
+  if (auth.type === 'none') {
+    return plainRequest(spec, headers, url);
+  }
   const secret = resolved.secret.reveal(); // ← the ONLY reveal in the runtime
 
   switch (auth.type) {
@@ -62,6 +67,14 @@ export function materialize(
       return assertNever(auth);
   }
 
+  return plainRequest(spec, headers, url);
+}
+
+function plainRequest(
+  spec: RequestSpec,
+  headers: Record<string, string>,
+  url: string,
+): HttpRequest {
   return {
     method: spec.method,
     url,
