@@ -39,7 +39,7 @@ function stripHtml(html: string): string {
  * `id` is a NUMBER, `price` is a STRING, `stock_status` is `instock|outofstock|onbackorder`,
  * `description` is raw HTML.
  */
-interface RawProduct {
+interface RawProduct extends RawSalePricing {
   readonly id: number;
   readonly name: string;
   readonly price: string;
@@ -63,7 +63,15 @@ interface RawProductDetail extends RawProduct {
 export interface WooProductSummary {
   readonly id: string;
   readonly name: string;
+  /** The effective price — what the buyer is charged. */
   readonly price: string;
+  /**
+   * The sale pair, so the agent can say "antes X, ahora Y". `price` stays the price that is charged;
+   * these only say whether a WooCommerce sale is running and against which list price.
+   */
+  readonly regularPrice: string | null;
+  readonly salePrice: string | null;
+  readonly onSale: boolean;
   readonly stockStatus: string;
   readonly stockQuantity: number | null;
   readonly permalink: string;
@@ -84,11 +92,39 @@ export interface WooProductDetail extends WooProductSummary {
   readonly variations: readonly string[];
 }
 
+/** Sale fields shared by products and variations. WooCommerce sends `""` for an unset price. */
+interface RawSalePricing {
+  readonly price: string;
+  readonly regular_price?: string;
+  readonly sale_price?: string;
+  readonly on_sale?: boolean;
+}
+
+/**
+ * A sale counts only when it is the price actually charged. A store can carry `on_sale: true` with a
+ * stale `sale_price` the effective `price` never took (seen live: sale_price 1930000, price 2573000);
+ * handing the agent that number would quote a buyer a price nobody charges. An empty string is not a
+ * price, so it becomes null.
+ */
+function toSalePricing(p: RawSalePricing): {
+  regularPrice: string | null;
+  salePrice: string | null;
+  onSale: boolean;
+} {
+  const onSale = p.on_sale === true && !!p.sale_price && p.sale_price === p.price;
+  return {
+    regularPrice: p.regular_price || null,
+    salePrice: onSale ? (p.sale_price ?? null) : null,
+    onSale,
+  };
+}
+
 function toProductSummary(p: RawProduct): WooProductSummary {
   return {
     id: String(p.id),
     name: p.name,
     price: p.price,
+    ...toSalePricing(p),
     stockStatus: p.stock_status,
     stockQuantity: p.stock_quantity ?? null,
     permalink: p.permalink,
@@ -111,7 +147,7 @@ function toProductDetail(p: RawProductDetail): WooProductDetail {
 // Variations (shape confirmed against a real variable product — S0)
 // ---------------------------------------------------------------------------
 
-interface RawVariation {
+interface RawVariation extends RawSalePricing {
   readonly id: number;
   readonly attributes?: ReadonlyArray<{ name: string; option: string }>;
   readonly price: string;
@@ -124,6 +160,9 @@ export interface WooProductVariation {
   readonly id: string;
   readonly attributes: ReadonlyArray<{ name: string; option: string }>;
   readonly price: string;
+  readonly regularPrice: string | null;
+  readonly salePrice: string | null;
+  readonly onSale: boolean;
   readonly stockStatus: string;
   readonly stockQuantity: number | null;
 }
@@ -133,6 +172,7 @@ function toVariation(v: RawVariation): WooProductVariation {
     id: String(v.id),
     attributes: (v.attributes ?? []).map((a) => ({ name: a.name, option: a.option })),
     price: v.price,
+    ...toSalePricing(v),
     stockStatus: v.stock_status,
     stockQuantity: v.stock_quantity ?? null,
   };
@@ -859,7 +899,7 @@ export function buildWoocommerceTools(
     definePaginatedList<typeof listProductsInput, WooProductSummary, WoocommerceContext>({
       name: `mcp_${SLUG}_list_products`,
       description:
-        'List or search products in the store catalog (name, price, stock availability).',
+        'List or search products in the store catalog (name, price, sale pricing, stock availability).',
       input: listProductsInput,
       handler: async (args, ctx) => {
         const res = await client.get('products', ctx.request, ctx.metadata, {
@@ -878,7 +918,7 @@ export function buildWoocommerceTools(
     tool({
       name: `mcp_${SLUG}_get_product`,
       description:
-        'Get one product by id: price, stock, description (plain text), categories, images, and variation ids.',
+        'Get one product by id: price, sale pricing, stock, description (plain text), categories, images, and variation ids.',
       input: getProductInput,
       handler: async (args, ctx) => {
         const res = await client.get(
@@ -1068,7 +1108,7 @@ export function buildWoocommerceTools(
     definePaginatedList<typeof getProductVariationsInput, WooProductVariation, WoocommerceContext>({
       name: `mcp_${SLUG}_get_product_variations`,
       description:
-        "List a variable product's variations (size/color combos) with each one's price and stock.",
+        "List a variable product's variations (size/color combos) with each one's price, sale pricing and stock.",
       input: getProductVariationsInput,
       handler: async (args, ctx) => {
         const res = await client.get(

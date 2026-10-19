@@ -464,6 +464,20 @@ describe('erbon provider — booking reads (get_booking / search_booking)', () =
     expect(capture).toHaveLength(0); // refused before anything reaches Erbon
   });
 
+  it.each([
+    [{ bookingNumber: '' }],
+    [{ onlineSaleChannelNumber: '   ' }],
+    [{ checkin: '2026-12-01', status: '' }],
+  ])('search_booking refuses an empty text filter (%o) — nothing reaches Erbon', async (args) => {
+    const capture: Captured[] = [];
+    const provider = createErbonProvider({ fetchImpl: fakeFetch({ body: [], capture }) });
+
+    const res = await provider.callTool('mcp_erbon_search_booking', args, ctx);
+
+    expect(res.kind).not.toBe('success');
+    expect(capture).toHaveLength(0);
+  });
+
   it('search_booking by voucher alone is enough (the reconcile call)', async () => {
     const capture: Captured[] = [];
     const provider = createErbonProvider({ fetchImpl: fakeFetch({ body: [], capture }) });
@@ -676,11 +690,56 @@ describe('erbon provider — get_segment_sources', () => {
   });
 });
 
+// Observed on the BR sandbox hotel (2026-10-12): a booking row carries only `currencyId`.
+const CURRENCIES = [
+  { id: 2, code: 'BRL', description: 'Real', symbol: 'R$', isDefault: true },
+  { id: 4, code: 'COP', description: 'COP', symbol: 'COP', isDefault: false },
+];
+
+describe('erbon provider — list_currencies', () => {
+  it('is backend-only: off the agent menu, routable by the backend', () => {
+    expect(erbonProvider.listTools().map((t) => t.name)).not.toContain('mcp_erbon_list_currencies');
+    expect(erbonProvider.routableToolNames()).toContain('mcp_erbon_list_currencies');
+  });
+
+  it("reads the hotel's active currencies, verbatim, scoped to the hotel", async () => {
+    const capture: string[] = [];
+    const provider = createErbonProvider({
+      fetchImpl: routedFetch({ '/currencies': { body: CURRENCIES } }, capture),
+    });
+    const res = await provider.callTool('mcp_erbon_list_currencies', {}, ctx);
+
+    expect(res.kind).toBe('success');
+    if (res.kind === 'success') expect(res.data).toEqual(CURRENCIES);
+    expect(capture[0]).toMatch(/\/hotel\/H1\/currencies$/);
+  });
+
+  it('takes no arguments: an extra key (a hotel override) is rejected before any request', async () => {
+    const capture: string[] = [];
+    const provider = createErbonProvider({
+      fetchImpl: routedFetch({ '/currencies': { body: CURRENCIES } }, capture),
+    });
+    const res = await provider.callTool('mcp_erbon_list_currencies', { hotelID: 'other' }, ctx);
+    expect(res.kind).toBe('error');
+    if (res.kind === 'error') expect(res.code).toBe(ProviderErrorCode.INVALID_INPUT);
+    expect(capture.length).toBe(0);
+  });
+
+  it('maps a 401 from Erbon to PROVIDER_AUTH_EXPIRED (an expired credential is not an empty table)', async () => {
+    const provider = createErbonProvider({
+      fetchImpl: fakeFetch({ status: 401, body: 'unauthorized' }),
+    });
+    const res = await provider.callTool('mcp_erbon_list_currencies', {}, ctx);
+    expect(res.kind).toBe('error');
+    if (res.kind === 'error') expect(res.code).toBe(ProviderErrorCode.AUTH_EXPIRED);
+  });
+});
+
 describe('erbon provider — logo', () => {
   it('advertises a logo the gateway actually serves', () => {
     const logoUrl = erbonProvider.manifest.logoUrl;
-    expect(logoUrl).toBe('/assets/erbon.webp');
+    expect(logoUrl).toBe('/assets/erbon.svg');
     // Served from the repo's assets/ folder by GET /assets/:filename (no auth).
-    expect(existsSync(join(process.cwd(), 'assets', 'erbon.webp'))).toBe(true);
+    expect(existsSync(join(process.cwd(), 'assets', 'erbon.svg'))).toBe(true);
   });
 });

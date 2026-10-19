@@ -14,7 +14,8 @@ export const woocommerceManifest: ProviderManifest = {
   slug: SLUG,
   displayName: 'WooCommerce',
   category: 'ecommerce',
-  logoUrl: `/assets/${SLUG}.webp`,
+  // The house tile (black, rx 6, the mark in white), traced from WooCommerce's own wordmark.
+  logoUrl: `/assets/${SLUG}.svg`,
   schemaVersion: '2026-10-04',
   providerVersion: '0.3.0',
   connectionProbe: { tool: `mcp_${SLUG}_list_products` },

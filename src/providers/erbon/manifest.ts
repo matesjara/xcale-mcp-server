@@ -23,7 +23,8 @@ export const erbonManifest: ProviderManifest = {
   slug: SLUG,
   displayName: 'Erbon',
   category: 'hospitality',
-  logoUrl: `/assets/${SLUG}.webp`,
+  // The house tile (black, rx 6, the mark in white), traced from Erbon's own chevron.
+  logoUrl: `/assets/${SLUG}.svg`,
   schemaVersion: '2026-10-06',
   providerVersion: '0.3.0',
 };

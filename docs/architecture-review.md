@@ -21,16 +21,17 @@ Every decision below serves two north-star principles.
 
 > **Adding a new provider must require working almost exclusively inside
 > `xcale-mcp-server/src/providers/{slug}/`.** The only permitted touch on `xcale-backend` is
-> *generic configuration* (registering secrets / env vars) or *business policy* — **never
-> provider-specific code.** If supporting a standard provider requires editing backend logic,
-> the architecture is considered incomplete and must be refactored.
+> *registration data* (one entry in its provider list, secrets and env vars registered by
+> convention, a pinned mint descriptor for a `credential_exchange` provider) or *business
+> policy* — **never provider logic.** If supporting a standard provider requires editing backend
+> logic, the architecture is considered incomplete and must be refactored.
 
 ### Verifiable metric (how we know the principle holds)
 
 | | |
 |:--|:--|
-| ✅ **Goal** | Adding a provider modifies only `xcale-mcp-server/src/providers/{slug}/` plus generic config (e.g. register `clientId`/`clientSecret` in Doppler). |
-| 🚨 **Alarm signal** | Needing a `switch`, an `if`, a provider-specific `registerOAuthProvider(...)`, or any conditional logic in `xcale-backend` to support a *standard* provider. This must be justified by an **exceptional ADR** — it is a smell, not a default. |
+| ✅ **Goal** | Adding a provider modifies only the footprint below in this repo, plus registration data in the consumer (e.g. one entry in xcale-backend's `src/modules/mcp/toolboxes.ts`, `clientId`/`clientSecret` in Doppler). |
+| 🚨 **Alarm signal** | Needing provider logic in `xcale-backend` to support a *standard* provider — a `switch` or an `if` on the slug, a provider-specific `registerOAuthProvider(...)`, a hand-written tool, auth flow or schema. Registration data is not provider logic. Provider logic must be justified by an **exceptional ADR** — it is a smell, not a default. |
 
 This principle is the operational definition of the strategic goal: **xcale-backend stops
 growing proportionally to the number of providers.** That is the behavior expected of a
@@ -41,16 +42,25 @@ growing proportionally to the number of providers.** That is the behavior expect
 The metric above becomes an objective gate reviewers apply to **every provider PR**. For a
 **standard provider**, a complete integration touches **only**:
 
-- ✅ `src/providers/{slug}/` — descriptor, API client, tools, validations (zod), error mapping.
-- ✅ Tests — unit + a conformance test (`tools/list`/`tools/call` round trip, incl. the
+- ✅ `src/providers/{slug}/**` — descriptor, API client, tools, validations (zod), error mapping,
+  and its tests: unit + a conformance test (`tools/list`/`tools/call` round trip, incl. the
   auth-failure path).
-- ✅ Generic config where applicable — secrets / env vars registered (e.g. in Doppler).
+- ✅ One line in `src/providers/index.ts`.
+- ✅ Its logo, `assets/{slug}.svg` or `assets/{slug}.webp` (the manifest's `logoUrl`).
+- ✅ For a deployment value: one **optional** field in `src/config.ts` plus its `.env.example`
+  entry (optional, so the protocol tests' full `Config` literals keep compiling), or the value
+  injected through the provider factory's deps.
+- ✅ Its documentation: `docs/design/<slug>…/**`, and an ADR in `docs/adr/` with its line in the
+  ADR index.
 
 It MUST NOT, for a standard provider, touch:
 
-- ❌ shared infrastructure (`src/core/**`, `src/protocol/**`, `src/auth/**`),
+- ❌ shared infrastructure (`src/core/**`, `src/protocol/**`, `src/auth/**`) — shared tests such
+  as `src/core/__tests__/catalog.test.ts` included,
+- ❌ dependencies (`package.json`, the lockfile),
 - ❌ public contracts (the three pillars, error codes, descriptor/context shapes),
-- ❌ any consumer (e.g. xcale-backend) code.
+- ❌ any consumer (e.g. xcale-backend) code. What the consumer needs to register the provider is
+  filed as an issue in the consumer's repo, linked from the PR.
 
 If a PR must touch any of the above to support a *standard* provider, it requires an
 **exceptional ADR** justifying why.
@@ -271,12 +281,12 @@ provider needs it (*complexity on demand*).
 | Provider API client, tool execution, error normalization | **server** | ⬅ natives migrate gradually (§16 foundation) |
 | Per-user curation policy / token budget | **backend** | — |
 | Tool-search / filter mechanism over the catalog | **server** (seam reserved) | new |
-| `tools/list` cache | **backend** (`ttlMs` + `schemaVersion` keyed) | — |
+| `tools/list` cache | **backend** (`ttlMs`, keyed by the server URL — not by `schemaVersion`, #88) | — |
 
 **Resulting rule of thumb:** the backend knows *which credential it custodies* and *how to
-consume capabilities*; it never knows *how a provider works technically*. The only irreducible
-backend touch per OAuth provider is two secrets in Doppler (generic config, permitted by
-principle #0). For an `api_key` provider, even that shrinks to near-nothing.
+consume capabilities*; it never knows *how a provider works technically*. What it keeps per provider
+is registration data (principle #0): its catalog entry, and for an OAuth provider two secrets in Doppler by
+convention, or for a credential-exchange provider a pinned mint descriptor.
 
 ---
 

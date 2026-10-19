@@ -1,9 +1,12 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { SecretString } from '../../../core/secret-string';
 import { runProviderConformance } from '../../../core/testing/provider-conformance';
 import type { ProviderCallContext, ToolResult } from '../../../core/types';
-import { createWoocommerceProvider } from '../provider';
+import { createWoocommerceProvider, woocommerceProvider } from '../provider';
 
 import productsList from '../__fixtures__/products-list.json';
 import productGet from '../__fixtures__/product-get.json';
@@ -147,6 +150,9 @@ describe('woocommerce provider — list_products', () => {
       id: '12',
       name: 'Camiseta',
       price: '100000',
+      regularPrice: '125000',
+      salePrice: '100000',
+      onSale: true,
       stockStatus: 'instock',
       stockQuantity: 46,
       permalink: 'https://store.example.com/product/camiseta/',
@@ -154,6 +160,40 @@ describe('woocommerce provider — list_products', () => {
     });
     // A product with manage_stock=false has no quantity — normalized to null, not omitted.
     expect(data.items[1]?.stockStatus).toBe('outofstock');
+  });
+
+  it('exposes the sale pair so the agent can tell a buyer a product is on sale', async () => {
+    const { provider: p } = provider(productsList);
+    const result = await p.callTool('mcp_woocommerce_list_products', {}, CTX);
+    const items = (successData(result) as { items: Record<string, unknown>[] }).items;
+
+    expect(items[0]).toMatchObject({ regularPrice: '125000', salePrice: '100000', onSale: true });
+    // WooCommerce sends sale_price "" when there is no sale — that is no price, so null.
+    expect(items[1]).toMatchObject({ regularPrice: '45000', salePrice: null, onSale: false });
+  });
+
+  it('does not report a stale sale_price the charged price never took', async () => {
+    const stale = {
+      id: 100558,
+      name: 'CUZCO',
+      price: '2573000',
+      regular_price: '2573000',
+      sale_price: '1930000',
+      on_sale: true,
+      stock_status: 'instock',
+      stock_quantity: null,
+      permalink: 'u',
+    };
+    const { provider: p } = provider([stale]);
+    const result = await p.callTool('mcp_woocommerce_list_products', {}, CTX);
+    const items = (successData(result) as { items: Record<string, unknown>[] }).items;
+
+    expect(items[0]).toMatchObject({
+      price: '2573000',
+      regularPrice: '2573000',
+      salePrice: null,
+      onSale: false,
+    });
   });
 
   it('forwards search/filter params into the query string', async () => {
@@ -201,6 +241,7 @@ describe('woocommerce provider — get_product', () => {
     expect(data.categories[0]).toEqual({ id: '15', name: 'Uncategorized' });
     expect(data.images[0]?.src).toContain('96541-1.webp');
     expect(data.variations).toEqual([]);
+    expect(data).toMatchObject({ regularPrice: '125000', salePrice: '100000', onSale: true });
   });
 
   it('strips tags even when an attribute value contains ">"', async () => {
@@ -240,6 +281,9 @@ describe('woocommerce provider — get_product_variations', () => {
       id: '18',
       attributes: [{ name: 'Talla', option: 'S' }],
       price: '150000',
+      regularPrice: '150000',
+      salePrice: null,
+      onSale: false,
       stockStatus: 'instock',
       stockQuantity: 76,
     });
@@ -1501,5 +1545,14 @@ describe('woocommerce provider — quote_shipping says what it touches', () => {
     expect(quote?.description).toMatch(/cart/i);
     expect(quote?.description).toMatch(/empt/i);
     expect(quote?.description).toMatch(/no order/i);
+  });
+});
+
+describe('woocommerce provider — logo', () => {
+  it('advertises a logo the gateway actually serves', () => {
+    const logoUrl = woocommerceProvider.manifest.logoUrl;
+    expect(logoUrl).toBe('/assets/woocommerce.svg');
+    // Served from the repo's assets/ folder by GET /assets/:filename (no auth).
+    expect(existsSync(join(process.cwd(), 'assets', 'woocommerce.svg'))).toBe(true);
   });
 });

@@ -1,7 +1,9 @@
 # Erbon Provider — Ship Log
 
-- **Status:** **on `dev`** — merged 2026-10-06 via **PR #123** (release owner's walk, merge-ready).
-  **Not yet released to prod.** Tracking: #112. Write path: `../erbon-booking/ship-log.md`.
+- **Status:** in-soak — merged into `dev` 2026-10-06 via **PR #123** (release owner's walk,
+  merge-ready). Tracking: #112.
+- **Released to prod:** 2026-10-07 via release PR **#128** (merge `59c10d1`), carrying #123, #127
+  (review follow-ups) and #124 (WooCommerce webhook fixes). Write path: `../erbon-booking/ship-log.md`.
 - **Release order:** deploy this **before** `xcale-backend#1401` goes live — the backend's booking
   adapters call these tools. No new env var: `reference` resolution reuses `CREDENTIAL_RESOLVE_URL` /
   `CREDENTIAL_RESOLVE_SECRET`.
@@ -17,7 +19,7 @@ delivery (the durable username/password stay in the backend's Rail A; this serve
 single-use nonce for the minted JWT). `hotelID` is strict call context, never a tool argument. Data
 returned verbatim; errors never echo Erbon's body (`unwrapErbon`: operation label + HTTP status).
 
-## What shipped (12 tools)
+## What shipped (12 tools, plus `list_currencies` — see the addendum below)
 
 | Tool                                                               | Agent menu      | Purpose                                                                                               |
 | ------------------------------------------------------------------ | --------------- | ----------------------------------------------------------------------------------------------------- |
@@ -28,9 +30,14 @@ returned verbatim; errors never echo Erbon's body (`unwrapErbon`: operation labe
 | `search_guest`, `create_guest`                                     | ❌ controlPlane | Resolve / register the holder                                                                         |
 | `create_booking`                                                   | ❌ controlPlane | One reservation per call — **irreversible** (no cancel/modify API)                                    |
 | `get_booking`, `search_booking`                                    | ❌ controlPlane | Read back; find ours by voucher (`onlineSaleChannelNumber`, filtered server-side)                     |
+| `list_currencies` _(added 2026-10-12)_                             | ❌ controlPlane | The hotel's currencies (`currencyId` → ISO code), for the backend CRM import; see the addendum        |
 
 Also: the provider logo (`assets/erbon.webp`, `logoUrl` in the manifest); `schemaVersion`
 2026-10-06, `providerVersion` 0.3.0.
+
+## Addendum — `list_currencies` (CRM feed, 2026-10-12)
+
+A 13th tool, `list_currencies` (`controlPlane`, no arguments, backend-only): `GET /currencies`, returned verbatim (`id`, `code`, `description`, `symbol`, `isDefault`). A booking row names its currency only by `currencyId`; the backend CRM history import (xcale-backend `docs/design/erbon-crm/`, #1499) maps it to the ISO code to record an amount. **Deploy this before running that import**: without it the import records every stay with no amount, and the import is idempotent, so those stays are not corrected by a later re-run. Tested (`erbon.test.ts`: backend-only, scoped to the hotel, no arguments).
 
 ## Reviews
 
@@ -58,6 +65,22 @@ on `dev` with #123 (the standalone PR #126 carried the same three commits).
   header (the write path is live, backend-only).
 - `search_booking` now requires at least one filter: unfiltered, it returned every booking of the
   hotel. Both consumer calls always filter (`bookingNumber`, `onlineSaleChannelNumber`).
+- Review note on #127, fixed after release (`fix/erbon-search-booking-empty-filter`): a text filter
+  must be non-blank — `""` or spaces passed the "at least one filter" check and would have reached
+  Erbon as an empty header. Every text filter is now trimmed and refused when empty.
+
+## Deploy verification (prod)
+
+- ✅ done (2026-10-07) — release PR #128 merged into `main` (`59c10d1`) after `dev` was brought up to
+  date with `main` (update-branch); CI verify green. DigitalOcean deployment `5f5c6326` ACTIVE
+  (~14:30 UTC).
+- ✅ done (2026-10-07) — verified per `docs/deploy.md`: `/health` → `{"status":"ok"}`; `/discover`
+  unauthenticated → 401; authenticated `/discover` lists `erbon` (schemaVersion 2026-10-06,
+  providerVersion 0.3.0).
+- ✅ done (2026-10-07) — deployed **before** the backend, per the release order: backend release
+  `matesjara/xcale-backend#1432` (Erbon booking adapters, #1401) followed and is ACTIVE; its seeds
+  (`booking-concierge-erbon` skill, `erbon-booking-agent` template) ran against production.
+- #126 (deps) was closed as superseded: its changes reached `dev` with #123.
 
 ## Known gaps / open with Erbon
 

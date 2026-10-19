@@ -63,7 +63,8 @@ redacted like the token) or any consumer/tenant identity — it carries provider
 (e.g. `propertyID`).
 
 **`PROVIDER_AUTH_EXPIRED`** — the typed, machine-readable code returned in a `tools/call` result
-with `isError: true` (in `structuredContent`) when a provider returns 401/403. The backend maps
+with `isError: true` (in `structuredContent`) when a reconnect would fix the failure — a revoked or
+expired credential; a 401/403 a reconnect cannot fix is `PROVIDER_ERROR`. The backend maps
 this code → Rail A's `markConnectionAuthFailure()` → reconnect prompt. _Avoid_: signalling
 expiry as a JSON-RPC protocol error (rejected — it's a tool-execution failure, not protocol).
 
@@ -90,8 +91,8 @@ auth even after a provider migrates to MCP.
 type in this repo.
 
 **Provider Self-Containment** — architectural principle #1: adding a provider means working
-almost exclusively in `src/providers/{slug}/`; the only permitted backend touch is generic config
-(secrets/env) or business policy, never provider-specific code. _Avoid_: editing backend logic to
+almost exclusively in `src/providers/{slug}/`; what the backend keeps per provider is registration
+data or business policy, never provider-specific logic. _Avoid_: editing backend logic to
 support a standard provider (that is the alarm signal). See `docs/architecture-review.md` §0.
 
 **Capability catalog** — what `server/discover` publishes: per provider, its `slug`, display
@@ -111,6 +112,18 @@ surfaced in the catalog as `additionalAuthDescriptors`; but `auth` stays **singu
 identically (ADR `multiple-connect-methods-per-provider`). _Avoid_: a second materialization path
 keyed off `additionalAuth`; treating the array as call-time fallback auth (it is connect-time UX
 only, consumed by Rail A's connect flow).
+
+**Credential-less provider** — a provider whose external API needs no secret (e.g. Profitroom's
+public booking engine); it declares auth type `none`, and whatever identifies the target account is
+non-secret routing data carried in [`X-Provider-Metadata`](#) and validated by its `contextSchema`.
+_Avoid_: dressing a public identifier up as an `api_key` in `X-Provider-Token` (it is not a
+credential and must not be treated as one).
+
+**Booking-engine URL** — the public address of a hotel's booking engine (e.g.
+`https://booking.profitroom.com/es/hotellapausa`), the routing data a Profitroom connection carries.
+It is an *identifier the provider parses*, never a URL the server calls: the provider extracts the
+hotel key from it and builds every request from its own fixed base. _Avoid_: fetching the supplied URL
+(SSRF); reading the guest's language from its locale segment.
 
 **`requiredScopes`** — the OAuth scopes one tool needs in order to run, declared **on the tool** beside
 its `input` schema. Provider knowledge, so it lives in the adapter. It is the **single source** of a
