@@ -31,6 +31,30 @@ export interface Config {
   readonly siigoPartnerId: string;
 }
 
+/**
+ * Why a set `CREDENTIAL_RESOLVE_URL` cannot be used, or `undefined` when it can. Empty is usable: the
+ * `reference` resolver is simply not wired. Otherwise it must be a well-formed `https:` URL — it is
+ * where the outbound callback secret goes on every resolve, so a plaintext or typo'd host would
+ * receive a bearer that buys provider credentials. No loopback `http:` exception: local development
+ * already calls the backend over `https://localhost`. The reason names the scheme at most, never the
+ * value (a URL can carry userinfo).
+ */
+export function credentialResolveUrlProblem(url: string): string | undefined {
+  if (url === '') {
+    return undefined;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return 'CREDENTIAL_RESOLVE_URL is set but is not a valid URL';
+  }
+  if (parsed.protocol !== 'https:') {
+    return `CREDENTIAL_RESOLVE_URL must be an https: URL (got "${parsed.protocol}")`;
+  }
+  return undefined;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     port: Number(env.PORT ?? 8080),

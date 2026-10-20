@@ -4,6 +4,9 @@
   merge-ready). Tracking: #112.
 - **Released to prod:** 2026-10-07 via release PR **#128** (merge `59c10d1`), carrying #123, #127
   (review follow-ups) and #124 (WooCommerce webhook fixes). Write path: `../erbon-booking/ship-log.md`.
+  **Second release:** 2026-10-19 via release PR **#150** (merge `cc1463f`): `list_currencies` (#137),
+  the non-blank text filter on `search_booking` (#130) and the house-tile logo (#148). See "Deploy
+  verification (prod)".
 - **Release order:** deploy this **before** `xcale-backend#1401` goes live — the backend's booking
   adapters call these tools. No new env var: `reference` resolution reuses `CREDENTIAL_RESOLVE_URL` /
   `CREDENTIAL_RESOLVE_SECRET`.
@@ -32,8 +35,8 @@ returned verbatim; errors never echo Erbon's body (`unwrapErbon`: operation labe
 | `get_booking`, `search_booking`                                    | ❌ controlPlane | Read back; find ours by voucher (`onlineSaleChannelNumber`, filtered server-side)                     |
 | `list_currencies` _(added 2026-10-12)_                             | ❌ controlPlane | The hotel's currencies (`currencyId` → ISO code), for the backend CRM import; see the addendum        |
 
-Also: the provider logo (`assets/erbon.webp`, `logoUrl` in the manifest); `schemaVersion`
-2026-10-06, `providerVersion` 0.3.0.
+Also: the provider logo (`logoUrl` in the manifest — `assets/erbon.webp` until #148, `assets/erbon.svg`
+in the house tile since 2026-10-17); `schemaVersion` 2026-10-06, `providerVersion` 0.3.0.
 
 ## Addendum — `list_currencies` (CRM feed, 2026-10-12)
 
@@ -65,9 +68,10 @@ on `dev` with #123 (the standalone PR #126 carried the same three commits).
   header (the write path is live, backend-only).
 - `search_booking` now requires at least one filter: unfiltered, it returned every booking of the
   hotel. Both consumer calls always filter (`bookingNumber`, `onlineSaleChannelNumber`).
-- Review note on #127, fixed after release (`fix/erbon-search-booking-empty-filter`): a text filter
-  must be non-blank — `""` or spaces passed the "at least one filter" check and would have reached
-  Erbon as an empty header. Every text filter is now trimmed and refused when empty.
+- Review note on #127, fixed after release (`fix/erbon-search-booking-empty-filter`, #130; in prod
+  since 2026-10-19): a text filter must be non-blank — `""` or spaces passed the "at least one filter"
+  check and would have reached Erbon as an empty header. Every text filter is now trimmed and refused
+  when empty.
 
 ## Deploy verification (prod)
 
@@ -81,6 +85,20 @@ on `dev` with #123 (the standalone PR #126 carried the same three commits).
   `matesjara/xcale-backend#1432` (Erbon booking adapters, #1401) followed and is ACTIVE; its seeds
   (`booking-concierge-erbon` skill, `erbon-booking-agent` template) ran against production.
 - #126 (deps) was closed as superseded: its changes reached `dev` with #123.
+
+### Release 2026-10-19 (#150)
+
+- ✅ done (2026-10-19) — release PR #150 merged into `main` (`cc1463f`), carrying #130, #137 and #148
+  for Erbon (with #131, #133, #134 and the docs #129, #135, #143). DigitalOcean deployment `d15d152d`
+  ACTIVE 13:15:52 UTC.
+- ✅ done (2026-10-19) — verified: `/health` ok; `/discover` unauthenticated → 401;
+  `/assets/erbon.svg` → 200 `image/svg+xml`; `mcp_erbon_list_currencies` on `main` (backend-only,
+  routable, not in `tools/list`).
+- ✅ done (2026-10-19) — deployed **before** the backend, per the release order: backend release
+  `matesjara/xcale-backend#1665` (the Erbon CRM import, the logos of #1647) followed and is ACTIVE
+  (deployment `44e51a09`, 15:23:16 UTC).
+- ⬜ pending — `assets/erbon.webp` can now be deleted (#148: it stayed until xcale-backend#1647 was
+  in production, which it is since 2026-10-19).
 
 ## Known gaps / open with Erbon
 

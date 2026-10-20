@@ -51,7 +51,8 @@ xcale-backend (MCP client)  ──/discover · tools/list · tools/call──▶
   backend sends the usable credential in `X-Provider-Token` on every call (`echo`, `cloudbeds`,
   `toteat`); `reference` — the backend sends a single-use nonce and this server resolves it
   back at the backend's Credential Authority (`siigo`, `erbon`; needs `CREDENTIAL_RESOLVE_URL` and
-  `CREDENTIAL_RESOLVE_SECRET`, plus `SIIGO_PARTNER_ID`). **Locally** that URL is the backend's
+  `CREDENTIAL_RESOLVE_SECRET`, plus `SIIGO_PARTNER_ID`; a set `CREDENTIAL_RESOLVE_URL` that is not
+  an `https:` URL refuses to boot). **Locally** that URL is the backend's
   self-signed `https://localhost:3200`: start this server with
   `NODE_EXTRA_CA_CERTS="$(mkcert -CAROOT)/rootCA.pem" npm run dev`, or every `reference` call fails
   TLS (`UNABLE_TO_VERIFY_LEAF_SIGNATURE`) before reaching the provider. Routing context (`propertyID`,

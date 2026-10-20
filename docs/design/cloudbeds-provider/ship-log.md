@@ -13,7 +13,9 @@
 |---|---|---|
 | Read tools (properties, availability, room types, reservations, rate plans, addons…) | **released** | on `main`, deployed |
 | Write path (create/modify reservation, payments) | **released** | on `main`, deployed |
-| `get_room_calendar` — forward availability | **in review** | PR #62, branch `feat/cloudbeds-room-calendar` |
+| `get_room_calendar` — forward availability | **released** | PR #62, merged into `dev` 2026-09-25; on `main` since release #110 (2026-09-27) — verified against `main`'s history |
+| Per-tool audience marks, `get_reservation_rate_details`, `modify_reservation` `rooms[]` shape | **released** 2026-10-19 | PR #131, release #150 |
+| `readOnlyHint` on the reads a knowledge source needs; `list_addons` pages | **released** 2026-10-19 | PR #134, release #150 |
 
 ---
 
@@ -76,6 +78,27 @@ checked.
 
 - `/git-workflow` Level 2 gate 5 (QA scenarios) is **N/A** in this repo: `.claude/skills/qa/` targets
   `xcale-backend`. Marked explicitly rather than passed over.
+
+---
+
+## Release 2026-10-19 (#150) — #131 and #134
+
+- ✅ done (2026-10-19) — release PR #150 merged into `main` (`cc1463f`); DigitalOcean deployment
+  `d15d152d` ACTIVE 13:15:52 UTC; `/health` ok, `/discover` unauthenticated → 401. Deployed before the
+  backend release `matesjara/xcale-backend#1665`, which followed and is ACTIVE.
+- **#131's per-tool audience is inert metadata.** Each Cloudbeds tool publishes
+  `_meta["xcale.app/audience"]` in `tools/list`; nothing in the gateway filters or refuses by it, and
+  xcale-backend reads it nowhere. Mateo **rejected the tool-audience gate on 2026-10-15**
+  (matesjara/xcale-backend#1243): the backend gate was never merged (#1468 was reworked without it), and this repo's ADR
+  `0021-tool-audience-gate-on-guest-channels` stays **Proposed** — marking it `Rejected` or removing it
+  is the cleanup item on xcale-backend#1243; the marks stay until the grill decides their use. Shipping
+  them changes no tool any agent can reach.
+- #131 also ships `get_reservation_rate_details` (40 Cloudbeds tools; `schemaVersion` 2026-10-09,
+  `providerVersion` 0.12.0) and the published `putReservation` shape of `modify_reservation` `rooms[]`.
+- #134 publishes `annotations.readOnlyHint` on `list_room_types`, `list_items` and `list_addons`, for
+  the backend's harvest (xcale-backend#1481, in the same backend release).
+- ⬜ pending — #131's post-deploy check: production `tools/list` shows the audience on all 40 Cloudbeds
+  tools, `get_reservation_rate_details` included. Not run on 2026-10-19.
 
 ---
 
