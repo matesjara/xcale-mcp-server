@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { verifyHopB } from './auth/hop-b';
 import { extractProviderMetadata, extractProviderToken } from './auth/token';
-import { type Config, loadConfig } from './config';
+import { type Config, credentialResolveUrlProblem, loadConfig } from './config';
 import { buildCatalog } from './core/catalog';
 import type { CredentialResolverDeps } from './core/credential/credential-resolver';
 import { createReferenceCredentialResolver } from './core/credential/reference-resolver';
@@ -44,6 +44,11 @@ async function serveAsset(reply: import('fastify').FastifyReply, filename: strin
 }
 
 export function buildApp(config: Config = loadConfig()): FastifyInstance {
+  // The resolve URL is where the outbound callback secret goes: refuse anything but https.
+  const resolveUrlProblem = credentialResolveUrlProblem(config.credentialResolveUrl);
+  if (resolveUrlProblem) {
+    throw new Error(resolveUrlProblem);
+  }
   const registry = createRegistry(PROVIDERS);
   // Wire the `reference` resolver only when a Credential Authority endpoint is configured. Empty =
   // this server serves only `forwarded` providers (the reference dispatch throws if ever hit).
@@ -129,7 +134,13 @@ async function start(): Promise<void> {
     console.error('FATAL: MCP_SERVER_SECRET is not set (Hop B). Refusing to start.');
     process.exit(1);
   }
-  const app = buildApp(config);
+  let app: FastifyInstance;
+  try {
+    app = buildApp(config);
+  } catch (err) {
+    console.error(`FATAL: ${err instanceof Error ? err.message : String(err)}. Refusing to start.`);
+    process.exit(1);
+  }
 
   // Graceful shutdown — DO App Platform sends SIGTERM on deploy/scale.
   const shutdown = async (signal: string): Promise<void> => {

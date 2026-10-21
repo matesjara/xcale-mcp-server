@@ -90,10 +90,10 @@ conversational-Booking scope (different vertical/ops surface).
 |:--|:--|:--|:--|
 | List / search | `getReservations` | [HAVE] + [E-08] ext-ref filter | search + reconciliation |
 | Get one | `getReservation` | [HAVE] | detail |
-| With rate details | `getReservationsWithRateDetails` | [LATER] | richer read |
+| With rate details | `getReservationsWithRateDetails` | [HAVE] `get_reservation_rate_details` (one reservation, operator) | the booked `rateID` per room, which `getReservation` lacks — needed to rewrite `rooms[]` (xcale-backend#1471) |
 | Assignments / room details | `getReservationAssignments`, `getReservationRoomDetails` | [LATER] | ops |
 | **Create** | `postReservation` | **[HAVE — W2]** | **the booking** |
-| **Modify / cancel** | `putReservation` | **[HAVE — W3]** | cancel via `status`; extend/shorten via `checkoutDate`; change `rooms`. **Check-in date is NOT modifiable** (§7) |
+| **Modify / cancel** | `putReservation` | **[HAVE — W3]** | cancel via `status`; extend/shorten via `checkoutDate`; change `rooms`. The top-level check-in is not modifiable (§7); the stay dates move per room in `rooms[]`, which **replaces the whole room list** (xcale-backend#1243 evidence) |
 | Notes | `postReservationNote` / `getReservationNotes` | [LATER] | agent annotations |
 
 ### 2.4 Guests

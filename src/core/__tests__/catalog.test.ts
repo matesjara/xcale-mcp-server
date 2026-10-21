@@ -18,7 +18,17 @@ describe('buildCatalog', () => {
   });
 
   it('carries no secrets and no consumer-specific concepts', () => {
-    const json = JSON.stringify(catalog);
+    // Scan for secret VALUES and consumer concepts — but first drop each authDescriptor's `bodyFields`,
+    // which legitimately holds non-secret WIRE FIELD NAMES like `password` (Erbon's /auth/login expects
+    // `{username,password}`). Secret VALUES never enter the descriptor (SecretString +
+    // Credential-in-Transit-Only), so excluding only the name-map keeps the `password` term catching a
+    // real leak ANYWHERE ELSE in the catalog. See ADR 0020 (0020-authdescriptor-field-names-are-non-secret.md).
+    const scrubbed = catalog.map((e) => {
+      const auth = { ...(e.authDescriptor as Record<string, unknown>) };
+      delete auth.bodyFields;
+      return { ...e, authDescriptor: auth };
+    });
+    const json = JSON.stringify(scrubbed);
     expect(json).not.toMatch(/clientSecret|client_secret|password|tenant|\bplan\b/i);
   });
 

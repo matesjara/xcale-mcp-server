@@ -53,8 +53,11 @@ notes) — may be written in Spanish. Anything external-facing, contract-adjacen
 
 ## Architecture invariants (enforced by review + PR template)
 
-- **Provider Self-Containment** — adding a provider touches only `src/providers/{slug}/` (+ one
-  line in `src/providers/index.ts`) and generic config; never `src/core|protocol|auth` or a consumer.
+- **Provider Self-Containment** — adding a provider touches only its footprint: `src/providers/{slug}/`
+  and its tests, one line in `src/providers/index.ts`, its logo in `assets/`, an optional deployment-config
+  field (`src/config.ts` + `.env.example`) and its own docs; never `src/core|protocol|auth`, a dependency or
+  consumer logic. The consumer's side is registration data, asked for in a consumer issue
+  (`docs/architecture-review.md` §0).
 - **Consumer-Agnostic** — no consumer concepts (tenant/plan/xcale entities) on the wire.
 - **Credential-in-Transit-Only** — tokens via `SecretString`; `.reveal()` only at provider egress;
   never persisted/logged.

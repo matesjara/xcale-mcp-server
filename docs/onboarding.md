@@ -22,8 +22,9 @@ Read in this order:
 ## The two principles that govern everything
 
 > **#1 Provider Self-Containment.** Adding a provider means working almost exclusively in
-> `src/providers/{slug}/`. The only permitted touch on a consumer is *generic config* (secrets
-> / env vars) or *business policy* — never provider-specific code. If you need a `switch`, an
+> `src/providers/{slug}/`. What a consumer keeps per provider is *registration data* (its catalog
+> entry, secrets by convention, a pinned mint descriptor) or *business policy* — never provider-specific
+> logic. If you need a `switch`, an
 > `if`, or per-provider logic in a consumer to support a standard provider, the architecture is
 > incomplete (justify any exception with an ADR).
 
@@ -40,8 +41,9 @@ the adapter never touches a credential. The recipe — file layout, helpers, err
 the Definition of done — is the xcale layer's **`add-provider`** skill
 ([xcale-harness](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/add-provider/SKILL.md));
 it is not restated here. Start from the closest real provider: `echo` (minimal), `siigo` (credential
-exchange), `toteat` (call context), `cloudbeds` (OAuth with scopes derived from the tools). Backend side:
-generic config only (the provider's secrets in Doppler). **No backend code.**
+exchange), `toteat` (call context), `cloudbeds` (OAuth with scopes derived from the tools), `woocommerce`
+(`basic` auth, SSRF-safe egress), `erbon` (a second credential exchange). Backend side: registration data only
+— asked for in one xcale-backend issue (the `add-provider` checklist). **No backend provider logic.**
 
 ## Dev workflow
 

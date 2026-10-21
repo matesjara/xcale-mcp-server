@@ -34,8 +34,20 @@ export const cloudbedsManifest: ProviderManifest = {
   // Reconciled at merge (2026-09-25): both bumps above landed in the same window — the new tool and the
   // published `identityPolicy` — so one date and one version carry the two, and the version steps once
   // more so two independent surface changes do not collapse onto one `providerVersion`.
-  schemaVersion: '2026-09-25',
-  providerVersion: '0.9.0',
+  //
+  // Bumped again (#113): `get_property_configuration` publishes `sources` — the taxes and fees
+  // each reservation source carries — with a new description and `read:reservation` in its scopes.
+  //
+  // Bumped again (xcale#1243): every published tool now carries an `audience` in `_meta`
+  // (`customer` | `operator`, ADR `tool-audience-gate-on-guest-channels`), so `listTools()` output
+  // changed. No tool added or removed and no input schema moved — a consumer that ignores the key
+  // sees the same menu; one that reads it can refuse staff-only tools when a guest is talking.
+  //
+  // Bumped again (xcale-backend#1471): `get_reservation_rate_details` (read:reservation, operator) is
+  // a new tool in tools/list — the booked rate of every room of one reservation, which
+  // `get_reservation` does not return.
+  schemaVersion: '2026-10-09',
+  providerVersion: '0.12.0',
   logoUrl: '/assets/cloudbeds.svg',
   capabilities: { pagination: true },
   // A Cloudbeds token is scoped to its property; discover the propertyID via getHotels instead of
