@@ -632,6 +632,92 @@ describe('woocommerce provider — create_order (write, S4)', () => {
       expect(calls).toHaveLength(0); // never reaches WooCommerce as NaN/null
     },
   );
+
+  describe('line amounts (#141 — a store that prices in the cart)', () => {
+    // Shapes from The Chair's real Store API cart, 2026-10-23: CUZCO ×2 prices at line_total
+    // 3675714 (tax-exclusive) against a regular 2573000 a unit.
+    const CREATED_WITH_LINES = {
+      ...CREATED,
+      line_items: [
+        { product_id: 100558, variation_id: 0, quantity: 2, subtotal: '4324370', total: '3675714' },
+        {
+          product_id: 100606,
+          variation_id: 100610,
+          quantity: 1,
+          subtotal: '648739',
+          total: '551428',
+        },
+      ],
+    };
+
+    it('forwards subtotal and total as given, on a simple and a variation line', async () => {
+      const { provider: p, sentBodies } = provider(CREATED_WITH_LINES, 201);
+      const result = await p.callTool(
+        'mcp_woocommerce_create_order',
+        {
+          orderReference: 'x',
+          lineItems: [
+            { productId: '100558', quantity: 2, subtotal: '4324370', total: '3675714' },
+            { productId: '100606', variationId: '100610', quantity: 1, total: '551428' },
+          ],
+        },
+        CTX,
+      );
+      expect(JSON.parse(sentBodies[0]!).line_items).toEqual([
+        { product_id: 100558, quantity: 2, subtotal: '4324370', total: '3675714' },
+        { product_id: 100606, variation_id: 100610, quantity: 1, total: '551428' },
+      ]);
+      // The read-back shows what the store recorded, so the caller can check its amounts stuck.
+      expect(successData(result)).toMatchObject({
+        lineItems: [
+          {
+            productId: '100558',
+            variationId: null,
+            quantity: 2,
+            subtotal: '4324370',
+            total: '3675714',
+          },
+          {
+            productId: '100606',
+            variationId: '100610',
+            quantity: 1,
+            subtotal: '648739',
+            total: '551428',
+          },
+        ],
+      });
+    });
+
+    it('without amounts the body is unchanged — WooCommerce prices the line from the product', async () => {
+      const { provider: p, sentBodies } = provider(CREATED, 201);
+      await p.callTool(
+        'mcp_woocommerce_create_order',
+        { orderReference: 'x', lineItems: [{ productId: '14', variationId: '20', quantity: 2 }] },
+        CTX,
+      );
+      expect(JSON.parse(sentBodies[0]!).line_items).toEqual([
+        { product_id: 14, variation_id: 20, quantity: 2 },
+      ]);
+    });
+
+    it.each([
+      ['a non-decimal total', { total: '3.675.714' }],
+      ['a negative total', { total: '-1' }],
+      ['a numeric (not string) total', { total: 3675714 }],
+      ['a non-decimal subtotal', { subtotal: 'abc', total: '1' }],
+      ['subtotal without total', { subtotal: '4324370' }],
+    ])('refuses %s as INVALID_INPUT, no network', async (_label, amounts) => {
+      const { provider: p, calls } = provider(CREATED, 201);
+      const result = await p.callTool(
+        'mcp_woocommerce_create_order',
+        { orderReference: 'x', lineItems: [{ productId: '1', quantity: 1, ...amounts }] },
+        CTX,
+      );
+      expect(result.kind).toBe('error');
+      if (result.kind === 'error') expect(result.code).toBe('PROVIDER_INVALID_INPUT');
+      expect(calls).toHaveLength(0);
+    });
+  });
 });
 
 describe('woocommerce provider — reconcile_order (control-plane, S5)', () => {

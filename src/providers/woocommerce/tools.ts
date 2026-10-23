@@ -632,19 +632,43 @@ function toStockUpdate(r: RawStock): WooStockUpdate {
 /** The order `meta_data` key that carries the caller's reconciliation reference tag. */
 const ORDER_REF_META_KEY = '_xcale_order_ref';
 
+/** A major-unit decimal amount string, e.g. "18000" (COP) or "15.00" (USD). */
+const DECIMAL_AMOUNT = /^\d+(\.\d+)?$/;
+
 const createOrderInput = z
   .object({
     orderReference: z.string().min(1),
     lineItems: z
       .array(
-        z.object({
-          // Numeric ids only: these are `Number()`-coerced into the WooCommerce body, and a
-          // non-numeric string ("abc" → NaN → JSON null) or exponent form ("1e2" → 100) would
-          // silently target the wrong product. Fail fast at the boundary instead.
-          productId: z.string().regex(/^\d+$/, 'productId must be a numeric id'),
-          variationId: z.string().regex(/^\d+$/, 'variationId must be a numeric id').optional(),
-          quantity: z.number().int().positive(),
-        }),
+        z
+          .object({
+            // Numeric ids only: these are `Number()`-coerced into the WooCommerce body, and a
+            // non-numeric string ("abc" → NaN → JSON null) or exponent form ("1e2" → 100) would
+            // silently target the wrong product. Fail fast at the boundary instead.
+            productId: z.string().regex(/^\d+$/, 'productId must be a numeric id'),
+            variationId: z.string().regex(/^\d+$/, 'variationId must be a numeric id').optional(),
+            quantity: z.number().int().positive(),
+            // What the line charges, for a store that prices in the cart (a discount-rules plugin,
+            // quantity pricing) so the product's stored price is not what it charges. WooCommerce's
+            // own line fields, major-unit decimal strings, forwarded as given: `total` is charged,
+            // `subtotal` is the amount before discount (the order shows the gap as a discount). Both
+            // EXCLUDE tax — WooCommerce adds it on top per the store's settings — which is what the
+            // Store API cart returns as `line_total`/`line_subtotal`. Omitted ⇒ WooCommerce prices
+            // the line from the product (the prior behaviour). `subtotal` without `total` is refused:
+            // WooCommerce would then charge the stored price, not the amount the caller meant.
+            subtotal: z
+              .string()
+              .regex(DECIMAL_AMOUNT, 'subtotal must be a decimal amount string')
+              .optional(),
+            total: z
+              .string()
+              .regex(DECIMAL_AMOUNT, 'total must be a decimal amount string')
+              .optional(),
+          })
+          .refine((li) => li.subtotal === undefined || li.total !== undefined, {
+            message: 'subtotal requires total',
+            path: ['total'],
+          }),
       )
       .min(1),
     customer: z
@@ -685,7 +709,7 @@ const createOrderInput = z
         z.object({
           methodId: z.string().min(1),
           methodTitle: z.string().min(1),
-          total: z.string().regex(/^\d+(\.\d+)?$/, 'total must be a decimal amount string'),
+          total: z.string().regex(DECIMAL_AMOUNT, 'total must be a decimal amount string'),
         }),
       )
       .min(1)
@@ -742,6 +766,25 @@ export interface WooOrderCreated {
   readonly orderReference: string;
   readonly paymentUrl: string | null;
   readonly orderKey: string | null;
+  /**
+   * What the store recorded for each line, so a consumer that sent line amounts can check they stuck —
+   * a store may recompute them on creation. WooCommerce's own tax-exclusive strings; `subtotal` above
+   * `total` is the line's discount.
+   */
+  readonly lineItems: ReadonlyArray<{
+    readonly productId: string;
+    readonly variationId: string | null;
+    readonly quantity: number;
+    readonly subtotal: string | null;
+    readonly total: string | null;
+  }>;
+}
+interface RawOrderRefLine {
+  readonly product_id?: number;
+  readonly variation_id?: number;
+  readonly quantity?: number;
+  readonly subtotal?: string;
+  readonly total?: string;
 }
 interface RawOrderRef {
   readonly id: number;
@@ -753,6 +796,7 @@ interface RawOrderRef {
   readonly payment_url?: string;
   readonly order_key?: string;
   readonly meta_data?: ReadonlyArray<{ key: string; value: unknown }>;
+  readonly line_items?: readonly RawOrderRefLine[];
 }
 function toOrderCreated(r: RawOrderRef, orderReference: string): WooOrderCreated {
   return {
@@ -767,6 +811,14 @@ function toOrderCreated(r: RawOrderRef, orderReference: string): WooOrderCreated
     // that to null so the consumer's "is there a pay link?" is a plain null check, not "" vs absent.
     paymentUrl: r.payment_url ? r.payment_url : null,
     orderKey: r.order_key ?? null,
+    lineItems: (r.line_items ?? []).map((li) => ({
+      productId: String(li.product_id ?? ''),
+      // WooCommerce sends variation_id 0 on a simple product's line.
+      variationId: li.variation_id ? String(li.variation_id) : null,
+      quantity: li.quantity ?? 0,
+      subtotal: li.subtotal || null,
+      total: li.total || null,
+    })),
   };
 }
 function orderRef(r: RawOrderRef): string | undefined {
@@ -1011,7 +1063,10 @@ export function buildWoocommerceTools(
         'shippingLines it is given — no freight is quoted, nothing is checked against the catalog — so it ' +
         'is not a buyer checkout: a consumer that sells to buyers places their orders through its own ' +
         "checkout flow. `orderReference` is the CALLER's own id and is required: it is the only handle " +
-        'by which a failed call can be reconciled (via reconcile_order) — never retry a create blind.',
+        'by which a failed call can be reconciled (via reconcile_order) — never retry a create blind. ' +
+        'A line may carry the amounts it charges (`subtotal`, `total`: tax-exclusive, as the store cart ' +
+        "returns them); omitted, WooCommerce prices it from the product. The result's `lineItems` show " +
+        'what the store recorded.',
       input: createOrderInput,
       handler: async (args, ctx) => {
         const body: Record<string, unknown> = {
@@ -1020,6 +1075,8 @@ export function buildWoocommerceTools(
             product_id: Number(li.productId),
             ...(li.variationId !== undefined ? { variation_id: Number(li.variationId) } : {}),
             quantity: li.quantity,
+            ...(li.subtotal !== undefined ? { subtotal: li.subtotal } : {}),
+            ...(li.total !== undefined ? { total: li.total } : {}),
           })),
           meta_data: [{ key: ORDER_REF_META_KEY, value: args.orderReference }],
           ...(args.customerId !== undefined ? { customer_id: Number(args.customerId) } : {}),
