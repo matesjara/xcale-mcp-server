@@ -5,6 +5,7 @@ import type { RequestResult } from '../../core/http';
 import { definePaginatedList } from '../../core/pagination';
 import { type ToolDefinition, err, ok, toolFactory } from '../../core/tool';
 import { isRealDate, resolveHorizon, shapeRoomCalendars } from './availability-calendar';
+import { WEEKDAYS_IN_DATA_NOTE, weekdayNote, weekdaysFrom } from './weekday';
 import type { CloudbedsClient } from './client';
 import type { CloudbedsContext } from './context';
 import { SLUG } from './manifest';
@@ -394,7 +395,10 @@ export function buildCloudbedsTools(
           children: args.children,
         });
         const u = unwrap(res, 'getAvailableRoomTypes');
-        return u.ok ? ok(u.data) : err(u.code, u.message);
+        if (!u.ok) return err(u.code, u.message);
+        // The weekdays ride the message, not the data: consumers read `data` as Cloudbeds' own
+        // array (the backend prices extra guests from it), and wrapping it would break them (#111).
+        return ok(u.data, weekdayNote({ startDate: args.startDate, endDate: args.endDate }));
       },
     }),
 
@@ -502,7 +506,16 @@ export function buildCloudbedsTools(
                   'so no calendar can be built. Check specific dates with get_availability instead.',
           );
         }
-        return ok({ from: args.startDate, to: endDate, roomTypes: shaped.roomTypes });
+        return ok(
+          {
+            from: args.startDate,
+            to: endDate,
+            roomTypes: shaped.roomTypes,
+            // Every date a window or `unavailable` can name, checkout included (#111).
+            weekdays: weekdaysFrom(args.startDate, endDate),
+          },
+          WEEKDAYS_IN_DATA_NOTE,
+        );
       },
     }),
 
