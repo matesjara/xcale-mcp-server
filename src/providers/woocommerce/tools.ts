@@ -7,6 +7,7 @@ import type { AuthedRequest, QueryParams, WoocommerceClient } from './client';
 import type { WoocommerceContext } from './context';
 import { wooError } from './errors';
 import { SLUG } from './manifest';
+import { priceCart } from './price-cart';
 import { quoteShipping } from './shipping-quote';
 
 const tool = toolFactory<WoocommerceContext>();
@@ -521,6 +522,16 @@ const quoteShippingInput = z
         postcode: z.string().optional(),
       })
       .strict(),
+  })
+  .strict();
+const priceCartInput = z
+  .object({
+    items: quoteShippingInput.shape.items.refine(
+      // The cart merges a repeated id into one line, so each line could no longer be answered alone.
+      (items) => new Set(items.map((i) => i.productId)).size === items.length,
+      { message: 'each productId may appear once — merge the quantities' },
+    ),
+    destination: quoteShippingInput.shape.destination.optional(),
   })
   .strict();
 const listOrdersInput = z
@@ -1429,6 +1440,30 @@ export function buildWoocommerceTools(
         );
         if (!result.ok) return err(result.code, result.message);
         return ok({ options: result.options });
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_price_cart`,
+      description:
+        "Price items the way the store's own cart charges them — including what the store applies in " +
+        'the cart (a discount-rules plugin, quantity pricing, exclusions), which the product reads do ' +
+        'not show. Per line: `unitPrice` and `regularUnitPrice` as the store displays them, `discounted`, ' +
+        'and the tax-exclusive `lineSubtotal`/`lineTotal` (`lineTotal` is what create_order takes as a ' +
+        "line `total`); a line the store refuses comes back `status: 'rejected'` with the store's code " +
+        "and message. Plus the cart `totals`. Items are product ids, or a variation's OWN id for a " +
+        'variable product. With a `destination` it also returns `shippingOptions` and the freight in ' +
+        'the totals. Read-only: a throwaway Store API cart, emptied before and after — no order is placed.',
+      input: priceCartInput,
+      handler: async (args, ctx) => {
+        const result = await priceCart(
+          fetchImpl,
+          ctx.metadata.storeUrl,
+          args.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          args.destination,
+        );
+        if (!result.ok) return err(result.code, result.message);
+        return ok(result.pricing);
       },
     }),
 
