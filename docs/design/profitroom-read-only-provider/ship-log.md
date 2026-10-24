@@ -22,15 +22,17 @@ own (ADR 0009). Nothing is ever reserved: the backend sends the guest a booking-
 
 ## What shipped
 
-| Tool                                                                                            | Agent menu      | Purpose                                                                                                                 |
-| ----------------------------------------------------------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `get_hotel`, `list_room_types`, `list_rates`, `get_availability_calendar`, `check_availability` | ✅              | Hotel catalog reads                                                                                                     |
-| `get_stay_prices`                                                                               | ✅              | Price for one room + party, `taxesPresentationMode`/`taxesIncluded`, child-age checks, re-split detection, booking link |
+| Tool                                                                                            | Agent menu | Purpose                                                                                                                 |
+| ----------------------------------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `get_hotel`, `list_room_types`, `list_rates`, `get_availability_calendar`, `check_availability` | ✅         | Hotel catalog reads                                                                                                     |
+| `get_stay_prices`                                                                               | ✅         | Price for one room + party, `taxesPresentationMode`/`taxesIncluded`, child-age checks, re-split detection, booking link |
 
 Also: auth `none` in the core (`ProviderAuthDescriptor`, materializer, conformance), the connect
 support (`connectionProbe`, `contextDiscovery` of `hotelKey`, `accountContextKeys`), a 15-minute
 catalog cache, and a daily drift probe (`scripts/profitroom-drift.ts` +
-`.github/workflows/profitroom-drift.yml`). `schemaVersion` 2026-10-17, `providerVersion` 0.2.0.
+`.github/workflows/profitroom-drift.yml`). `schemaVersion` 2026-10-17, `providerVersion` 0.3.0 (0.2.0 in
+#144; #146 adds the room photos — `list_room_types` returns `photos[].url` — and the logo; both ship
+in one release).
 
 ## Ship Log
 
@@ -69,7 +71,7 @@ catalog cache, and a daily drift probe (`scripts/profitroom-drift.ts` +
 
 ## Known gaps at ship
 
-- ⬜ Provider logo (`logoUrl`) — none yet.
+- ✅ Provider logo (2026-10-16, with #146): `assets/profitroom.webp` (400×400, from the image Sara supplied), `logoUrl: /assets/profitroom.webp`, published by `/discover`.
 - ⬜ Rate limit on the engine: no documented limit; the 15-minute cache keeps calls low. Watch the
   drift workflow and the gateway logs after La Pausa goes live.
 - The API is Profitroom's internal booking-engine API, not a public contract: the drift probe is the

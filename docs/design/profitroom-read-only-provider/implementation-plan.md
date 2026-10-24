@@ -202,3 +202,38 @@ Found while designing xcale-backend #1599: the consumer's generic credential con
 - [x] `npm run typecheck`, `npm test` (43 files, 620 tests), `npm run format:check` green
 - [x] Catalog entry: `auth none`, `connectionProbe`, `contextDiscovery`, `accountContextKeys: ['hotelKey']`, context required `bookingEngineUrl` + `hotelKey`
 - [x] Live: `get_hotel` with the English URL plus extra path → `hotelKey: "hotellapausa"`
+
+### 1.10 Room photos (#145, 2026-10-15)
+
+Consumer: xcale-backend #1624 (the agent sends the cabins' photos on WhatsApp with `share_room_images`). Branch `feat/145-profitroom-room-photos`, stacked on `feat/implementation-profitroom-provider` (#144).
+
+**Evidence first:** the engine's `rooms` carries `gallery.featured` + `gallery.images[]` with file names only. Read from the engine's own page while opening a cabin's gallery, then fetched without cookies: featured → `images/rooms/thumbs/{size}/`, gallery → `images/gallery/thumbs/{size}/`; 57/57 live photos answered as real images (51 gallery JPEGs ≤ 675 KB at 1920x1000). Dead ends recorded in the contract.
+
+| Cycle                                        | Red                                     | Green                                                                                                                                                                         |
+| :------------------------------------------- | :-------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1 `list_room_types` returns `photos`        | new test red (no `photos`)              | `roomsSchema.gallery` (optional, `.catch(null)`); `photosOf(room, hotelKey)` in `mappers.ts` with a fixed host, size `1134x0`, file-name allowlist; `toRoom` takes `hotelKey` |
+| M2 missing / reshaped gallery, odd file name | passed first time — a pin, not seen red | the `.catch(null)` and the file-name allowlist from M1 already covered it                                                                                                     |
+| M3 drift probe checks one gallery photo      | 3 tests red (`photo` check missing)     | `checkPhoto` derives the URL with the provider's own `photosOf`: 404 or a non-image/GIF → drift; 5xx or no answer → unreachable. Live run: all six checks `ok`                |
+
+- [x] `npm run typecheck` clean; provider + scripts tests 97 green
+- [x] Tool description names `photos[].url`; contract `Room.photos` (derived); `providerVersion` 0.3.0 (`schemaVersion` stays #144's `2026-10-17`: #144 and #146 ship in one release, so the 0.2.0 shape never ships alone)
+
+**Review fixes (pr-reviewer, 2026-10-15):**
+
+| Cycle                               | Red                                                                                                                                                                              | Green                                                                                                                                                                                                                                              |
+| :---------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1 a reshaped gallery is drift      | test red: with `gallery` renamed, `rooms` still parsed (lenient `.catch(null)`) and `photo` answered "no gallery photo to check" — the agent would lose its photos with no alert | `checkPhoto` reports `drift` when rooms parse but carry no photo; the schema comment now says the probe catches it                                                                                                                                 |
+| R2 the featured path is checked too | test red: only a gallery URL was fetched                                                                                                                                         | `checkPhoto` fetches one featured (`images/rooms/`) and one gallery (`images/gallery/`) photo; either missing or not an image → drift. The earlier GIF test now breaks only the gallery path (its intent), since the featured one is fetched first |
+
+- [x] `npm test` 43 files, 626 green; typecheck and format clean; live probe: all six checks `ok` ("featured and gallery photos are images")
+
+**PR #146 review minors (2026-10-15):**
+
+| Cycle                                             | Red                                                               | Green                                                                                                                                     |
+| :------------------------------------------------ | :---------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------- |
+| T1 a hung photo host does not stall the job       | test red: the probe waited forever on a photo that never answered | `fetchPhoto` aborts after `photoTimeoutMs` (default 10 s) → `unreachable`, never drift; it cancels the body (only status and type matter) |
+| T2 file names are lowercase, as the contract says | test red: `FEATURED.JPG` was accepted (the regex had `/i`)        | `PHOTO_FILE` without `/i`                                                                                                                 |
+
+- [x] `npm test` 43 files, 628 green; typecheck and format clean; live probe ok
+
+**Provider logo (2026-10-16):** test red: `manifest.logoUrl` was undefined and no asset existed. Green: `assets/profitroom.webp` (the supplied 400×400 image, converted to WebP like `erbon.webp`) and `logoUrl: /assets/profitroom.webp` in the manifest. Verified on the running gateway: `GET /assets/profitroom.webp` → 200 `image/webp`, and `/discover` lists the `logoUrl`. 629 tests green.

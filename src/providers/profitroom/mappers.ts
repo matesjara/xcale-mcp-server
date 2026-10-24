@@ -73,7 +73,38 @@ export function toHotel(details: Details, locale: string, hotelKey: string) {
   };
 }
 
-export function toRoom(room: Rooms[number], locale: string, defaultLocale: string) {
+/**
+ * Public photo URLs, derived (ADR 0009) from the file names the engine returns (#145). Observed on the
+ * live engine 2026-10-15: the featured photo is served under `images/rooms/`, the gallery under
+ * `images/gallery/` (the other path answers 404, and the un-thumbed path a 1x1 GIF). Built from a fixed
+ * host, never from the connection's URL; a file name that is not a plain image name is dropped.
+ */
+const PHOTO_HOST = 'https://r.profitroom.pl';
+const PHOTO_SIZE = '1134x0';
+const PHOTO_FILE = /^[a-z0-9-]+\.(jpe?g|png|webp)$/;
+
+export function photosOf(room: Rooms[number], hotelKey: string): { url: string }[] {
+  const g = room.gallery;
+  if (!g) return [];
+  const url = (folder: 'rooms' | 'gallery', file: string) =>
+    `${PHOTO_HOST}/${encodeURIComponent(hotelKey)}/images/${folder}/thumbs/${PHOTO_SIZE}/${file}`;
+  const featured =
+    g.featured && PHOTO_FILE.test(g.featured.fileName)
+      ? [{ url: url('rooms', g.featured.fileName) }]
+      : [];
+  const images = [...g.images]
+    .sort((a, b) => (a.orderIndex ?? Infinity) - (b.orderIndex ?? Infinity))
+    .filter((i) => PHOTO_FILE.test(i.fileName))
+    .map((i) => ({ url: url('gallery', i.fileName) }));
+  return [...featured, ...images];
+}
+
+export function toRoom(
+  room: Rooms[number],
+  locale: string,
+  defaultLocale: string,
+  hotelKey: string,
+) {
   const text = translated(room.translations, locale, defaultLocale);
   return {
     id: room.id,
@@ -88,6 +119,7 @@ export function toRoom(room: Rooms[number], locale: string, defaultLocale: strin
     limits: room.limits,
     totalRooms: room.totalRooms,
     offerIds: room.offerIds,
+    photos: photosOf(room, hotelKey),
   };
 }
 

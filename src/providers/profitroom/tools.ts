@@ -102,7 +102,8 @@ export function buildProfitroomTools(
       description:
         'List the room types of the connected Profitroom hotel: name, description, beds, view, area, ' +
         'occupancy limits (`limits.max.occupancy`: adults and children by age range), total rooms ' +
-        'and the rate ids (`offerIds`) sold for each. No prices and no availability.',
+        'and the rate ids (`offerIds`) sold for each, plus its official photos (`photos[].url`, public ' +
+        'image URLs: the featured photo first) to show a guest the room. No prices and no availability.',
       input: z.object({ locale }).strict(),
       readOnly: true,
       audience: 'customer',
@@ -112,7 +113,7 @@ export function buildProfitroomTools(
         const { hotelKey, details, locale: loc } = hotel.data;
         const rooms = await client.get(ctx.request, hotelKey, 'rooms', roomsSchema);
         if (!rooms.ok) return err(rooms.code, rooms.message);
-        return ok(rooms.data.map((room) => toRoom(room, loc, details.defaultLocale)));
+        return ok(rooms.data.map((room) => toRoom(room, loc, details.defaultLocale, hotelKey)));
       },
     }),
     tool({

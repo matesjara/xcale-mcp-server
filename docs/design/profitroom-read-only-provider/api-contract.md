@@ -296,6 +296,14 @@ interface Room {
   limits: { min: Occupancy; max: Occupancy }; // verbatim
   totalRooms: number;
   offerIds: number[];
+  // DERIVED (#145, ADR 0009): public URLs built from gallery.featured / gallery.images[].fileName.
+  // Featured first, then images by orderIndex. Host fixed (never the connection's URL); a file name
+  // that is not [a-z0-9-]+.(jpg|jpeg|png|webp) is dropped. Observed live 2026-10-15:
+  //   featured → https://r.profitroom.pl/{hotelKey}/images/rooms/thumbs/1134x0/{fileName}
+  //   images   → https://r.profitroom.pl/{hotelKey}/images/gallery/thumbs/1134x0/{fileName}
+  // (images/rooms/thumbs for a gallery file → 404; images/rooms/{fileName} → a 1x1 GIF.)
+  // A missing or reshaped gallery yields [] — it never fails the room list.
+  photos: { url: string }[];
 }
 interface Occupancy {
   numberOfPeople: number;

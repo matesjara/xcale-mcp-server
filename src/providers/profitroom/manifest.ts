@@ -3,8 +3,8 @@ import type { ProviderManifest } from '../../core/provider-port';
 export const SLUG = 'profitroom';
 
 /**
- * No `logoUrl` yet: no approved Profitroom asset in `assets/` (implementation plan §1.6). The field is
- * optional; add it with the asset.
+ * `logoUrl`: the Profitroom logo in `assets/profitroom.webp`, served by `GET /assets/:filename` (no
+ * auth), like the other providers' logos.
  *
  * Connect support for a consumer (xcale-backend #1599, ADR `credential-less-connections` there):
  * - `connectionProbe`: there is no credential to verify, but the URL the owner pasted still has to
@@ -19,8 +19,9 @@ export const profitroomManifest: ProviderManifest = {
   slug: SLUG,
   displayName: 'Profitroom',
   category: 'hospitality',
+  logoUrl: `/assets/${SLUG}.webp`,
   schemaVersion: '2026-10-17',
-  providerVersion: '0.2.0',
+  providerVersion: '0.3.0',
   connectionProbe: { tool: `mcp_${SLUG}_get_hotel` },
   contextDiscovery: { key: 'hotelKey', tool: `mcp_${SLUG}_get_hotel`, resultPath: 'hotelKey' },
   accountContextKeys: ['hotelKey'],
