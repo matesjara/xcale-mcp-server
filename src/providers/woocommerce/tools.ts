@@ -1063,6 +1063,9 @@ export function buildWoocommerceTools(
 
     tool({
       name: `mcp_${SLUG}_update_order`,
+      // Reaches one person's record by its id: their contact and address. Bound to the person who owns
+      // it, so a consumer can serve the record its own customer placed and refuse a guessed id.
+      identityPolicy: { mode: 'subject-bound', identityFields: [], recordOwnershipField: 'id' },
       description:
         "Update an order's status — notably to `cancelled` to void an order that will not be paid. " +
         'Idempotent: setting the status it already has is a no-op at WooCommerce.',
@@ -1181,6 +1184,9 @@ export function buildWoocommerceTools(
 
     definePaginatedList<typeof listCustomersInput, WooCustomer, WoocommerceContext>({
       name: `mcp_${SLUG}_list_customers`,
+      // A search for a named person, and with both filters omitted, the whole customer list. Both
+      // filters are ways to ask about somebody, so both are declared.
+      identityPolicy: { mode: 'subject-bound', identityFields: ['email', 'search'] },
       description: "List or search the store's customers (name, email).",
       input: listCustomersInput,
       handler: async (args, ctx) => {
@@ -1198,6 +1204,9 @@ export function buildWoocommerceTools(
 
     tool({
       name: `mcp_${SLUG}_get_customer`,
+      // Reaches one person's record by its id: their contact and address. Bound to the person who owns
+      // it, so a consumer can serve the record its own customer placed and refuse a guessed id.
+      identityPolicy: { mode: 'subject-bound', identityFields: [], recordOwnershipField: 'id' },
       description: 'Get one customer by id: email, name, and contact phone.',
       input: getCustomerInput,
       handler: async (args, ctx) => {
@@ -1230,6 +1239,9 @@ export function buildWoocommerceTools(
 
     tool({
       name: `mcp_${SLUG}_update_customer`,
+      // Reaches one person's record by its id: their contact and address. Bound to the person who owns
+      // it, so a consumer can serve the record its own customer placed and refuse a guessed id.
+      identityPolicy: { mode: 'subject-bound', identityFields: [], recordOwnershipField: 'id' },
       description: "Update a customer's email, name and/or phone. Only the fields you pass change.",
       input: updateCustomerInput,
       handler: async (args, ctx) => {
@@ -1434,6 +1446,9 @@ export function buildWoocommerceTools(
 
     definePaginatedList<typeof listOrdersInput, WooOrderSummary, WoocommerceContext>({
       name: `mcp_${SLUG}_list_orders`,
+      // Takes no person identifier and returns every buyer's orders, with their names. Legitimate for
+      // the store's owner; not something to read out to whoever is in a conversation.
+      identityPolicy: { mode: 'subject-scoped' },
       description: "List the store's orders, filtered by status and/or date range. Owner-facing.",
       input: listOrdersInput,
       handler: async (args, ctx) => {
@@ -1452,6 +1467,9 @@ export function buildWoocommerceTools(
 
     tool({
       name: `mcp_${SLUG}_get_order`,
+      // Reaches one person's record by its id: their contact and address. Bound to the person who owns
+      // it, so a consumer can serve the record its own customer placed and refuse a guessed id.
+      identityPolicy: { mode: 'subject-bound', identityFields: [], recordOwnershipField: 'id' },
       description:
         'Get one order by id: status, total, line items, and the buyer contact + shipping address. Owner-facing.',
       input: getOrderInput,
