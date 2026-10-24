@@ -207,6 +207,8 @@ async function fullFlow(): Promise<void> {
       fechaCita,
       horaInicioCita,
       modalidadAtencion: 1,
+      // Required since 2026-10-14: 15 = the patient books their own appointment.
+      parentescoPideCita: process.env.HIMED_E2E_PARENTESCO ?? '15',
     },
     c,
   );
