@@ -1,0 +1,6 @@
+{
+  "error": {
+    "type": "INVALID_ACCESS_TOKEN",
+    "reason": "El token proporcionado no tiene el formato correcto, se recibió: prv_test_FAKEKEYFORTHEREDACTIONTEST0"
+  }
+}

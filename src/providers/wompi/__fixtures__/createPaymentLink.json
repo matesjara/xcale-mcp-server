@@ -1,0 +1,25 @@
+{
+  "data": {
+    "id": "test_XGd2UH",
+    "name": "Valoración inicial",
+    "amount_in_cents": 15000000,
+    "currency": "COP",
+    "single_use": true,
+    "description": "Valoración inicial",
+    "sku": "6712f0c1a9e4b2d3c4e5f601",
+    "expires_at": "2026-10-24T14:36:01.000Z",
+    "collect_shipping": false,
+    "collect_customer_legal_id": false,
+    "redirect_url": null,
+    "image_url": null,
+    "active": true,
+    "customer_data": null,
+    "created_at": "2026-10-22T14:36:02.866Z",
+    "updated_at": "2026-10-22T14:36:02.866Z",
+    "taxes": [],
+    "default_language": "es",
+    "available_installments": null,
+    "merchant_public_key": "pub_test_FAKE"
+  },
+  "meta": {}
+}
