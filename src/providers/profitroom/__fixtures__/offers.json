@@ -1,0 +1,201 @@
+[
+  {
+    "id": 524038,
+    "type": "O",
+    "status": 1,
+    "profiles": [
+      {
+        "profileId": 212614,
+        "type": "elastic",
+        "methods": [20, 173],
+        "deposit": { "percentage": 30, "nights": null },
+        "params": {
+          "cancelTime": "7",
+          "cancelUnit": "days",
+          "arrivalTime": null,
+          "modifyTime": null,
+          "modifyUnit": null,
+          "scheduleChargingCard": null,
+          "remainingPaymentType": "upon_arrival",
+          "schedule": null
+        },
+        "dateRanges": null,
+        "conditions": [],
+        "translations": null
+      }
+    ],
+    "attributes": {
+      "mealPlanType": 19,
+      "dateRange": null,
+      "minimumNights": null,
+      "numberNights": null,
+      "kind": null,
+      "isHiddenPromoCodes": false,
+      "isSpecialOffer": false,
+      "isComplimentary": false
+    },
+    "gallery": null,
+    "translations": [
+      {
+        "locale": "es",
+        "messages": [{ "fieldName": "name", "value": "Oferta de primer minuto con desayuno -15%" }]
+      }
+    ],
+    "restrictions": {
+      "availableFrom": "2026-10-30",
+      "availableTo": "2029-07-11",
+      "minNights": null,
+      "fixedNights": null,
+      "checkInWeekDays": [],
+      "availableWeekDays": [1, 2, 3, 4, 5, 7],
+      "shutsDates": [
+        "2026-10-15",
+        "2026-10-16",
+        "2026-10-17",
+        "2026-10-18",
+        "2026-10-19",
+        "2026-10-20",
+        "2026-10-21",
+        "2026-10-22",
+        "2026-10-23",
+        "2026-10-24",
+        "2026-10-25",
+        "2026-10-26",
+        "2026-10-27",
+        "2026-10-28",
+        "2026-10-29",
+        "2026-10-30",
+        "2026-10-31",
+        "2026-12-19",
+        "2026-12-20",
+        "2026-12-21",
+        "2026-12-22",
+        "2026-12-23",
+        "2026-12-24",
+        "2026-12-25",
+        "2026-12-26",
+        "2026-12-27",
+        "2026-12-28",
+        "2026-12-29",
+        "2026-12-30",
+        "2026-12-31",
+        "2027-01-01",
+        "2027-01-02",
+        "2027-01-03",
+        "2027-01-04",
+        "2027-01-05",
+        "2027-01-06",
+        "2027-01-07",
+        "2027-01-08",
+        "2027-01-09",
+        "2027-01-10",
+        "2027-01-11",
+        "2027-01-12",
+        "2027-01-13",
+        "2027-01-14",
+        "2027-01-15",
+        "2027-01-16"
+      ],
+      "checkInDates": [],
+      "publishTo": null
+    },
+    "tags": [19],
+    "orderIndex": 3,
+    "channelIds": [100, 1772, 1898, 1766],
+    "roomIds": [230226, 230228, 230230, 230232],
+    "isCodeRestricted": false
+  },
+  {
+    "id": 380900,
+    "type": "O",
+    "status": 1,
+    "profiles": [
+      {
+        "profileId": 212614,
+        "type": "elastic",
+        "methods": [20, 173],
+        "deposit": { "percentage": 30, "nights": null },
+        "params": {
+          "cancelTime": "7",
+          "cancelUnit": "days",
+          "arrivalTime": null,
+          "modifyTime": null,
+          "modifyUnit": null,
+          "scheduleChargingCard": null,
+          "remainingPaymentType": "upon_arrival",
+          "schedule": null
+        },
+        "dateRanges": null,
+        "conditions": [],
+        "translations": null
+      }
+    ],
+    "attributes": {
+      "mealPlanType": 19,
+      "dateRange": null,
+      "minimumNights": null,
+      "numberNights": null,
+      "kind": null,
+      "isHiddenPromoCodes": false,
+      "isSpecialOffer": false,
+      "isComplimentary": false
+    },
+    "gallery": {
+      "title": "Gallery for: Tarifa Est\u00e1ndar",
+      "description": null,
+      "featured": {
+        "title": null,
+        "description": null,
+        "fileName": "f6a5cc5e-ec49-4bb0-b400-b98252ffca5a.jpeg",
+        "orderIndex": null
+      },
+      "images": []
+    },
+    "translations": [
+      {
+        "locale": "en",
+        "messages": [
+          { "fieldName": "name", "value": "Standard Rate" },
+          {
+            "fieldName": "description",
+            "value": "<p>This offer includes:<\/p><ul><li>A la carte breakfast.<\/li><li>Non-motorized water sports.<\/li><li>Disconnection experiences.<\/li><\/ul>"
+          },
+          {
+            "fieldName": "intro",
+            "value": "We are a hotel for everyone, our concept is focused on the Slow-Life or slow life."
+          }
+        ]
+      },
+      {
+        "locale": "es",
+        "messages": [
+          { "fieldName": "name", "value": "Tarifa Est\u00e1ndar" },
+          {
+            "fieldName": "description",
+            "value": "<p>Esta oferta incluye:<\/p><ul><li>Desayuno a la carta.<\/li><li>Deportes acu\u00e1ticos no motorizados.<\/li><li>Experiencias de desconexi\u00f3n.<\/li><\/ul>"
+          },
+          {
+            "fieldName": "intro",
+            "value": "Somos un hotel para todos, nuestro concepto est\u00e1 enfocado en el Slow-Life o la vida lenta."
+          }
+        ]
+      }
+    ],
+    "restrictions": {
+      "availableFrom": null,
+      "availableTo": "2029-07-11",
+      "minNights": null,
+      "fixedNights": null,
+      "checkInWeekDays": [],
+      "availableWeekDays": [1, 2, 3, 4, 5, 6, 7],
+      "shutsDates": [],
+      "checkInDates": [],
+      "publishTo": null
+    },
+    "tags": [19],
+    "orderIndex": 13,
+    "channelIds": [100, 1772, 1766],
+    "roomIds": [230226, 230228, 230230, 230232, 506622, 513440],
+    "isCodeRestricted": false
+  }
+]

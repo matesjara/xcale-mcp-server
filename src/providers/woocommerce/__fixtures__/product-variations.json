@@ -14,7 +14,15 @@
     "stock_status": "instock",
     "attributes": [{ "id": 0, "name": "Talla", "slug": "talla", "option": "S" }],
     "name": "S",
-    "parent_id": 14
+    "parent_id": 14,
+    "image": {
+      "id": 100840,
+      "date_created": "2025-05-02T05:32:40",
+      "date_modified": "2026-02-19T07:59:33",
+      "src": "http://localhost:10004/wp-content/uploads/2025/05/camiseta-s.jpg",
+      "name": "Camiseta",
+      "alt": ""
+    }
   },
   {
     "id": 19,
@@ -31,7 +39,15 @@
     "stock_status": "instock",
     "attributes": [{ "id": 0, "name": "Talla", "slug": "talla", "option": "M" }],
     "name": "M",
-    "parent_id": 14
+    "parent_id": 14,
+    "image": {
+      "id": 100851,
+      "date_created": "2025-05-02T05:33:12",
+      "date_modified": "2026-10-09T05:26:45",
+      "src": "http://localhost:10004/wp-content/uploads/2025/05/camiseta-m.jpg",
+      "name": "Camiseta",
+      "alt": ""
+    }
   },
   {
     "id": 20,
@@ -48,6 +64,7 @@
     "stock_status": "instock",
     "attributes": [{ "id": 0, "name": "Talla", "slug": "talla", "option": "L" }],
     "name": "L",
-    "parent_id": 14
+    "parent_id": 14,
+    "image": null
   }
 ]

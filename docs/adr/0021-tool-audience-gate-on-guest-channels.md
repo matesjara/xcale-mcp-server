@@ -1,8 +1,21 @@
 # ADR 0021: A tool's audience travels in `_meta`, under `xcale.app/audience`
 
-- **Status:** Proposed
+- **Status:** Rejected (2026-10-15)
 - **Date:** 2026-10-14
-- **Decision makers:** Mateo (sign-off pending), Sara (#1243 grill)
+- **Decision makers:** Mateo (rejected), Sara (#1243 grill)
+
+> **Rejected by Mateo on 2026-10-15** (matesjara/xcale-backend#1243). We do not restrict in code
+> which tools, context or data a tenant's agent can reach: which tools an agent carries, and how it
+> uses them, is the tenant's configuration. The answer to a stranger steering a property-wide tool is
+> **context that gives the agent judgment** — who is writing, what that person has confirmed, what a
+> tool reaches — never a code-level refusal. The backend half was never merged (xcale-backend#1468
+> was reworked without it).
+>
+> **What remains in this repo:** the `_meta['xcale.app/audience']` marks on Cloudbeds' tools are
+> still published, as inert metadata — nothing filters or refuses by them. Whether they become that
+> context, or are removed, is decided in matesjara/xcale-backend#1614. Until then the text below is
+> kept as the record of what was proposed and why it was turned down.
+
 - **Tags:** mcp, contract, tools-list, security, integrations
 
 ## Context
@@ -57,12 +70,10 @@ How xcale-backend enforces it — refuse `operator` and unclassified tools of a 
 whenever a guest is on the other end, regardless of the tenant's identity-binding mode — is the
 backend's ADR `tool-audience-gate-on-guest-channels` (xcale-backend#1468).
 
-### Open for Mateo's sign-off
+### Mateo's answer (2026-10-15)
 
-Whether that refusal is a **security line with no tenant override** (proposed: the danger is a
-stranger steering a property-wide tool, and security stays ours per the backend's Tenant Autonomy
-Boundary) or a **default a business may lift**. This repo's half does not change either way: the
-gateway only publishes the mark. The answer is recorded here and in the backend ADR when given.
+The question left open here — a security line with no tenant override, or a default a business may
+lift — was answered with neither: the refusal itself is rejected (see the banner at the top).
 
 ## Consequences
 

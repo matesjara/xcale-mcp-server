@@ -25,6 +25,8 @@ function config(credentialResolveUrl: string): Config {
     credentialResolveUrl,
     credentialResolveSecret: OUTBOUND,
     siigoPartnerId: '',
+    himedBaseUrl: '',
+    himedSchedulingBaseUrl: '',
   };
 }
 

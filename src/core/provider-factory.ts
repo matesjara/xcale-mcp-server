@@ -109,13 +109,25 @@ export function createProvider<M = unknown>(spec: ProviderSpec<M>): IProvider {
         });
       }
 
+      // A grouped tool whose group secret the consumer did not send: a typed, reconnectable answer
+      // rather than the materializer's throw surfacing as a JSON-RPC internal error.
+      if (tool.credentialGroup !== undefined && !ctx.credential.secrets?.[tool.credentialGroup]) {
+        return toolError({
+          code: ProviderErrorCode.AUTH_EXPIRED,
+          toolName,
+          providerSlug: slug,
+          message: `No credential for group "${tool.credentialGroup}" — reconnect the account with it`,
+        });
+      }
+
       const outcome = await tool.handler(parsedArgs.data, {
         // The authenticated-request executor: the core materializes auth (reveals + applies the
         // declared placement) and transports it, so the handler never touches the secret. The plain
         // materialized request stays inside this core span — it never passes through provider code.
         request: (reqSpec) =>
           sendRequest(
-            materialize(spec.auth, ctx.credential, reqSpec),
+            // Multi-credential providers: the called tool's group picks which secret/field to inject.
+            materialize(spec.auth, ctx.credential, reqSpec, tool.credentialGroup),
             spec.fetchImpl ? { fetchImpl: spec.fetchImpl } : {},
           ),
         metadata,

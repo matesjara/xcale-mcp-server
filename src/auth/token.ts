@@ -32,3 +32,19 @@ export function extractProviderMetadata(
   };
   return parse(headerValue) ?? parse(Buffer.from(headerValue, 'base64').toString('utf8'));
 }
+
+/**
+ * Hop A — extract a multi-credential provider's named-secret bundle from the `X-Provider-Credentials`
+ * header (a JSON object of `{ groupKey: secretValue }`, JSON or base64-JSON like metadata). The raw
+ * string values are wrapped into `SecretString`s downstream (the protocol), so parsing here touches no
+ * secret material through a `SecretString`. Fail-soft: malformed/absent → undefined (single-secret).
+ */
+export function extractProviderCredentials(
+  headerValue: string | undefined,
+): Record<string, string> | undefined {
+  const obj = extractProviderMetadata(headerValue);
+  if (obj === undefined) return undefined;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(obj)) if (typeof v === 'string') out[k] = v;
+  return Object.keys(out).length > 0 ? out : undefined;
+}

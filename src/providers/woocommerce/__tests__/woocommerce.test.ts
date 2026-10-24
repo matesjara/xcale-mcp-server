@@ -286,8 +286,22 @@ describe('woocommerce provider — get_product_variations', () => {
       onSale: false,
       stockStatus: 'instock',
       stockQuantity: 76,
+      image: { src: 'http://localhost:10004/wp-content/uploads/2025/05/camiseta-s.jpg' },
     });
     expect(data.items[2]?.attributes[0]?.option).toBe('L');
+  });
+
+  it("returns each variation's own photo, and null when the variation has none", async () => {
+    // Real shape (The Chair, 2026-10-20): `image` is one object per variation, not an `images` array.
+    const { provider: p } = provider(productVariations);
+    const result = await p.callTool('mcp_woocommerce_get_product_variations', { id: '12' }, CTX);
+    const data = successData(result) as { items: { image: { src: string } | null }[] };
+
+    expect(data.items.map((v) => v.image)).toEqual([
+      { src: 'http://localhost:10004/wp-content/uploads/2025/05/camiseta-s.jpg' },
+      { src: 'http://localhost:10004/wp-content/uploads/2025/05/camiseta-m.jpg' },
+      null,
+    ]);
   });
 });
 

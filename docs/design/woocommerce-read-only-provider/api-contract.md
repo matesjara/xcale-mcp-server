@@ -143,6 +143,7 @@ interface WooProductVariation {
   price: string;
   stockStatus: string;      // 'instock' | 'outofstock' | 'onbackorder'
   stockQuantity?: number | null;
+  image: { src: string } | null; // the variation's own photo (xcale-mcp-server#138); null when it has none
 }
 interface WooShippingZone { id: string; name: string; order?: number }
 interface WooShippingZoneLocation { type: string; code: string } // confirmed type: 'continent' | 'country' | 'state' (e.g. code "CO:CO-QUI")

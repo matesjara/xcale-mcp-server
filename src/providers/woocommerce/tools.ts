@@ -153,9 +153,11 @@ interface RawVariation extends RawSalePricing {
   readonly price: string;
   readonly stock_status: string;
   readonly stock_quantity: number | null;
+  /** One object per variation (not an `images` array); null when the variation has no photo. */
+  readonly image?: { readonly src?: string } | null;
 }
 
-/** Curated variation: which attribute combo (size/color) plus its own price/stock. */
+/** Curated variation: which attribute combo (size/color) plus its own price, stock and photo. */
 export interface WooProductVariation {
   readonly id: string;
   readonly attributes: ReadonlyArray<{ name: string; option: string }>;
@@ -165,6 +167,8 @@ export interface WooProductVariation {
   readonly onSale: boolean;
   readonly stockStatus: string;
   readonly stockQuantity: number | null;
+  /** The variation's own photo (e.g. the green one); null when the store set none for it. */
+  readonly image: { src: string } | null;
 }
 
 function toVariation(v: RawVariation): WooProductVariation {
@@ -175,6 +179,7 @@ function toVariation(v: RawVariation): WooProductVariation {
     ...toSalePricing(v),
     stockStatus: v.stock_status,
     stockQuantity: v.stock_quantity ?? null,
+    image: v.image?.src ? { src: v.image.src } : null,
   };
 }
 
@@ -1108,7 +1113,7 @@ export function buildWoocommerceTools(
     definePaginatedList<typeof getProductVariationsInput, WooProductVariation, WoocommerceContext>({
       name: `mcp_${SLUG}_get_product_variations`,
       description:
-        "List a variable product's variations (size/color combos) with each one's price, sale pricing and stock.",
+        "List a variable product's variations (size/color combos) with each one's price, sale pricing, stock and own photo (image, null when it has none).",
       input: getProductVariationsInput,
       handler: async (args, ctx) => {
         const res = await client.get(
