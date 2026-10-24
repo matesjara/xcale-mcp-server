@@ -40,7 +40,7 @@ export const detailsSchema = z.object({
       coordinates: z.object({ latitude: z.number(), longitude: z.number() }).nullable(),
     })
     .nullable(),
-  config: z.record(z.unknown()),
+  config: z.record(z.string(), z.unknown()),
   personTypes: z.array(
     z.object({ type: z.string(), minAge: z.number().nullable(), maxAge: z.number().nullable() }),
   ),

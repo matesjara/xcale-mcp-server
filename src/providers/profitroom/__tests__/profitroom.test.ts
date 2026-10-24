@@ -139,7 +139,8 @@ describe('profitroom client', () => {
     expect(r).toEqual({
       ok: false,
       code: ProviderErrorCode.PROVIDER_ERROR,
-      message: 'unexpected response from Profitroom (calendar: dates.0.minLOS Required)',
+      message:
+        'unexpected response from Profitroom (calendar: dates.0.minLOS Invalid input: expected number, received undefined)',
     });
   });
 

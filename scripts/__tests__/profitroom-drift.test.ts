@@ -61,7 +61,7 @@ describe('profitroom drift probe', () => {
     expect(report.checks.find((c) => c.resource === 'calendar')).toMatchObject({
       ok: false,
       failure: 'drift',
-      detail: 'dates.0.minLOS: Required',
+      detail: 'dates.0.minLOS: Invalid input: expected number, received undefined',
     });
   });
 

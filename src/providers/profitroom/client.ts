@@ -61,12 +61,19 @@ export function createProfitroomClient(options: ProfitroomClientOptions = {}): P
       }
     },
 
-    async get(request, hotelKey, resource, schema, opts = {}) {
+    async get<S extends z.ZodTypeAny>(
+      request: SendRequest,
+      hotelKey: string,
+      resource: Resource,
+      schema: S,
+      opts: GetOptions = {},
+    ): Promise<ClientResult<z.infer<S>>> {
       const url = buildUrl(hotelKey, resource, opts);
       const cacheKey = CACHED.has(resource) ? `${hotelKey}|${url}` : null;
       const hit = cacheKey === null ? undefined : cache.get(cacheKey);
       if (hit !== undefined && now() - hit.at < CACHE_TTL_MS) {
-        return { ok: true, data: hit.data };
+        // Only `parsed.data` from this same schema is ever stored under this key (below).
+        return { ok: true, data: hit.data as z.infer<S> };
       }
 
       const res = await request({
