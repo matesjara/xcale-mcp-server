@@ -86,7 +86,33 @@ function classifyTransportFailure(res: Extract<RequestResult, { ok: false }>): {
       detail: 'This call is restricted to third-party integrations.',
     };
   }
-  return { code: res.errorCode };
+  const detail = providerDetail(res.body);
+  return detail ? { code: res.errorCode, detail } : { code: res.errorCode };
+}
+
+/**
+ * What Cloudbeds said about a failed call, so the agent has something to correct (#71). A 400 used
+ * to reach it as "failed (HTTP 400)" while the body named the missing parameter.
+ *
+ * Cloudbeds answers errors as `{success:false, message}` or `{status:false, error}`; either field is
+ * taken. Plain text is kept as it is — the transport already capped it and masked query values. An
+ * HTML page (a gateway's 502) is dropped: it says nothing the status does not, and it would land in
+ * the agent's prompt as noise. The error CODE is untouched — it still comes from the HTTP status.
+ */
+function providerDetail(body: string): string | undefined {
+  const text = body.trim();
+  if (text === '' || text.startsWith('<')) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (typeof parsed === 'object' && parsed !== null) {
+      const { message, error } = parsed as { message?: unknown; error?: unknown };
+      if (typeof message === 'string' && message.trim() !== '') return message.trim();
+      if (typeof error === 'string' && error.trim() !== '') return error.trim();
+    }
+  } catch {
+    // Not JSON — plain text is the detail.
+  }
+  return text;
 }
 
 /**
@@ -104,17 +130,16 @@ function unwrap(res: RequestResult, method: string): Unwrapped {
     return {
       ok: false,
       code,
-      message: detail
-        ? `Cloudbeds ${method}: ${detail}`
-        : `Cloudbeds ${method} failed (HTTP ${res.status})`,
+      message: `Cloudbeds ${method} failed (HTTP ${res.status})${detail ? `: ${detail}` : ''}`,
     };
   }
-  const body = res.data as {
-    success?: boolean;
-    data?: unknown;
-    total?: number;
-    message?: string;
-  } | null;
+  // Only an object can be the envelope. A bare 200 string or number used to reach `'data' in body`,
+  // which throws on a non-object and crashed the call instead of answering it (#72); it now passes
+  // through as the data, as any body without a `data` field always has.
+  const body =
+    typeof res.data === 'object' && res.data !== null
+      ? (res.data as { success?: boolean; data?: unknown; total?: number; message?: string })
+      : null;
   if (body && body.success === false) {
     return {
       ok: false,
@@ -122,7 +147,7 @@ function unwrap(res: RequestResult, method: string): Unwrapped {
       message: body.message ?? `Cloudbeds ${method} returned success=false`,
     };
   }
-  const data = body && 'data' in body ? body.data : body;
+  const data = body && 'data' in body ? body.data : res.data;
   return body?.total !== undefined ? { ok: true, data, total: body.total } : { ok: true, data };
 }
 
