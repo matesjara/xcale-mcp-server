@@ -332,6 +332,7 @@ describe('cloudbeds provider', () => {
     rooms: [{ roomTypeID: '679065', quantity: 1, roomRateID: '3206090' }],
     adults: [{ roomTypeID: '679065', quantity: 2 }],
     children: [{ roomTypeID: '679065', quantity: 0 }],
+    thirdPartyIdentifier: 'xtest-1',
   };
 
   async function captureCreate(args: Record<string, unknown>) {
@@ -371,15 +372,40 @@ describe('cloudbeds provider', () => {
   });
 
   it('create_reservation never sends card/payment-authorization fields (booking-only stays booking-only)', async () => {
-    const { body } = await captureCreate({
-      ...validBooking,
-      thirdPartyIdentifier: 'xtest-1',
-    });
+    const { body } = await captureCreate(validBooking);
     expect(body.get('cardToken')).toBeNull();
     expect(body.get('paymentAuthorizationCode')).toBeNull();
     // The consumer's external reference does reach the wire (it owns reconciliation).
     expect(body.get('thirdPartyIdentifier')).toBe('xtest-1');
   });
+
+  // #66: the abort-after-write window. The transport gives up after 15 s and Cloudbeds may already
+  // have written the row; postReservation has no idempotency key, so the caller's own reference is
+  // the only way to find out before a retry double-books the room. A booking without one is refused.
+  it.each([
+    ['missing', undefined],
+    ['empty', ''],
+    ['blank', '   '],
+  ])(
+    'create_reservation refuses a %s thirdPartyIdentifier and never reaches the provider',
+    async (_label, thirdPartyIdentifier) => {
+      let called = false;
+      const provider = createCloudbedsProvider({
+        fetchImpl: (async () => {
+          called = true;
+          return new Response('{}', { status: 200 });
+        }) as FetchLike,
+      });
+      const r = await provider.callTool(
+        'mcp_cloudbeds_create_reservation',
+        { ...validBooking, thirdPartyIdentifier },
+        ctx({ propertyID: 'PROP1' }),
+      );
+      expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+      expect((r as { message: string }).message).toContain('thirdPartyIdentifier');
+      expect(called).toBe(false);
+    },
+  );
 
   it('create_reservation rejects an unknown field (strict schema) and never reaches the provider', async () => {
     const provider = createCloudbedsProvider({ fetchImpl: fakeFetch({}) });
@@ -495,9 +521,10 @@ describe('cloudbeds provider', () => {
         },
       }),
     });
+    // A real status the property refuses for this reservation (checked out before checking in).
     const r = await provider.callTool(
       'mcp_cloudbeds_modify_reservation',
-      { reservationID: 'R-1', status: 'bogus_status' },
+      { reservationID: 'R-1', status: 'checked_out' },
       ctx({ propertyID: 'PROP1' }),
     );
     expect(r).toMatchObject({
@@ -505,6 +532,55 @@ describe('cloudbeds provider', () => {
       code: ProviderErrorCode.PROVIDER_ERROR,
       message: 'Incorrect status. You cannot change status',
     });
+  });
+
+  // #67: status is the one destructive transition in the toolset, so it takes Cloudbeds' closed
+  // vocabulary. An invented or misspelt value is refused before any call leaves for the property.
+  it.each(['cancelled', 'checkout', 'bogus_status', ''])(
+    'modify_reservation refuses the status %j without calling Cloudbeds',
+    async (status) => {
+      let called = false;
+      const provider = createCloudbedsProvider({
+        fetchImpl: (async () => {
+          called = true;
+          return new Response('{}', { status: 200 });
+        }) as FetchLike,
+      });
+      const r = await provider.callTool(
+        'mcp_cloudbeds_modify_reservation',
+        { reservationID: 'R-1', status },
+        ctx({ propertyID: 'PROP1' }),
+      );
+      expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+      expect((r as { message: string }).message).toContain('canceled');
+      expect(called).toBe(false);
+    },
+  );
+
+  it('modify_reservation passes every status of the vocabulary through to Cloudbeds', async () => {
+    for (const status of [
+      'confirmed',
+      'not_confirmed',
+      'canceled',
+      'checked_in',
+      'checked_out',
+      'no_show',
+    ]) {
+      let body = '';
+      const provider = createCloudbedsProvider({
+        fetchImpl: (async (_url: string | URL, init?: RequestInit) => {
+          body = init?.body?.toString() ?? '';
+          return new Response(JSON.stringify({ success: true, data: {} }), { status: 200 });
+        }) as FetchLike,
+      });
+      const r = await provider.callTool(
+        'mcp_cloudbeds_modify_reservation',
+        { reservationID: 'R-1', status },
+        ctx({ propertyID: 'PROP1' }),
+      );
+      expect(r).toMatchObject({ kind: 'success' });
+      expect(new URLSearchParams(body).get('status')).toBe(status);
+    }
   });
 
   it('modify_reservation rejects the non-modifiable check-in date (strict schema)', async () => {

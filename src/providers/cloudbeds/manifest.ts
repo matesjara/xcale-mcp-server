@@ -46,8 +46,14 @@ export const cloudbedsManifest: ProviderManifest = {
   // Bumped again (xcale-backend#1471): `get_reservation_rate_details` (read:reservation, operator) is
   // a new tool in tools/list — the booked rate of every room of one reservation, which
   // `get_reservation` does not return.
-  schemaVersion: '2026-10-09',
-  providerVersion: '0.12.0',
+  //
+  // Bumped again (#67, #66): two write tools' input schemas moved, so `listTools()` output changed.
+  // `modify_reservation.status` is now an enum of Cloudbeds' reservation statuses (was free text),
+  // and `create_reservation.thirdPartyIdentifier` is now required (was optional). Both narrow what
+  // is accepted; xcale-backend already sends only `status: 'canceled'` and always stamps
+  // `thirdPartyIdentifier`, so its calls are unchanged.
+  schemaVersion: '2026-10-22',
+  providerVersion: '0.13.0',
   logoUrl: '/assets/cloudbeds.svg',
   capabilities: { pagination: true },
   // A Cloudbeds token is scoped to its property; discover the propertyID via getHotels instead of

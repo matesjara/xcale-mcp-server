@@ -14,6 +14,21 @@ type Unwrapped =
   | { readonly ok: false; readonly code: ProviderErrorCode; readonly message: string };
 
 /**
+ * Cloudbeds' reservation statuses — what a reservation can be set to (`modify_reservation`) and what
+ * an email schedule can fire on (`create_email_schedule`). A closed list, so an invented or misspelt
+ * value (`"cancelled"`, `"checkout"`) is refused here with the valid ones named, instead of reaching
+ * the one destructive write in the toolset (#67).
+ */
+const RESERVATION_STATUSES = [
+  'confirmed',
+  'not_confirmed',
+  'canceled',
+  'checked_in',
+  'checked_out',
+  'no_show',
+] as const;
+
+/**
  * Classify a Cloudbeds `success:false` envelope into a typed error code by its `message`.
  *
  * Cloudbeds signals a **scope/permission denial as HTTP 200 + `success:false`**, never 401/403
@@ -521,8 +536,10 @@ export function buildCloudbedsTools(
         'Create a reservation (booking) for the property. Requires the stay dates, the primary guest, ' +
         'and per room type the rooms/adults/children counts. Get roomTypeID and roomRateID from the ' +
         'availability/rate tools — never invent them. Booking-only: this declares a payment method but ' +
-        'captures no card and moves no money. Pass thirdPartyIdentifier to stamp your own external ' +
-        'reference so you can reconcile the booking later.',
+        'captures no card and moves no money. thirdPartyIdentifier is required: your own unique ' +
+        'reference for this booking. If the call fails or times out, the reservation may still have ' +
+        'been created — look for it with list_reservations (each reservation carries its ' +
+        'thirdPartyIdentifier) before trying again, and retry with the SAME reference, never a new one.',
       input: z
         .object({
           // Stay
@@ -572,7 +589,17 @@ export function buildCloudbedsTools(
           paymentMethod: z.enum(['cash', 'credit', 'ebanking', 'pay_pal']).default('cash'),
 
           // Consumer-supplied external reference for reconciliation (the consumer owns idempotency).
-          thirdPartyIdentifier: z.string().optional(),
+          // REQUIRED (#66) because of the abort-after-write window: the transport gives up after 15 s,
+          // and Cloudbeds may already have written the row when it does. postReservation has no
+          // idempotency key, so this stamp is the only way a caller can tell "the write failed" from
+          // "it landed and the answer was lost" — without it, a retry double-books the room.
+          thirdPartyIdentifier: z
+            .string()
+            .trim()
+            .min(1)
+            .describe(
+              'Your unique reference for this booking. Reuse the same value on any retry of it.',
+            ),
 
           // Misc
           estimatedArrivalTime: z.string().optional().describe('HH:mm 24h'),
@@ -615,11 +642,14 @@ export function buildCloudbedsTools(
         .object({
           reservationID: z.string().min(1),
           status: z
-            .string()
+            .enum(RESERVATION_STATUSES)
             .optional()
             .describe(
-              'New reservation status — use "canceled" to cancel the booking. The property validates ' +
-                'the value and rejects a transition it does not allow.',
+              'New reservation status — use "canceled" to cancel the booking. checked_in, ' +
+                'checked_out and no_show are front-desk moves: send them only when the operator asks ' +
+                'for that exact move, never inferred — checked_out closes the folio of a guest who ' +
+                'may still be in the house. The property validates the value and rejects a ' +
+                'transition it does not allow.',
             ),
           checkoutDate: z
             .string()
@@ -1976,14 +2006,7 @@ export function buildCloudbedsTools(
             z
               .object({
                 type: z.literal('reservation_status'),
-                status: z.enum([
-                  'confirmed',
-                  'not_confirmed',
-                  'canceled',
-                  'checked_in',
-                  'checked_out',
-                  'no_show',
-                ]),
+                status: z.enum(RESERVATION_STATUSES),
               })
               .strict(),
             z
