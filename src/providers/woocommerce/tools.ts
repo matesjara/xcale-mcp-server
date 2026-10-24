@@ -54,6 +54,7 @@ interface RawProduct extends RawSalePricing {
 interface RawProductDetail extends RawProduct {
   readonly sku?: string;
   readonly description?: string;
+  readonly short_description?: string;
   readonly categories?: ReadonlyArray<{ id: number; name: string }>;
   readonly images?: ReadonlyArray<{ src: string }>;
   readonly variations?: readonly number[];
@@ -83,10 +84,19 @@ export interface WooProductSummary {
   readonly status: string | null;
 }
 
-/** Curated product detail. `description` is stripped to plain text; `variations` are ids to expand. */
+/**
+ * Curated product detail. `description` and `shortDescription` are stripped to plain text; `variations`
+ * are ids to expand.
+ */
 export interface WooProductDetail extends WooProductSummary {
   readonly sku: string | null;
+  /** The long description. `""` when the store wrote none. */
   readonly description: string;
+  /**
+   * The short description — the block shown next to the price. Many stores keep the whole product text
+   * here and leave `description` empty. `""` when the store wrote none.
+   */
+  readonly shortDescription: string;
   readonly categories: ReadonlyArray<{ id: string; name: string }>;
   readonly images: ReadonlyArray<{ src: string }>;
   readonly variations: readonly string[];
@@ -137,6 +147,7 @@ function toProductDetail(p: RawProductDetail): WooProductDetail {
     ...toProductSummary(p),
     sku: p.sku ?? null,
     description: p.description ? stripHtml(p.description) : '',
+    shortDescription: p.short_description ? stripHtml(p.short_description) : '',
     categories: (p.categories ?? []).map((c) => ({ id: String(c.id), name: c.name })),
     images: (p.images ?? []).map((i) => ({ src: i.src })),
     variations: (p.variations ?? []).map(String),
@@ -923,7 +934,8 @@ export function buildWoocommerceTools(
     tool({
       name: `mcp_${SLUG}_get_product`,
       description:
-        'Get one product by id: price, sale pricing, stock, description (plain text), categories, images, and variation ids.',
+        'Get one product by id: price, sale pricing, stock, description and short description (plain text), categories, ' +
+        'images, and variation ids.',
       input: getProductInput,
       handler: async (args, ctx) => {
         const res = await client.get(
