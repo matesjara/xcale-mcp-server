@@ -1,0 +1,30 @@
+[
+  {
+    "occupancy": { "adults": 2, "children": [{ "minAge": 1, "maxAge": 1, "count": 1 }] },
+    "proposals": [
+      {
+        "proposal": {
+          "OfferID": 380900,
+          "RoomID": 230226,
+          "occupancyOption": { "id": "2126448@3", "arrangementID": null, "extraBedsIDs": [] },
+          "price": { "amount": 1411000, "currency": "COP" },
+          "originalPrice": { "amount": 1510000, "currency": "COP" },
+          "simulatedPrice": null,
+          "recentLowestPrice": null,
+          "loyaltyPrice": null,
+          "recentPriceHash": null,
+          "stay": { "from": "2026-10-23", "to": "2026-10-25" },
+          "occupancy": { "adults": 2, "children": [{ "minAge": 1, "maxAge": 1, "count": 1 }] },
+          "attributes": null,
+          "offerDates": null,
+          "discounts": [
+            { "amount": -99000, "availableTo": "2026-10-30T00:00:00-05:00", "isMobile": false }
+          ],
+          "crmScore": 2,
+          "profileId": 212614
+        },
+        "roomCount": 4
+      }
+    ]
+  }
+]

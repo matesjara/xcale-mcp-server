@@ -90,6 +90,13 @@ describe('get_room_calendar', () => {
           unavailable: ['2026-09-17', '2026-09-18'],
         },
       ],
+      weekdays: {
+        '2026-09-17': { en: 'Thursday', es: 'jueves' },
+        '2026-09-18': { en: 'Friday', es: 'viernes' },
+        '2026-09-19': { en: 'Saturday', es: 'sábado' },
+        '2026-09-20': { en: 'Sunday', es: 'domingo' },
+        '2026-09-21': { en: 'Monday', es: 'lunes' },
+      },
     });
   });
 

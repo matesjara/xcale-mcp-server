@@ -1,6 +1,6 @@
 # ADR 0022: Credential-less providers — the `none` auth variant
 
-- **Status:** Proposed
+- **Status:** Accepted (2026-10-17, by Mateo on the review of #144)
 - **Date:** 2026-10-14
 - **Decision makers:** Mateo
 - **Tags:** auth, integrations, mcp, core

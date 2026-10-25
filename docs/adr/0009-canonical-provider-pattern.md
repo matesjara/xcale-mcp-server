@@ -26,7 +26,7 @@ Adopt the following patterns as the canonical provider implementation, enforced 
 ### 1. Single Source of Truth for tool contracts (typed handlers)
 
 Each tool has **one** schema (zod). Every derived representation (the `tools/list` JSON Schema,
-published types, docs) is **generated** from it (`zod-to-json-schema` today; the principle outlives
+published types, docs) is **generated** from it (zod’s native `z.toJSONSchema` today; the principle outlives
 the library). A `defineTool({ name, description, input, handler })` helper makes this the path of
 least resistance: the provider's `callTool` becomes a generic dispatcher that validates `args`
 against `input` **before** calling the handler, so handlers receive **already-validated, typed**

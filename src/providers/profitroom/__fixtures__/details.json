@@ -1,0 +1,182 @@
+{
+  "locales": [
+    { "locale": "es", "countryCode": "es", "isLive": true, "orderIndex": 0 },
+    { "locale": "en", "countryCode": "en", "isLive": true, "orderIndex": 1 }
+  ],
+  "defaultCurrency": { "code": "COP", "symbol": "COP", "orderIndex": null },
+  "defaultLocale": "es",
+  "logo": {
+    "title": null,
+    "description": null,
+    "fileName": "202302061930540.202302061927130.LOGO_LAPAUSA_3_1_.png",
+    "orderIndex": null
+  },
+  "photo": {
+    "title": null,
+    "description": null,
+    "fileName": "175001ae-756f-4f9a-b282-2fbd0c8cb4f4.jpeg",
+    "orderIndex": null
+  },
+  "config": {
+    "be.headerLightMode": "1",
+    "be.guestMessageConfiguration": "{\"type\":\"new\",\"showOnDateRange\":null,\"showForStayDateRange\":{\"from\":\"2026-12-24\",\"to\":\"2027-01-05\"}}",
+    "be.showGuestMessage": "1",
+    "be7.colors.primary": "#bc9667",
+    "be7.colors.secondary": "#274543",
+    "Upper.PreferedCityMode": "rooms",
+    "BookingPanel.PreselectedOccupancy": "2",
+    "be.maxRoomsPerReservation": "5",
+    "be.filters": "[]",
+    "Children.FilterFreeAge": "0",
+    "Upper6.ShowLogo": "1",
+    "be.googleAnalyticsIds": "G-4H250D53HW",
+    "be.loadTrackingCodesByDefault": "0",
+    "Upper.PrivacyPolicyLink": "https:\/\/drive.google.com\/file\/d\/1yQe2ju8krAtamzP0-p3SaDSlzUpNzFMI\/view?usp=drivesdk",
+    "be.taxesPresentationMode": "net",
+    "Upper.GTM": ["GTM-PBRS5M8"],
+    "Upper.FacebookID": "1940088229660382",
+    "be7.nightMode": "0",
+    "Hotel.CheckinAfter": "15:00",
+    "Hotel.CheckoutBefore": "12:00",
+    "Hotel.Parking": "1",
+    "Hotel.Animals": "3",
+    "Children.FreeAge": "2",
+    "Checkout.isCheckoutV2Enabled": "1",
+    "Booking.MaxDaysAdvance": "1000",
+    "be.showClosestPossibleDate": "1",
+    "be.trackerDylamiWebsiteKey": "8c8b76df-5d57-405c-9691-cac850e42615",
+    "be.loadCookieMonster": "1",
+    "be.enableAbandonedCartPopUp": "1",
+    "UpperBooking.Version": "be7",
+    "be.enableAbandonedCartMail": "1",
+    "be.checkUnavailableDays": "1",
+    "be.enableAbandonedSearchPopUp": "1"
+  },
+  "url": "www.lapausahotel.com",
+  "checkoutUrl": "https:\/\/checkout.profitroom.com",
+  "maxOccupancy": 7,
+  "discountBox": { "translations": null, "discount": null },
+  "guestMessageTranslations": [
+    {
+      "locale": "en",
+      "messages": [
+        { "fieldName": "label", "value": "New Years Celebration" },
+        {
+          "fieldName": "description",
+          "value": "Reservations for December 31st will include our New Year's Eve party, where we will have special dinner, music, souvenirs and many surprises!"
+        }
+      ]
+    },
+    {
+      "locale": "es",
+      "messages": [
+        { "fieldName": "label", "value": "New Year\u00b4s Celebration" },
+        {
+          "fieldName": "description",
+          "value": "Las reservas para el 31 de Diciembre, incluir\u00e1n nuestra fiesta de fin de a\u00f1o, donde tendremos cena especial, m\u00fasica, souvenirs y muchas sorpresas!"
+        }
+      ]
+    }
+  ],
+  "translations": [
+    {
+      "locale": "es",
+      "messages": [
+        { "fieldName": "name", "value": "Hotel La Pausa" },
+        {
+          "fieldName": "description",
+          "value": "<h1 style=\"text-align: center;\">La Pausa Hotel<\/h1>\r\n<p style=\"text-align: justify;\">La Pausa Hotelbistr&oacute; es un eco-hotel de 16 caba&ntilde;as que est&aacute; ubicado en El Pe&ntilde;ol, Antioquia. Todas nuestras caba&ntilde;as cuentan con vista al Embalse de Guatape, Jacuzzi exterior, fogata y algunas tienen muelle privado.<\/p>\r\n<p style=\"text-align: justify;\">La Pausa Hotelbistr&oacute; cuenta con dos restaurantes, deportes acu&aacute;ticos, Wellness Room, parque infantil y parque para mascotas. Somos un hotel para todos, nuestro concepto est&aacute; enfocado en el Slow-Life o la vida lenta.<\/p>\r\n<div style=\"text-align: justify;\">Nos gustan las cosas simples de la vida, hacer maletas, viajar, comer, compartir, el vino, la cocina lenta, las fogatas rodeadas de amigos, nos conectamos con la naturaleza, creemos que los animales son familia, vivimos el hoy, sin af&aacute;n, tranquilos y creemos que la vida se disfruta m&aacute;s en modo avi&oacute;n.<\/div>"
+        },
+        { "fieldName": "city", "value": "Medellin" },
+        { "fieldName": "street", "value": "Vereda la Cristalina El Pe\u00f1ol" }
+      ]
+    },
+    {
+      "locale": "en",
+      "messages": [
+        { "fieldName": "name", "value": "La Pausa Hotel" },
+        {
+          "fieldName": "description",
+          "value": "<h1 style=\"text-align: center;\">La Pausa Hotel<\/h1>\r\n<p style=\"text-align: justify;\">La Pausa Hotelbistr&oacute; is an eco-hotel with 16 cabins that is located in El Pe&ntilde;ol, Antioquia. All our cabins have a view of the Guatape Reservoir, outdoor Jacuzzi, fire pit and some have a private dock.<\/p>\r\n<p style=\"text-align: justify;\">La Pausa Hotelbistr&oacute; has two restaurants, water sports, a Wellness Room, a children's playground and a pet park. We are a hotel for everyone, our concept is focused on the Slow-Life or slow life.<\/p>\r\n<p style=\"text-align: justify;\">We like the simple things in life, packing, traveling, eating, sharing, wine, slow cooking, campfires surrounded by friends, we connect with nature, we believe that animals are family, we live for today, without worry , calm down and I think life is more enjoyable in airplane mode.<\/p>"
+        }
+      ]
+    }
+  ],
+  "address": {
+    "name": null,
+    "city": "Medellin",
+    "street": "Vereda la Cristalina El Pe\u00f1ol",
+    "district": null,
+    "postalCode": "053840",
+    "coordinates": { "latitude": 6.2476377, "longitude": -75.5658188 },
+    "country": "CO",
+    "description": null
+  },
+  "legalAddress": {
+    "name": "GRUPO LA VIRGINIA S.A.S.",
+    "city": "Antioquia",
+    "postalCode": "055420",
+    "street": "Cr 27c 23 Sur 152. 055420 Envigado"
+  },
+  "timeZone": "America\/Bogota",
+  "defaultChannelId": 100,
+  "masterSiteKey": null,
+  "isGroupMaster": false,
+  "groupMasterSite": null,
+  "callsign": "alpha",
+  "loyaltyProgram": { "enabled": false },
+  "customOfferCategories": null,
+  "isCorporateConnectEnabled": false,
+  "isMealPlanFilterEnabled": false,
+  "siteGrouping": null,
+  "personTypes": [
+    { "type": "A", "minAge": null, "maxAge": null },
+    { "type": "C", "minAge": 0, "maxAge": 2 }
+  ],
+  "currencies": [
+    { "code": "COP", "symbol": "COP", "orderIndex": 0 },
+    { "code": "USD", "symbol": "$", "orderIndex": 1 },
+    { "code": "EUR", "symbol": "\u20ac", "orderIndex": 2 },
+    { "code": "GBP", "symbol": "\u00a3", "orderIndex": 3 }
+  ],
+  "hideDiscountExpirationLabel": false,
+  "cookieConsentContent": [
+    {
+      "variant": "analytics",
+      "translations": {
+        "es": "Ay\u00fadanos a medir el tr\u00e1fico y mejorar el servicio para que satisfaga mejor las necesidades de los usuarios. Base legal: Art. 6 (1) (a) RGPD (consentimiento).",
+        "en": "<p>Help us measure traffic and improve the service to better meet users' needs. Legal basis: Art. 6 (1) (a) GDPR (consent).<\/p>"
+      }
+    },
+    {
+      "variant": "main",
+      "translations": {
+        "es": "Para brindar el mejor servicio posible, este sitio web utiliza cookies almacenadas en su navegador. Informaci\u00f3n detallada sobre los prop\u00f3sitos de su uso \u2014 incluyendo an\u00e1lisis, personalizaci\u00f3n de contenido y publicidad \u2014 se puede encontrar en nuestra <a href=\"https:\/\/drive.google.com\/file\/d\/1yQe2ju8krAtamzP0-p3SaDSlzUpNzFMI\/view?usp=drivesdk\">Pol\u00edtica de privacidad<\/a>. Al hacer clic en \u201cAceptar todo\u201d, usted consiente el uso de tecnolog\u00edas como cookies y el procesamiento de sus datos personales, como su direcci\u00f3n IP e identificadores de cookies, por parte de Hotel La Pausa, Vereda la Cristalina El Pe\u00f1ol, 053840 Medellin, con fines anal\u00edticos y de marketing \u2014 incluyendo la personalizaci\u00f3n de anuncios seg\u00fan sus preferencias y la medici\u00f3n de su efectividad. Puede gestionar o cambiar su consentimiento en cualquier momento accediendo a la configuraci\u00f3n de cookies.",
+        "en": "<p>To provide the best possible service, this website uses cookies stored in your browser. Detailed information about the purposes of their use \u2014 including analysis, content personalization, and advertising \u2014 can be found in our <a href=\"https:\/\/drive.google.com\/file\/d\/1yQe2ju8krAtamzP0-p3SaDSlzUpNzFMI\/view?usp=drivesdk\">Privacy Policy<\/a>. By clicking \u201cAccept all,\u201d you consent to the use of technologies such as cookies and the processing of your personal data, such as your IP address and cookie identifiers, by Hotel La Pausa, Vereda la Cristalina El Pe\u00f1ol, 053840 Medellin, for analytical and marketing purposes \u2014 including the personalization of ads according to your preferences and the measurement of their effectiveness. You can manage or change your consent at any time by accessing the cookie settings.<\/p>"
+      }
+    },
+    {
+      "variant": "marketing",
+      "translations": {
+        "es": "Perm\u00edtanos personalizar las ofertas y evaluar la efectividad de nuestras campa\u00f1as de marketing, para que vea contenido adaptado a sus intereses. Base legal: Art. 6 (1) (a) RGPD (consentimiento).",
+        "en": "<p>Allow us to personalize offers and evaluate the effectiveness of our marketing campaigns, so you see content tailored to your interests. Legal basis: Art. 6 (1) (a) GDPR (consent).<\/p>"
+      }
+    },
+    {
+      "variant": "necessary",
+      "translations": {
+        "es": "Garantizar el funcionamiento seguro y correcto del sitio: habilitar funciones de inicio de sesi\u00f3n, reservas y detecci\u00f3n de fraudes. Estas cookies no se pueden desactivar. Base legal: Art. 6 (1) (b) RGPD (cumplimiento de un contrato).",
+        "en": "<p>Ensure the safe and proper functioning of the site: enable login functions, bookings, and fraud detection. These cookies cannot be disabled. Legal basis: Art. 6 (1) (b) GDPR (performance of a contract).<\/p>"
+      }
+    }
+  ],
+  "mapDisplayMode": null,
+  "enabledNewChildrenOccupancyPicker": false,
+  "defaultSiteSortingOrder": "orderIndex",
+  "tileMapUrl": "https:\/\/maps.omniscale.net\/v2\/profitroom-1fec707d\/style.default\/{z}\/{x}\/{y}.png",
+  "unifyCookieBannerButtonColors": false,
+  "elasticDates": false,
+  "isMultiroomSuggestionsEnabled": true,
+  "cookieVendorsEnabled": false,
+  "cookieVendorConfig": null
+}

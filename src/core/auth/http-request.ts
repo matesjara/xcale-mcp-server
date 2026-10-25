@@ -13,8 +13,12 @@
  * it (Cloudbeds' webhook management). This is a generic HTTP capability, not provider knowledge — the
  * self-containment invariant keeps *provider* semantics out of core, and a verb the core already
  * transports for every provider is not that. No provider name appears here.
+ *
+ * `PATCH` joined on the same argument, for the first API whose partial update answers only to it
+ * (a payment link deactivated with `PATCH`, where `PUT` is a 404). The materializer and the transport
+ * pass the method through untouched, so the verb is the whole change.
  */
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 /** What a provider client builds: the request minus authentication. */
 export interface RequestSpec {

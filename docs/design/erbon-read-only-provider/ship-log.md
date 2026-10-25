@@ -97,8 +97,8 @@ on `dev` with #123 (the standalone PR #126 carried the same three commits).
 - ✅ done (2026-10-19) — deployed **before** the backend, per the release order: backend release
   `matesjara/xcale-backend#1665` (the Erbon CRM import, the logos of #1647) followed and is ACTIVE
   (deployment `44e51a09`, 15:23:16 UTC).
-- ⬜ pending — `assets/erbon.webp` can now be deleted (#148: it stayed until xcale-backend#1647 was
-  in production, which it is since 2026-10-19).
+- ✅ done (2026-10-21) — `assets/erbon.webp` deleted, with `assets/woocommerce.webp` (#148 kept them
+  until xcale-backend#1647 was in production, which it is since 2026-10-19).
 
 ## Known gaps / open with Erbon
 

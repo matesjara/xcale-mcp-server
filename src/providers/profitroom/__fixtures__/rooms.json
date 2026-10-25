@@ -1,0 +1,760 @@
+[
+  {
+    "id": 230226,
+    "gallery": {
+      "title": "Gallery for: Caba\u00f1a Doble con Jacuzzi",
+      "description": null,
+      "featured": {
+        "title": null,
+        "description": null,
+        "fileName": "e51137b9-1229-424e-8727-ec3073cbcda9.jpg",
+        "orderIndex": null
+      },
+      "images": [
+        {
+          "title": "d2715b30-47f6-4f5d-b2f1-35a5ba483a6c.jpg",
+          "description": null,
+          "fileName": "d2715b30-47f6-4f5d-b2f1-35a5ba483a6c.jpg",
+          "orderIndex": 0
+        },
+        {
+          "title": "d3fa97a5-ceff-4fe9-ae5b-e344df7c9bf3.jpg",
+          "description": null,
+          "fileName": "d3fa97a5-ceff-4fe9-ae5b-e344df7c9bf3.jpg",
+          "orderIndex": 1
+        },
+        {
+          "title": "2682150f-b838-406b-b26f-3443b2896b95.jpg",
+          "description": null,
+          "fileName": "2682150f-b838-406b-b26f-3443b2896b95.jpg",
+          "orderIndex": 2
+        },
+        {
+          "title": "cac580d2-2a37-4bc4-a523-c887311c288f.jpg",
+          "description": null,
+          "fileName": "cac580d2-2a37-4bc4-a523-c887311c288f.jpg",
+          "orderIndex": 3
+        },
+        {
+          "title": "399632ba-681c-4885-831f-76ff629fbf68.jpg",
+          "description": null,
+          "fileName": "399632ba-681c-4885-831f-76ff629fbf68.jpg",
+          "orderIndex": 4
+        },
+        {
+          "title": "0d39da77-2ffe-4203-b8ad-4bf18e0274e3.jpg",
+          "description": null,
+          "fileName": "0d39da77-2ffe-4203-b8ad-4bf18e0274e3.jpg",
+          "orderIndex": 5
+        },
+        {
+          "title": "bc1020ca-6a38-4e15-9465-02577fce5dd3.jpg",
+          "description": null,
+          "fileName": "bc1020ca-6a38-4e15-9465-02577fce5dd3.jpg",
+          "orderIndex": 6
+        },
+        {
+          "title": "efa8a347-52c9-42db-a6d9-0703ce5b1668.jpg",
+          "description": null,
+          "fileName": "efa8a347-52c9-42db-a6d9-0703ce5b1668.jpg",
+          "orderIndex": 7
+        }
+      ]
+    },
+    "attributes": {
+      "area": { "from": 65, "to": 65, "unit": "m\u00b2" },
+      "maxOccupancy": { "people": 2, "extraBeds": 1 },
+      "bedsConfiguration": {
+        "total": null,
+        "singleBeds": null,
+        "doubleBeds": null,
+        "foldingBeds": null,
+        "splitBeds": null
+      },
+      "layout": { "rooms": null, "bathrooms": null, "kitchen": true },
+      "facilities": {
+        "wifi": 1,
+        "airConditioning": 0,
+        "balcony": 1,
+        "television": 0,
+        "parkingLot": 0
+      }
+    },
+    "address": null,
+    "translations": [
+      {
+        "locale": "en",
+        "messages": [
+          { "fieldName": "name", "value": "Double Cabin with Jacuzzi" },
+          {
+            "fieldName": "description",
+            "value": "<p style=\"text-align: justify;\">Our cabin for two people with a <strong>Jacuzzi<\/strong> and <strong>private deck<\/strong>, is ideal to rest, disconnect and enjoy a wonderful view of the Guatap&eacute; reservoir. This cabin has a queen bed, simple kitchen with basic equipment, small living room, bathroom with shower, private Jacuzzi, private deck, fire pit and a wonderful swing to enjoy. It also includes <strong>a la carte breakfast<\/strong>, <strong>non-motorized water sports<\/strong> and many disconnection experiences. Remember that we are a hotel to eat and a restaurant to stay.<\/p>"
+          },
+          { "fieldName": "bedsDescription", "value": "1x Queen Bed" },
+          { "fieldName": "sight", "value": "Lake view" }
+        ]
+      },
+      {
+        "locale": "es",
+        "messages": [
+          { "fieldName": "name", "value": "Caba\u00f1a Doble con Jacuzzi" },
+          {
+            "fieldName": "description",
+            "value": "<p style=\"text-align: justify;\">Nuestra caba&ntilde;a para dos personas con <strong>Jacuzzi<\/strong> y <strong>deck privado<\/strong>, es ideal para descansar, desconectarse y disfrutar de una maravillosa vista al embalse de Guatap&eacute;. Esta caba&ntilde;a cuenta con cama queen, cocina sencilla con dotaci&oacute;n b&aacute;sica,peque&ntilde;a sala de estar, ba&ntilde;o con ducha, jacuzzi privado, deck privado y un maravilloso columpio para disfrutar. Adem&aacute;s incluye <strong>desayuno a la carta<\/strong>, <strong>deportes acu&aacute;ticos no motorizados<\/strong> y muchas experiencias de desconexi&oacute;n. Recuerda que somos un hotel para comer y un restaurante para quedarse.<\/p>"
+          },
+          { "fieldName": "bedsDescription", "value": "1x Cama Queen" },
+          { "fieldName": "sight", "value": "al Lago" }
+        ]
+      }
+    ],
+    "orderIndex": 1,
+    "standard": { "kind": "room", "type": "single", "standard": "standard" },
+    "limits": {
+      "min": {
+        "numberOfPeople": 1,
+        "occupancy": { "adults": 1, "children": [{ "minAge": 0, "maxAge": 2, "count": 0 }] }
+      },
+      "max": {
+        "numberOfPeople": 3,
+        "occupancy": { "adults": 2, "children": [{ "minAge": 0, "maxAge": 2, "count": 1 }] }
+      }
+    },
+    "totalRooms": 1,
+    "category": null,
+    "offerIds": [380900, 524038, 1158202]
+  },
+  {
+    "id": 230228,
+    "gallery": {
+      "title": "Gallery for: Caba\u00f1a Doble con Jacuzzi y Muelle",
+      "description": null,
+      "featured": {
+        "title": null,
+        "description": null,
+        "fileName": "008c0b2e-0ff8-4aeb-a4eb-0ba69c446d3f.png",
+        "orderIndex": null
+      },
+      "images": [
+        {
+          "title": "2f851785-50e0-4565-b320-685d58bdc302.jpg",
+          "description": null,
+          "fileName": "2f851785-50e0-4565-b320-685d58bdc302.jpg",
+          "orderIndex": 0
+        },
+        {
+          "title": "ef8d07f3-1cab-4c85-9042-a9329ade5b6e.jpg",
+          "description": null,
+          "fileName": "ef8d07f3-1cab-4c85-9042-a9329ade5b6e.jpg",
+          "orderIndex": 1
+        },
+        {
+          "title": "b06b3ffc-2d40-4b94-806e-3ea57cec99d7.jpg",
+          "description": null,
+          "fileName": "b06b3ffc-2d40-4b94-806e-3ea57cec99d7.jpg",
+          "orderIndex": 2
+        },
+        {
+          "title": "2d08201a-af08-4ade-a78e-0193cf0caca9.jpg",
+          "description": null,
+          "fileName": "2d08201a-af08-4ade-a78e-0193cf0caca9.jpg",
+          "orderIndex": 3
+        },
+        {
+          "title": "f4d64941-94f4-4e3d-9fb2-e9bc6adad4e9.jpg",
+          "description": null,
+          "fileName": "f4d64941-94f4-4e3d-9fb2-e9bc6adad4e9.jpg",
+          "orderIndex": 4
+        },
+        {
+          "title": "d3bbd2f1-8b59-46c4-8fe4-a7388b095fbd.jpg",
+          "description": null,
+          "fileName": "d3bbd2f1-8b59-46c4-8fe4-a7388b095fbd.jpg",
+          "orderIndex": 5
+        },
+        {
+          "title": "c60fbb77-63b2-4ae1-b2b1-e25c38246e9f.jpg",
+          "description": null,
+          "fileName": "c60fbb77-63b2-4ae1-b2b1-e25c38246e9f.jpg",
+          "orderIndex": 6
+        },
+        {
+          "title": "7bbc9da1-7430-42bb-9bc4-45ba36b4a284.jpg",
+          "description": null,
+          "fileName": "7bbc9da1-7430-42bb-9bc4-45ba36b4a284.jpg",
+          "orderIndex": 7
+        },
+        {
+          "title": "dd91fcac-626a-4384-9656-866bed440bc7.jpg",
+          "description": null,
+          "fileName": "dd91fcac-626a-4384-9656-866bed440bc7.jpg",
+          "orderIndex": 8
+        }
+      ]
+    },
+    "attributes": {
+      "area": { "from": 65, "to": 65, "unit": "m\u00b2" },
+      "maxOccupancy": { "people": 2, "extraBeds": 1 },
+      "bedsConfiguration": {
+        "total": null,
+        "singleBeds": null,
+        "doubleBeds": null,
+        "foldingBeds": null,
+        "splitBeds": null
+      },
+      "layout": { "rooms": null, "bathrooms": null, "kitchen": true },
+      "facilities": {
+        "wifi": 1,
+        "airConditioning": 0,
+        "balcony": 1,
+        "television": 0,
+        "parkingLot": 0
+      }
+    },
+    "address": null,
+    "translations": [
+      {
+        "locale": "en",
+        "messages": [
+          { "fieldName": "name", "value": "Double Cabin with Jacuzzi and Dock" },
+          {
+            "fieldName": "description",
+            "value": "<p style=\"text-align: justify;\"><span>Our cabin for two people with a&nbsp;<\/span><strong>private dock<\/strong><span>,&nbsp;<\/span><strong>jacuzzi<\/strong><span>&nbsp;and&nbsp;<\/span><strong>private deck<\/strong><span>, is ideal to rest, disconnect and enjoy a wonderful view of the Guatap&eacute; reservoir. This cabin has a queen bed, simple kitchen with basic equipment, small living room, bathroom with shower, private jacuzzi, private deck, fire pit, private dock and a wonderful swing to enjoy. It also&nbsp;<\/span><strong>includes a la carte breakfast<\/strong><span>,<\/span><strong>&nbsp;non-motorized water sports<\/strong><span>&nbsp;in your cabin and many disconnection experiences. Remember that we are a hotel to eat and a restaurant to stay.<\/span><\/p>"
+          },
+          { "fieldName": "bedsDescription", "value": "1x Queen Bed" },
+          { "fieldName": "sight", "value": "Lake view" }
+        ]
+      },
+      {
+        "locale": "es",
+        "messages": [
+          { "fieldName": "name", "value": "Caba\u00f1a Doble con Jacuzzi y Muelle" },
+          {
+            "fieldName": "description",
+            "value": "<p style=\"text-align: justify;\"><span>Nuestra caba&ntilde;a para dos personas con <strong>muelle privado, jacuzzi y deck privado<\/strong>, es ideal para descansar, desconectarse y disfrutar de una maravillosa vista al embalse de Guatap&eacute;. Esta caba&ntilde;a cuenta con cama queen, cocina sencilla con dotaci&oacute;n b&aacute;sica,peque&ntilde;a sala de estar, ba&ntilde;o con ducha, jacuzzi privado, deck privado, muelle privado y un maravilloso columpio para disfrutar. Adem&aacute;s <strong>incluye desayuno a la carta, deportes acu&aacute;ticos no motorizados en tu caba&ntilde;a<\/strong> y muchas experiencias de desconexi&oacute;n. Recuerda que somos un hotel para comer y un restaurante para quedarse.<\/span><\/p>"
+          },
+          { "fieldName": "bedsDescription", "value": "1x Cama Queen" },
+          { "fieldName": "sight", "value": "al Lago" }
+        ]
+      }
+    ],
+    "orderIndex": 2,
+    "standard": { "kind": "room", "type": "single", "standard": "deluxe" },
+    "limits": {
+      "min": {
+        "numberOfPeople": 1,
+        "occupancy": { "adults": 1, "children": [{ "minAge": 0, "maxAge": 2, "count": 0 }] }
+      },
+      "max": {
+        "numberOfPeople": 3,
+        "occupancy": { "adults": 2, "children": [{ "minAge": 0, "maxAge": 2, "count": 1 }] }
+      }
+    },
+    "totalRooms": 1,
+    "category": null,
+    "offerIds": [380900, 524038, 1158202]
+  },
+  {
+    "id": 230230,
+    "gallery": {
+      "title": "Gallery for: Caba\u00f1a Familiar con Jacuzzi",
+      "description": null,
+      "featured": {
+        "title": null,
+        "description": null,
+        "fileName": "9f7815c0-af6b-497a-9e05-047be926299a.jpg",
+        "orderIndex": null
+      },
+      "images": [
+        {
+          "title": "ce4422e9-986b-49c4-82cc-20075b0f5ead.jpg",
+          "description": null,
+          "fileName": "ce4422e9-986b-49c4-82cc-20075b0f5ead.jpg",
+          "orderIndex": 0
+        },
+        {
+          "title": "76ed99b2-9ec0-48c1-b271-4db23d5f60f1.jpg",
+          "description": null,
+          "fileName": "76ed99b2-9ec0-48c1-b271-4db23d5f60f1.jpg",
+          "orderIndex": 1
+        },
+        {
+          "title": "bfc48a30-2e7d-4053-bbec-5dbfa30073b3.jpg",
+          "description": null,
+          "fileName": "bfc48a30-2e7d-4053-bbec-5dbfa30073b3.jpg",
+          "orderIndex": 2
+        },
+        {
+          "title": "b7b308cf-7d4c-4b3c-9d7b-b0cc12323bdd.jpg",
+          "description": null,
+          "fileName": "b7b308cf-7d4c-4b3c-9d7b-b0cc12323bdd.jpg",
+          "orderIndex": 3
+        },
+        {
+          "title": "63a915a9-39cb-411f-af4a-77f764903ee2.jpg",
+          "description": null,
+          "fileName": "63a915a9-39cb-411f-af4a-77f764903ee2.jpg",
+          "orderIndex": 4
+        },
+        {
+          "title": "9a12dc03-c5bf-432f-8855-01cff00b60ce.jpg",
+          "description": null,
+          "fileName": "9a12dc03-c5bf-432f-8855-01cff00b60ce.jpg",
+          "orderIndex": 5
+        },
+        {
+          "title": "3cabac8b-e634-4ba3-bb62-1204dc96219b.jpg",
+          "description": null,
+          "fileName": "3cabac8b-e634-4ba3-bb62-1204dc96219b.jpg",
+          "orderIndex": 6
+        }
+      ]
+    },
+    "attributes": {
+      "area": { "from": 120, "to": 120, "unit": "m\u00b2" },
+      "maxOccupancy": { "people": 6, "extraBeds": 1 },
+      "bedsConfiguration": {
+        "total": null,
+        "singleBeds": null,
+        "doubleBeds": null,
+        "foldingBeds": null,
+        "splitBeds": null
+      },
+      "layout": { "rooms": null, "bathrooms": null, "kitchen": true },
+      "facilities": {
+        "wifi": 1,
+        "airConditioning": 0,
+        "balcony": 1,
+        "television": 0,
+        "parkingLot": 0
+      }
+    },
+    "address": null,
+    "translations": [
+      {
+        "locale": "en",
+        "messages": [
+          { "fieldName": "name", "value": "Family Cabin with Jacuzzi" },
+          {
+            "fieldName": "description",
+            "value": "<p style=\"text-align: justify;\">Our family cabin for up to six people with a <strong>Jacuzzi and private deck<\/strong>, is ideal to rest, disconnect, and enjoy a wonderful view of the Guatap&eacute; reservoir accompanied by your family or friends. This cabin has three queen beds, a simple kitchen with basic equipment, a small living room, two bathrooms with showers, a private jacuzzi for six people, a private deck, and a fire pit. It also <strong>includes a la carte breakfast, non-motorized water sports<\/strong> and many disconnection experiences. Remember that we are a hotel to eat and a restaurant to stay.<\/p>"
+          },
+          { "fieldName": "bedsDescription", "value": "3x Queen Beds" },
+          { "fieldName": "sight", "value": "Lake view" }
+        ]
+      },
+      {
+        "locale": "es",
+        "messages": [
+          { "fieldName": "name", "value": "Caba\u00f1a Familiar con Jacuzzi" },
+          {
+            "fieldName": "description",
+            "value": "<p style=\"text-align: justify;\"><span>Nuestra caba&ntilde;a familiar hasta para seis personas con <strong>jacuzzi y deck privado<\/strong>, es ideal para descansar, desconectar, disfrutar de una maravillosa vista al embalse de Guatap&eacute; acompa&ntilde;ado de tu familia o amigos. Esta caba&ntilde;a cuenta con&nbsp; tres camas queen, cocina sencilla con dotaci&oacute;n b&aacute;sica,peque&ntilde;a sala de estar, dos ba&ntilde;os con ducha, jacuzzi privado para seis personas y deck privado. Adem&aacute;s <strong>incluye desayuno a la carta, deportes acu&aacute;ticos no motorizados<\/strong> y muchas experiencias de desconexi&oacute;n. Recuerda que somos un hotel para comer y un restaurante para quedarse.<\/span><\/p>"
+          },
+          { "fieldName": "bedsDescription", "value": "3x Camas Queen" },
+          { "fieldName": "sight", "value": "al Lago" }
+        ]
+      }
+    ],
+    "orderIndex": 3,
+    "standard": { "kind": "room", "type": "doubletwin", "standard": "standard" },
+    "limits": {
+      "min": {
+        "numberOfPeople": 1,
+        "occupancy": { "adults": 1, "children": [{ "minAge": 0, "maxAge": 2, "count": 0 }] }
+      },
+      "max": {
+        "numberOfPeople": 7,
+        "occupancy": { "adults": 6, "children": [{ "minAge": 0, "maxAge": 2, "count": 2 }] }
+      }
+    },
+    "totalRooms": 1,
+    "category": null,
+    "offerIds": [380900, 524038, 1158202]
+  },
+  {
+    "id": 230232,
+    "gallery": {
+      "title": "Caba\u00f1a Familiar con Jacuzzi y Muelle",
+      "description": null,
+      "featured": {
+        "title": null,
+        "description": null,
+        "fileName": "a0c4a343-8cb5-4cd3-93ec-cc798d8185ef.jpg",
+        "orderIndex": null
+      },
+      "images": [
+        {
+          "title": "0df0024d-0fe0-4f1b-9941-4d4cb0987216.jpg",
+          "description": null,
+          "fileName": "0df0024d-0fe0-4f1b-9941-4d4cb0987216.jpg",
+          "orderIndex": 0
+        },
+        {
+          "title": "29133e07-b51f-4cae-bf41-d9c1638617e2.jpg",
+          "description": null,
+          "fileName": "29133e07-b51f-4cae-bf41-d9c1638617e2.jpg",
+          "orderIndex": 1
+        },
+        {
+          "title": "cca57605-1838-4b4e-8487-4b0abc088097.jpg",
+          "description": null,
+          "fileName": "cca57605-1838-4b4e-8487-4b0abc088097.jpg",
+          "orderIndex": 2
+        },
+        {
+          "title": "42a6141f-3a49-4043-80ab-2de086af2900.jpg",
+          "description": null,
+          "fileName": "42a6141f-3a49-4043-80ab-2de086af2900.jpg",
+          "orderIndex": 3
+        },
+        {
+          "title": "35910f7c-a11a-440f-8818-b0f51041cdd5.jpg",
+          "description": null,
+          "fileName": "35910f7c-a11a-440f-8818-b0f51041cdd5.jpg",
+          "orderIndex": 4
+        },
+        {
+          "title": "b2d87604-6266-4a8c-9db2-dbfb321aeb6e.jpg",
+          "description": null,
+          "fileName": "b2d87604-6266-4a8c-9db2-dbfb321aeb6e.jpg",
+          "orderIndex": 5
+        },
+        {
+          "title": "f1d9cc10-a81c-4097-9e9b-6811d5728b7e.jpg",
+          "description": null,
+          "fileName": "f1d9cc10-a81c-4097-9e9b-6811d5728b7e.jpg",
+          "orderIndex": 6
+        },
+        {
+          "title": "7a6ddb54-3415-42a0-aac5-400f30234f3b.jpg",
+          "description": null,
+          "fileName": "7a6ddb54-3415-42a0-aac5-400f30234f3b.jpg",
+          "orderIndex": 7
+        },
+        {
+          "title": "8038934f-ee85-4d58-8f86-8e3deaefb9ce.jpg",
+          "description": null,
+          "fileName": "8038934f-ee85-4d58-8f86-8e3deaefb9ce.jpg",
+          "orderIndex": 8
+        }
+      ]
+    },
+    "attributes": {
+      "area": { "from": 120, "to": 120, "unit": "m\u00b2" },
+      "maxOccupancy": { "people": 6, "extraBeds": 1 },
+      "bedsConfiguration": {
+        "total": null,
+        "singleBeds": null,
+        "doubleBeds": null,
+        "foldingBeds": null,
+        "splitBeds": null
+      },
+      "layout": { "rooms": null, "bathrooms": null, "kitchen": true },
+      "facilities": {
+        "wifi": 1,
+        "airConditioning": 0,
+        "balcony": 1,
+        "television": 0,
+        "parkingLot": 0
+      }
+    },
+    "address": null,
+    "translations": [
+      {
+        "locale": "en",
+        "messages": [
+          { "fieldName": "name", "value": "Family Cabin With Jacuzzi and Dock" },
+          {
+            "fieldName": "description",
+            "value": "<p style=\"text-align: justify;\">Our family cabin for up to six people with a <strong>private dock, Jacuzzi and private deck<\/strong>, is ideal to rest, disconnect, and enjoy a wonderful view of the Guatap&eacute; reservoir accompanied by your family or friends. This cabin has three queen beds, a simple kitchen with basic equipment, a small living room, two bathrooms with showers, a private Jacuzzi for six people, a private deck, a private dock, and a fire pit. It also <strong>includes a la carte breakfast, non-motorized water sports<\/strong> in your cabin and many disconnection experiences. Remember that we are a hotel to eat and a restaurant to stay.<\/p>"
+          },
+          { "fieldName": "bedsDescription", "value": "3x Queen Beds" },
+          { "fieldName": "sight", "value": "Lake view" }
+        ]
+      },
+      {
+        "locale": "es",
+        "messages": [
+          { "fieldName": "name", "value": "Caba\u00f1a Familiar con Jacuzzi y Muelle" },
+          {
+            "fieldName": "description",
+            "value": "<p style=\"text-align: justify;\"><span>Nuestra caba&ntilde;a familiar hasta para seis personas con <strong>muelle privado, jacuzzi y deck privado<\/strong>, es ideal para descansar, desconectar, disfrutar de una maravillosa vista al embalse de Guatap&eacute; acompa&ntilde;ado de tu familia o amigos. Esta caba&ntilde;a cuenta con&nbsp; tres camas queen, cocina sencilla con dotaci&oacute;n b&aacute;sica,peque&ntilde;a sala de estar, dos ba&ntilde;os con ducha, jacuzzi privado para seis personas, deck privado y muelle privado. Adem&aacute;s incluye <strong>desayuno a la carta, deportes acu&aacute;ticos no motorizados en tu caba&ntilde;a<\/strong> y muchas experiencias de desconexi&oacute;n. Recuerda que somos un hotel para comer y un restaurante para quedarse.<\/span><\/p>"
+          },
+          { "fieldName": "bedsDescription", "value": "3x Camas Queen" },
+          { "fieldName": "sight", "value": "al Lago" }
+        ]
+      }
+    ],
+    "orderIndex": 4,
+    "standard": { "kind": "room", "type": "double", "standard": "deluxe" },
+    "limits": {
+      "min": {
+        "numberOfPeople": 1,
+        "occupancy": { "adults": 1, "children": [{ "minAge": 0, "maxAge": 2, "count": 0 }] }
+      },
+      "max": {
+        "numberOfPeople": 7,
+        "occupancy": { "adults": 6, "children": [{ "minAge": 0, "maxAge": 2, "count": 2 }] }
+      }
+    },
+    "totalRooms": 1,
+    "category": null,
+    "offerIds": [380900, 524038, 1158202]
+  },
+  {
+    "id": 506622,
+    "gallery": {
+      "title": "Gallery for: Caba\u00f1a Superior con Muelle",
+      "description": null,
+      "featured": {
+        "title": null,
+        "description": null,
+        "fileName": "4fe4a31e-7dc9-4055-807c-ffaea7ae265a.jpg",
+        "orderIndex": null
+      },
+      "images": [
+        {
+          "title": "f6105029-669c-4f67-945d-ef366426cb0a.jpg",
+          "description": null,
+          "fileName": "f6105029-669c-4f67-945d-ef366426cb0a.jpg",
+          "orderIndex": 0
+        },
+        {
+          "title": "1b238daa-d4bc-4a32-bca5-ec0b0a61e632.jpg",
+          "description": null,
+          "fileName": "1b238daa-d4bc-4a32-bca5-ec0b0a61e632.jpg",
+          "orderIndex": 1
+        },
+        {
+          "title": "297bf278-0fa3-4d4f-a531-5063fe77b6cf.jpg",
+          "description": null,
+          "fileName": "297bf278-0fa3-4d4f-a531-5063fe77b6cf.jpg",
+          "orderIndex": 2
+        },
+        {
+          "title": "6eeee247-18a5-4176-b546-33ffde3c49f5.jpg",
+          "description": null,
+          "fileName": "6eeee247-18a5-4176-b546-33ffde3c49f5.jpg",
+          "orderIndex": 3
+        },
+        {
+          "title": "197082e2-8678-4508-9e4d-de9edc18aaa6.jpeg",
+          "description": null,
+          "fileName": "197082e2-8678-4508-9e4d-de9edc18aaa6.jpeg",
+          "orderIndex": 4
+        },
+        {
+          "title": "446882ed-80e9-43c9-bd77-c05c3896596e.jpg",
+          "description": null,
+          "fileName": "446882ed-80e9-43c9-bd77-c05c3896596e.jpg",
+          "orderIndex": 5
+        },
+        {
+          "title": "cee9cfd3-d0c0-44c2-b694-f1dd14afeea6.jpg",
+          "description": null,
+          "fileName": "cee9cfd3-d0c0-44c2-b694-f1dd14afeea6.jpg",
+          "orderIndex": 6
+        },
+        {
+          "title": "c96165df-cebc-493f-baed-d0f7e4c9ffa4.jpeg",
+          "description": null,
+          "fileName": "c96165df-cebc-493f-baed-d0f7e4c9ffa4.jpeg",
+          "orderIndex": 7
+        },
+        {
+          "title": "b8e11083-f931-4f2d-964b-24c1802a4671.jpg",
+          "description": null,
+          "fileName": "b8e11083-f931-4f2d-964b-24c1802a4671.jpg",
+          "orderIndex": 8
+        },
+        {
+          "title": "14f92cd6-a868-4ed9-9cb0-355f2fd811a7.jpg",
+          "description": null,
+          "fileName": "14f92cd6-a868-4ed9-9cb0-355f2fd811a7.jpg",
+          "orderIndex": 9
+        }
+      ]
+    },
+    "attributes": {
+      "area": { "from": 60, "to": 60, "unit": "m\u00b2" },
+      "maxOccupancy": { "people": 2, "extraBeds": null },
+      "bedsConfiguration": {
+        "total": 1,
+        "singleBeds": null,
+        "doubleBeds": null,
+        "foldingBeds": null,
+        "splitBeds": null
+      },
+      "layout": { "rooms": null, "bathrooms": null, "kitchen": true },
+      "facilities": {
+        "wifi": 1,
+        "airConditioning": 1,
+        "balcony": 1,
+        "television": 0,
+        "parkingLot": 0
+      }
+    },
+    "address": null,
+    "translations": [
+      {
+        "locale": "en",
+        "messages": [
+          { "fieldName": "name", "value": "Superior Cabin with Private Dock" },
+          {
+            "fieldName": "description",
+            "value": "<p>\u200b<span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\">Our cabin for two people with a <\/span><strong style=\"box-sizing: border-box; background-repeat: no-repeat; padding: 0px; margin: 0px; font-weight: bolder; -webkit-user-drag: none; overflow: visible; font-family: &quot;Helvetica Neue&quot;; font-size: 13px; color: rgb(51, 51, 51); font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">Jacuzzi<\/strong><span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\"> and <\/span><strong style=\"box-sizing: border-box; background-repeat: no-repeat; padding: 0px; margin: 0px; font-weight: bolder; -webkit-user-drag: none; overflow: visible; font-family: &quot;Helvetica Neue&quot;; font-size: 13px; color: rgb(51, 51, 51); font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">private dock<\/strong><span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\">, is ideal to rest, disconnect and enjoy a wonderful view of the Guatap\u00e9 reservoir. This cabin has a king bed, simple kitchen with basic equipment, small living room, AC, bathroom with shower, private Jacuzzi, private deck, fire pit and a wonderful swing to enjoy. It also includes <\/span><strong style=\"box-sizing: border-box; background-repeat: no-repeat; padding: 0px; margin: 0px; font-weight: bolder; -webkit-user-drag: none; overflow: visible; font-family: &quot;Helvetica Neue&quot;; font-size: 13px; color: rgb(51, 51, 51); font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">a la carte breakfast<\/strong><span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\">, <\/span><strong style=\"box-sizing: border-box; background-repeat: no-repeat; padding: 0px; margin: 0px; font-weight: bolder; -webkit-user-drag: none; overflow: visible; font-family: &quot;Helvetica Neue&quot;; font-size: 13px; color: rgb(51, 51, 51); font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">non-motorized water sports<\/strong><span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\"> and many disconnection experiences. Remember that we are a hotel to eat and a restaurant to stay.<\/span>\u200b<br><\/p>"
+          },
+          { "fieldName": "sight", "value": "Lake view" }
+        ]
+      },
+      {
+        "locale": "es",
+        "messages": [
+          { "fieldName": "name", "value": "Caba\u00f1a Superior con Jacuzzi y Muelle" },
+          {
+            "fieldName": "description",
+            "value": "<p>\u200b<span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\">Nuestra caba\u00f1a superior para dos personas con <\/span><strong style=\"box-sizing: border-box; background-repeat: no-repeat; padding: 0px; margin: 0px; font-weight: bolder; -webkit-user-drag: none; overflow: visible; font-family: &quot;Helvetica Neue&quot;; font-size: 13px; color: rgb(51, 51, 51); font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">Jacuzzi<\/strong><span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\"> y <\/span><strong style=\"box-sizing: border-box; background-repeat: no-repeat; padding: 0px; margin: 0px; font-weight: bolder; -webkit-user-drag: none; overflow: visible; font-family: &quot;Helvetica Neue&quot;; font-size: 13px; color: rgb(51, 51, 51); font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">Muelle privado<\/strong><span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\">, es ideal para descansar, desconectarse y disfrutar de una maravillosa vista al embalse de Guatap\u00e9. Esta caba\u00f1a cuenta con cama King, cocina sencilla con dotaci\u00f3n b\u00e1sica,peque\u00f1a sala de estar, ba\u00f1o con ducha, jacuzzi privado, aire acondicionado, deck privado, muelle privado con acceso al embalse y un maravilloso columpio para disfrutar. Adem\u00e1s incluye <\/span><strong style=\"box-sizing: border-box; background-repeat: no-repeat; padding: 0px; margin: 0px; font-weight: bolder; -webkit-user-drag: none; overflow: visible; font-family: &quot;Helvetica Neue&quot;; font-size: 13px; color: rgb(51, 51, 51); font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">desayuno a la carta<\/strong><span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\">, <\/span><strong style=\"box-sizing: border-box; background-repeat: no-repeat; padding: 0px; margin: 0px; font-weight: bolder; -webkit-user-drag: none; overflow: visible; font-family: &quot;Helvetica Neue&quot;; font-size: 13px; color: rgb(51, 51, 51); font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">deportes acu\u00e1ticos no motorizados<\/strong><span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\"> y muchas experiencias de desconexi\u00f3n. Recuerda que somos un hotel para comer y un restaurante para quedarse.<\/span>\u200b<br><\/p>"
+          },
+          { "fieldName": "sight", "value": "Vista al lago" }
+        ]
+      }
+    ],
+    "orderIndex": 5,
+    "standard": null,
+    "limits": {
+      "min": {
+        "numberOfPeople": 1,
+        "occupancy": { "adults": 1, "children": [{ "minAge": 0, "maxAge": 2, "count": 0 }] }
+      },
+      "max": {
+        "numberOfPeople": 2,
+        "occupancy": { "adults": 2, "children": [{ "minAge": 0, "maxAge": 2, "count": 1 }] }
+      }
+    },
+    "totalRooms": 1,
+    "category": null,
+    "offerIds": [380900, 1158202]
+  },
+  {
+    "id": 513440,
+    "gallery": {
+      "title": "Gallery for: Caba\u00f1a Twin con Jacuzzi",
+      "description": null,
+      "featured": {
+        "title": null,
+        "description": null,
+        "fileName": "4579f47a-4db5-48e7-886c-e79624bc96c5.jpg",
+        "orderIndex": null
+      },
+      "images": [
+        {
+          "title": "96d44ff4-6ba9-4563-af5b-750443469a5e.jpg",
+          "description": null,
+          "fileName": "96d44ff4-6ba9-4563-af5b-750443469a5e.jpg",
+          "orderIndex": 0
+        },
+        {
+          "title": "ee88c799-f55e-4d0a-a0c7-235aaa91b8a0.jpeg",
+          "description": null,
+          "fileName": "ee88c799-f55e-4d0a-a0c7-235aaa91b8a0.jpeg",
+          "orderIndex": 1
+        },
+        {
+          "title": "a604aac5-153e-4c4e-ad58-aec275a57779.jpeg",
+          "description": null,
+          "fileName": "a604aac5-153e-4c4e-ad58-aec275a57779.jpeg",
+          "orderIndex": 2
+        },
+        {
+          "title": "49df16ae-19a5-4b85-868b-0a5dae708c6a.jpg",
+          "description": null,
+          "fileName": "49df16ae-19a5-4b85-868b-0a5dae708c6a.jpg",
+          "orderIndex": 3
+        },
+        {
+          "title": "8ade6259-e056-42b2-bd14-3797cd5d28bd.jpg",
+          "description": null,
+          "fileName": "8ade6259-e056-42b2-bd14-3797cd5d28bd.jpg",
+          "orderIndex": 4
+        },
+        {
+          "title": "a313854e-b4b4-4578-a51a-11f25ab8bcb4.jpg",
+          "description": null,
+          "fileName": "a313854e-b4b4-4578-a51a-11f25ab8bcb4.jpg",
+          "orderIndex": 5
+        },
+        {
+          "title": "fba8bf33-4297-4045-b191-21ac01584870.jpg",
+          "description": null,
+          "fileName": "fba8bf33-4297-4045-b191-21ac01584870.jpg",
+          "orderIndex": 6
+        },
+        {
+          "title": "cf07ed1b-54a2-41ef-aa8b-9f513628418e.jpg",
+          "description": null,
+          "fileName": "cf07ed1b-54a2-41ef-aa8b-9f513628418e.jpg",
+          "orderIndex": 7
+        }
+      ]
+    },
+    "attributes": {
+      "area": { "from": 65, "to": 65, "unit": "m\u00b2" },
+      "maxOccupancy": { "people": 4, "extraBeds": null },
+      "bedsConfiguration": {
+        "total": 2,
+        "singleBeds": null,
+        "doubleBeds": null,
+        "foldingBeds": null,
+        "splitBeds": null
+      },
+      "layout": { "rooms": null, "bathrooms": null, "kitchen": true },
+      "facilities": {
+        "wifi": 1,
+        "airConditioning": 0,
+        "balcony": 1,
+        "television": 0,
+        "parkingLot": 0
+      }
+    },
+    "address": null,
+    "translations": [
+      {
+        "locale": "en",
+        "messages": [
+          { "fieldName": "name", "value": "Twin Cabin with Jacuzzi" },
+          {
+            "fieldName": "description",
+            "value": "<p>\u200b<span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\">Our Twin cabin available for up to four people with <\/span><strong style=\"box-sizing: border-box; background-repeat: no-repeat; padding: 0px; margin: 0px; font-weight: bolder; -webkit-user-drag: none; overflow: visible; font-family: &quot;Helvetica Neue&quot;; font-size: 13px; color: rgb(51, 51, 51); font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">Jacuzzi<\/strong><span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\"> and <\/span><strong style=\"box-sizing: border-box; background-repeat: no-repeat; padding: 0px; margin: 0px; font-weight: bolder; -webkit-user-drag: none; overflow: visible; font-family: &quot;Helvetica Neue&quot;; font-size: 13px; color: rgb(51, 51, 51); font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">private deck<\/strong><span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\">, it is ideal for resting, disconnecting, and enjoying a wonderful view of the Guatap\u00e9 reservoir. This cabin features two queen beds, a simple kitchen with basic equipment, a bathroom with shower, private jacuzzi, private deck, and a wonderful swing to enjoy. It also includes <\/span><strong style=\"box-sizing: border-box; background-repeat: no-repeat; padding: 0px; margin: 0px; font-weight: bolder; -webkit-user-drag: none; overflow: visible; font-family: &quot;Helvetica Neue&quot;; font-size: 13px; color: rgb(51, 51, 51); font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">a la carte breakfast<\/strong><span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\">, <\/span><strong style=\"box-sizing: border-box; background-repeat: no-repeat; padding: 0px; margin: 0px; font-weight: bolder; -webkit-user-drag: none; overflow: visible; font-family: &quot;Helvetica Neue&quot;; font-size: 13px; color: rgb(51, 51, 51); font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">non-motorized water sports<\/strong><span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\"> and many disconnection experiences. Remember that we are a hotel to eat at and a restaurant to stay at.<\/span>\u200b<br><\/p>"
+          },
+          { "fieldName": "sight", "value": "Lake view" }
+        ]
+      },
+      {
+        "locale": "es",
+        "messages": [
+          { "fieldName": "name", "value": "Caba\u00f1a Twin con Jacuzzi" },
+          {
+            "fieldName": "description",
+            "value": "<p>\u200b<span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\">Nuestra caba\u00f1a Twin disponible hasta para cuatro personas con <\/span><strong style=\"box-sizing: border-box; background-repeat: no-repeat; padding: 0px; margin: 0px; font-weight: bolder; -webkit-user-drag: none; overflow: visible; font-family: &quot;Helvetica Neue&quot;; font-size: 13px; color: rgb(51, 51, 51); font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">Jacuzzi<\/strong><span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\"> y <\/span><strong style=\"box-sizing: border-box; background-repeat: no-repeat; padding: 0px; margin: 0px; font-weight: bolder; -webkit-user-drag: none; overflow: visible; font-family: &quot;Helvetica Neue&quot;; font-size: 13px; color: rgb(51, 51, 51); font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">deck privado<\/strong><span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\">, es ideal para descansar, desconectarse y disfrutar de una maravillosa vista al embalse de Guatap\u00e9. Esta caba\u00f1a cuenta con dos camas queen, cocina sencilla con dotaci\u00f3n b\u00e1sica, ba\u00f1o con ducha, jacuzzi privado, deck privado y un maravilloso columpio para disfrutar. Adem\u00e1s incluye <\/span><strong style=\"box-sizing: border-box; background-repeat: no-repeat; padding: 0px; margin: 0px; font-weight: bolder; -webkit-user-drag: none; overflow: visible; font-family: &quot;Helvetica Neue&quot;; font-size: 13px; color: rgb(51, 51, 51); font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">desayuno a la carta<\/strong><span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\">, <\/span><strong style=\"box-sizing: border-box; background-repeat: no-repeat; padding: 0px; margin: 0px; font-weight: bolder; -webkit-user-drag: none; overflow: visible; font-family: &quot;Helvetica Neue&quot;; font-size: 13px; color: rgb(51, 51, 51); font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">deportes acu\u00e1ticos no motorizados<\/strong><span style=\"color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;\"> y muchas experiencias de desconexi\u00f3n. Recuerda que somos un hotel para comer y un restaurante para quedarse.<\/span>\u200b<br><\/p>"
+          },
+          { "fieldName": "sight", "value": "Vista al lago" }
+        ]
+      }
+    ],
+    "orderIndex": 6,
+    "standard": null,
+    "limits": {
+      "min": {
+        "numberOfPeople": 1,
+        "occupancy": { "adults": 1, "children": [{ "minAge": 0, "maxAge": 2, "count": 0 }] }
+      },
+      "max": {
+        "numberOfPeople": 4,
+        "occupancy": { "adults": 4, "children": [{ "minAge": 0, "maxAge": 2, "count": 3 }] }
+      }
+    },
+    "totalRooms": 1,
+    "category": null,
+    "offerIds": [380900, 1158202]
+  }
+]

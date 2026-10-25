@@ -38,6 +38,16 @@ export interface CredentialGroup {
 
 export type ProviderAuthDescriptor =
   | {
+      /**
+       * Credential-less provider (Profitroom-class): the external API takes no secret. The target
+       * account is non-secret routing data in `X-Provider-Metadata`, validated by the provider's
+       * `contextSchema`. Nothing is revealed and no auth is applied. ADR credential-less-provider-auth.
+       */
+      readonly type: 'none';
+      /** Never set: there is no credential to deliver. Declared so `auth.credentialDelivery` stays readable on the union. */
+      readonly credentialDelivery?: never;
+    }
+  | {
       readonly type: 'api_key' | 'bearer';
       readonly credentialDelivery?: CredentialDelivery;
       readonly fields: ReadonlyArray<{
