@@ -94,8 +94,10 @@ z.object({
   // Booking-only payment declaration (NO card capture — see §2.4)
   paymentMethod: z.enum(['cash', 'credit', 'ebanking', 'pay_pal']).default('cash'), // required by wire [DOC]
 
-  // Reconciliation reference (consumer-supplied external id)
-  thirdPartyIdentifier: z.string().optional(),                                // optional [DOC]
+  // Reconciliation reference (consumer-supplied external id). REQUIRED (#66): postReservation has no
+  // idempotency key, so a create that times out may still have landed; this reference lets the caller
+  // look the booking up (list_reservations carries it) instead of retrying into a duplicate.
+  thirdPartyIdentifier: z.string().trim().min(1),                             // required [DOC]
 
   // Misc
   estimatedArrivalTime: z.string().optional().describe('HH:mm 24h'),          // optional [DOC]

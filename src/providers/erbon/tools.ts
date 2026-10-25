@@ -373,7 +373,7 @@ export function buildErbonTools(
           isClient: z.boolean().optional(),
           isProvider: z.boolean().optional(),
           address: z.unknown().optional(),
-          documents: z.array(z.record(z.unknown())).optional(),
+          documents: z.array(z.record(z.string(), z.unknown())).optional(),
         })
         .strict(),
       handler: async (args, ctx) =>

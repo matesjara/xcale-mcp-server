@@ -30,14 +30,21 @@ const paginate = z.number().int().min(1).max(50).optional();
 
 /** A stay window: check-out after check-in. */
 function stayWindow<T extends z.ZodRawShape>(shape: T) {
+  // zod 4 cannot resolve the extended object's type while `T` is generic, so the two fields this
+  // function itself declares are read through a plain record.
   return z
     .object({ start_date: isoDate, end_date: isoDate })
     .extend(shape)
     .strict()
-    .refine((a) => String(a.end_date) > String(a.start_date), {
-      message: 'end_date must be after start_date',
-      path: ['end_date'],
-    });
+    .refine(
+      (a) =>
+        String((a as Record<string, unknown>).end_date) >
+        String((a as Record<string, unknown>).start_date),
+      {
+        message: 'end_date must be after start_date',
+        path: ['end_date'],
+      },
+    );
 }
 
 /**
