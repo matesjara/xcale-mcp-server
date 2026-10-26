@@ -21,6 +21,13 @@ export type JsonSchema = Record<string, unknown>;
  * This is a DECLARATION, not an enforcement point. The gateway does not police it; the consumer
  * decides what to do, under its own tenant's setting.
  */
+/** ADR 0023: the kind of an identifying input field. */
+export type IdentityFieldKind = 'phone' | 'email' | 'document' | 'name';
+/** ADR 0023: the kind of a field on a returned record that carries the person. */
+export type RecordIdentityKind = 'phone' | 'email' | 'document';
+/** ADR 0023: a provider-neutral category of record. */
+export type RecordKind = 'reservation' | 'appointment' | 'order' | 'record';
+
 export type ToolIdentityPolicy =
   /**
    * Acts on a person named in its arguments — in the NAMED fields. When several of those fields
@@ -60,6 +67,31 @@ export type ToolIdentityPolicy =
        * identity contract, not provider-specific.
        */
       readonly alwaysEnforce?: boolean;
+      /**
+       * Record lookups (ADR 0023) — all optional and additive. The kind of each `identityFields` entry:
+       * `phone`, `email` and `document` identify a person; `name` only narrows a search.
+       */
+      readonly identityFieldKinds?: Readonly<Record<string, IdentityFieldKind>>;
+      /** The tool finds a person's records by its identifying fields. */
+      readonly recordLookup?: boolean;
+      /** The category of record the tool returns or names. Absent: `'record'`. */
+      readonly recordKind?: RecordKind;
+      /** Dot path to the records in the result. Absent: the result itself. */
+      readonly resultItemsPath?: string;
+      /** Which fields on each returned item carry the person, and their kind. */
+      readonly resultIdentityFields?: Readonly<Record<string, RecordIdentityKind>>;
+      /** The record id on each returned item. */
+      readonly resultRecordIdField?: string;
+      /** Allowlist of item fields safe to show the person the record belongs to (fails closed). */
+      readonly projection?: readonly string[];
+      /** Item fields, outside `projection`, the provider marks as more sensitive. */
+      readonly projectionDetail?: readonly string[];
+      /** The ISO 8601 date on each item that places the record in time. */
+      readonly resultDateField?: string;
+      /** On a tool that creates a record: where the new record's id is in the result. */
+      readonly createdRecordIdField?: string;
+      /** On a tool that declares `recordOwnershipField`: what the call does to that record. */
+      readonly recordAction?: 'cancel' | 'change' | 'read';
     }
   /** Takes no person identifier and returns other people's records anyway. */
   | { readonly mode: 'subject-scoped' }

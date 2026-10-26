@@ -149,6 +149,40 @@ function sourceListOf(data: unknown): unknown {
   return Array.isArray(data) && data.length === 1 && Array.isArray(data[0]) ? data[0] : data;
 }
 
+/** At most this many reservations per guest lookup — one `getReservation` call each. */
+const FIND_GUEST_RESERVATIONS_MAX = 10;
+
+/**
+ * One row of `find_guest_reservations`: the stay of a `getReservation` answer and the contact fields of
+ * the guest the search matched (`guestList[guestID]`). `null` when that guest is not on it.
+ */
+function guestReservationOf(data: unknown, guestID: string): Record<string, unknown> | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const r = data as Record<string, unknown>;
+  const guests = (r.guestList ?? {}) as Record<string, Record<string, unknown> | undefined>;
+  const guest = guests[guestID];
+  if (!guest) return null;
+  const rooms = [
+    ...(Array.isArray(r.assigned) ? r.assigned : []),
+    ...(Array.isArray(r.unassigned) ? r.unassigned : []),
+  ] as Array<Record<string, unknown>>;
+  const sum = (field: string) => rooms.reduce((n, room) => n + (Number(room[field]) || 0), 0);
+  const roomTypes = [...new Set(rooms.map((room) => room.roomTypeName).filter(Boolean))];
+  return {
+    reservationID: r.reservationID,
+    propertyID: r.propertyID,
+    status: r.status,
+    startDate: r.startDate,
+    endDate: r.endDate,
+    roomTypeName: roomTypes.join(', ') || guest.roomTypeName,
+    adults: sum('adults'),
+    children: sum('children'),
+    guestPhone: guest.guestPhone ?? '',
+    guestCellPhone: guest.guestCellPhone ?? '',
+    guestEmail: guest.guestEmail ?? '',
+  };
+}
+
 function unwrap(res: RequestResult, method: string): Unwrapped {
   if (!res.ok) {
     const { code, detail } = classifyTransportFailure(res);
@@ -888,6 +922,81 @@ export function buildCloudbedsTools(
         const u = unwrap(res, 'getGuestList');
         if (!u.ok) return { ok: false, code: u.code, message: u.message };
         return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+      },
+    }),
+
+    // A person's reservations by the phone or email they hold — the record lookup of ADR 0023
+    // (xcale-backend#1852). `getGuestList` filters by phone or email exactly on the stored string
+    // (sandbox 320754, 2026-10-22), but its rows carry neither the phone nor the stay, so each match is
+    // read with `getReservation`, whose `guestList` holds the guest's own phone, cell phone and email.
+    // Every returned row then names its person, whatever the filter matched. Bounded: at most
+    // FIND_GUEST_RESERVATIONS_MAX reservations, one getReservation each, in parallel.
+    tool({
+      name: `mcp_${SLUG}_find_guest_reservations`,
+      audience: 'operator',
+      requiredScopes: ['read:guest', 'read:reservation'], // spec: getGuestList + getReservation
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: ['guestPhone', 'guestEmail'],
+        identityFieldKinds: { guestPhone: 'phone', guestEmail: 'email' },
+        recordLookup: true,
+        recordKind: 'reservation',
+        resultItemsPath: 'items',
+        resultIdentityFields: { guestPhone: 'phone', guestCellPhone: 'phone', guestEmail: 'email' },
+        resultRecordIdField: 'reservationID',
+        projection: ['roomTypeName', 'startDate', 'endDate', 'status', 'adults', 'children'],
+        resultDateField: 'endDate',
+      },
+      description:
+        'Find the reservations of one guest by the exact phone or email stored on their profile. Each ' +
+        'result carries the stay (room type, dates, status, party) and the guest’s own contact fields.',
+      input: z
+        .object({
+          guestPhone: z.string().min(1).optional(),
+          guestEmail: z.string().min(1).optional(),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        // Neither filter would return the property's whole guest list.
+        if (!args.guestPhone && !args.guestEmail) {
+          return err(ProviderErrorCode.INVALID_INPUT, 'guestPhone or guestEmail is required');
+        }
+        const list = await client.get('getGuestList', ctx.request, {
+          propertyIDs: ctx.metadata.propertyID,
+          pageNumber: 1,
+          pageSize: FIND_GUEST_RESERVATIONS_MAX,
+          guestPhone: args.guestPhone,
+          guestEmail: args.guestEmail,
+        });
+        const u = unwrap(list, 'getGuestList');
+        if (!u.ok) return err(u.code, u.message);
+        const matches = new Map<string, string>();
+        for (const row of Array.isArray(u.data) ? u.data : []) {
+          const r = row as { reservationID?: unknown; guestID?: unknown };
+          if (typeof r.reservationID === 'string' && typeof r.guestID === 'string') {
+            if (!matches.has(r.reservationID)) matches.set(r.reservationID, r.guestID);
+          }
+        }
+        const items = [];
+        const reads = await Promise.all(
+          [...matches.entries()]
+            .slice(0, FIND_GUEST_RESERVATIONS_MAX)
+            .map(async ([id, guestID]) => {
+              const res = await client.get('getReservation', ctx.request, {
+                propertyID: ctx.metadata.propertyID,
+                reservationID: id,
+              });
+              return { guestID, r: unwrap(res, 'getReservation') };
+            }),
+        );
+        for (const { guestID, r } of reads) {
+          // One reservation that cannot be read fails the whole lookup: a partial list would read as
+          // "these are all your reservations".
+          if (!r.ok) return err(r.code, r.message);
+          const item = guestReservationOf(r.data, guestID);
+          if (item) items.push(item);
+        }
+        return ok({ items });
       },
     }),
 
