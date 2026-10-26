@@ -48,6 +48,12 @@ export type ToolIdentityPolicy =
        */
       readonly ownedResultField?: string;
       /**
+       * Optional. The id space of the record ids named by `recordOwnershipField` or `ownedResultField`,
+       * as `<provider>:<kind>` (`woocommerce:order`, `woocommerce:customer`). Ids of different kinds never
+       * compare equal: order `42` is not customer `42`. Absent: the provider has one kind of record id.
+       */
+      readonly recordOwnershipKind?: string;
+      /**
        * Optional. When true, the consumer enforces this tool REGARDLESS of a tenant's opt-in identity
        * mode — protection the tenant cannot switch off. For data whose confidentiality is not the
        * tenant's to waive (a clinic's patient records under Ley 1581). Platform capability of the
