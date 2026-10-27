@@ -362,9 +362,21 @@ export function buildCloudbedsTools(
       },
     }),
 
+    // The tools below reach ONE person's record by its id — a reservation or a guest — and name nobody
+    // in their arguments, so `identityFields` is empty and the record field carries the binding
+    // (xcale-backend#1859, slice 25; the WooCommerce precedent). A consumer that knows which records
+    // its subject holds can serve those and refuse a guessed id; one that ignores the policy sees the
+    // menu it saw before. `cloudbeds:reservation` and `cloudbeds:guest` are the two id spaces: a
+    // reservation `42` is not guest `42`.
     tool({
       name: `mcp_${SLUG}_get_reservation`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'reservationID',
+        recordOwnershipKind: `${SLUG}:reservation`,
+      },
       requiredScopes: ['read:reservation'], // spec: getReservation
       description:
         'Get one reservation in full by its reservationID: status, stay dates, rooms, guests and ' +
@@ -389,6 +401,12 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_get_reservation_rate_details`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'reservationID',
+        recordOwnershipKind: `${SLUG}:reservation`,
+      },
       requiredScopes: ['read:reservation'], // spec: getReservationsWithRateDetails
       description:
         'Get the booked rate of every room of one reservation by its reservationID: per room its ' +
@@ -410,6 +428,12 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_get_guest`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'guestID',
+        recordOwnershipKind: `${SLUG}:guest`,
+      },
       requiredScopes: ['read:guest'], // spec: getGuest
       description:
         'Get one guest by their guestID: name, contact details and profile. Use it when you already ' +
@@ -705,6 +729,12 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_modify_reservation`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'reservationID',
+        recordOwnershipKind: `${SLUG}:reservation`,
+      },
       requiredScopes: ['write:reservation'], // spec: putReservation
       description:
         'Modify an existing reservation: cancel it (status: "canceled"), extend or shorten the stay ' +
@@ -1003,6 +1033,12 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_update_guest`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'guestID',
+        recordOwnershipKind: `${SLUG}:guest`,
+      },
       requiredScopes: ['write:guest'], // spec: putGuest
       description:
         'Update an existing guest’s details (name, email, phone, address). Only the fields you send ' +
@@ -1033,6 +1069,12 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_list_guest_notes`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'guestID',
+        recordOwnershipKind: `${SLUG}:guest`,
+      },
       requiredScopes: ['read:guest'], // spec: getGuestNotes
       description:
         'List the notes on a guest’s profile. Use it to recall preferences or past issues.',
@@ -1050,6 +1092,12 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_add_guest_note`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'guestID',
+        recordOwnershipKind: `${SLUG}:guest`,
+      },
       requiredScopes: ['write:guest'], // spec: postGuestNote
       description:
         'Add a note to a guest’s profile — a preference, allergy, or anything staff should know next time.',
@@ -1071,6 +1119,12 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_list_reservation_notes`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'reservationID',
+        recordOwnershipKind: `${SLUG}:reservation`,
+      },
       requiredScopes: ['read:reservation'], // spec: getReservationNotes
       description: 'List the notes on a reservation. Use it to see what was agreed or flagged.',
       input: z.object({ reservationID: z.string().min(1) }).strict(),
@@ -1087,6 +1141,12 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_add_reservation_note`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'reservationID',
+        recordOwnershipKind: `${SLUG}:reservation`,
+      },
       requiredScopes: ['write:reservation'], // spec: postReservationNote
       description:
         'Add a note to a reservation — a special request or an agreement made with the guest.',
@@ -1107,6 +1167,12 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_assign_guest_to_room`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'reservationID',
+        recordOwnershipKind: `${SLUG}:reservation`,
+      },
       requiredScopes: ['write:guest'], // spec: postGuestsToRoom
       description:
         'Assign guests to a room already on a reservation, optionally promoting one to main guest. ' +

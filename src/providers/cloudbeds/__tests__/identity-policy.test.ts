@@ -68,6 +68,36 @@ describe('cloudbeds publishes whose data each tool can reach', () => {
     expect(byName.get('mcp_cloudbeds_get_rate_plans')?.identityPolicy).toBeUndefined();
   });
 
+  it('binds every tool that reaches one reservation or one guest by its id', () => {
+    // Each takes an id and names nobody: without a policy, a consumer enforcing "only the person
+    // writing" would serve any guessed reservation or guest id (xcale-backend#1859, slice 25).
+    const byId: Record<string, [string, string]> = {
+      mcp_cloudbeds_get_reservation: ['reservationID', 'cloudbeds:reservation'],
+      mcp_cloudbeds_get_reservation_rate_details: ['reservationID', 'cloudbeds:reservation'],
+      mcp_cloudbeds_modify_reservation: ['reservationID', 'cloudbeds:reservation'],
+      mcp_cloudbeds_list_reservation_notes: ['reservationID', 'cloudbeds:reservation'],
+      mcp_cloudbeds_add_reservation_note: ['reservationID', 'cloudbeds:reservation'],
+      mcp_cloudbeds_assign_guest_to_room: ['reservationID', 'cloudbeds:reservation'],
+      mcp_cloudbeds_get_guest: ['guestID', 'cloudbeds:guest'],
+      mcp_cloudbeds_update_guest: ['guestID', 'cloudbeds:guest'],
+      mcp_cloudbeds_list_guest_notes: ['guestID', 'cloudbeds:guest'],
+      mcp_cloudbeds_add_guest_note: ['guestID', 'cloudbeds:guest'],
+    };
+    for (const [name, [field, kind]] of Object.entries(byId)) {
+      const tool = byName.get(name);
+      expect(tool?.identityPolicy, name).toEqual({
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: field,
+        recordOwnershipKind: kind,
+      });
+      const properties = Object.keys(
+        (tool?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {},
+      );
+      expect(properties, `${name}: ${field} is not in its input schema`).toContain(field);
+    }
+  });
+
   it('declares the version bump that a changed tools/list requires', () => {
     // The repo's own rule, and the nearest precedent is a FIX commit for exactly this omission.
     //
@@ -80,6 +110,6 @@ describe('cloudbeds publishes whose data each tool can reach', () => {
     // Moved again by #67 + #66 (two write tools' input schemas narrowed), one bump for both.
     // Moved again by `find_guest_reservations`, the first record lookup (ADR 0023).
     expect(cloudbedsManifest.schemaVersion).toBe('2026-10-26');
-    expect(cloudbedsManifest.providerVersion).toBe('0.14.0');
+    expect(cloudbedsManifest.providerVersion).toBe('0.15.0');
   });
 });

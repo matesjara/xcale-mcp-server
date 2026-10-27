@@ -55,8 +55,11 @@ export const cloudbedsManifest: ProviderManifest = {
   // front-desk status does in Cloudbeds and leaves when to send it to the tenant's instructions.
   // Bumped again: `find_guest_reservations` is a new tool, published with the record-lookup
   // vocabulary of ADR 0023 (xcale-backend#1852, Own Records).
+  // Bumped again (xcale-backend#1859): ten tools that reach one reservation or one guest by its id
+  // now publish a `subject-bound` policy with that id as the record field. Same day as the lookup
+  // above, so the date holds and the version steps once more (the 2026-09-25 precedent).
   schemaVersion: '2026-10-26',
-  providerVersion: '0.14.0',
+  providerVersion: '0.15.0',
   logoUrl: '/assets/cloudbeds.svg',
   capabilities: { pagination: true },
   // A Cloudbeds token is scoped to its property; discover the propertyID via getHotels instead of
