@@ -5,6 +5,13 @@ import type { SecretString } from './secret-string';
 /** A JSON Schema object describing a tool's input (MCP-compatible). */
 export type JsonSchema = Record<string, unknown>;
 
+/** ADR 0023: the kind of an identifying input field. */
+export type IdentityFieldKind = 'phone' | 'email' | 'document' | 'name';
+/** ADR 0023: the kind of a field on a returned record that carries the person. */
+export type RecordIdentityKind = 'phone' | 'email' | 'document';
+/** ADR 0023: a provider-neutral category of record. */
+export type RecordKind = 'reservation' | 'appointment' | 'order' | 'record';
+
 /** One callable capability, discoverable via tools/list and runnable via tools/call. */
 /**
  * How a tool relates to the identity of the person a CONSUMER's agent is talking to.
@@ -21,13 +28,6 @@ export type JsonSchema = Record<string, unknown>;
  * This is a DECLARATION, not an enforcement point. The gateway does not police it; the consumer
  * decides what to do, under its own tenant's setting.
  */
-/** ADR 0023: the kind of an identifying input field. */
-export type IdentityFieldKind = 'phone' | 'email' | 'document' | 'name';
-/** ADR 0023: the kind of a field on a returned record that carries the person. */
-export type RecordIdentityKind = 'phone' | 'email' | 'document';
-/** ADR 0023: a provider-neutral category of record. */
-export type RecordKind = 'reservation' | 'appointment' | 'order' | 'record';
-
 export type ToolIdentityPolicy =
   /**
    * Acts on a person named in its arguments — in the NAMED fields. When several of those fields
