@@ -960,15 +960,17 @@ export function buildCloudbedsTools(
     // (sandbox 320754, 2026-10-22), but its rows carry neither the phone nor the stay, so each match is
     // read with `getReservation`, whose `guestList` holds the guest's own phone, cell phone and email.
     // Every returned row then names its person, whatever the filter matched. Bounded: at most
-    // FIND_GUEST_RESERVATIONS_MAX reservations, one getReservation each, in parallel.
+    // FIND_GUEST_RESERVATIONS_MAX reservations, one getReservation each, in parallel. When Cloudbeds
+    // holds more than was read, the answer says so (`hasMore`, `totalResults`) instead of reading as
+    // the guest's whole history: the consumer shows what was found and that there may be more.
     tool({
       name: `mcp_${SLUG}_find_guest_reservations`,
       audience: 'operator',
       requiredScopes: ['read:guest', 'read:reservation'], // spec: getGuestList + getReservation
       identityPolicy: {
         mode: 'subject-bound',
-        identityFields: ['guestPhone', 'guestEmail'],
-        identityFieldKinds: { guestPhone: 'phone', guestEmail: 'email' },
+        identityFields: ['guestPhone', 'guestCellPhone', 'guestEmail'],
+        identityFieldKinds: { guestPhone: 'phone', guestCellPhone: 'phone', guestEmail: 'email' },
         recordLookup: true,
         recordKind: 'reservation',
         resultItemsPath: 'items',
@@ -978,30 +980,39 @@ export function buildCloudbedsTools(
         resultDateField: 'endDate',
       },
       description:
-        'Find the reservations of one guest by the exact phone or email stored on their profile. Each ' +
-        'result carries the stay (room type, dates, status, party) and the guest’s own contact fields.',
+        'Find the reservations of one guest by the exact phone, cell phone or email stored on their ' +
+        'profile. Each result carries the stay (room type, dates, status, party) and the guest’s own ' +
+        'contact fields. `hasMore: true` means the property holds more than the ones returned.',
       input: z
         .object({
-          guestPhone: z.string().min(1).optional(),
-          guestEmail: z.string().min(1).optional(),
+          // Trimmed, then required to hold something: Cloudbeds reads a blank filter as no filter and
+          // answers with the property's whole guest list (observed 2026-10-22).
+          guestPhone: z.string().trim().min(1).optional(),
+          guestCellPhone: z.string().trim().min(1).optional(),
+          guestEmail: z.string().trim().min(1).optional(),
         })
         .strict(),
       handler: async (args, ctx) => {
-        // Neither filter would return the property's whole guest list.
-        if (!args.guestPhone && !args.guestEmail) {
-          return err(ProviderErrorCode.INVALID_INPUT, 'guestPhone or guestEmail is required');
+        // No filter at all would return the property's whole guest list.
+        if (!args.guestPhone && !args.guestCellPhone && !args.guestEmail) {
+          return err(
+            ProviderErrorCode.INVALID_INPUT,
+            'guestPhone, guestCellPhone or guestEmail is required',
+          );
         }
         const list = await client.get('getGuestList', ctx.request, {
           propertyIDs: ctx.metadata.propertyID,
           pageNumber: 1,
           pageSize: FIND_GUEST_RESERVATIONS_MAX,
           guestPhone: args.guestPhone,
+          guestCellPhone: args.guestCellPhone,
           guestEmail: args.guestEmail,
         });
         const u = unwrap(list, 'getGuestList');
         if (!u.ok) return err(u.code, u.message);
+        const rows = Array.isArray(u.data) ? u.data : [];
         const matches = new Map<string, string>();
-        for (const row of Array.isArray(u.data) ? u.data : []) {
+        for (const row of rows) {
           const r = row as { reservationID?: unknown; guestID?: unknown };
           if (typeof r.reservationID === 'string' && typeof r.guestID === 'string') {
             if (!matches.has(r.reservationID)) matches.set(r.reservationID, r.guestID);
@@ -1020,13 +1031,20 @@ export function buildCloudbedsTools(
             }),
         );
         for (const { guestID, r } of reads) {
-          // One reservation that cannot be read fails the whole lookup: a partial list would read as
-          // "these are all your reservations".
+          // One reservation that cannot be read fails the whole lookup: a list silently missing one
+          // would read as "these are all your reservations".
           if (!r.ok) return err(r.code, r.message);
           const item = guestReservationOf(r.data, guestID);
           if (item) items.push(item);
         }
-        return ok({ items });
+        // Read fewer than Cloudbeds holds: more rows than this page (by its `total`, or a full page when
+        // it gives none), or more reservations than the ceiling. Said, never a cut list that looks whole.
+        const hasMore =
+          (u.total !== undefined
+            ? u.total > rows.length
+            : rows.length >= FIND_GUEST_RESERVATIONS_MAX) ||
+          matches.size > FIND_GUEST_RESERVATIONS_MAX;
+        return ok({ items, ...(u.total !== undefined ? { totalResults: u.total } : {}), hasMore });
       },
     }),
 
