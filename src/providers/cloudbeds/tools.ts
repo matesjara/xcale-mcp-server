@@ -1167,12 +1167,10 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_assign_guest_to_room`,
       audience: 'operator',
-      identityPolicy: {
-        mode: 'subject-bound',
-        identityFields: [],
-        recordOwnershipField: 'reservationID',
-        recordOwnershipKind: `${SLUG}:reservation`,
-      },
+      // Not bound by its reservation: owning the reservation says nothing about the `guestIDs` put
+      // into it, and attaching a stranger's guest profile makes it readable through get_reservation.
+      // The policy names one record field, so this stays a staff move, refused to whoever is writing.
+      identityPolicy: { mode: 'subject-scoped' },
       requiredScopes: ['write:guest'], // spec: postGuestsToRoom
       description:
         'Assign guests to a room already on a reservation, optionally promoting one to main guest. ' +

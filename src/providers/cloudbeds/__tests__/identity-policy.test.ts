@@ -77,7 +77,6 @@ describe('cloudbeds publishes whose data each tool can reach', () => {
       mcp_cloudbeds_modify_reservation: ['reservationID', 'cloudbeds:reservation'],
       mcp_cloudbeds_list_reservation_notes: ['reservationID', 'cloudbeds:reservation'],
       mcp_cloudbeds_add_reservation_note: ['reservationID', 'cloudbeds:reservation'],
-      mcp_cloudbeds_assign_guest_to_room: ['reservationID', 'cloudbeds:reservation'],
       mcp_cloudbeds_get_guest: ['guestID', 'cloudbeds:guest'],
       mcp_cloudbeds_update_guest: ['guestID', 'cloudbeds:guest'],
       mcp_cloudbeds_list_guest_notes: ['guestID', 'cloudbeds:guest'],
@@ -96,6 +95,14 @@ describe('cloudbeds publishes whose data each tool can reach', () => {
       );
       expect(properties, `${name}: ${field} is not in its input schema`).toContain(field);
     }
+  });
+
+  it('keeps assigning guests to a room a staff move, never bound by the reservation', () => {
+    // Owning a reservation does not make the guestIDs put into it yours: bound by the reservation
+    // alone, a guest could attach a stranger's profile to their own stay and read it back.
+    expect(byName.get('mcp_cloudbeds_assign_guest_to_room')?.identityPolicy).toEqual({
+      mode: 'subject-scoped',
+    });
   });
 
   it('declares the version bump that a changed tools/list requires', () => {
