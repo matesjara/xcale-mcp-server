@@ -946,6 +946,7 @@ export function buildCloudbedsTools(
         resultItemsPath: 'items',
         resultIdentityFields: { guestPhone: 'phone', guestCellPhone: 'phone', guestEmail: 'email' },
         resultRecordIdField: 'reservationID',
+        recordOwnershipKind: `${SLUG}:reservation`,
         projection: ['roomTypeName', 'startDate', 'endDate', 'status', 'adults', 'children'],
         resultDateField: 'endDate',
       },

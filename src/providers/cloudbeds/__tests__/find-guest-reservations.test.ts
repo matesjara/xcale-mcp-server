@@ -247,6 +247,7 @@ describe('cloudbeds find_guest_reservations', () => {
       resultItemsPath: 'items',
       resultIdentityFields: { guestPhone: 'phone', guestCellPhone: 'phone', guestEmail: 'email' },
       resultRecordIdField: 'reservationID',
+      recordOwnershipKind: 'cloudbeds:reservation',
       resultDateField: 'endDate',
     });
     // The projection is an allowlist: no contact field, no card, no record number.
