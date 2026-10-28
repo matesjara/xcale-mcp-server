@@ -113,6 +113,7 @@ export function buildErbonTools(
         resultItemsPath: 'items',
         resultIdentityFields: { guestPhone: 'phone', guestEmail: 'email' },
         resultRecordIdField: 'bookingInternalID',
+        recordOwnershipKind: `${SLUG}:booking`,
         projection: ['roomTypeDescription', 'checkIn', 'checkOut', 'status', 'adults', 'children'],
         resultDateField: 'checkOut',
       },

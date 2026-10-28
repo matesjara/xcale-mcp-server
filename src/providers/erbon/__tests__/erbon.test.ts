@@ -533,6 +533,7 @@ describe('erbon provider — find_guest_bookings (record lookup)', () => {
       resultItemsPath: 'items',
       resultIdentityFields: { guestPhone: 'phone', guestEmail: 'email' },
       resultRecordIdField: 'bookingInternalID',
+      recordOwnershipKind: 'erbon:booking',
       resultDateField: 'checkOut',
     });
     expect(t?.readOnly).toBe(true);
