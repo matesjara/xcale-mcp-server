@@ -69,8 +69,8 @@ describe('cloudbeds publishes who each tool may serve', () => {
   });
 
   it('declares the version bump that a changed tools/list requires', () => {
-    expect(cloudbedsManifest.schemaVersion).toBe('2026-10-26');
-    expect(cloudbedsManifest.providerVersion).toBe('0.15.0');
+    expect(cloudbedsManifest.schemaVersion).toBe('2026-10-27');
+    expect(cloudbedsManifest.providerVersion).toBe('0.16.0');
   });
 });
 

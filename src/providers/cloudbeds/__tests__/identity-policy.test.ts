@@ -116,7 +116,7 @@ describe('cloudbeds publishes whose data each tool can reach', () => {
     // Moved again by xcale#1243 (`audience` in `_meta`), pinned in `audience.test.ts` as well.
     // Moved again by #67 + #66 (two write tools' input schemas narrowed), one bump for both.
     // Moved again by `find_guest_reservations`, the first record lookup (ADR 0023).
-    expect(cloudbedsManifest.schemaVersion).toBe('2026-10-26');
-    expect(cloudbedsManifest.providerVersion).toBe('0.15.0');
+    expect(cloudbedsManifest.schemaVersion).toBe('2026-10-27');
+    expect(cloudbedsManifest.providerVersion).toBe('0.16.0');
   });
 });
