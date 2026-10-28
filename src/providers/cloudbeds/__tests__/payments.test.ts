@@ -125,6 +125,33 @@ describe('cloudbeds pay-by-link tools', () => {
       expect(res).toMatchObject({ kind: 'error', code: ProviderErrorCode.AUTH_EXPIRED });
     });
 
+    it('says what Cloudbeds said on a failed call, as the other tools do (#71)', async () => {
+      const { fetchImpl } = capture(400, { message: 'Parameter amount is invalid' });
+      const res = await createCloudbedsProvider({ fetchImpl }).callTool(
+        'mcp_cloudbeds_create_payment_link',
+        { reservationID: 'RES-1', amount: 10 },
+        ctx(),
+      );
+      expect(res).toMatchObject({
+        kind: 'error',
+        message: 'Cloudbeds create pay-by-link failed (HTTP 400): Parameter amount is invalid',
+      });
+    });
+
+    it('never lets an unparsed body into the error text (a payer email can ride in it)', async () => {
+      const fetchImpl = (async () =>
+        new Response('payer ana@example.com rejected', { status: 400 })) as FetchLike;
+      const res = await createCloudbedsProvider({ fetchImpl }).callTool(
+        'mcp_cloudbeds_create_payment_link',
+        { reservationID: 'RES-1', amount: 10 },
+        ctx(),
+      );
+      expect(res).toMatchObject({
+        kind: 'error',
+        message: 'Cloudbeds create pay-by-link failed (HTTP 400)',
+      });
+    });
+
     it('rejects an HTTP 200 that smuggles a v1.3-style success:false envelope — never a silent success', async () => {
       // The v2 "failures are HTTP status" assumption is unconfirmed (sandbox blocked); v1.3 answers
       // failures as 200 + success:false. Money moves here, so that shape must surface as an error.

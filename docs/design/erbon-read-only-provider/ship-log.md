@@ -36,7 +36,7 @@ returned verbatim; errors never echo Erbon's body (`unwrapErbon`: operation labe
 | `list_currencies` _(added 2026-10-12)_                             | ❌ controlPlane | The hotel's currencies (`currencyId` → ISO code), for the backend CRM import; see the addendum        |
 
 Also: the provider logo (`logoUrl` in the manifest — `assets/erbon.webp` until #148, `assets/erbon.svg`
-in the house tile since 2026-10-17); `schemaVersion` 2026-10-06, `providerVersion` 0.3.0.
+in the house tile since 2026-10-17); `schemaVersion` 2026-10-06, `providerVersion` 0.3.1 (bumped 2026-10-26 for traceability of `list_currencies`, #137; `schemaVersion` stays because the tool is withdrawn from `tools/list`).
 
 ## Addendum — `list_currencies` (CRM feed, 2026-10-12)
 
