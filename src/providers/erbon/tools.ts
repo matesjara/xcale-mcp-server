@@ -41,6 +41,34 @@ const isoDate = z
  * `docs/design/erbon-read-only-provider/implementation-plan.md`.
  */
 /** The nights of a stay, `YYYY-MM-DD`: check-in up to the night before check-out. */
+/** At most this many bookings per guest lookup. */
+const FIND_GUEST_BOOKINGS_MAX = 10;
+
+/**
+ * One row of `find_guest_bookings`: the stay of a `booking/search` row and its main guest's contact
+ * fields (`guestList[]`, the entry with `mainGuest: true`). `null` for a row that is not a booking.
+ */
+function guestBookingOf(row: unknown): Record<string, unknown> | null {
+  if (typeof row !== 'object' || row === null) return null;
+  const b = row as Record<string, unknown>;
+  if (b.bookingInternalID === undefined || b.bookingInternalID === null) return null;
+  const guests = Array.isArray(b.guestList) ? (b.guestList as Array<Record<string, unknown>>) : [];
+  const main = guests.find((g) => g.mainGuest === true) ?? {};
+  const day = (v: unknown) => (typeof v === 'string' ? v.slice(0, 10) : '');
+  return {
+    bookingInternalID: String(b.bookingInternalID),
+    erbonNumber: b.erbonNumber,
+    status: b.confirmedStatus ?? b.status,
+    checkIn: day(b.checkInDateTime),
+    checkOut: day(b.checkOutDateTime),
+    roomTypeDescription: b.roomTypeDescription,
+    adults: b.adultQuantity,
+    children: b.childrenQuantity,
+    guestPhone: typeof main.phone === 'string' ? main.phone : '',
+    guestEmail: typeof main.email === 'string' ? main.email : '',
+  };
+}
+
 function stayNights(checkIn: string, checkOut: string): string[] {
   const nights: string[] = [];
   const end = new Date(`${checkOut}T00:00:00Z`).getTime();
@@ -66,6 +94,58 @@ export function buildErbonTools(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- erased input type (heterogeneous tool collection)
 ): ReadonlyArray<ToolDefinition<any, ErbonContext>> {
   return [
+    // A person's bookings by the phone or email they hold — the record lookup of ADR 0023
+    // (xcale-backend#1852). `booking/search` filters by `mainguestTel` and `mainguestEmail` SERVER-SIDE
+    // (sandbox, 2026-10-28): the phone on the exact stored string (`3122882382` and `+573122882382`
+    // match different bookings; `573…` and a suffix match none), the email exactly and case-blind (a
+    // prefix matches none). So the consumer asks once per form of a phone. Each row is the booking with
+    // its main guest's own phone and email, so every returned row names its person. Erbon answers a
+    // flat array with no total; a list longer than the ceiling is cut and says so (`hasMore`).
+    tool({
+      name: `mcp_${SLUG}_find_guest_bookings`,
+      readOnly: true,
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: ['guestPhone', 'guestEmail'],
+        identityFieldKinds: { guestPhone: 'phone', guestEmail: 'email' },
+        recordLookup: true,
+        recordKind: 'reservation',
+        resultItemsPath: 'items',
+        resultIdentityFields: { guestPhone: 'phone', guestEmail: 'email' },
+        resultRecordIdField: 'bookingInternalID',
+        recordOwnershipKind: `${SLUG}:booking`,
+        projection: ['roomTypeDescription', 'checkIn', 'checkOut', 'status', 'adults', 'children'],
+        resultDateField: 'checkOut',
+      },
+      description:
+        'Find the bookings of one guest at the connected Erbon hotel by the exact phone or email stored ' +
+        'on the main guest. Each result carries the stay (room type, dates, status, party) and the main ' +
+        'guest’s own phone and email. `hasMore: true` means Erbon returned more than the ones listed.',
+      input: z
+        .object({
+          // A blank filter would reach Erbon as an empty header — at best ignored, at worst the
+          // unfiltered search of every booking of the hotel.
+          guestPhone: searchText.optional(),
+          guestEmail: searchText.optional(),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        if (!args.guestPhone && !args.guestEmail) {
+          return err(ProviderErrorCode.INVALID_INPUT, 'guestPhone or guestEmail is required');
+        }
+        const headers: Record<string, string> = {};
+        if (args.guestPhone) headers.mainguestTel = args.guestPhone;
+        if (args.guestEmail) headers.mainguestEmail = args.guestEmail;
+        const res = await client.post('booking/search', ctx.request, ctx.metadata, {}, headers);
+        if (!res.ok) return unwrapErbon(res, 'find guest bookings');
+        const rows = Array.isArray(res.data) ? res.data : [];
+        const items = rows
+          .slice(0, FIND_GUEST_BOOKINGS_MAX)
+          .map(guestBookingOf)
+          .filter((item): item is Record<string, unknown> => item !== null);
+        return ok({ items, hasMore: rows.length > FIND_GUEST_BOOKINGS_MAX });
+      },
+    }),
     tool({
       name: `mcp_${SLUG}_check_availability`,
       description:
