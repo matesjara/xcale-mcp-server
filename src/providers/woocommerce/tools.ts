@@ -376,6 +376,23 @@ function toOrderSummary(o: RawOrder): WooOrderSummary {
   };
 }
 
+/** At most this many orders per customer lookup. */
+const FIND_CUSTOMER_ORDERS_MAX = 10;
+
+/**
+ * One row of `find_customer_orders`: the order's summary and the billing contact it was placed with —
+ * the person the row belongs to. A guest checkout has no customer id, so the billing contact is the
+ * only thing that names its buyer.
+ */
+function toCustomerOrder(o: RawOrderDetail) {
+  return {
+    ...toOrderSummary(o),
+    items: (o.line_items ?? []).map((li) => `${li.quantity} × ${li.name}`),
+    customerPhone: (o.billing?.phone ?? '').trim(),
+    customerEmail: (o.billing?.email ?? '').trim(),
+  };
+}
+
 function fullName(a: RawAddress | undefined): string {
   return [a?.first_name, a?.last_name]
     .map((p) => (p ?? '').trim())
@@ -542,6 +559,14 @@ const listOrdersInput = z
   })
   .strict();
 const getOrderInput = z.object({ id: z.string().min(1) }).strict();
+/** A lookup filter's text: never empty or blank — a blank `search` is WooCommerce's unfiltered list. */
+const lookupText = z.string().trim().min(1);
+const findCustomerOrdersInput = z
+  .object({ customerPhone: lookupText.optional(), customerEmail: lookupText.optional() })
+  .strict()
+  .refine((a) => (a.customerPhone === undefined) !== (a.customerEmail === undefined), {
+    message: 'Give exactly one of customerPhone or customerEmail',
+  });
 
 // --- Write inputs (Phase 2) ---
 // ID-validation rule: a WRITE tool that targets an entity by id guards it as numeric (`/^\d+$/`) —
@@ -1468,6 +1493,48 @@ export function buildWoocommerceTools(
         );
         if (!result.ok) return err(result.code, result.message);
         return ok({ options: result.options });
+      },
+    }),
+
+    // A person's orders by the phone or email they bought with — the record lookup of ADR 0023
+    // (xcale-backend#1852). WooCommerce's `search` is a substring match over the order's billing and
+    // shipping fields (email and phone among them), so it can also return orders that only CONTAIN the
+    // text; each row carries the billing phone and email so the consumer binds every row to its own
+    // person. One term per call: `search` takes one.
+    tool({
+      name: `mcp_${SLUG}_find_customer_orders`,
+      readOnly: true,
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: ['customerPhone', 'customerEmail'],
+        identityFieldKinds: { customerPhone: 'phone', customerEmail: 'email' },
+        recordLookup: true,
+        recordKind: 'order',
+        resultItemsPath: 'items',
+        resultIdentityFields: { customerPhone: 'phone', customerEmail: 'email' },
+        resultRecordIdField: 'id',
+        recordOwnershipKind: `${SLUG}:order`,
+        projection: ['number', 'status', 'total', 'currency', 'dateCreated', 'items'],
+        resultDateField: 'dateCreated',
+      },
+      description:
+        "Find one customer's orders at the store by the phone or the email they bought with (exactly " +
+        'one per call), newest first. Each result carries the order (number, status, total, date, items) ' +
+        'and the billing phone and email it was placed with. `hasMore: true` means there are more.',
+      input: findCustomerOrdersInput,
+      handler: async (args, ctx) => {
+        const res = await client.get('orders', ctx.request, ctx.metadata, {
+          search: args.customerPhone ?? args.customerEmail,
+          per_page: FIND_CUSTOMER_ORDERS_MAX + 1,
+          orderby: 'date',
+          order: 'desc',
+        });
+        if (!res.ok) return wooError(res);
+        const rows = Array.isArray(res.data) ? (res.data as RawOrderDetail[]) : [];
+        return ok({
+          items: rows.slice(0, FIND_CUSTOMER_ORDERS_MAX).map(toCustomerOrder),
+          hasMore: rows.length > FIND_CUSTOMER_ORDERS_MAX,
+        });
       },
     }),
 

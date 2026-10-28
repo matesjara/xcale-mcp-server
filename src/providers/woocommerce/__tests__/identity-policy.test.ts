@@ -42,6 +42,23 @@ describe('woocommerce publishes whose data each tool can reach', () => {
     });
   });
 
+  it('declares the customer order lookup, each row bound by the billing contact it was placed with', () => {
+    expect(byName.get('mcp_woocommerce_find_customer_orders')?.identityPolicy).toEqual({
+      mode: 'subject-bound',
+      identityFields: ['customerPhone', 'customerEmail'],
+      identityFieldKinds: { customerPhone: 'phone', customerEmail: 'email' },
+      recordLookup: true,
+      recordKind: 'order',
+      resultItemsPath: 'items',
+      resultIdentityFields: { customerPhone: 'phone', customerEmail: 'email' },
+      resultRecordIdField: 'id',
+      recordOwnershipKind: 'woocommerce:order',
+      projection: ['number', 'status', 'total', 'currency', 'dateCreated', 'items'],
+      resultDateField: 'dateCreated',
+    });
+    expect(byName.get('mcp_woocommerce_find_customer_orders')?.readOnly).toBe(true);
+  });
+
   it('every declared field exists in the tool it belongs to', () => {
     // A field name that does not match the schema declares protection over nothing.
     for (const tool of published) {
