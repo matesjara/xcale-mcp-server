@@ -198,3 +198,25 @@ included the origin and segment information; you must send it, or the hotel has 
   the expected field for an external channel's reference).
 - Not exposed by the API (open question for Erbon): which daily-rate service a RATE charges — Giovanni
   confirmed the rate decides it, but `mapping/rates` carries no service id.
+
+## 11. Update 2026-10-27 — a guest's bookings by phone or email (new tool `find_guest_bookings`)
+
+The record lookup of ADR 0023 (xcale-backend#1852, Own Records), observed on the sandbox hotel through
+`POST /hotel/{hotelID}/booking/search` with the filters in headers:
+
+- **`mainguestTel` matches the exact stored string, with no normalisation.** `3122882382` → booking 1733
+  only; `+573122882382` → 1734, 1735, 1736, 1774, 1782; `573122882382` → none; the suffix `2882382` →
+  none. A consumer that wants every booking of a line asks once per stored form of it (with and without
+  `+<country>`).
+- **`mainguestEmail` matches exactly and case-blind.** `sara@xcale.app` and `SARA@xcale.app` → the same
+  5 bookings; the prefix `sara@` → none.
+- **Both headers together narrow (AND):** `+573122882382` + `sara@xcale.app` → the bookings that carry
+  both.
+- **The answer is a flat array, no total and no paging.** Each row is the booking with its `guestList[]`;
+  the main guest is the entry with `mainGuest: true`, and its `phone` and `email` are what the row is
+  bound by. `find_guest_bookings` returns at most 10 and says `hasMore: true` when Erbon sent more.
+- **The first call after the JWT is minted can take ~15 s** (observed once, `PROVIDER_UNAVAILABLE` at the
+  timeout); the same call answered in under 2 s right after.
+- Date filters: `checkin` alone or `checkin` + `checkout` work; a 3-month or a yearly window answered
+  `PROVIDER_INVALID_INPUT`, and `bookingCreatedAt` answered `PROVIDER_UNAVAILABLE`. The lookup sends no
+  date filter.
