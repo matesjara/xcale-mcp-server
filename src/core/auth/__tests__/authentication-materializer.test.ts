@@ -35,6 +35,38 @@ describe('AuthenticationMaterializer', () => {
     expect(req.url).toContain('api_key=a%20b');
   });
 
+  it('api_key body placement → the secret is injected as a field of the JSON body, not in url/headers', () => {
+    const auth: ProviderAuthDescriptor = {
+      type: 'api_key',
+      fields: [{ key: 'api_key', label: 'Key', placement: 'body' }],
+    };
+    const postSpec: RequestSpec = {
+      method: 'POST',
+      url: 'https://api.test/resource',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ accion: 'listarSedes' }),
+    };
+    const req = materialize(auth, resolved(), postSpec);
+    expect(JSON.parse(req.body as string)).toEqual({ accion: 'listarSedes', api_key: 'SEC' });
+    // the secret never leaks into the URL or headers
+    expect(req.url).toBe(postSpec.url);
+    expect(JSON.stringify(req.headers)).not.toContain('SEC');
+  });
+
+  it('api_key body placement → a non-object body is a descriptor bug that throws (never sent unauthenticated)', () => {
+    const auth: ProviderAuthDescriptor = {
+      type: 'api_key',
+      fields: [{ key: 'api_key', label: 'Key', placement: 'body' }],
+    };
+    const post = (body?: string): RequestSpec => ({
+      method: 'POST',
+      url: 'https://api.test/x',
+      ...(body !== undefined ? { body } : {}),
+    });
+    expect(() => materialize(auth, resolved(), post())).toThrow(); // absent body
+    expect(() => materialize(auth, resolved(), post('[]'))).toThrow(); // array, not object
+  });
+
   it('oauth2 bearer_header → Authorization: Bearer <token>', () => {
     const auth: ProviderAuthDescriptor = {
       type: 'oauth2',
@@ -82,5 +114,59 @@ describe('AuthenticationMaterializer', () => {
     // The SecretString wrapper itself never serializes the value (Credential-in-Transit-Only).
     expect(JSON.stringify(cred.secret)).toBe('"[REDACTED]"');
     expect(String(cred.secret)).toBe('[REDACTED]');
+  });
+});
+
+describe('AuthenticationMaterializer — credential groups (multi-credential providers)', () => {
+  const grouped: ProviderAuthDescriptor = {
+    type: 'api_key',
+    fields: [
+      { key: 'api_key', label: 'Directory', placement: 'body' },
+      { key: 'token', label: 'Scheduling', placement: 'body' },
+    ],
+    groups: [
+      {
+        key: 'directorio',
+        label: 'Directory',
+        field: { key: 'api_key', label: 'Directory', placement: 'body' },
+      },
+      {
+        key: 'autoagendamiento',
+        label: 'Scheduling',
+        field: { key: 'token', label: 'Scheduling', placement: 'body' },
+      },
+    ],
+  };
+  const postSpec: RequestSpec = {
+    method: 'POST',
+    url: 'https://api.test/resource',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ accion: 'listarSedes' }),
+  };
+  const bundle = () => ({
+    secret: new SecretString('IGNORED'),
+    secrets: {
+      directorio: new SecretString('DIR_SEC'),
+      autoagendamiento: new SecretString('SCHED_SEC'),
+    },
+  });
+
+  it("injects the called tool's group field using that group's secret", () => {
+    const dir = materialize(grouped, bundle(), postSpec, 'directorio');
+    expect(JSON.parse(dir.body as string)).toEqual({ accion: 'listarSedes', api_key: 'DIR_SEC' });
+
+    const sched = materialize(grouped, bundle(), postSpec, 'autoagendamiento');
+    expect(JSON.parse(sched.body as string)).toEqual({ accion: 'listarSedes', token: 'SCHED_SEC' });
+  });
+
+  it('without a group, a grouped descriptor still uses fields[0] and the single secret (byte-identical)', () => {
+    const req = materialize(grouped, { secret: new SecretString('SINGLE') }, postSpec);
+    expect(JSON.parse(req.body as string)).toEqual({ accion: 'listarSedes', api_key: 'SINGLE' });
+  });
+
+  it('throws (fail closed) when the bundle has no secret for the requested group', () => {
+    expect(() =>
+      materialize(grouped, { secret: new SecretString('x') }, postSpec, 'directorio'),
+    ).toThrow(/credential group "directorio"/);
   });
 });

@@ -29,6 +29,13 @@ export interface Config {
    * calls will fail `400 header_required` — a deployment misconfiguration caught at smoke-test.
    */
   readonly siigoPartnerId: string;
+  /**
+   * HiMed's Demográficos + directory host and its Autoagendamiento host — the sandbox in dev, HiMed's
+   * production hosts in prd (Doppler). No fallback: empty makes HiMed's tools fail closed, and the
+   * provider says so at boot instead of at a clinic's first booking.
+   */
+  readonly himedBaseUrl: string;
+  readonly himedSchedulingBaseUrl: string;
 }
 
 /**
@@ -64,5 +71,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     credentialResolveUrl: env.CREDENTIAL_RESOLVE_URL ?? '',
     credentialResolveSecret: env.CREDENTIAL_RESOLVE_SECRET ?? '',
     siigoPartnerId: env.SIIGO_PARTNER_ID ?? '',
+    himedBaseUrl: env.HIMED_BASE_URL ?? '',
+    himedSchedulingBaseUrl: env.HIMED_SCHEDULING_BASE_URL ?? '',
   };
 }

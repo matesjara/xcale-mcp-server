@@ -77,7 +77,8 @@ describe('cloudbeds publishes whose data each tool can reach', () => {
     // `mcp.integration.test.ts` now pins over the wire.
     //
     // Moved again by xcale#1243 (`audience` in `_meta`), pinned in `audience.test.ts` as well.
-    expect(cloudbedsManifest.schemaVersion).toBe('2026-10-09');
-    expect(cloudbedsManifest.providerVersion).toBe('0.12.0');
+    // Moved again by #67 + #66 (two write tools' input schemas narrowed), one bump for both.
+    expect(cloudbedsManifest.schemaVersion).toBe('2026-10-22');
+    expect(cloudbedsManifest.providerVersion).toBe('0.13.0');
   });
 });

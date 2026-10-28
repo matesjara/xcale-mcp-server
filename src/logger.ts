@@ -6,7 +6,13 @@ export function loggerOptions(level: string) {
   return {
     level,
     redact: {
-      paths: ['req.headers["x-provider-token"]', 'req.headers.authorization', 'req.headers.cookie'],
+      paths: [
+        'req.headers["x-provider-token"]',
+        // A multi-credential provider's whole bundle (HiMed: three tokens in clear).
+        'req.headers["x-provider-credentials"]',
+        'req.headers.authorization',
+        'req.headers.cookie',
+      ],
       censor: '[REDACTED]',
     },
   };

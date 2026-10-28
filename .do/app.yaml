@@ -6,6 +6,13 @@
 name: xcale-mcp-server
 region: nyc
 
+# Two static public IPs for every outbound call (xcale-backend#1610). LobbyPMS only accepts calls from
+# IPs each hotel authorizes one by one in its account, so they must never change. Paid add-on
+# (US$25/month per app). WARNING: applying a spec WITHOUT this block releases the IPs for good, and
+# every hotel would have to authorize new ones — never remove it, and never edit egress in the dashboard.
+egress:
+  type: DEDICATED_IP
+
 alerts:
   - rule: DEPLOYMENT_FAILED
   - rule: DEPLOYMENT_LIVE

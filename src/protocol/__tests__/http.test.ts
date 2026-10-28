@@ -15,6 +15,8 @@ beforeAll(async () => {
     credentialResolveUrl: '',
     credentialResolveSecret: '',
     siigoPartnerId: '',
+    himedBaseUrl: '',
+    himedSchedulingBaseUrl: '',
   });
   await app.ready();
 });

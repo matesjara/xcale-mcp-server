@@ -54,6 +54,7 @@ interface RawProduct extends RawSalePricing {
 interface RawProductDetail extends RawProduct {
   readonly sku?: string;
   readonly description?: string;
+  readonly short_description?: string;
   readonly categories?: ReadonlyArray<{ id: number; name: string }>;
   readonly images?: ReadonlyArray<{ src: string }>;
   readonly variations?: readonly number[];
@@ -83,10 +84,19 @@ export interface WooProductSummary {
   readonly status: string | null;
 }
 
-/** Curated product detail. `description` is stripped to plain text; `variations` are ids to expand. */
+/**
+ * Curated product detail. `description` and `shortDescription` are stripped to plain text; `variations`
+ * are ids to expand.
+ */
 export interface WooProductDetail extends WooProductSummary {
   readonly sku: string | null;
+  /** The long description. `""` when the store wrote none. */
   readonly description: string;
+  /**
+   * The short description — the block shown next to the price. Many stores keep the whole product text
+   * here and leave `description` empty. `""` when the store wrote none.
+   */
+  readonly shortDescription: string;
   readonly categories: ReadonlyArray<{ id: string; name: string }>;
   readonly images: ReadonlyArray<{ src: string }>;
   readonly variations: readonly string[];
@@ -137,6 +147,7 @@ function toProductDetail(p: RawProductDetail): WooProductDetail {
     ...toProductSummary(p),
     sku: p.sku ?? null,
     description: p.description ? stripHtml(p.description) : '',
+    shortDescription: p.short_description ? stripHtml(p.short_description) : '',
     categories: (p.categories ?? []).map((c) => ({ id: String(c.id), name: c.name })),
     images: (p.images ?? []).map((i) => ({ src: i.src })),
     variations: (p.variations ?? []).map(String),
@@ -153,9 +164,11 @@ interface RawVariation extends RawSalePricing {
   readonly price: string;
   readonly stock_status: string;
   readonly stock_quantity: number | null;
+  /** One object per variation (not an `images` array); null when the variation has no photo. */
+  readonly image?: { readonly src?: string } | null;
 }
 
-/** Curated variation: which attribute combo (size/color) plus its own price/stock. */
+/** Curated variation: which attribute combo (size/color) plus its own price, stock and photo. */
 export interface WooProductVariation {
   readonly id: string;
   readonly attributes: ReadonlyArray<{ name: string; option: string }>;
@@ -165,6 +178,8 @@ export interface WooProductVariation {
   readonly onSale: boolean;
   readonly stockStatus: string;
   readonly stockQuantity: number | null;
+  /** The variation's own photo (e.g. the green one); null when the store set none for it. */
+  readonly image: { src: string } | null;
 }
 
 function toVariation(v: RawVariation): WooProductVariation {
@@ -175,6 +190,7 @@ function toVariation(v: RawVariation): WooProductVariation {
     ...toSalePricing(v),
     stockStatus: v.stock_status,
     stockQuantity: v.stock_quantity ?? null,
+    image: v.image?.src ? { src: v.image.src } : null,
   };
 }
 
@@ -918,7 +934,8 @@ export function buildWoocommerceTools(
     tool({
       name: `mcp_${SLUG}_get_product`,
       description:
-        'Get one product by id: price, sale pricing, stock, description (plain text), categories, images, and variation ids.',
+        'Get one product by id: price, sale pricing, stock, description and short description (plain text), categories, ' +
+        'images, and variation ids.',
       input: getProductInput,
       handler: async (args, ctx) => {
         const res = await client.get(
@@ -1058,6 +1075,14 @@ export function buildWoocommerceTools(
 
     tool({
       name: `mcp_${SLUG}_update_order`,
+      // Reaches one person's record by its id: their contact and address. Bound to the person who owns
+      // it, so a consumer can serve the record its own customer placed and refuse a guessed id.
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'id',
+        recordOwnershipKind: `${SLUG}:order`,
+      },
       description:
         "Update an order's status — notably to `cancelled` to void an order that will not be paid. " +
         'Idempotent: setting the status it already has is a no-op at WooCommerce.',
@@ -1108,7 +1133,7 @@ export function buildWoocommerceTools(
     definePaginatedList<typeof getProductVariationsInput, WooProductVariation, WoocommerceContext>({
       name: `mcp_${SLUG}_get_product_variations`,
       description:
-        "List a variable product's variations (size/color combos) with each one's price, sale pricing and stock.",
+        "List a variable product's variations (size/color combos) with each one's price, sale pricing, stock and own photo (image, null when it has none).",
       input: getProductVariationsInput,
       handler: async (args, ctx) => {
         const res = await client.get(
@@ -1176,6 +1201,9 @@ export function buildWoocommerceTools(
 
     definePaginatedList<typeof listCustomersInput, WooCustomer, WoocommerceContext>({
       name: `mcp_${SLUG}_list_customers`,
+      // A search for a named person, and with both filters omitted, the whole customer list. Both
+      // filters are ways to ask about somebody, so both are declared.
+      identityPolicy: { mode: 'subject-bound', identityFields: ['email', 'search'] },
       description: "List or search the store's customers (name, email).",
       input: listCustomersInput,
       handler: async (args, ctx) => {
@@ -1193,6 +1221,14 @@ export function buildWoocommerceTools(
 
     tool({
       name: `mcp_${SLUG}_get_customer`,
+      // Reaches one person's record by its id: their contact and address. Bound to the person who owns
+      // it, so a consumer can serve the record its own customer placed and refuse a guessed id.
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'id',
+        recordOwnershipKind: `${SLUG}:customer`,
+      },
       description: 'Get one customer by id: email, name, and contact phone.',
       input: getCustomerInput,
       handler: async (args, ctx) => {
@@ -1225,6 +1261,14 @@ export function buildWoocommerceTools(
 
     tool({
       name: `mcp_${SLUG}_update_customer`,
+      // Reaches one person's record by its id: their contact and address. Bound to the person who owns
+      // it, so a consumer can serve the record its own customer placed and refuse a guessed id.
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'id',
+        recordOwnershipKind: `${SLUG}:customer`,
+      },
       description: "Update a customer's email, name and/or phone. Only the fields you pass change.",
       input: updateCustomerInput,
       handler: async (args, ctx) => {
@@ -1429,6 +1473,9 @@ export function buildWoocommerceTools(
 
     definePaginatedList<typeof listOrdersInput, WooOrderSummary, WoocommerceContext>({
       name: `mcp_${SLUG}_list_orders`,
+      // Takes no person identifier and returns every buyer's orders, with their names. Legitimate for
+      // the store's owner; not something to read out to whoever is in a conversation.
+      identityPolicy: { mode: 'subject-scoped' },
       description: "List the store's orders, filtered by status and/or date range. Owner-facing.",
       input: listOrdersInput,
       handler: async (args, ctx) => {
@@ -1447,6 +1494,14 @@ export function buildWoocommerceTools(
 
     tool({
       name: `mcp_${SLUG}_get_order`,
+      // Reaches one person's record by its id: their contact and address. Bound to the person who owns
+      // it, so a consumer can serve the record its own customer placed and refuse a guessed id.
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'id',
+        recordOwnershipKind: `${SLUG}:order`,
+      },
       description:
         'Get one order by id: status, total, line items, and the buyer contact + shipping address. Owner-facing.',
       input: getOrderInput,

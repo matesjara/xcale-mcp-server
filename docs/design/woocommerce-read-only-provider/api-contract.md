@@ -55,7 +55,7 @@ Namespaced `mcp_woocommerce_{verb}`. The zod `input` is the single source of tru
 | Tool | WooCommerce REST v3 endpoint | Input (zod) | Notes |
 |:--|:--|:--|:--|
 | `mcp_woocommerce_list_products` | `GET /wp-json/wc/v3/products` | `{ search?, category?, stockStatus?, page?, pageSize? }` | `definePaginatedList`; catalog filters — **implemented S2** |
-| `mcp_woocommerce_get_product` | `GET /wp-json/wc/v3/products/{id}` | `{ id: string }` | Detail; description stripped to plain text; returns variation ids — **implemented S3** |
+| `mcp_woocommerce_get_product` | `GET /wp-json/wc/v3/products/{id}` | `{ id: string }` | Detail; description and shortDescription (additive, #139) stripped to plain text; returns variation ids — **implemented S3** |
 | `mcp_woocommerce_get_product_variations` | `GET /wp-json/wc/v3/products/{id}/variations` | `{ id: string, page?, pageSize? }` | Per-variation price/stock (size/color) — **implemented S3**, shape confirmed |
 | `mcp_woocommerce_list_categories` | `GET /wp-json/wc/v3/products/categories` | `{ page?, pageSize? }` | To filter/browse the catalog — **implemented S3** |
 | `mcp_woocommerce_list_shipping_zones` | `GET /wp-json/wc/v3/shipping/zones` | `{}` | Configured zones (incl. `id:0` catch-all); not paginated — **implemented S4** |
@@ -117,6 +117,7 @@ interface WooProductSummary {
 interface WooProductDetail extends WooProductSummary {
   sku?: string;
   description?: string;
+  shortDescription: string; // additive (#139): plain text, "" when none — many stores keep the product text only here
   categories: { id: string; name: string }[];
   images: { src: string }[];
   variations?: number[];    // ids; inline in v1, separate tool in Fase 2
@@ -143,6 +144,7 @@ interface WooProductVariation {
   price: string;
   stockStatus: string;      // 'instock' | 'outofstock' | 'onbackorder'
   stockQuantity?: number | null;
+  image: { src: string } | null; // the variation's own photo (xcale-mcp-server#138); null when it has none
 }
 interface WooShippingZone { id: string; name: string; order?: number }
 interface WooShippingZoneLocation { type: string; code: string } // confirmed type: 'continent' | 'country' | 'state' (e.g. code "CO:CO-QUI")

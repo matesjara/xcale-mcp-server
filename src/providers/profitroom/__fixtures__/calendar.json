@@ -1,0 +1,16 @@
+{
+  "offerID": 380898,
+  "roomID": 0,
+  "rooms": [230226, 230228, 230230, 230232, 506622, 513440],
+  "from": "2026-10-20",
+  "to": "2026-10-26",
+  "dates": [
+    { "availability": true, "minLOS": 1, "maxLOS": null, "CTD": false, "date": "2026-10-20" },
+    { "availability": true, "minLOS": 1, "maxLOS": null, "CTD": false, "date": "2026-10-21" },
+    { "availability": true, "minLOS": 1, "maxLOS": null, "CTD": false, "date": "2026-10-22" },
+    { "availability": true, "minLOS": 1, "maxLOS": null, "CTD": false, "date": "2026-10-23" },
+    { "availability": true, "minLOS": 1, "maxLOS": null, "CTD": false, "date": "2026-10-24" },
+    { "availability": true, "minLOS": 1, "maxLOS": null, "CTD": false, "date": "2026-10-25" },
+    { "availability": true, "minLOS": 1, "maxLOS": null, "CTD": false, "date": "2026-10-26" }
+  ]
+}

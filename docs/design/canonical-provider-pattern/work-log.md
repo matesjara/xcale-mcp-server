@@ -24,7 +24,7 @@
    maps non-2xx to a typed error result; `fetchImpl` injectable for tests).
 5. **`src/core/provider-port.ts` / `catalog.ts`** — add optional `contextSchema` to `IProvider` and
    `CatalogEntry` so the consumer can discover what context (e.g. `propertyID`) to forward.
-6. **`src/core/json-schema.ts`** — `toJsonSchema(zod)` wrapper (zod-to-json-schema).
+6. **`src/core/json-schema.ts`** — `toJsonSchema(zod)` wrapper (zod `z.toJSONSchema`).
 7. **Refactor `echo`** to the new pattern (`defineTool` + `createProvider` + `createEchoProvider`
    factory). Echo becomes the canonical mini-example and stops hand-writing `inputSchema`.
 8. **Tests** — unit tests for every helper (dispatch paths, pagination math, status mapping,

@@ -42,7 +42,9 @@ the Definition of done — is the xcale layer's **`add-provider`** skill
 ([xcale-harness](https://github.com/matesjara/xcale-harness/blob/main/.claude/skills/add-provider/SKILL.md));
 it is not restated here. Start from the closest real provider: `echo` (minimal), `siigo` (credential
 exchange), `toteat` (call context), `cloudbeds` (OAuth with scopes derived from the tools), `woocommerce`
-(`basic` auth, SSRF-safe egress), `erbon` (a second credential exchange). Backend side: registration data only
+(`basic` auth, SSRF-safe egress), `erbon` (a second credential exchange), `profitroom` (credential-less
+`none` auth over an undocumented API: parse-don't-fetch context URL, fail-closed schemas shared with a drift
+probe). Backend side: registration data only
 — asked for in one xcale-backend issue (the `add-provider` checklist). **No backend provider logic.**
 
 ## Dev workflow

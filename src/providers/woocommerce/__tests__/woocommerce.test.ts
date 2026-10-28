@@ -238,6 +238,8 @@ describe('woocommerce provider — get_product', () => {
       'Camiseta marfil en jersey premium. 100% Algodón & alto gramaje.',
     );
     expect(data.description).not.toContain('<');
+    // The store wrote no short description: an empty string, never absent.
+    expect(data).toMatchObject({ shortDescription: '' });
     expect(data.categories[0]).toEqual({ id: '15', name: 'Uncategorized' });
     expect(data.images[0]?.src).toContain('96541-1.webp');
     expect(data.variations).toEqual([]);
@@ -259,6 +261,25 @@ describe('woocommerce provider — get_product', () => {
     const data = successData(result) as { description: string };
     expect(data.description).toBe('Sale now');
     expect(data.description).not.toContain('>');
+  });
+
+  it('returns the short description as plain text when the store keeps the text there', async () => {
+    // Seen live (The Chair, 2026-10-23): 47 of 105 products carry their text only in short_description.
+    const body = {
+      id: 102074,
+      name: 'ROCHESTER',
+      price: '1',
+      stock_status: 'instock',
+      stock_quantity: null,
+      permalink: 'u',
+      description: '',
+      short_description: '<p>Madera laminada negro mate o laminada color natural</p>\n',
+    };
+    const { provider: p } = provider(body);
+    const result = await p.callTool('mcp_woocommerce_get_product', { id: '102074' }, CTX);
+    const data = successData(result) as { description: string; shortDescription: string };
+    expect(data.description).toBe('');
+    expect(data.shortDescription).toBe('Madera laminada negro mate o laminada color natural');
   });
 });
 
@@ -286,8 +307,22 @@ describe('woocommerce provider — get_product_variations', () => {
       onSale: false,
       stockStatus: 'instock',
       stockQuantity: 76,
+      image: { src: 'http://localhost:10004/wp-content/uploads/2025/05/camiseta-s.jpg' },
     });
     expect(data.items[2]?.attributes[0]?.option).toBe('L');
+  });
+
+  it("returns each variation's own photo, and null when the variation has none", async () => {
+    // Real shape (The Chair, 2026-10-20): `image` is one object per variation, not an `images` array.
+    const { provider: p } = provider(productVariations);
+    const result = await p.callTool('mcp_woocommerce_get_product_variations', { id: '12' }, CTX);
+    const data = successData(result) as { items: { image: { src: string } | null }[] };
+
+    expect(data.items.map((v) => v.image)).toEqual([
+      { src: 'http://localhost:10004/wp-content/uploads/2025/05/camiseta-s.jpg' },
+      { src: 'http://localhost:10004/wp-content/uploads/2025/05/camiseta-m.jpg' },
+      null,
+    ]);
   });
 });
 

@@ -30,6 +30,36 @@ export type ToolIdentityPolicy =
   | {
       readonly mode: 'subject-bound';
       readonly identityFields: readonly string[];
+      /**
+       * Optional. Names an input field carrying a RECORD id (an appointment's `idCita`) the caller may
+       * OWN — a record created through the caller's own channel. A consumer that tracks which records a
+       * subject created may authorize the call by that ownership even when the identity fields do not
+       * match, so a patient can cancel the appointment they booked without being pre-verified. Platform
+       * capability of the identity contract, not provider-specific (like `identityFields` itself).
+       */
+      readonly recordOwnershipField?: string;
+      /**
+       * Optional. Names the field carrying a RECORD id on each item of the tool's LIST result (an
+       * appointment list's `idCita`). A consumer that cannot bind the identity fields may still serve
+       * the call to a subject who owns records of this provider, returning ONLY the items whose id that
+       * subject owns and withholding the rest — so a patient can see the appointments they booked
+       * without being pre-verified, and a stranger's document returns nothing of theirs. Platform
+       * capability of the identity contract, not provider-specific.
+       */
+      readonly ownedResultField?: string;
+      /**
+       * Optional. The id space of the record ids named by `recordOwnershipField` or `ownedResultField`,
+       * as `<provider>:<kind>` (`woocommerce:order`, `woocommerce:customer`). Ids of different kinds never
+       * compare equal: order `42` is not customer `42`. Absent: the provider has one kind of record id.
+       */
+      readonly recordOwnershipKind?: string;
+      /**
+       * Optional. When true, the consumer enforces this tool REGARDLESS of a tenant's opt-in identity
+       * mode — protection the tenant cannot switch off. For data whose confidentiality is not the
+       * tenant's to waive (a clinic's patient records under Ley 1581). Platform capability of the
+       * identity contract, not provider-specific.
+       */
+      readonly alwaysEnforce?: boolean;
     }
   /** Takes no person identifier and returns other people's records anyway. */
   | { readonly mode: 'subject-scoped' }
@@ -98,6 +128,12 @@ export interface InboundCallContext {
   readonly token: SecretString;
   /** Opaque, provider-scoped routing data (e.g. accountKey, storeDomain). Validated per adapter. */
   readonly metadata?: Record<string, unknown>;
+  /**
+   * Multi-credential providers only: the named-secret bundle `{ groupKey: secretValue }` from the
+   * `X-Provider-Credentials` header (raw strings; the protocol wraps each into a `SecretString` and
+   * builds `ResolvedCredential.secrets`). Absent ⇒ single-secret (the `token`).
+   */
+  readonly credentials?: Readonly<Record<string, string>>;
 }
 
 /**

@@ -142,7 +142,9 @@ reconciliation flow takes is the consumer's concern, not this FD's.)
   `X-Provider-Token: <Cloudbeds OAuth token>` + metadata `{ propertyID }` (identical envelope to the
   read tools).
 - **Input (entity sketch — §7)**: booking fields (guests, room assignment, check-in/out dates, rate) +
-  optional `thirdPartyIdentifier` + optional notes. **No payment fields.**
+  a **required** `thirdPartyIdentifier` + optional notes. **No payment fields.** The reference is
+  required (#66) because Cloudbeds has no idempotency key: a create that times out may still have
+  landed, and the reference lets the caller look it up instead of creating a duplicate.
 - **Behavior**: adapter shapes a `postReservation` request (encoding per the provider's requirement —
   confirmed from primary evidence, frozen in the API Contract) via `client.post(...)`, token applied at
   egress by the core; returns the
@@ -190,7 +192,7 @@ reference it stamped.
 | room assignment | object[] | Room type / room, per-room dates. |
 | `startDate`/`endDate` | string | Stay dates. |
 | rate | string/number | Rate/rate-plan reference (verbatim provider shape). |
-| `thirdPartyIdentifier` | string (optional) | **Consumer-supplied external reference** (passthrough). |
+| `thirdPartyIdentifier` | string (required) | **Consumer-supplied external reference** (passthrough). Required (#66): Cloudbeds has no idempotency key, so a timed-out create is looked up by this reference instead of duplicated. |
 | notes | string (optional) | Reservation observations. |
 | ~~payment~~ | — | **Excluded** (§5). |
 
