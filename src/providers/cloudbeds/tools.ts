@@ -376,6 +376,7 @@ export function buildCloudbedsTools(
         identityFields: [],
         recordOwnershipField: 'reservationID',
         recordOwnershipKind: `${SLUG}:reservation`,
+        recordAction: 'read',
       },
       requiredScopes: ['read:reservation'], // spec: getReservation
       description:
@@ -406,6 +407,7 @@ export function buildCloudbedsTools(
         identityFields: [],
         recordOwnershipField: 'reservationID',
         recordOwnershipKind: `${SLUG}:reservation`,
+        recordAction: 'read',
       },
       requiredScopes: ['read:reservation'], // spec: getReservationsWithRateDetails
       description:
@@ -433,6 +435,7 @@ export function buildCloudbedsTools(
         identityFields: [],
         recordOwnershipField: 'guestID',
         recordOwnershipKind: `${SLUG}:guest`,
+        recordAction: 'read',
       },
       requiredScopes: ['read:guest'], // spec: getGuest
       description:
@@ -734,6 +737,7 @@ export function buildCloudbedsTools(
         identityFields: [],
         recordOwnershipField: 'reservationID',
         recordOwnershipKind: `${SLUG}:reservation`,
+        recordAction: 'change',
       },
       requiredScopes: ['write:reservation'], // spec: putReservation
       description:
@@ -1057,6 +1061,7 @@ export function buildCloudbedsTools(
         identityFields: [],
         recordOwnershipField: 'guestID',
         recordOwnershipKind: `${SLUG}:guest`,
+        recordAction: 'change',
       },
       requiredScopes: ['write:guest'], // spec: putGuest
       description:
@@ -1093,6 +1098,7 @@ export function buildCloudbedsTools(
         identityFields: [],
         recordOwnershipField: 'guestID',
         recordOwnershipKind: `${SLUG}:guest`,
+        recordAction: 'read',
       },
       requiredScopes: ['read:guest'], // spec: getGuestNotes
       description:
@@ -1116,6 +1122,7 @@ export function buildCloudbedsTools(
         identityFields: [],
         recordOwnershipField: 'guestID',
         recordOwnershipKind: `${SLUG}:guest`,
+        recordAction: 'change',
       },
       requiredScopes: ['write:guest'], // spec: postGuestNote
       description:
@@ -1143,6 +1150,7 @@ export function buildCloudbedsTools(
         identityFields: [],
         recordOwnershipField: 'reservationID',
         recordOwnershipKind: `${SLUG}:reservation`,
+        recordAction: 'read',
       },
       requiredScopes: ['read:reservation'], // spec: getReservationNotes
       description: 'List the notes on a reservation. Use it to see what was agreed or flagged.',
@@ -1165,6 +1173,7 @@ export function buildCloudbedsTools(
         identityFields: [],
         recordOwnershipField: 'reservationID',
         recordOwnershipKind: `${SLUG}:reservation`,
+        recordAction: 'change',
       },
       requiredScopes: ['write:reservation'], // spec: postReservationNote
       description:

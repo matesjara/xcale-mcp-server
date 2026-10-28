@@ -71,24 +71,31 @@ describe('cloudbeds publishes whose data each tool can reach', () => {
   it('binds every tool that reaches one reservation or one guest by its id', () => {
     // Each takes an id and names nobody: without a policy, a consumer enforcing "only the person
     // writing" would serve any guessed reservation or guest id (xcale-backend#1859, slice 25).
-    const byId: Record<string, [string, string]> = {
-      mcp_cloudbeds_get_reservation: ['reservationID', 'cloudbeds:reservation'],
-      mcp_cloudbeds_get_reservation_rate_details: ['reservationID', 'cloudbeds:reservation'],
-      mcp_cloudbeds_modify_reservation: ['reservationID', 'cloudbeds:reservation'],
-      mcp_cloudbeds_list_reservation_notes: ['reservationID', 'cloudbeds:reservation'],
-      mcp_cloudbeds_add_reservation_note: ['reservationID', 'cloudbeds:reservation'],
-      mcp_cloudbeds_get_guest: ['guestID', 'cloudbeds:guest'],
-      mcp_cloudbeds_update_guest: ['guestID', 'cloudbeds:guest'],
-      mcp_cloudbeds_list_guest_notes: ['guestID', 'cloudbeds:guest'],
-      mcp_cloudbeds_add_guest_note: ['guestID', 'cloudbeds:guest'],
+    // The action is what the call does to that record: `read` returns it, `change` writes it
+    // (`modify_reservation` also cancels, by status — one tool, so one action: the broader write).
+    const byId: Record<string, [string, string, 'read' | 'change']> = {
+      mcp_cloudbeds_get_reservation: ['reservationID', 'cloudbeds:reservation', 'read'],
+      mcp_cloudbeds_get_reservation_rate_details: [
+        'reservationID',
+        'cloudbeds:reservation',
+        'read',
+      ],
+      mcp_cloudbeds_modify_reservation: ['reservationID', 'cloudbeds:reservation', 'change'],
+      mcp_cloudbeds_list_reservation_notes: ['reservationID', 'cloudbeds:reservation', 'read'],
+      mcp_cloudbeds_add_reservation_note: ['reservationID', 'cloudbeds:reservation', 'change'],
+      mcp_cloudbeds_get_guest: ['guestID', 'cloudbeds:guest', 'read'],
+      mcp_cloudbeds_update_guest: ['guestID', 'cloudbeds:guest', 'change'],
+      mcp_cloudbeds_list_guest_notes: ['guestID', 'cloudbeds:guest', 'read'],
+      mcp_cloudbeds_add_guest_note: ['guestID', 'cloudbeds:guest', 'change'],
     };
-    for (const [name, [field, kind]] of Object.entries(byId)) {
+    for (const [name, [field, kind, action]] of Object.entries(byId)) {
       const tool = byName.get(name);
       expect(tool?.identityPolicy, name).toEqual({
         mode: 'subject-bound',
         identityFields: [],
         recordOwnershipField: field,
         recordOwnershipKind: kind,
+        recordAction: action,
       });
       const properties = Object.keys(
         (tool?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {},
