@@ -5,6 +5,7 @@ import type { RequestResult } from '../../core/http';
 import { definePaginatedList } from '../../core/pagination';
 import { type ToolDefinition, err, ok, toolFactory } from '../../core/tool';
 import { isRealDate, resolveHorizon, shapeRoomCalendars } from './availability-calendar';
+import { WEEKDAYS_IN_DATA_NOTE, weekdayNote, weekdaysFrom } from './weekday';
 import type { CloudbedsClient } from './client';
 import type { CloudbedsContext } from './context';
 import { SLUG } from './manifest';
@@ -12,6 +13,21 @@ import { SLUG } from './manifest';
 type Unwrapped =
   | { readonly ok: true; readonly data: unknown; readonly total?: number }
   | { readonly ok: false; readonly code: ProviderErrorCode; readonly message: string };
+
+/**
+ * Cloudbeds' reservation statuses — what a reservation can be set to (`modify_reservation`) and what
+ * an email schedule can fire on (`create_email_schedule`). A closed list, so an invented or misspelt
+ * value (`"cancelled"`, `"checkout"`) is refused here with the valid ones named, instead of reaching
+ * the one destructive write in the toolset (#67).
+ */
+const RESERVATION_STATUSES = [
+  'confirmed',
+  'not_confirmed',
+  'canceled',
+  'checked_in',
+  'checked_out',
+  'no_show',
+] as const;
 
 /**
  * Classify a Cloudbeds `success:false` envelope into a typed error code by its `message`.
@@ -86,7 +102,42 @@ function classifyTransportFailure(res: Extract<RequestResult, { ok: false }>): {
       detail: 'This call is restricted to third-party integrations.',
     };
   }
-  return { code: res.errorCode };
+  const detail = providerDetail(res.body);
+  return detail ? { code: res.errorCode, detail } : { code: res.errorCode };
+}
+
+/**
+ * What Cloudbeds said about a failed call, so the agent has something to correct (#71). A 400 used
+ * to reach it as "failed (HTTP 400)" while the body named the missing parameter.
+ *
+ * Cloudbeds answers errors as `{success:false, message}` or `{status:false, error}`; either field is
+ * taken when it is a non-empty string — the provider's own parsed message, the only part of the body
+ * allowed into error text (`add-provider` › `errors-and-tests.md` › Error text). Nothing else is ever
+ * returned: not plain text, not an HTML page, not JSON without a string message (an array, an
+ * object-valued message, a body the transport cut at 500 chars and that no longer parses). The raw
+ * body can echo the request — a 400 on a guest write carried the guest's email and phone — and error
+ * text reaches logs, the consumer and the agent's prompt. The message is folded to one line and
+ * capped. The error CODE is untouched — it still comes from the HTTP status.
+ */
+const MAX_DETAIL = 300;
+
+function providerDetail(body: string): string | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return undefined;
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
+  const { message, error } = parsed as { message?: unknown; error?: unknown };
+  return oneLine(message) ?? oneLine(error);
+}
+
+function oneLine(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const line = value.replace(/\s+/g, ' ').trim();
+  if (line === '') return undefined;
+  return line.length > MAX_DETAIL ? `${line.slice(0, MAX_DETAIL)}…` : line;
 }
 
 /**
@@ -104,17 +155,16 @@ function unwrap(res: RequestResult, method: string): Unwrapped {
     return {
       ok: false,
       code,
-      message: detail
-        ? `Cloudbeds ${method}: ${detail}`
-        : `Cloudbeds ${method} failed (HTTP ${res.status})`,
+      message: `Cloudbeds ${method} failed (HTTP ${res.status})${detail ? `: ${detail}` : ''}`,
     };
   }
-  const body = res.data as {
-    success?: boolean;
-    data?: unknown;
-    total?: number;
-    message?: string;
-  } | null;
+  // Only an object can be the envelope. A bare 200 string or number used to reach `'data' in body`,
+  // which throws on a non-object and crashed the call instead of answering it (#72); it now passes
+  // through as the data, as any body without a `data` field always has.
+  const body =
+    typeof res.data === 'object' && res.data !== null
+      ? (res.data as { success?: boolean; data?: unknown; total?: number; message?: string })
+      : null;
   if (body && body.success === false) {
     return {
       ok: false,
@@ -122,7 +172,7 @@ function unwrap(res: RequestResult, method: string): Unwrapped {
       message: body.message ?? `Cloudbeds ${method} returned success=false`,
     };
   }
-  const data = body && 'data' in body ? body.data : body;
+  const data = body && 'data' in body ? body.data : res.data;
   return body?.total !== undefined ? { ok: true, data, total: body.total } : { ok: true, data };
 }
 
@@ -141,10 +191,11 @@ function unwrapPayments(
   requiredFields: readonly string[],
 ): Unwrapped {
   if (!res.ok) {
+    const { code, detail } = classifyTransportFailure(res);
     return {
       ok: false,
-      code: res.errorCode,
-      message: `Cloudbeds ${what} failed (HTTP ${res.status})`,
+      code,
+      message: `Cloudbeds ${what} failed (HTTP ${res.status})${detail ? `: ${detail}` : ''}`,
     };
   }
   const body = res.data as Record<string, unknown> | null;
@@ -394,7 +445,10 @@ export function buildCloudbedsTools(
           children: args.children,
         });
         const u = unwrap(res, 'getAvailableRoomTypes');
-        return u.ok ? ok(u.data) : err(u.code, u.message);
+        if (!u.ok) return err(u.code, u.message);
+        // The weekdays ride the message, not the data: consumers read `data` as Cloudbeds' own
+        // array (the backend prices extra guests from it), and wrapping it would break them (#111).
+        return ok(u.data, weekdayNote({ startDate: args.startDate, endDate: args.endDate }));
       },
     }),
 
@@ -502,7 +556,16 @@ export function buildCloudbedsTools(
                   'so no calendar can be built. Check specific dates with get_availability instead.',
           );
         }
-        return ok({ from: args.startDate, to: endDate, roomTypes: shaped.roomTypes });
+        return ok(
+          {
+            from: args.startDate,
+            to: endDate,
+            roomTypes: shaped.roomTypes,
+            // Every date a window or `unavailable` can name, checkout included (#111).
+            weekdays: weekdaysFrom(args.startDate, endDate),
+          },
+          WEEKDAYS_IN_DATA_NOTE,
+        );
       },
     }),
 
@@ -521,8 +584,10 @@ export function buildCloudbedsTools(
         'Create a reservation (booking) for the property. Requires the stay dates, the primary guest, ' +
         'and per room type the rooms/adults/children counts. Get roomTypeID and roomRateID from the ' +
         'availability/rate tools — never invent them. Booking-only: this declares a payment method but ' +
-        'captures no card and moves no money. Pass thirdPartyIdentifier to stamp your own external ' +
-        'reference so you can reconcile the booking later.',
+        'captures no card and moves no money. thirdPartyIdentifier is required: your own unique ' +
+        'reference for this booking. If the call fails or times out, the reservation may still have ' +
+        'been created — look for it with list_reservations (each reservation carries its ' +
+        'thirdPartyIdentifier) before trying again, and retry with the SAME reference, never a new one.',
       input: z
         .object({
           // Stay
@@ -572,7 +637,17 @@ export function buildCloudbedsTools(
           paymentMethod: z.enum(['cash', 'credit', 'ebanking', 'pay_pal']).default('cash'),
 
           // Consumer-supplied external reference for reconciliation (the consumer owns idempotency).
-          thirdPartyIdentifier: z.string().optional(),
+          // REQUIRED (#66) because of the abort-after-write window: the transport gives up after 15 s,
+          // and Cloudbeds may already have written the row when it does. postReservation has no
+          // idempotency key, so this stamp is the only way a caller can tell "the write failed" from
+          // "it landed and the answer was lost" — without it, a retry double-books the room.
+          thirdPartyIdentifier: z
+            .string()
+            .trim()
+            .min(1)
+            .describe(
+              'Your unique reference for this booking. Reuse the same value on any retry of it.',
+            ),
 
           // Misc
           estimatedArrivalTime: z.string().optional().describe('HH:mm 24h'),
@@ -615,11 +690,13 @@ export function buildCloudbedsTools(
         .object({
           reservationID: z.string().min(1),
           status: z
-            .string()
+            .enum(RESERVATION_STATUSES)
             .optional()
             .describe(
-              'New reservation status — use "canceled" to cancel the booking. The property validates ' +
-                'the value and rejects a transition it does not allow.',
+              'New reservation status — "canceled" cancels the booking. checked_in, checked_out and ' +
+                'no_show are front-desk moves in Cloudbeds: checked_in marks the guest as arrived, ' +
+                'checked_out closes the reservation folio, and no_show marks a guest who did not ' +
+                'arrive. The property validates the value and rejects a transition it does not allow.',
             ),
           checkoutDate: z
             .string()
@@ -1976,14 +2053,7 @@ export function buildCloudbedsTools(
             z
               .object({
                 type: z.literal('reservation_status'),
-                status: z.enum([
-                  'confirmed',
-                  'not_confirmed',
-                  'canceled',
-                  'checked_in',
-                  'checked_out',
-                  'no_show',
-                ]),
+                status: z.enum(RESERVATION_STATUSES),
               })
               .strict(),
             z

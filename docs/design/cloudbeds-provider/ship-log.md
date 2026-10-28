@@ -90,8 +90,8 @@ checked.
   `_meta["xcale.app/audience"]` in `tools/list`; nothing in the gateway filters or refuses by it, and
   xcale-backend reads it nowhere. Mateo **rejected the tool-audience gate on 2026-10-15**
   (matesjara/xcale-backend#1243): the backend gate was never merged (#1468 was reworked without it), and this repo's ADR
-  `0021-tool-audience-gate-on-guest-channels` stays **Proposed** — marking it `Rejected` or removing it
-  is the cleanup item on xcale-backend#1243; the marks stay until the grill decides their use. Shipping
+  `0021-tool-audience-gate-on-guest-channels` is marked **Rejected** (2026-10-19 cleanup); the marks
+  stay until matesjara/xcale-backend#1614 decides their use. Shipping
   them changes no tool any agent can reach.
 - #131 also ships `get_reservation_rate_details` (40 Cloudbeds tools; `schemaVersion` 2026-10-09,
   `providerVersion` 0.12.0) and the published `putReservation` shape of `modify_reservation` `rooms[]`.

@@ -25,12 +25,12 @@ const PAYMENTS_BASE_URL = 'https://api.cloudbeds.com/payments/v2';
 const V2_BASE_URL = 'https://api.cloudbeds.com';
 
 /**
- * Percent-encode each Payments v2 path segment. Every id that reaches a payments URL goes through
- * here, so a caller-supplied value (`../refund`, `abc?x=1`) selects a resource NAME, never a
- * different endpoint or extra query params — regardless of what the tool's input schema allows.
+ * Percent-encode each path segment of a v2 URL — Payments v2 and the PMS v2.0 surface (`getV2`)
+ * alike. Every id that reaches a v2 URL goes through here, so a caller-supplied value (`../refund`,
+ * `abc?x=1`) selects a resource NAME, never a different endpoint or extra query params — regardless
+ * of what the tool's input schema allows.
  */
-const paymentsPath = (segments: readonly string[]): string =>
-  segments.map(encodeURIComponent).join('/');
+const v2Path = (segments: readonly string[]): string => segments.map(encodeURIComponent).join('/');
 
 export interface CloudbedsClientDeps {
   readonly baseUrl?: string;
@@ -181,7 +181,7 @@ export function createCloudbedsClient(deps: CloudbedsClientDeps = {}): Cloudbeds
     postPayments(segments, request, body, headers) {
       return request({
         method: 'POST',
-        url: `${PAYMENTS_BASE_URL}/${paymentsPath(segments)}`,
+        url: `${PAYMENTS_BASE_URL}/${v2Path(segments)}`,
         headers: { 'content-type': 'application/json', ...headers },
         body: JSON.stringify(body),
       });
@@ -189,7 +189,7 @@ export function createCloudbedsClient(deps: CloudbedsClientDeps = {}): Cloudbeds
     getPayments(segments, request, headers) {
       return request({
         method: 'GET',
-        url: `${PAYMENTS_BASE_URL}/${paymentsPath(segments)}`,
+        url: `${PAYMENTS_BASE_URL}/${v2Path(segments)}`,
         headers: { ...headers },
       });
     },
@@ -201,7 +201,7 @@ export function createCloudbedsClient(deps: CloudbedsClientDeps = {}): Cloudbeds
       const search = qs.toString();
       return request({
         method: 'GET',
-        url: `${V2_BASE_URL}/${paymentsPath(segments)}${search ? `?${search}` : ''}`,
+        url: `${V2_BASE_URL}/${v2Path(segments)}${search ? `?${search}` : ''}`,
         headers: { ...headers },
       });
     },

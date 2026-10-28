@@ -79,3 +79,20 @@
 - `price`: normalizar a string siempre (product vs line_item difieren).
 - Zonas: documentar la zona `id:0` catch-all.
 - Confirmar `stock_status`, `currency`, `total`, `line_items` (ya observados).
+
+---
+
+## Texto en `short_description` (#139, 2026-10-23)
+
+Leído de la tienda real de The Chair por la Store API pública (`GET /wp-json/wc/store/v1/products`, sin credenciales, solo lectura), los 105 productos publicados:
+
+| Dónde está el texto | Productos |
+|---|---|
+| Solo en `short_description` | 47 |
+| Solo en `description` | 29 |
+| En los dos | 20 |
+| En ninguno (p. ej. bundles "Shop the look") | 9 |
+
+Ejemplo: `102074` ROCHESTER — `description: ""`, `short_description: "<p>Madera laminada negro mate o laminada color natural</p>"`. Con solo `description`, el agente no veía texto en el 45% del catálogo. → `get_product` expone también `shortDescription` (texto plano, `""` si no hay).
+
+`list_products` no devuelve ningún texto del producto (ni `description` ni `short_description`): el resumen es precio/stock/estado. No hay el mismo hueco ahí; el texto se lee con `get_product`.

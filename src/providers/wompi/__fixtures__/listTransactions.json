@@ -1,0 +1,49 @@
+{
+  "data": [
+    {
+      "id": "11977675-1792680357-70475",
+      "created_at": "2026-10-22T14:45:57.695Z",
+      "finalized_at": "2026-10-22T14:46:03.278Z",
+      "amount_in_cents": 15000000,
+      "reference": "test_XGd2UH_1792680297_4K9ybxbQs",
+      "customer_email": "comprador@example.com",
+      "currency": "COP",
+      "payment_method_type": "CARD",
+      "payment_method": { "type": "CARD", "extra": { "last_four": "4242" } },
+      "status": "APPROVED",
+      "status_message": null,
+      "billing_data": null,
+      "shipping_address": null,
+      "redirect_url": null,
+      "payment_source_id": null,
+      "payment_link_id": "test_XGd2UH",
+      "customer_data": { "full_name": "Comprador Prueba", "phone_number": "+570000000000" },
+      "bill_id": null,
+      "taxes": [],
+      "tip_in_cents": null
+    },
+    {
+      "id": "11977675-1792680256-98745",
+      "created_at": "2026-10-22T14:44:16.567Z",
+      "finalized_at": "2026-10-22T14:44:18.514Z",
+      "amount_in_cents": 15000000,
+      "reference": "test_XGd2UH_1792680105_4j0UfKjTy",
+      "customer_email": "comprador@example.com",
+      "currency": "COP",
+      "payment_method_type": "CARD",
+      "payment_method": { "type": "CARD", "extra": { "last_four": "1111" } },
+      "status": "DECLINED",
+      "status_message": "La transacción fue rechazada (Sandbox)",
+      "billing_data": null,
+      "shipping_address": null,
+      "redirect_url": null,
+      "payment_source_id": null,
+      "payment_link_id": "test_XGd2UH",
+      "customer_data": { "full_name": "Comprador Prueba", "phone_number": "+570000000000" },
+      "bill_id": null,
+      "taxes": [],
+      "tip_in_cents": null
+    }
+  ],
+  "meta": { "page": 1, "page_size": 200, "total_results": 2 }
+}

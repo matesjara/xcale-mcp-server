@@ -36,7 +36,7 @@ returned verbatim; errors never echo Erbon's body (`unwrapErbon`: operation labe
 | `list_currencies` _(added 2026-10-12)_                             | ❌ controlPlane | The hotel's currencies (`currencyId` → ISO code), for the backend CRM import; see the addendum        |
 
 Also: the provider logo (`logoUrl` in the manifest — `assets/erbon.webp` until #148, `assets/erbon.svg`
-in the house tile since 2026-10-17); `schemaVersion` 2026-10-06, `providerVersion` 0.3.0.
+in the house tile since 2026-10-17); `schemaVersion` 2026-10-06, `providerVersion` 0.3.1 (bumped 2026-10-26 for traceability of `list_currencies`, #137; `schemaVersion` stays because the tool is withdrawn from `tools/list`).
 
 ## Addendum — `list_currencies` (CRM feed, 2026-10-12)
 
@@ -97,8 +97,8 @@ on `dev` with #123 (the standalone PR #126 carried the same three commits).
 - ✅ done (2026-10-19) — deployed **before** the backend, per the release order: backend release
   `matesjara/xcale-backend#1665` (the Erbon CRM import, the logos of #1647) followed and is ACTIVE
   (deployment `44e51a09`, 15:23:16 UTC).
-- ⬜ pending — `assets/erbon.webp` can now be deleted (#148: it stayed until xcale-backend#1647 was
-  in production, which it is since 2026-10-19).
+- ✅ done (2026-10-21) — `assets/erbon.webp` deleted, with `assets/woocommerce.webp` (#148 kept them
+  until xcale-backend#1647 was in production, which it is since 2026-10-19).
 
 ## Known gaps / open with Erbon
 

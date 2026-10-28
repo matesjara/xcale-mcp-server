@@ -13,8 +13,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          # Match the production image (Dockerfile: node:22-alpine). Node 20 is EOL.
-          node-version: 22
+          # Match the production image (Dockerfile: node:22.23.4-alpine). Node 20 is EOL.
+          node-version: 22.23.4
           cache: npm
       # Only the audit steps below need this, and they need it badly. npm is retiring the legacy
       # `POST /-/npm/v1/security/audits/quick` endpoint that the npm shipped with Node 22 calls,

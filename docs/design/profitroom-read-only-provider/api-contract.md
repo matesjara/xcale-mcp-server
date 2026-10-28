@@ -204,7 +204,7 @@ The parsed URL is **never** fetched. A failing refine is rejected by the core's 
 
 ## C. MCP tool contract
 
-All tools via `tool({...})` with zod `input` as the single source of truth. `hotelKey` comes from context, never from tool input. All five menu tools are `readOnly: true`, `audience: 'customer'`.
+All tools via `tool({...})` with zod `input` as the single source of truth. `hotelKey` comes from context, never from tool input. All six tools are `readOnly: true`, `audience: 'customer'`.
 
 ### Common inputs
 
@@ -242,13 +242,13 @@ Handler-level validation (before any upstream call): `checkOut > checkIn`; `chec
 | `mcp_profitroom_get_availability_calendar` | `{ from: isoDate, to: isoDate }` (≤ 60 days, `to` ≥ `from`) | `calendar`                                         | `Calendar`                     |
 | `mcp_profitroom_check_availability`        | `stayInput`                                                 | `availability` + cached `rooms`/`offers`/`details` | `StayAvailability` (no prices) |
 
-### C.2 Routable but NOT published (`controlPlane: true`) — the money guard
+### C.2 Prices — published and routable
 
-| Tool                             | `input`     | Backs                        | Consumer                                                            |
-| :------------------------------- | :---------- | :--------------------------- | :------------------------------------------------------------------ |
-| `mcp_profitroom_get_stay_prices` | `stayInput` | same as `check_availability` | xcale-backend `profitroom-stay-truth` adapter → `StayQuote` (#1599) |
+| Tool                             | `input`     | Backs                        | Consumer                                                                                                         |
+| :------------------------------- | :---------- | :--------------------------- | :--------------------------------------------------------------------------------------------------------------- |
+| `mcp_profitroom_get_stay_prices` | `stayInput` | same as `check_availability` | the agent, when its tenant assigns it; and xcale-backend's `profitroom-stay-truth` adapter → `StayQuote` (#1599) |
 
-> `get_stay_prices` is the only tool that returns money. Keeping it out of `listTools()` means the agent cannot narrate a raw, pre-tax figure; it only ever sees the consumer's `StayQuote`.
+> `get_stay_prices` is the only tool that returns money. It was `controlPlane` (out of `listTools()`, the "money guard") until Mateo, 2026-10-17, xcale-mcp-server#149: a hotel's agent may read its PMS's prices, and which tools it carries is the tenant's choice. It is now published with `audience: 'customer'`. The consumer's quote (`StayQuote`, with the tax facts) stays the **recommended** way to quote; under-quotes are prevented by context (`taxesIncluded`, `taxesPresentationMode`, the skill), not by hiding the number.
 
 ### C.3 Output types — projection, original names (ADR 0009 Fidelity over Unification)
 
@@ -296,6 +296,14 @@ interface Room {
   limits: { min: Occupancy; max: Occupancy }; // verbatim
   totalRooms: number;
   offerIds: number[];
+  // DERIVED (#145, ADR 0009): public URLs built from gallery.featured / gallery.images[].fileName.
+  // Featured first, then images by orderIndex. Host fixed (never the connection's URL); a file name
+  // that is not [a-z0-9-]+.(jpg|jpeg|png|webp) is dropped. Observed live 2026-10-15:
+  //   featured → https://r.profitroom.pl/{hotelKey}/images/rooms/thumbs/1134x0/{fileName}
+  //   images   → https://r.profitroom.pl/{hotelKey}/images/gallery/thumbs/1134x0/{fileName}
+  // (images/rooms/thumbs for a gallery file → 404; images/rooms/{fileName} → a 1x1 GIF.)
+  // A missing or reshaped gallery yields [] — it never fails the room list.
+  photos: { url: string }[];
 }
 interface Occupancy {
   numberOfPeople: number;
@@ -361,7 +369,7 @@ interface StayProposal {
   profile: Profile; // nested: the offer's profile with this profileId
 }
 
-// get_stay_prices — controlPlane only
+// get_stay_prices — published (was controlPlane until 2026-10-17)
 interface StayPrices extends Omit<StayAvailability, 'proposals'> {
   currency: string; // details.defaultCurrency.code
   taxesPresentationMode: string; // verbatim config value, e.g. "net"
@@ -436,7 +444,7 @@ Fixtures are the raw 2026-10-14 responses, saved under `src/providers/profitroom
 }
 ```
 
-**`get_stay_prices` — same search** (controlPlane): the same object, plus these fields at the top and on each proposal:
+**`get_stay_prices` — same search**: the same object, plus these fields at the top and on each proposal:
 
 ```json
 {
@@ -475,7 +483,7 @@ Fixtures are the raw 2026-10-14 responses, saved under `src/providers/profitroom
 | Phase             | Scope                                                                                  | Trigger                                |
 | :---------------- | :------------------------------------------------------------------------------------- | :------------------------------------- |
 | 0                 | `none` auth variant (core)                                                             | ADR accepted                           |
-| **This contract** | 5 menu reads + `controlPlane` `get_stay_prices`; parsing; errors; drift probe          | after phase 0                          |
+| **This contract** | 6 published reads (incl. `get_stay_prices`); parsing; errors; drift probe              | after phase 0                          |
 | Fast-follow       | `rooms` max > 1 (additive)                                                             | demand                                 |
 | Consumer          | `profitroom-stay-truth` → `StayQuote` (with unknown-tax handling), secret-less connect | matesjara/xcale-backend#1599           |
 | Partner API       | real bookings, CRM sync                                                                | matesjara/xcale-backend#1600 (blocked) |

@@ -1,0 +1,6 @@
+{
+  "error": {
+    "type": "UNPROCESSABLE",
+    "reason": "La base de la transacción debe ser igual o mayor a 150000 y/o el porcentaje de los impuestos deben ser menores a 50% del monto total"
+  }
+}
