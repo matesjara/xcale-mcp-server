@@ -68,6 +68,50 @@ describe('cloudbeds publishes whose data each tool can reach', () => {
     expect(byName.get('mcp_cloudbeds_get_rate_plans')?.identityPolicy).toBeUndefined();
   });
 
+  it('binds every tool that reaches one reservation or one guest by its id', () => {
+    // Each takes an id and names nobody: without a policy, a consumer enforcing "only the person
+    // writing" would serve any guessed reservation or guest id (xcale-backend#1859, slice 25).
+    // The action is what the call does to that record: `read` returns it, `change` writes it
+    // (`modify_reservation` also cancels, by status — one tool, so one action: the broader write).
+    const byId: Record<string, [string, string, 'read' | 'change']> = {
+      mcp_cloudbeds_get_reservation: ['reservationID', 'cloudbeds:reservation', 'read'],
+      mcp_cloudbeds_get_reservation_rate_details: [
+        'reservationID',
+        'cloudbeds:reservation',
+        'read',
+      ],
+      mcp_cloudbeds_modify_reservation: ['reservationID', 'cloudbeds:reservation', 'change'],
+      mcp_cloudbeds_list_reservation_notes: ['reservationID', 'cloudbeds:reservation', 'read'],
+      mcp_cloudbeds_add_reservation_note: ['reservationID', 'cloudbeds:reservation', 'change'],
+      mcp_cloudbeds_get_guest: ['guestID', 'cloudbeds:guest', 'read'],
+      mcp_cloudbeds_update_guest: ['guestID', 'cloudbeds:guest', 'change'],
+      mcp_cloudbeds_list_guest_notes: ['guestID', 'cloudbeds:guest', 'read'],
+      mcp_cloudbeds_add_guest_note: ['guestID', 'cloudbeds:guest', 'change'],
+    };
+    for (const [name, [field, kind, action]] of Object.entries(byId)) {
+      const tool = byName.get(name);
+      expect(tool?.identityPolicy, name).toEqual({
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: field,
+        recordOwnershipKind: kind,
+        recordAction: action,
+      });
+      const properties = Object.keys(
+        (tool?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {},
+      );
+      expect(properties, `${name}: ${field} is not in its input schema`).toContain(field);
+    }
+  });
+
+  it('keeps assigning guests to a room a staff move, never bound by the reservation', () => {
+    // Owning a reservation does not make the guestIDs put into it yours: bound by the reservation
+    // alone, a guest could attach a stranger's profile to their own stay and read it back.
+    expect(byName.get('mcp_cloudbeds_assign_guest_to_room')?.identityPolicy).toEqual({
+      mode: 'subject-scoped',
+    });
+  });
+
   it('declares the version bump that a changed tools/list requires', () => {
     // The repo's own rule, and the nearest precedent is a FIX commit for exactly this omission.
     //
@@ -80,6 +124,6 @@ describe('cloudbeds publishes whose data each tool can reach', () => {
     // Moved again by #67 + #66 (two write tools' input schemas narrowed), one bump for both.
     // Moved again by `find_guest_reservations`, the first record lookup (ADR 0023).
     expect(cloudbedsManifest.schemaVersion).toBe('2026-10-27');
-    expect(cloudbedsManifest.providerVersion).toBe('0.14.1');
+    expect(cloudbedsManifest.providerVersion).toBe('0.16.0');
   });
 });

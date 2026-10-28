@@ -70,7 +70,7 @@ describe('cloudbeds publishes who each tool may serve', () => {
 
   it('declares the version bump that a changed tools/list requires', () => {
     expect(cloudbedsManifest.schemaVersion).toBe('2026-10-27');
-    expect(cloudbedsManifest.providerVersion).toBe('0.14.1');
+    expect(cloudbedsManifest.providerVersion).toBe('0.16.0');
   });
 });
 
