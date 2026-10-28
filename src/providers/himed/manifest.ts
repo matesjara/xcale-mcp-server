@@ -25,8 +25,13 @@ export const himedManifest: ProviderManifest = {
   // would keep the old policies (no `alwaysEnforce` ⇒ unenforced under a tenant's `off`), so the
   // bump is what makes the protection reach it; 2026-10-14: patient tools became `subject-bound` on
   // `idPaciente`; create_appointment requires `parentescoPideCita`.)
-  schemaVersion: '2026-10-25',
-  providerVersion: '0.7.0',
+  // 2026-10-27 (xcale-backend#1859, ADR 0023): every patient field is a `document`; the appointment
+  // list names its record (`resultRecordIdField`) and keeps `textoCita` as detail; cancel says it
+  // cancels; and `create_appointment` declares the cita it creates (`createdRecordIdField`), so a
+  // consumer certifies it without knowing HiMed. A consumer must read a create-only policy as a
+  // create: one that reads it as a call scoped to nobody would refuse every booking.
+  schemaVersion: '2026-10-27',
+  providerVersion: '0.8.0',
   connectionProbe: { tool: `mcp_${SLUG}_list_locations` },
   accountContextKeys: ['codigo_servicio'],
 };
