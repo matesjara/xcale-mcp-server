@@ -1,7 +1,8 @@
 # Ship Log — lobbypms-provider
 
-- **Status:** in review — PR #147, not merged
-- **Released to prod:** not yet
+- **Status:** in-soak — PR #147; the code is live, but no hotel can be served until the dedicated egress is applied
+  (Deploy verification)
+- **Released to prod:** 2026-10-28 (release #157, merge `0eec0b69`, DO deployment `6b93f344` ACTIVE 16:05 UTC)
 - **Related:** design-notes.md · matesjara/xcale-backend#1052 (epic), #1610 (egress IPs), #1611 (booking adapter)
 - **Consumer:** matesjara/xcale-backend `feat/lobbypms-booking` — release this repo FIRST: the backend discovers
   the `lobbypms` provider from this gateway.
@@ -14,7 +15,7 @@
 - Auth stays `api_key` with `api_token` in the query (D1). Bearer works on GET (E11); the switch waits on
   evidence for the POST methods.
 
-## For Mateo, at deploy — what this release needs
+## For Mateo — what serving a hotel needs
 
 1. **Apply the app spec with the dedicated egress** (`.do/app.yaml` › `egress: type: DEDICATED_IP`, #1610).
    It is a paid add-on, **US$25/month**. Apply it the way `docs/deploy.md` says (the spec rendered with
@@ -50,11 +51,15 @@
 
 ### Feature flags / config
 
-- `.do/app.yaml` egress block — applied with the release (above).
+- `.do/app.yaml` egress block — **not applied** (2026-10-28): the dedicated egress is US$25/month, and the CFO's
+  envelope is 0, so it waits on Mateo's word. The release deployed without touching the spec's egress.
 
 ### Deploy verification (prod)
 
-- [ ] spec applied with egress; the two dedicated IPs recorded here — ⬜ pending
+- [x] release deployed: `6b93f344` ACTIVE 16:05 UTC, `/health` ok, `/discover` 401 without auth and lists the
+  providers with the `prd` secret — ✅ done (2026-10-28)
+- [ ] spec applied with egress; the two dedicated IPs recorded here — ⬜ pending: US$25/month, waits on Mateo's word
+  (CFO envelope 0)
 - [ ] a hotel authorized them and the backend's connect probe (`list_room_types`) answered 200 — ⬜ pending
 
 ## Known gaps at ship
