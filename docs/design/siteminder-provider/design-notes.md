@@ -1,7 +1,7 @@
 # SiteMinder provider — design notes
 
-Status: built 2026-09-24 against SiteMinder's published contract, with the auth path observed live. **No
-hotel key has been used yet** — see §6. Consumer epic: [xcale-backend#1041](https://github.com/matesjara/xcale-backend/issues/1041)
+Status: built 2026-09-24 against SiteMinder's published contract, with the auth path observed live. **First
+live session: 2026-10-28, Hotel El Mirador del Cocora** — see §6 for the remaining open questions. Consumer epic: [xcale-backend#1041](https://github.com/matesjara/xcale-backend/issues/1041)
 (*SiteMinder / Little Hotelier integration — the incoming customer's PMS*).
 
 ## 1. Which SiteMinder API, and why
