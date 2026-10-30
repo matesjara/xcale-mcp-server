@@ -26,6 +26,22 @@ const isoDate = z
 /** A positive integer id (Avirato's `space_subtype_id`, `rate_id`, `reservation_id`). */
 const id = z.number().int().positive();
 
+/**
+ * A quote's rows without exact duplicates, in Avirato's order. Avirato was observed returning every
+ * rate's row twice, identical (2026-10-30); a duplicate carries no information and would double-count a
+ * rate for any consumer that lists them.
+ */
+function withoutExactDuplicates(rows: unknown): unknown[] {
+  if (!Array.isArray(rows)) return [];
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const key = JSON.stringify(row);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 /** The catalog reads that take no argument: tool verb, Avirato path, what the description says. */
 const CATALOG_LISTS = [
   {
@@ -144,6 +160,53 @@ export function buildAviratoTools(
         return outcome.data === '' || outcome.data == null
           ? ok({ valid: false })
           : ok({ valid: true, code: outcome.data });
+      },
+    }),
+
+    // ── Control plane ──────────────────────────────────────────────────────────────────────────────
+    //
+    // Routable by name, withdrawn from the agent's menu (ADR 0013). The quote is the number the agent
+    // narrates, so the consumer composes it (its `stay-truth`) rather than the model reading a raw price
+    // (feature design AD-4).
+
+    tool({
+      name: `mcp_${SLUG}_quote_stay`,
+      readOnly: true,
+      controlPlane: true,
+      description:
+        'CONTROL PLANE — quote a stay at the connected hotel: `start_date` to `end_date` (YYYY-MM-DD, ' +
+        'check-out after check-in), one entry per room with its subtype and party, optionally limited ' +
+        'to `rate_ids`. Returns `{ items }`, one row per rate — `price` is the total for the stay in the ' +
+        'hotel’s currency — with Avirato’s exact duplicate rows removed. Creates nothing.',
+      input: z
+        .object({
+          start_date: isoDate,
+          end_date: isoDate,
+          rooms: z
+            .array(
+              z
+                .object({
+                  space_subtype_id: id,
+                  adults: z.number().int().min(1),
+                  children: z.number().int().min(0),
+                })
+                .strict(),
+            )
+            .min(1)
+            .max(10),
+          rate_ids: z.array(id).min(1).optional(),
+        })
+        .strict()
+        .refine((a) => a.end_date > a.start_date, {
+          message: '`end_date` must be after `start_date`',
+          path: ['end_date'],
+        }),
+      handler: async (args, ctx) => {
+        const outcome = unwrapAvirato(
+          await client.post('price/price_for_reservation', ctx.request, ctx.metadata, args),
+          'quote_stay',
+        );
+        return outcome.ok ? ok({ items: withoutExactDuplicates(outcome.data) }) : outcome;
       },
     }),
   ];

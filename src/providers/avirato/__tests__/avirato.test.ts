@@ -14,6 +14,7 @@ import errorValidation from '../__fixtures__/error-validation.json';
 import establishment from '../__fixtures__/establishment.json';
 import extra from '../__fixtures__/extra.json';
 import promoUnknown from '../__fixtures__/promo-unknown.json';
+import quoteDuplicated from '../__fixtures__/quote-duplicated.json';
 import rate from '../__fixtures__/rate.json';
 import regime from '../__fixtures__/regime.json';
 import space from '../__fixtures__/space.json';
@@ -300,4 +301,71 @@ describe('avirato provider — S3 errors', () => {
       expect(message).not.toContain('minted-jwt');
     }
   });
+});
+
+// ---------------------------------------------------------------------------
+// S4 — the quote (control plane)
+// ---------------------------------------------------------------------------
+
+describe('avirato provider — S4 quote_stay', () => {
+  const stay = {
+    start_date: '2027-02-16',
+    end_date: '2027-02-17',
+    rooms: [{ space_subtype_id: 2, adults: 2, children: 0 }],
+  };
+
+  it('is routable by name but withdrawn from the agent menu', () => {
+    expect(aviratoProvider.listTools().map((t) => t.name)).not.toContain('mcp_avirato_quote_stay');
+    expect(aviratoProvider.routableToolNames()).toContain('mcp_avirato_quote_stay');
+  });
+
+  it('POSTs the stay to /price/price_for_reservation and returns the rows with exact duplicates removed', async () => {
+    const { result, capture } = await callWith(
+      'mcp_avirato_quote_stay',
+      stay,
+      quoteDuplicated,
+      201,
+    );
+
+    expect(capture[0]?.init.method).toBe('POST');
+    expect(capture[0]?.url).toBe(
+      'https://apiv3.avirato.com/v3/price/price_for_reservation?web_code=1234',
+    );
+    expect(JSON.parse(capture[0]?.init.body ?? '{}')).toEqual(stay);
+    expect(result).toMatchObject({
+      kind: 'success',
+      data: { items: [quoteDuplicated.data[0], quoteDuplicated.data[2]] },
+    });
+  });
+
+  it('sends rate_ids as numbers — Avirato refuses them as strings', async () => {
+    const { capture } = await callWith(
+      'mcp_avirato_quote_stay',
+      { ...stay, rate_ids: [2, 11] },
+      quoteDuplicated,
+      201,
+    );
+
+    expect(JSON.parse(capture[0]?.init.body ?? '{}').rate_ids).toEqual([2, 11]);
+  });
+
+  it.each([
+    [{ ...stay, end_date: '2027-02-16' }, 'a stay of zero nights'],
+    [{ ...stay, rooms: [] }, 'no room'],
+    [{ ...stay, rooms: [{ space_subtype_id: 2, adults: 0, children: 0 }] }, 'a room with no adult'],
+    [{ ...stay, rate_ids: ['2'] }, 'a rate id as a string'],
+  ] as Array<[Record<string, unknown>, string]>)(
+    'refuses %j (%s) before reaching Avirato',
+    async (args) => {
+      const { result, capture } = await callWith(
+        'mcp_avirato_quote_stay',
+        args,
+        quoteDuplicated,
+        201,
+      );
+
+      expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+      expect(capture).toHaveLength(0);
+    },
+  );
 });

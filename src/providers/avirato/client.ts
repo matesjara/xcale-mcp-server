@@ -26,6 +26,16 @@ export interface AviratoClient {
     ctx: AviratoContext,
     query?: AviratoQuery,
   ): Promise<RequestResult>;
+  /**
+   * POST `${baseUrl}/{path}?web_code=…` with a JSON body. Thin passthrough (ADR 0015): one call is at
+   * most one request, never retried here.
+   */
+  post(
+    path: string,
+    request: AuthedRequest,
+    ctx: AviratoContext,
+    body: Record<string, unknown>,
+  ): Promise<RequestResult>;
 }
 
 export function createAviratoClient(deps: AviratoClientDeps = {}): AviratoClient {
@@ -40,5 +50,13 @@ export function createAviratoClient(deps: AviratoClientDeps = {}): AviratoClient
 
   return {
     get: (path, request, ctx, query) => request({ method: 'GET', url: url(path, ctx, query) }),
+
+    post: (path, request, ctx, body) =>
+      request({
+        method: 'POST',
+        url: url(path, ctx),
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
   };
 }
