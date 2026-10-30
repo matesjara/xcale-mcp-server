@@ -185,7 +185,7 @@ No sub-issues (Step 6b): one epic, one lane, one PR.
 
 - [x] S1 skeleton, `get_establishment`, conformance green (the logo is deferred: Avirato publishes its mark only as a raster image, so the tile gets its own change)
 - [x] S2 catalog reads
-- [ ] S3 error mapping
+- [x] S3 error mapping (with a core fix: `redactQueryValues` ends a value at a quote, so Avirato's JSON error bodies stay parseable)
 - [ ] S4 `quote_stay` (control plane)
 - [ ] S5 reservation reads with identity policies
 - [ ] S6 `create_reservation`, `cancel_reservation` (control plane)

@@ -8,6 +8,9 @@ import { runProviderConformance } from '../../../core/testing/provider-conforman
 import type { ProviderCallContext } from '../../../core/types';
 import { aviratoProvider, createAviratoProvider } from '../provider';
 import availability from '../__fixtures__/availability.json';
+import errorInvalidToken from '../__fixtures__/error-invalid-token.json';
+import errorRetrieving from '../__fixtures__/error-retrieving.json';
+import errorValidation from '../__fixtures__/error-validation.json';
 import establishment from '../__fixtures__/establishment.json';
 import extra from '../__fixtures__/extra.json';
 import promoUnknown from '../__fixtures__/promo-unknown.json';
@@ -232,6 +235,69 @@ describe('avirato provider — S2 catalog reads', () => {
       const t = listed.find((tool) => tool.name === name);
       expect(t, name).toBeDefined();
       expect(t?.readOnly, name).toBe(true);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S3 — error mapping (contract §D)
+// ---------------------------------------------------------------------------
+
+describe('avirato provider — S3 errors', () => {
+  const read = 'mcp_avirato_get_establishment';
+
+  it('a rejected or superseded token (401) asks for a fresh mint: PROVIDER_AUTH_EXPIRED', async () => {
+    const { result } = await callWith(read, {}, errorInvalidToken, 401);
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.AUTH_EXPIRED });
+  });
+
+  it('a missing permission (403) is not a reconnect: PROVIDER_ERROR', async () => {
+    const forbidden = { statusCode: 403, errorCode: 'FORBBIDEN', message: 'Forbidden' };
+    const { result } = await callWith(read, {}, forbidden, 403);
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
+    expect((result as { message: string }).message).toContain('FORBBIDEN');
+  });
+
+  it('a burst over the limit (429) is PROVIDER_RATE_LIMITED', async () => {
+    const { result } = await callWith(
+      read,
+      {},
+      { statusCode: 429, message: 'Too Many Requests' },
+      429,
+    );
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.RATE_LIMITED });
+  });
+
+  it('Avirato down (5xx) is PROVIDER_UNAVAILABLE', async () => {
+    const { result } = await callWith(read, {}, 'Bad Gateway', 502);
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_UNAVAILABLE });
+  });
+
+  it('a validation refusal is PROVIDER_INVALID_INPUT and names what Avirato refused', async () => {
+    const { result } = await callWith(read, {}, errorValidation, 400);
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+    const message = (result as { message: string }).message;
+    expect(message).toContain('INPUT_DATA_VALIDATION_FAILED');
+    expect(message).toContain('start_date must be a valid ISO 8601 date string');
+  });
+
+  it('"not found or cancelled" is PROVIDER_ERROR with a plain reason, not a validation error', async () => {
+    const { result } = await callWith(read, {}, errorRetrieving, 400);
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
+    expect((result as { message: string }).message).toContain('not found or cancelled');
+  });
+
+  it('never echoes the request path, the web_code or the token in an error message', async () => {
+    for (const [body, status] of [
+      [errorRetrieving, 400],
+      [errorValidation, 400],
+      [errorInvalidToken, 401],
+    ] as const) {
+      const { result } = await callWith(read, {}, body, status);
+      const message = (result as { message: string }).message;
+      expect(message).not.toContain('/v3/');
+      expect(message).not.toContain('1234');
+      expect(message).not.toContain('minted-jwt');
     }
   });
 });

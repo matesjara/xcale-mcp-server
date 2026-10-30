@@ -1,0 +1,8 @@
+{
+  "statusCode": 400,
+  "timestamp": "2026-10-30T20:10:31.569Z",
+  "path": "/v3/availability?web_code=1234",
+  "errors": ["start_date must be a valid ISO 8601 date string"],
+  "errorCode": "INPUT_DATA_VALIDATION_FAILED",
+  "message": "Input data validation failed"
+}
