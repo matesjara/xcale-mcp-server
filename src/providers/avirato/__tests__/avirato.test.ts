@@ -646,3 +646,88 @@ describe('avirato provider — S6 create_reservation and cancel_reservation', ()
     expect(tools.get('mcp_avirato_cancel_reservation')?.readOnly).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// S7 — the published surface and credential containment
+// ---------------------------------------------------------------------------
+
+describe('avirato provider — S7 surface', () => {
+  it('publishes exactly the ten menu tools and routes the three control-plane ones too', () => {
+    const menu = [
+      'mcp_avirato_get_establishment',
+      'mcp_avirato_list_room_types',
+      'mcp_avirato_list_rates',
+      'mcp_avirato_list_regimes',
+      'mcp_avirato_list_extras',
+      'mcp_avirato_check_availability',
+      'mcp_avirato_validate_promotional_code',
+      'mcp_avirato_get_reservation',
+      'mcp_avirato_find_reservations_by_guest',
+      'mcp_avirato_get_reservation_links',
+    ];
+    const controlPlane = [
+      'mcp_avirato_quote_stay',
+      'mcp_avirato_create_reservation',
+      'mcp_avirato_cancel_reservation',
+    ];
+
+    expect(new Set(aviratoProvider.listTools().map((t) => t.name))).toEqual(new Set(menu));
+    expect(new Set(aviratoProvider.routableToolNames())).toEqual(
+      new Set([...menu, ...controlPlane]),
+    );
+    const [entry] = buildCatalog(createRegistry([aviratoProvider]));
+    expect(entry?.toolCount).toBe(10);
+  });
+
+  it('marks every menu tool read-only — the agent’s menu changes nothing at the hotel', () => {
+    for (const tool of aviratoProvider.listTools()) expect(tool.readOnly, tool.name).toBe(true);
+  });
+});
+
+describe('avirato provider — credential containment', () => {
+  it('reveals the token only into the Authorization header, never into a result', async () => {
+    const capture: Captured[] = [];
+    const provider = createAviratoProvider({
+      fetchImpl: fakeFetch({ body: establishment, capture }),
+    });
+
+    const result = await provider.callTool('mcp_avirato_get_establishment', {}, ctx);
+
+    expect(capture[0]?.url).not.toContain('minted-jwt');
+    expect(JSON.stringify(result)).not.toContain('minted-jwt');
+  });
+
+  it('keeps the token and the web_code out of a transport-failure result', async () => {
+    const failing = (async (url: string) => {
+      throw new Error(`fetch failed for ${url} with Bearer minted-jwt`);
+    }) as unknown as typeof fetch;
+    const provider = createAviratoProvider({ fetchImpl: failing });
+
+    const result = await provider.callTool('mcp_avirato_get_establishment', {}, ctx);
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_UNAVAILABLE });
+    expect(JSON.stringify(result)).not.toContain('minted-jwt');
+    expect(JSON.stringify(result)).not.toContain('web_code=1234');
+  });
+
+  it('keeps the token out of an error body that echoes the request', async () => {
+    const echoing = (async (url: string, init: Captured['init']) =>
+      new Response(
+        JSON.stringify({
+          statusCode: 400,
+          path: url,
+          errorCode: 'INPUT_DATA_VALIDATION_FAILED',
+          errors: [`authorization ${JSON.stringify(init.headers)}`],
+        }),
+        { status: 400 },
+      )) as unknown as typeof fetch;
+    const provider = createAviratoProvider({ fetchImpl: echoing });
+
+    const result = await provider.callTool('mcp_avirato_get_establishment', {}, ctx);
+
+    expect(JSON.stringify(result)).not.toContain('1234');
+    // A body that echoes the Authorization header back is the provider leaking, and the message
+    // forwards validation sentences: they must never carry the bearer.
+    expect(JSON.stringify(result)).not.toContain('minted-jwt');
+  });
+});

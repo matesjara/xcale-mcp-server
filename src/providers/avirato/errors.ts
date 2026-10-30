@@ -60,18 +60,29 @@ export function aviratoErrorCode(body: string): string | undefined {
   return typeof code === 'string' && MACHINE_CODE.test(code) ? code : undefined;
 }
 
+/**
+ * A validation sentence safe to forward. Every one observed is plain words about a parameter
+ * ("charges must be a boolean value", "Cannot set quantity when modifying.", "each value in rateIds
+ * must be a number conforming to the specified constraints"). Anything else — quotes, braces, colons,
+ * slashes, or a word naming a credential — is not what Avirato's validator writes, and could be an echo
+ * of the request; it is dropped rather than forwarded.
+ */
+const PLAIN_SENTENCE = /^[A-Za-z0-9 .,_()'-]{1,200}$/;
+const NAMES_A_CREDENTIAL = /bearer|authori[sz]ation|password|token|eyJ/i;
+
+function forwardable(sentence: string): boolean {
+  return PLAIN_SENTENCE.test(sentence) && !NAMES_A_CREDENTIAL.test(sentence);
+}
+
 /** Avirato's validation sentences (`errors[]`, or the `message` of `ERROR_VALIDATING_DATA`). */
 function validationMessages(body: string, code: string): string[] {
   const parsed = parseBody(body);
-  if (Array.isArray(parsed.errors)) {
-    return parsed.errors
-      .filter((e): e is string => typeof e === 'string')
-      .map((e) => e.slice(0, 200));
-  }
-  if (code === 'ERROR_VALIDATING_DATA' && typeof parsed.message === 'string') {
-    return [parsed.message.slice(0, 200)];
-  }
-  return [];
+  const candidates = Array.isArray(parsed.errors)
+    ? parsed.errors
+    : code === 'ERROR_VALIDATING_DATA'
+      ? [parsed.message]
+      : [];
+  return candidates.filter((e): e is string => typeof e === 'string' && forwardable(e));
 }
 
 export function unwrapAvirato(res: RequestResult, operation: string): ToolOutcome {

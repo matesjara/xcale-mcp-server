@@ -89,22 +89,22 @@ There is no screen in this repo. The experience is the agent's tools and the gue
 
 ### 6.1 The tools
 
-| Tool                                     | Endpoint                               | Surface                       | Identity                              |
-| :--------------------------------------- | :------------------------------------- | :---------------------------- | :------------------------------------ |
-| `mcp_avirato_get_establishment`          | `GET /v3/establishment`                | menu                          | none                                  |
-| `mcp_avirato_list_room_types`            | `GET /v3/space`                        | menu                          | none                                  |
-| `mcp_avirato_list_rates`                 | `GET /v3/rate`                         | menu                          | none                                  |
-| `mcp_avirato_list_regimes`               | `GET /v3/regime`                       | menu                          | none                                  |
-| `mcp_avirato_list_extras`                | `GET /v3/extra`                        | menu                          | none                                  |
-| `mcp_avirato_check_availability`         | `GET /v3/availability`                 | menu                          | none                                  |
-| `mcp_avirato_validate_promotional_code`  | `GET /v3/promotional_codes/{code}`     | menu                          | none                                  |
-| `mcp_avirato_quote_stay`                 | `POST /v3/price/price_for_reservation` | control plane (money)         | none                                  |
-| `mcp_avirato_create_reservation`         | `POST /v3/reservation`                 | control plane (write + money) | ownership by construction             |
-| `mcp_avirato_modify_reservation`         | `PATCH /v3/reservation/{id}`           | control plane (write)         | subject-bound, `recordAction: change` |
-| `mcp_avirato_cancel_reservation`         | `DELETE /v3/reservation/{id}`          | control plane (write)         | subject-bound, `recordAction: cancel` |
-| `mcp_avirato_get_reservation`            | `GET /v3/reservation/{id}`             | menu                          | subject-bound, `recordAction: read`   |
-| `mcp_avirato_find_reservations_by_guest` | `GET /v3/reservation/client/{doc}`     | menu                          | subject-bound, document identifies    |
-| `mcp_avirato_get_reservation_links`      | `GET /v3/reservation/urls/{id}`        | menu                          | subject-bound, `recordAction: read`   |
+| Tool                                     | Endpoint                               | Surface                       | Identity                                                        |
+| :--------------------------------------- | :------------------------------------- | :---------------------------- | :-------------------------------------------------------------- |
+| `mcp_avirato_get_establishment`          | `GET /v3/establishment`                | menu                          | none                                                            |
+| `mcp_avirato_list_room_types`            | `GET /v3/space`                        | menu                          | none                                                            |
+| `mcp_avirato_list_rates`                 | `GET /v3/rate`                         | menu                          | none                                                            |
+| `mcp_avirato_list_regimes`               | `GET /v3/regime`                       | menu                          | none                                                            |
+| `mcp_avirato_list_extras`                | `GET /v3/extra`                        | menu                          | none                                                            |
+| `mcp_avirato_check_availability`         | `GET /v3/availability`                 | menu                          | none                                                            |
+| `mcp_avirato_validate_promotional_code`  | `GET /v3/promotional_codes/{code}`     | menu                          | none                                                            |
+| `mcp_avirato_quote_stay`                 | `POST /v3/price/price_for_reservation` | control plane (money)         | none                                                            |
+| `mcp_avirato_create_reservation`         | `POST /v3/reservation`                 | control plane (write + money) | none (reads nobody; its creator owns what it creates)           |
+| `mcp_avirato_modify_reservation`         | `PATCH /v3/reservation/{id}`           | control plane (write)         | subject-bound, owner of the reservation (`avirato:reservation`) |
+| `mcp_avirato_cancel_reservation`         | `DELETE /v3/reservation/{id}`          | control plane (write)         | subject-bound, owner of the reservation (`avirato:reservation`) |
+| `mcp_avirato_get_reservation`            | `GET /v3/reservation/{id}`             | menu                          | subject-bound, owner of the reservation (`avirato:reservation`) |
+| `mcp_avirato_find_reservations_by_guest` | `GET /v3/reservation/client/{doc}`     | menu                          | subject-bound on `client_doc`; rows filtered to their owner     |
+| `mcp_avirato_get_reservation_links`      | `GET /v3/reservation/urls/{id}`        | menu                          | subject-bound, owner of the reservation (`avirato:reservation`) |
 
 Names are provisional until the contract. The surface follows Erbon's and Profitroom's precedent (AD-4).
 

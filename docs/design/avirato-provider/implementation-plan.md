@@ -189,6 +189,6 @@ No sub-issues (Step 6b): one epic, one lane, one PR.
 - [x] S4 `quote_stay` (control plane)
 - [x] S5 reservation reads with identity policies
 - [x] S6 `create_reservation`, `cancel_reservation` (control plane)
-- [ ] S7 `cd xcale-mcp-server && npm run typecheck && npm run format:check && npm test` clean
+- [x] S7 `cd xcale-mcp-server && npm run typecheck && npm run format:check && npm test` clean (881 tests; `himed-credentials.integration.test.ts` times out in its `beforeAll` under the full parallel suite on Windows, passes alone — unrelated)
 - [ ] S8 `mcp-contract-qa` against the Avirato sandbox
 - [ ] PR to `dev` with the ADR, the core change and the provider, linked to #189; the backend's consumer issue linked (provider before consumer)
