@@ -247,6 +247,19 @@ does NOT extend this variant: it reopens where the mint runs (a declarative desc
 it and Rail A can't run the server's code) and requires its own variant + an ADR. _Avoid_: growing
 this into a config-DSL / interpreter.
 
+**Body companion** — a durable-credential field a `credential_exchange` descriptor declares the Credential
+Authority returns at resolve beside the minted token, placed by the materializer in the JSON body under its
+wire name (HotelSync: the partner token as `token`, beside the session key as `key`). Its name is knowledge
+(non-secret); its value is a secret wrapped as a `SecretString` and revealed only in the materializer.
+_Avoid_: a handler writing it into the body; treating it as non-secret routing data (that is
+`X-Provider-Metadata`). See ADR `credential-exchange-session-key-in-body`.
+
+**Reuse until rejected** — the session policy for a `credential_exchange` token whose descriptor declares no
+expiry: the Credential Authority reuses it until a data call answers `PROVIDER_AUTH_EXPIRED`, when the
+consumer drops it, mints once more and retries the call once; only a rejected mint asks to reconnect.
+_Avoid_: minting on every call (repeated logins can trip a provider's 2FA challenge); treating an ended
+session as a dead connection.
+
 **Provider institutional identity (e.g. Siigo `Partner-Id`)** — a **non-secret, constant identifier**
 of xcale-as-integrator that a provider requires on every call (Siigo: the integrator app name, 3–100
 alphanumerics, e.g. `xcaleContabilidad`). It is *knowledge/config*, not per-user *custody* — leaking
