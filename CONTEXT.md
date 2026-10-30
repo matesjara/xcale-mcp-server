@@ -121,7 +121,7 @@ credential and must not be treated as one).
 
 **Booking-engine URL** — the public address of a hotel's booking engine (e.g.
 `https://booking.profitroom.com/es/hotellapausa`), the routing data a Profitroom connection carries.
-It is an *identifier the provider parses*, never a URL the server calls: the provider extracts the
+It is an _identifier the provider parses_, never a URL the server calls: the provider extracts the
 hotel key from it and builds every request from its own fixed base. _Avoid_: fetching the supplied URL
 (SSRF); reading the guest's language from its locale segment.
 
@@ -137,9 +137,9 @@ for **every** consumer — guard it with a test asserting the union ⊆ the app'
 **Scope grant (Cloudbeds-shaped, but general)** — what a provider actually authorizes for a connection.
 **Requested ⊇ granted.** When a provider's consent is **binary** (the user accepts the whole requested
 list or nothing — Cloudbeds), requested **==** granted, so the consumer's stored scope list is a faithful
-record despite recording only the request. The residue — capabilities the account's *plan* lacks — is not
+record despite recording only the request. The residue — capabilities the account's _plan_ lacks — is not
 knowable ahead of time and surfaces only as a **runtime denial**. _Avoid_: assuming a token response
-carries the grant (Cloudbeds' does not — observed); treating the consumer's stored scope list as *proof*
+carries the grant (Cloudbeds' does not — observed); treating the consumer's stored scope list as _proof_
 of a grant (it is a copy of the request; it is merely correct under binary consent).
 
 **`ProviderErrorCode`** — the closed, `as const` set of error codes on the `ToolResult` error
@@ -147,7 +147,7 @@ variant (`PROVIDER_AUTH_EXPIRED`, `PROVIDER_RATE_LIMITED`, …); evolves additiv
 free-form error strings.
 
 **Error-ownership boundary (invariant)** — a `ProviderErrorCode` (and any `ToolResult`) is emitted
-**iff the failure belongs to the provider domain** — determined by *who owns the cause*, **not** by
+**iff the failure belongs to the provider domain** — determined by _who owns the cause_, **not** by
 the temporal phase nor by whether a valid credential ever materialized. Failures owned by the
 **transport / internal protocol** (Hop-B, expired or already-consumed [Ephemeral reference](#),
 resolution never reached) are never a `ProviderErrorCode` and produce **no `ToolResult`** at all.
@@ -155,7 +155,7 @@ Consequences that pin the boundary: a resolve-time **mint** failure because the 
 was revoked/unrefreshable is **provider-owned** → `PROVIDER_AUTH_EXPIRED` (even though no valid JWT
 ever existed and no data call ran — "is this connection still usable?" is no); an **expired
 reference** is **transport-owned** → one transparent retry, then a transport error. The consumer
-never needs to know *where* auth failed. _Avoid_: defining the boundary by "a credential existed" or
+never needs to know _where_ auth failed. _Avoid_: defining the boundary by "a credential existed" or
 "execution began" (a revoked-credential mint failure breaks that framing); `REFERENCE_EXPIRED` /
 `REFERENCE_ALREADY_USED` inside `ProviderErrorCode`; a `ToolResult(kind:'error')` for a
 transport-owned failure.
@@ -175,7 +175,7 @@ server uses it directly — non-financial providers, e.g. Nevatal, Cloudbeds) an
 (`X-Provider-Token` carries an [Ephemeral reference](#) the server resolves just-in-time via the
 [Credential Authority](#) — financial/high-risk providers, e.g. Siigo, ePayco). Declared per provider
 in its `authDescriptor` and published in the catalog, so one declaration drives both sides: the
-consumer knows *what to send*, the server knows *whether to resolve*. The core has a single
+consumer knows _what to send_, the server knows _whether to resolve_. The core has a single
 `forwarded`-vs-`reference` branch. _Avoid_: a per-provider strategy (a "siigo strategy"); an
 `if slug === 'siigo'` in core/protocol; a third strategy without an ADR.
 
@@ -197,17 +197,17 @@ reference per call or distributed resolution inside the runtime; a third resolve
 **`ResolvedCredential`** — the uniform runtime representation a `CredentialResolver` returns and that
 Provider Execution consumes (via [Authentication Materialization](#)); the convergence point of both
 delivery strategies. Its **concrete representation is an implementation detail**: today a `SecretString`
-(one secret suffices for bearer/api_key/basic), but the concept is "the material needed to
+(one secret suffices for bearer/api*key/basic), but the concept is "the material needed to
 authenticate", which would generalize to richer material (e.g. `keyId`+`secretKey`+`region`+`algorithm`)
 if imperative auth ever lands — a change confined to the resolver + materializer, never the transport.
-_Avoid_: coupling the concept to `SecretString` in code the transport or a provider can see; treating a
+\_Avoid*: coupling the concept to `SecretString` in code the transport or a provider can see; treating a
 bare secret as its permanent shape.
 
 **Authentication Materialization** — the core, transport-blind step that consumes an `AuthDescriptor` +
 a `ResolvedCredential`, **reveals** the secret, and produces a **fully materialized, plain `HttpRequest`**
 (the single `.reveal()` egress point). The HTTP transport that runs the request knows nothing of
-`SecretString`, `ResolvedCredential`, or any auth scheme (bearer/api_key/basic/cookie) — it just sends a
-built request. This is the swap point for a future imperative (signed-request) auth variant. _Avoid_:
+`SecretString`, `ResolvedCredential`, or any auth scheme (bearer/api*key/basic/cookie) — it just sends a
+built request. This is the swap point for a future imperative (signed-request) auth variant. \_Avoid*:
 leaving a `SecretString` in the materializer's output (materialization must finish there, not straddle
 into transport); the transport knowing any auth scheme; `.reveal()` outside this step.
 
@@ -240,16 +240,19 @@ of the [Credential Authority](#). _Avoid_: the server reading a credential store
 for providers that mint a short-lived bearer token from durable credentials via a token endpoint
 (Siigo: `POST /auth` with `username`+`access_key` → 24h JWT). Rail A (the Credential Authority) runs
 it **generically** from the descriptor. Strictly **declarative**: `tokenEndpoint`, `method`,
-`bodyFields` (logical→wire name mapping), `responseFields` (token + expiry keys; OAuth-style
-defaults), `staticHeaders` (name + source), `tokenPlacement`. It carries **no behavior** — no hooks,
-templates, expressions, signing, or JSON-path. A provider needing *imperative* auth (HMAC/signing)
+`bodyFields` (logical→wire name mapping), `responseFields` (token + expiry, each a top-level key or a
+closed dotted key path such as `data.token`), `tokenTtlSeconds` (the lifetime the consumer applies
+when the response states none), `staticHeaders` (name + source), `tokenPlacement`. It carries **no
+behavior** — no hooks, templates, expressions, signing, or general JSON-path: a dotted path is keys
+joined by `.`, with no indices, wildcards or filters (ADR
+`credential-exchange-response-path-and-token-ttl`). A provider needing _imperative_ auth (HMAC/signing)
 does NOT extend this variant: it reopens where the mint runs (a declarative descriptor can't express
 it and Rail A can't run the server's code) and requires its own variant + an ADR. _Avoid_: growing
 this into a config-DSL / interpreter.
 
 **Provider institutional identity (e.g. Siigo `Partner-Id`)** — a **non-secret, constant identifier**
 of xcale-as-integrator that a provider requires on every call (Siigo: the integrator app name, 3–100
-alphanumerics, e.g. `xcaleContabilidad`). It is *knowledge/config*, not per-user *custody* — leaking
+alphanumerics, e.g. `xcaleContabilidad`). It is _knowledge/config_, not per-user _custody_ — leaking
 it alone grants no access — so the "custody stays in Rail A" invariant does not apply to it. The
 `authDescriptor` declares the header requirement (`name` + `source: deployment`); the **value** is
 deployment config wherever a process calls the provider (the server for all data calls; Rail A for the
@@ -319,12 +322,12 @@ logger) injectable; default instance registered in `src/providers/index.ts`. Ena
 unit tests against recorded `__fixtures__/` + the mandatory `runProviderConformance` suite.
 
 **Reconciliation reference tag** — a caller-supplied marker (e.g. `xpi-<orderId>`) embedded in a fiscal
-document's `observations` so the consumer can recognize *its own* document later. Because the gateway is
+document's `observations` so the consumer can recognize _its own_ document later. Because the gateway is
 at-most-once (no client idempotency key at Siigo), for `create_invoice` this is the **primary recovery
 key**, not a secondary audit trail. _Avoid_: treating it as mere audit metadata; content-hash keys.
 
 **Pending reconciliation** — resolving an idempotency-ledger entry stuck in `pending` (external POST
-committed but its response was lost) via a *targeted* Siigo read keyed on the reference tag, to learn
+committed but its response was lost) via a _targeted_ Siigo read keyed on the reference tag, to learn
 whether the fiscal document actually exists before backfilling or retrying. _Avoid_: blind retry (mints a
 duplicate DIAN doc) or blind reject (orphans a committed one).
 
