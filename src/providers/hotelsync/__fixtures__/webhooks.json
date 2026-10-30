@@ -1,0 +1,32 @@
+[
+  {
+    "id_properties": "<property-id-code>",
+    "id_webhooks": "5",
+    "url": "https://partner.example.com/hotelsync/webhook",
+    "date_created": "2022-01-25 22:58:50"
+  },
+  {
+    "id_properties": "<property-id-code>",
+    "id_webhooks": "17",
+    "url": "https://partner.example.com/hotelsync/webhook",
+    "date_created": "2022-03-15 11:43:36"
+  },
+  {
+    "id_properties": "<property-id-code>",
+    "id_webhooks": "44",
+    "url": "https://partner.example.com/hotelsync/webhook",
+    "date_created": "2023-07-10 17:13:35"
+  },
+  {
+    "id_properties": "<property-id-code>",
+    "id_webhooks": "45",
+    "url": "https://partner.example.com/hotelsync/webhook",
+    "date_created": "2023-07-10 17:14:43"
+  },
+  {
+    "id_properties": "<property-id-code>",
+    "id_webhooks": "46",
+    "url": "https://partner.example.com/hotelsync/webhook",
+    "date_created": "2023-07-10 17:21:08"
+  }
+]

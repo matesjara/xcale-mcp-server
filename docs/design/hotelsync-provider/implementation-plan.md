@@ -3,8 +3,8 @@
 > **Design**: [`feature-design.md`](feature-design.md) · **Grill**: [`grill-notes.md`](grill-notes.md) ·
 > **ADR**: [`credential-exchange-session-key-in-body`](../../adr/credential-exchange-session-key-in-body.md) ·
 > **Issue**: #187
-> **Status**: Phase 0a built (this branch); Phase 0b next — Phases 1a and 1b at slice level
-> **Last Updated**: 2026-10-29
+> **Status**: Phase 0a built; the provider (Phases 1a and 1b) built from the OpenAPI on 2026-10-30, by Mateo's call, pending the first login (`ship-log.md`) — Phase 0b next
+> **Last Updated**: 2026-10-30
 
 ## Meta-description
 

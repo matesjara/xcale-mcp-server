@@ -1,0 +1,617 @@
+[
+  {
+    "id_room_types": "172",
+    "id_properties": "<property-id-code>",
+    "name": "1-Bedroom Apartment with Sea Views",
+    "type": "apartment",
+    "shortname": "SMP55",
+    "price": "60",
+    "avail": "31",
+    "occupancy": "100",
+    "area": "0",
+    "bathrooms": "1",
+    "booking_engine": "1",
+    "google_vr": "0",
+    "description": "",
+    "is_virtual": "0",
+    "prices_per_person": "0",
+    "parent_id": "0",
+    "avail_variation": "0",
+    "variation_type": "",
+    "variation_amount": "0",
+    "children_1_amount": "100",
+    "children_1_variation_type": "percent",
+    "children_2_amount": "100",
+    "children_2_variation_type": "percent",
+    "children_3_amount": "100",
+    "children_3_variation_type": "percent",
+    "children_4_amount": "0",
+    "children_4_variation_type": null,
+    "children_5_amount": "0",
+    "children_5_variation_type": null,
+    "children_6_amount": "0",
+    "children_6_variation_type": null,
+    "children_7_amount": "0",
+    "children_7_variation_type": null,
+    "seniors_amount": "100",
+    "seniors_variation_type": "percent",
+    "copy_min_stay": "0",
+    "copy_max_stay": "0",
+    "copy_min_stay_arrival": "0",
+    "copy_closed_departure": "0",
+    "copy_closed_arrival": "0",
+    "copy_closed": "0",
+    "generate_ical": "0",
+    "linked_room_types_active": "0",
+    "linked_room_types_id_parent": "0",
+    "is_ota_avail_limitted": "0",
+    "ota_avail_limit": "0",
+    "min_avail_notification": "0",
+    "min_adults": "0",
+    "max_adults": "0",
+    "min_children": "0",
+    "max_children": "0",
+    "commission_type": "0",
+    "commission": "0",
+    "vat_manager_modul": "0",
+    "notification_email": "",
+    "is_deleted": "0",
+    "date_deleted": null,
+    "is_modified": "0",
+    "date_modified": null,
+    "date_created": "2021-05-06 11:08:33",
+    "parent_avail": null,
+    "channex_id_rt": "00000000-0000-4000-8000-94858447015e",
+    "roomDetails": {
+      "roomNumber": [
+        {
+          "id_rooms": "327",
+          "id_room_types": "172",
+          "name": "1",
+          "status": "dirty",
+          "is_deleted": "0",
+          "date_deleted": null,
+          "room_date_created": "2021-05-06 11:08:33"
+        },
+        {
+          "id_rooms": "3035",
+          "id_room_types": "172",
+          "name": "66",
+          "status": "clean",
+          "is_deleted": "0",
+          "date_deleted": null,
+          "room_date_created": "2021-05-06 11:08:33"
+        },
+        {
+          "id_rooms": "3036",
+          "id_room_types": "172",
+          "name": "67",
+          "status": "clean",
+          "is_deleted": "0",
+          "date_deleted": null,
+          "room_date_created": "2021-05-06 11:08:33"
+        },
+        {
+          "id_rooms": "3037",
+          "id_room_types": "172",
+          "name": "68",
+          "status": "clean",
+          "is_deleted": "0",
+          "date_deleted": null,
+          "room_date_created": "2021-05-06 11:08:33"
+        },
+        {
+          "id_rooms": "3038",
+          "id_room_types": "172",
+          "name": "69",
+          "status": "clean",
+          "is_deleted": "0",
+          "date_deleted": null,
+          "room_date_created": "2021-05-06 11:08:33"
+        }
+      ],
+      "amenities": [],
+      "room_types_houserooms": [
+        {
+          "id_room_types_houserooms": "15863",
+          "id_room_types": "172",
+          "name": "Bedroom",
+          "beds": [
+            {
+              "id_room_types_houserooms_beds": "21350",
+              "id_room_types_houserooms": "15863",
+              "name": ""
+            }
+          ]
+        }
+      ],
+      "roomImages": [
+        {
+          "id_room_types_images": "44804",
+          "id_room_types": "172",
+          "url": "https://example.com/images/photo.jpg"
+        },
+        {
+          "id_room_types_images": "44805",
+          "id_room_types": "172",
+          "url": "https://example.com/images/photo.jpg"
+        },
+        {
+          "id_room_types_images": "44806",
+          "id_room_types": "172",
+          "url": "https://example.com/images/photo.jpg"
+        }
+      ],
+      "roomPricePerPerson": []
+    }
+  },
+  {
+    "id_room_types": "174",
+    "id_properties": "<property-id-code>",
+    "name": "Studio",
+    "type": "apartment",
+    "shortname": "STD",
+    "price": "57",
+    "avail": "1",
+    "occupancy": "100",
+    "area": "0",
+    "bathrooms": "0",
+    "booking_engine": "1",
+    "google_vr": "0",
+    "description": "",
+    "is_virtual": "0",
+    "prices_per_person": "0",
+    "parent_id": "0",
+    "avail_variation": "0",
+    "variation_type": "",
+    "variation_amount": "0",
+    "children_1_amount": "100",
+    "children_1_variation_type": "percent",
+    "children_2_amount": "100",
+    "children_2_variation_type": "percent",
+    "children_3_amount": "100",
+    "children_3_variation_type": "percent",
+    "children_4_amount": "0",
+    "children_4_variation_type": null,
+    "children_5_amount": "0",
+    "children_5_variation_type": null,
+    "children_6_amount": "0",
+    "children_6_variation_type": null,
+    "children_7_amount": "0",
+    "children_7_variation_type": null,
+    "seniors_amount": "100",
+    "seniors_variation_type": "percent",
+    "copy_min_stay": "0",
+    "copy_max_stay": "0",
+    "copy_min_stay_arrival": "0",
+    "copy_closed_departure": "0",
+    "copy_closed_arrival": "0",
+    "copy_closed": "0",
+    "generate_ical": "0",
+    "linked_room_types_active": "0",
+    "linked_room_types_id_parent": "0",
+    "is_ota_avail_limitted": "0",
+    "ota_avail_limit": "0",
+    "min_avail_notification": "0",
+    "min_adults": "0",
+    "max_adults": "0",
+    "min_children": "0",
+    "max_children": "0",
+    "commission_type": "0",
+    "commission": "0",
+    "vat_manager_modul": "0",
+    "notification_email": "",
+    "is_deleted": "0",
+    "date_deleted": null,
+    "is_modified": "0",
+    "date_modified": null,
+    "date_created": "2021-05-06 11:08:33",
+    "parent_avail": null,
+    "channex_id_rt": "00000000-0000-4000-8000-1fefd93ee7e4",
+    "roomDetails": {
+      "roomNumber": [
+        {
+          "id_rooms": "330",
+          "id_room_types": "174",
+          "name": "1",
+          "status": "clean",
+          "is_deleted": "0",
+          "date_deleted": null,
+          "room_date_created": "2021-05-06 11:08:33"
+        }
+      ],
+      "amenities": [],
+      "room_types_houserooms": [],
+      "roomImages": [],
+      "roomPricePerPerson": []
+    }
+  },
+  {
+    "id_room_types": "175",
+    "id_properties": "<property-id-code>",
+    "name": "One-Bedroom Apartment with Sea View - 2px",
+    "type": "apartment",
+    "shortname": "1BD2",
+    "price": "70",
+    "avail": "1",
+    "occupancy": "2",
+    "area": "0",
+    "bathrooms": "0",
+    "booking_engine": "1",
+    "google_vr": "0",
+    "description": "",
+    "is_virtual": "0",
+    "prices_per_person": "0",
+    "parent_id": "0",
+    "avail_variation": "0",
+    "variation_type": "",
+    "variation_amount": "0",
+    "children_1_amount": "100",
+    "children_1_variation_type": "percent",
+    "children_2_amount": "100",
+    "children_2_variation_type": "percent",
+    "children_3_amount": "100",
+    "children_3_variation_type": "percent",
+    "children_4_amount": "0",
+    "children_4_variation_type": null,
+    "children_5_amount": "0",
+    "children_5_variation_type": null,
+    "children_6_amount": "0",
+    "children_6_variation_type": null,
+    "children_7_amount": "0",
+    "children_7_variation_type": null,
+    "seniors_amount": "100",
+    "seniors_variation_type": "percent",
+    "copy_min_stay": "0",
+    "copy_max_stay": "0",
+    "copy_min_stay_arrival": "0",
+    "copy_closed_departure": "0",
+    "copy_closed_arrival": "0",
+    "copy_closed": "0",
+    "generate_ical": "0",
+    "linked_room_types_active": "0",
+    "linked_room_types_id_parent": "0",
+    "is_ota_avail_limitted": "0",
+    "ota_avail_limit": "0",
+    "min_avail_notification": "0",
+    "min_adults": "0",
+    "max_adults": "0",
+    "min_children": "0",
+    "max_children": "0",
+    "commission_type": "0",
+    "commission": "0",
+    "vat_manager_modul": "0",
+    "notification_email": "",
+    "is_deleted": "0",
+    "date_deleted": null,
+    "is_modified": "0",
+    "date_modified": null,
+    "date_created": "2021-05-06 11:08:33",
+    "parent_avail": null,
+    "channex_id_rt": "00000000-0000-4000-8000-4f74e8b09ccf",
+    "roomDetails": {
+      "roomNumber": [
+        {
+          "id_rooms": "331",
+          "id_room_types": "175",
+          "name": "1",
+          "status": "clean",
+          "is_deleted": "0",
+          "date_deleted": null,
+          "room_date_created": "2021-05-06 11:08:33"
+        }
+      ],
+      "amenities": [],
+      "room_types_houserooms": [],
+      "roomImages": [
+        {
+          "id_room_types_images": "1395",
+          "id_room_types": "175",
+          "url": "https://example.com/images/photo.jpg"
+        }
+      ],
+      "roomPricePerPerson": []
+    }
+  },
+  {
+    "id_room_types": "4351",
+    "id_properties": "<property-id-code>",
+    "name": "Sample Room 24",
+    "type": "room",
+    "shortname": "TR",
+    "price": "100",
+    "avail": "2",
+    "occupancy": "3",
+    "area": "100",
+    "bathrooms": "1",
+    "booking_engine": "1",
+    "google_vr": "0",
+    "description": "Description",
+    "is_virtual": "0",
+    "prices_per_person": "1",
+    "parent_id": "0",
+    "avail_variation": "0",
+    "variation_type": "",
+    "variation_amount": "0",
+    "children_1_amount": "50",
+    "children_1_variation_type": "percent",
+    "children_2_amount": "1",
+    "children_2_variation_type": "percent",
+    "children_3_amount": "1",
+    "children_3_variation_type": "percent",
+    "children_4_amount": "0",
+    "children_4_variation_type": null,
+    "children_5_amount": "0",
+    "children_5_variation_type": null,
+    "children_6_amount": "0",
+    "children_6_variation_type": null,
+    "children_7_amount": "0",
+    "children_7_variation_type": null,
+    "seniors_amount": "1",
+    "seniors_variation_type": "percent",
+    "copy_min_stay": "0",
+    "copy_max_stay": "0",
+    "copy_min_stay_arrival": "0",
+    "copy_closed_departure": "0",
+    "copy_closed_arrival": "0",
+    "copy_closed": "0",
+    "generate_ical": "0",
+    "linked_room_types_active": "0",
+    "linked_room_types_id_parent": "0",
+    "is_ota_avail_limitted": "0",
+    "ota_avail_limit": "0",
+    "min_avail_notification": "0",
+    "min_adults": "0",
+    "max_adults": "0",
+    "min_children": "0",
+    "max_children": "0",
+    "commission_type": "0",
+    "commission": "0",
+    "vat_manager_modul": "0",
+    "notification_email": "",
+    "is_deleted": "0",
+    "date_deleted": null,
+    "is_modified": "0",
+    "date_modified": null,
+    "date_created": "2022-09-16 14:23:49",
+    "parent_avail": null,
+    "channex_id_rt": "00000000-0000-4000-8000-f0b0fffb7a14",
+    "roomDetails": {
+      "roomNumber": [
+        {
+          "id_rooms": "9730",
+          "id_room_types": "4351",
+          "name": "A",
+          "status": "clean",
+          "is_deleted": "0",
+          "date_deleted": null,
+          "room_date_created": "2022-09-16 14:23:49"
+        },
+        {
+          "id_rooms": "9731",
+          "id_room_types": "4351",
+          "name": "B",
+          "status": "clean",
+          "is_deleted": "0",
+          "date_deleted": null,
+          "room_date_created": "2022-09-16 14:23:49"
+        }
+      ],
+      "amenities": [
+        {
+          "id_room_types_amenities": "33077",
+          "id_room_types": "4351",
+          "name": "air-conditioning"
+        },
+        {
+          "id_room_types_amenities": "33078",
+          "id_room_types": "4351",
+          "name": "heading"
+        }
+      ],
+      "room_types_houserooms": [
+        {
+          "id_room_types_houserooms": "7729",
+          "id_room_types": "4351",
+          "name": "Living Area",
+          "beds": [
+            {
+              "id_room_types_houserooms_beds": "9771",
+              "id_room_types_houserooms": "7729",
+              "name": ""
+            }
+          ]
+        },
+        {
+          "id_room_types_houserooms": "7730",
+          "id_room_types": "4351",
+          "name": "Bedroom",
+          "beds": [
+            {
+              "id_room_types_houserooms_beds": "9772",
+              "id_room_types_houserooms": "7730",
+              "name": "Queen Bed"
+            },
+            {
+              "id_room_types_houserooms_beds": "9773",
+              "id_room_types_houserooms": "7730",
+              "name": "Double Bed"
+            }
+          ]
+        }
+      ],
+      "roomImages": [
+        {
+          "id_room_types_images": "23157",
+          "id_room_types": "4351",
+          "url": "https://example.com"
+        },
+        {
+          "id_room_types_images": "23170",
+          "id_room_types": "4351",
+          "url": "https://example.com/images/photo.jpg"
+        }
+      ],
+      "roomPricePerPerson": [
+        {
+          "id_room_types_prices_per_person": "1968",
+          "id_room_types": "4351",
+          "occupancy": "1",
+          "variation_type": "percent",
+          "amount": "80"
+        },
+        {
+          "id_room_types_prices_per_person": "1969",
+          "id_room_types": "4351",
+          "occupancy": "2",
+          "variation_type": "percent",
+          "amount": "90"
+        },
+        {
+          "id_room_types_prices_per_person": "1970",
+          "id_room_types": "4351",
+          "occupancy": "3",
+          "variation_type": "percent",
+          "amount": "110"
+        }
+      ]
+    }
+  },
+  {
+    "id_room_types": "4352",
+    "id_properties": "<property-id-code>",
+    "name": "Sample Room 20",
+    "type": "room",
+    "shortname": "TR2",
+    "price": "100",
+    "avail": "2",
+    "occupancy": "3",
+    "area": "100",
+    "bathrooms": "1",
+    "booking_engine": "1",
+    "google_vr": "0",
+    "description": "Description",
+    "is_virtual": "0",
+    "prices_per_person": "0",
+    "parent_id": "0",
+    "avail_variation": "0",
+    "variation_type": "",
+    "variation_amount": "0",
+    "children_1_amount": "0",
+    "children_1_variation_type": "fixed",
+    "children_2_amount": "0",
+    "children_2_variation_type": "fixed",
+    "children_3_amount": "0",
+    "children_3_variation_type": "fixed",
+    "children_4_amount": "0",
+    "children_4_variation_type": null,
+    "children_5_amount": "0",
+    "children_5_variation_type": null,
+    "children_6_amount": "0",
+    "children_6_variation_type": null,
+    "children_7_amount": "0",
+    "children_7_variation_type": null,
+    "seniors_amount": "0",
+    "seniors_variation_type": "fixed",
+    "copy_min_stay": "0",
+    "copy_max_stay": "0",
+    "copy_min_stay_arrival": "0",
+    "copy_closed_departure": "0",
+    "copy_closed_arrival": "0",
+    "copy_closed": "0",
+    "generate_ical": "0",
+    "linked_room_types_active": "0",
+    "linked_room_types_id_parent": "0",
+    "is_ota_avail_limitted": "0",
+    "ota_avail_limit": "0",
+    "min_avail_notification": "0",
+    "min_adults": "0",
+    "max_adults": "0",
+    "min_children": "0",
+    "max_children": "0",
+    "commission_type": "0",
+    "commission": "0",
+    "vat_manager_modul": "0",
+    "notification_email": "",
+    "is_deleted": "0",
+    "date_deleted": null,
+    "is_modified": "0",
+    "date_modified": null,
+    "date_created": "2022-09-16 14:50:22",
+    "parent_avail": null,
+    "channex_id_rt": "00000000-0000-4000-8000-c07640b0a694",
+    "roomDetails": {
+      "roomNumber": [
+        {
+          "id_rooms": "9732",
+          "id_room_types": "4352",
+          "name": "A",
+          "status": "clean",
+          "is_deleted": "0",
+          "date_deleted": null,
+          "room_date_created": "2022-09-16 14:50:22"
+        },
+        {
+          "id_rooms": "9733",
+          "id_room_types": "4352",
+          "name": "B",
+          "status": "clean",
+          "is_deleted": "0",
+          "date_deleted": null,
+          "room_date_created": "2022-09-16 14:50:22"
+        }
+      ],
+      "amenities": [
+        {
+          "id_room_types_amenities": "34083",
+          "id_room_types": "4352",
+          "name": "air-conditioning"
+        },
+        {
+          "id_room_types_amenities": "34084",
+          "id_room_types": "4352",
+          "name": "heading"
+        }
+      ],
+      "room_types_houserooms": [
+        {
+          "id_room_types_houserooms": "7893",
+          "id_room_types": "4352",
+          "name": "Living Area",
+          "beds": [
+            {
+              "id_room_types_houserooms_beds": "9976",
+              "id_room_types_houserooms": "7893",
+              "name": ""
+            }
+          ]
+        },
+        {
+          "id_room_types_houserooms": "7894",
+          "id_room_types": "4352",
+          "name": "Bedroom",
+          "beds": [
+            {
+              "id_room_types_houserooms_beds": "9977",
+              "id_room_types_houserooms": "7894",
+              "name": "Queen Bed"
+            },
+            {
+              "id_room_types_houserooms_beds": "9978",
+              "id_room_types_houserooms": "7894",
+              "name": "Double Bed"
+            }
+          ]
+        }
+      ],
+      "roomImages": [
+        {
+          "id_room_types_images": "21883",
+          "id_room_types": "4352",
+          "url": "https://example.com/images/photo.jpg"
+        }
+      ],
+      "roomPricePerPerson": []
+    }
+  }
+]

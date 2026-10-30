@@ -3,6 +3,8 @@
 - **Status:** alignment (grill) — decisions resolved; the feature-design follows in this folder.
 - **Date:** 2026-10-29
 - **Issue:** matesjara/xcale-mcp-server#187 (the CTO's decision on auth is its first comment).
+- **Epic:** matesjara/xcale-backend#1694 (Kunas integration); access and the open questions in xcale-backend#1691,
+  the booking adapter in #1692, the CRM by webhook in #1693.
 - **Code target repos:** `xcale-mcp-server` (core change + the `hotelsync` provider); `xcale-backend` (Rail A,
   the `booking` module, the webhook receiver); `xcale-frontend` (the connect form).
 - **Source:** HotelSync OpenAPI 3.1 (`https://api-docs.hotelsync.com/openapi.yaml`, `info.version`
@@ -76,11 +78,12 @@ elsewhere (webhooks).
   `reservation_room_type_prices` (occupancy-aware), and the hotel's restrictions are read as they are, so the
   agent never offers a stay the hotel does not sell — the hotel's own configuration, read faithfully, not a
   rule of ours. `engine_code` is not needed.
-- **D5 — Modify and cancel follow Cloudbeds' identity model.** The write tools that name a reservation
-  declare an `identityPolicy` (ADR 0019, 0023: `subject-bound`, `recordKind: reservation`, `recordAction:
-  change | cancel`, the reservation's phone/email as identity fields); xcale-backend enforces it against what
-  the person writing has proven (its ADR 0062). Whether the agent cancels on its own, asks to confirm or hands
-  the case to the front desk is the hotel's policy, in its agent's instructions — not code.
+- **D5 — Reservations follow the Cloudbeds and Erbon model.** Every reservation tool (read, search, create,
+  modify, cancel) is `controlPlane`: the agent acts through xcale-backend's `booking` flow, which checks that
+  the person writing has proven to be the guest (its ADR 0062) before it shows or changes a reservation —
+  Cloudbeds' modify-verified flow (xcale-backend#1243) enforces it there, not in tool metadata. Whether the
+  agent cancels on its own, asks to confirm or hands the case to the front desk is the hotel's policy, in its
+  agent's instructions — not code.
 - **D6 — Webhooks: an unguessable URL, the event is a hint.** No signature exists (§2.8), so xcale-backend
   generates a per-connection secret and registers `…/api/webhooks/hotelsync/<secret>` (Cloudbeds' shape,
   `xcale-backend/src/modules/cloudbeds/webhooks/webhook-secret.ts`). An event is never trusted: the backend
@@ -95,34 +98,13 @@ elsewhere (webhooks).
   `createHotelSyncProvider(deps?)`; one line in `src/providers/index.ts`; the host is deployment config,
   allowlisted to `app.hotelsync.com` / `beta.hotelsync.com`, never consumer-supplied.
 
-## 4. Proposed tools
+## 4. Tools
 
-All POST; `token`, `key` and `id_properties` are placed by the core, never by a handler or an input.
-
-### Agent menu (`listTools`) — money-free
-
-| Tool | Endpoint | Phase |
-| --- | --- | --- |
-| `mcp_hotelsync_get_property` | `/api/property/data/property` | 1a |
-| `mcp_hotelsync_list_room_types` | `/api/room/data/rooms` | 1a |
-| `mcp_hotelsync_list_rate_plans` | `/api/pricingPlan/data/pricing_plans` | 1a |
-| `mcp_hotelsync_check_availability` | `/api/avail/data/avail` | 1a |
-| `mcp_hotelsync_list_restrictions` | `/api/restrictions/data/restrictions` | 1a |
-| `mcp_hotelsync_get_reservation` | `/api/reservation/data/reservation` (identity-bound) | 1a |
-| `mcp_hotelsync_create_reservation` | `/api/reservation/insert/reservation` | 1b |
-| `mcp_hotelsync_modify_reservation` | `/api/reservation/edit/basics_new`, `edit/update_room` (identity-bound) | 1b |
-| `mcp_hotelsync_cancel_reservation` | `/api/reservation/edit/status` (identity-bound) | 1b |
-
-### Routable, not listed (`controlPlane`)
-
-| Tool | Endpoint | Why hidden | Phase |
-| --- | --- | --- | --- |
-| `mcp_hotelsync_get_prices` | `/api/prices/data/prices` | money | 1a |
-| `mcp_hotelsync_quote_room_type` | `/api/prices/data/reservation_room_type_prices` | money — composes `StayQuote` | 1a |
-| `mcp_hotelsync_register_webhook` / `mcp_hotelsync_list_webhooks` / `mcp_hotelsync_delete_webhook` | `/api/webhooks/*` | lifecycle, run by the consumer | 1b |
-
-Names and the exact endpoint for each edit are the contract's to fix once observed; cancel via `edit/status`
-vs `delete/delete` is open (Q7).
+The published surface is `api-contract.md`. In short: the agent menu holds `get_property`, `list_room_types`,
+`list_rate_plans`, `check_availability` and `list_restrictions`; `get_prices` and `quote_room_type` (money),
+`get_reservation`, `search_reservations`, `create_reservation`, `modify_reservation`, `cancel_reservation`
+and the three webhook tools are `controlPlane`. Cancel is `/api/reservation/delete/delete` with a reason —
+`/api/reservation/edit/status` sets the GUEST status, not the reservation's.
 
 ## 5. Open questions — settled only by Kunas or staging
 
@@ -134,7 +116,7 @@ vs `delete/delete` is open (Q7).
 | Q4 | Is a dead session always `401`, or sometimes `403`? | staging |
 | Q5 | Which properties does the login list? (isolation check for a Kunas-managed user) | first login |
 | Q6 | Do prices include taxes and extra-person charges? | staging / HotelSync |
-| Q7 | Is cancel `edit/status` (kept as a cancelled record) or `delete/delete`? Does a read-only token `403` every write? | staging |
+| Q7 | Does `delete/delete` cancel (a record kept as `canceled`) or delete for good? Does a read-only token `403` every write? | staging |
 | Q8 | Webhook payload shape and event types; does an event carry enough to re-read the reservation by id? | staging (`test_webhook`) |
 
 ## 6. ADRs

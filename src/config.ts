@@ -36,6 +36,13 @@ export interface Config {
    */
   readonly himedBaseUrl: string;
   readonly himedSchedulingBaseUrl: string;
+  /**
+   * HotelSync's host — `https://beta.hotelsync.com` (staging) in dev, `https://app.hotelsync.com` in prd;
+   * production when unset. Only those two are accepted: a session key and a partner token ride every
+   * request body. It must match the host the consumer logs in on — a staging session does not work on
+   * production. Optional, so full `Config` literals elsewhere keep compiling.
+   */
+  readonly hotelsyncBaseUrl?: string;
 }
 
 /**
@@ -73,5 +80,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     siigoPartnerId: env.SIIGO_PARTNER_ID ?? '',
     himedBaseUrl: env.HIMED_BASE_URL ?? '',
     himedSchedulingBaseUrl: env.HIMED_SCHEDULING_BASE_URL ?? '',
+    hotelsyncBaseUrl: env.HOTELSYNC_BASE_URL ?? '',
   };
 }
