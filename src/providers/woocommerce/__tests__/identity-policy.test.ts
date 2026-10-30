@@ -21,7 +21,6 @@ describe('woocommerce publishes whose data each tool can reach', () => {
   it('binds the reads and writes of one order or customer to the person who owns it', () => {
     // An order id and a customer id live in different id spaces: order 42 is not customer 42.
     for (const [name, kind] of [
-      ['mcp_woocommerce_get_order', 'woocommerce:order'],
       ['mcp_woocommerce_update_order', 'woocommerce:order'],
       ['mcp_woocommerce_get_customer', 'woocommerce:customer'],
       ['mcp_woocommerce_update_customer', 'woocommerce:customer'],
@@ -33,6 +32,18 @@ describe('woocommerce publishes whose data each tool can reach', () => {
         recordOwnershipKind: kind,
       });
     }
+  });
+
+  it('declares the order read as a read of one record by its id (ADR 0023 recordAction)', () => {
+    // A consumer may serve it a record its customer already found; `update_order` stays undeclared as
+    // an action: a status write is not one a customer may make on their own order.
+    expect(byName.get('mcp_woocommerce_get_order')?.identityPolicy).toEqual({
+      mode: 'subject-bound',
+      identityFields: [],
+      recordOwnershipField: 'id',
+      recordOwnershipKind: 'woocommerce:order',
+      recordAction: 'read',
+    });
   });
 
   it('declares both customer-search filters, since either asks about a person', () => {

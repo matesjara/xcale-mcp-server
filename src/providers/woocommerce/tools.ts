@@ -1562,12 +1562,14 @@ export function buildWoocommerceTools(
     tool({
       name: `mcp_${SLUG}_get_order`,
       // Reaches one person's record by its id: their contact and address. Bound to the person who owns
-      // it, so a consumer can serve the record its own customer placed and refuse a guessed id.
+      // it, so a consumer can serve the record its own customer placed and refuse a guessed id. A read
+      // of one record (`recordAction: 'read'`, ADR 0023): it may take the record a lookup found.
       identityPolicy: {
         mode: 'subject-bound',
         identityFields: [],
         recordOwnershipField: 'id',
         recordOwnershipKind: `${SLUG}:order`,
+        recordAction: 'read',
       },
       description:
         'Get one order by id: status, total, line items, and the buyer contact + shipping address. Owner-facing.',
