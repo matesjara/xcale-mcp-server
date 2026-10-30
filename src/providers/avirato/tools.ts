@@ -1,9 +1,10 @@
 import { z } from 'zod';
 
 import { ok, toolFactory, type ToolDefinition } from '../../core/tool';
+import type { ToolIdentityPolicy } from '../../core/types';
 import type { AviratoClient } from './client';
 import type { AviratoContext } from './context';
-import { unwrapAvirato } from './errors';
+import { aviratoErrorCode, NOT_FOUND_CODE, unwrapAvirato } from './errors';
 import { SLUG } from './manifest';
 
 const tool = toolFactory<AviratoContext>();
@@ -25,6 +26,20 @@ const isoDate = z
 
 /** A positive integer id (Avirato's `space_subtype_id`, `rate_id`, `reservation_id`). */
 const id = z.number().int().positive();
+
+/** The id space of Avirato reservation ids, so they never compare with another provider's or kind's. */
+const RESERVATION_KIND = `${SLUG}:reservation`;
+
+/**
+ * A tool that names one reservation by id and acts with the hotel's token: bound to the reservation's
+ * owner. No person field is in the input, so the consumer authorizes it by ownership of the record.
+ */
+const reservationOwner: ToolIdentityPolicy = {
+  mode: 'subject-bound',
+  identityFields: [],
+  recordOwnershipField: 'reservation_id',
+  recordOwnershipKind: RESERVATION_KIND,
+};
 
 /**
  * A quote's rows without exact duplicates, in Avirato's order. Avirato was observed returning every
@@ -160,6 +175,88 @@ export function buildAviratoTools(
         return outcome.data === '' || outcome.data == null
           ? ok({ valid: false })
           : ok({ valid: true, code: outcome.data });
+      },
+    }),
+
+    // ── Reservation reads ──────────────────────────────────────────────────────────────────────────
+    //
+    // Each reaches one guest's stay with the hotel's token, so each declares whose record it is: by
+    // reservation id, bound to the reservation's owner (a guest sees the stay they booked, a guessed id
+    // is refused); by document, bound to the person that document names, with each row's id marking
+    // its owner. The consumer enforces; this server declares (ADR 0019).
+
+    tool({
+      name: `mcp_${SLUG}_get_reservation`,
+      readOnly: true,
+      identityPolicy: reservationOwner,
+      description:
+        'Get one reservation by its `reservation_id`: status, stay dates, room subtype, rate, regime, ' +
+        'party, price, whether it is paid, and the client. A cancelled reservation can no longer be ' +
+        'read by id: it answers "not found or cancelled".',
+      input: z.object({ reservation_id: id }).strict(),
+      handler: async (args, ctx) => {
+        const outcome = unwrapAvirato(
+          await client.get(`reservation/${args.reservation_id}`, ctx.request, ctx.metadata),
+          'get_reservation',
+        );
+        // Observed: Avirato answers a one-element array for one id.
+        return outcome.ok && Array.isArray(outcome.data) ? ok(outcome.data[0]) : outcome;
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_find_reservations_by_guest`,
+      readOnly: true,
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: ['client_doc'],
+        ownedResultField: 'reservation_id',
+        recordOwnershipKind: RESERVATION_KIND,
+      },
+      description:
+        'Find a guest’s reservations by their identity document (`client_doc`, as the hotel recorded ' +
+        'it). Returns `{ items }`, cancelled reservations included; an unknown document returns no ' +
+        'items. Avirato was observed returning one reservation of several under the same document, so ' +
+        'when the guest has their reservation id, `get_reservation` is the reliable read.',
+      input: z.object({ client_doc: z.string().trim().min(1).max(64) }).strict(),
+      handler: async (args, ctx) => {
+        const res = await client.get(
+          `reservation/client/${encodeURIComponent(args.client_doc)}`,
+          ctx.request,
+          ctx.metadata,
+        );
+        // Observed: an unknown document is `400 ERROR_RETRIEVING_RESERVATIONS`, which for a search
+        // means "nothing found".
+        if (!res.ok && aviratoErrorCode(res.body) === NOT_FOUND_CODE) return ok({ items: [] });
+        const outcome = unwrapAvirato(res, 'find_reservations_by_guest');
+        return outcome.ok
+          ? ok({ items: Array.isArray(outcome.data) ? outcome.data : [] })
+          : outcome;
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_get_reservation_links`,
+      readOnly: true,
+      identityPolicy: reservationOwner,
+      description:
+        'Get one of a reservation’s guest links: `AutoCheck` (online check-in), `Guest` (the guest ' +
+        'area) or `Shop` (the hotel’s online shop). Returns `{ type, url }` as Avirato gives it — the ' +
+        '`Shop` URL may be plain `http://`. Which link takes payment for the stay is not stated by ' +
+        'Avirato. A cancelled reservation has no links.',
+      input: z
+        .object({ reservation_id: id, type: z.enum(['AutoCheck', 'Guest', 'Shop']) })
+        .strict(),
+      handler: async (args, ctx) => {
+        const outcome = unwrapAvirato(
+          await client.get(`reservation/urls/${args.reservation_id}`, ctx.request, ctx.metadata, {
+            type: args.type,
+          }),
+          'get_reservation_links',
+        );
+        if (!outcome.ok) return outcome;
+        const url = (outcome.data as { url?: unknown } | null)?.url;
+        return ok({ type: args.type, url });
       },
     }),
 

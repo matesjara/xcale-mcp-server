@@ -187,7 +187,7 @@ No sub-issues (Step 6b): one epic, one lane, one PR.
 - [x] S2 catalog reads
 - [x] S3 error mapping (with a core fix: `redactQueryValues` ends a value at a quote, so Avirato's JSON error bodies stay parseable)
 - [x] S4 `quote_stay` (control plane)
-- [ ] S5 reservation reads with identity policies
+- [x] S5 reservation reads with identity policies
 - [ ] S6 `create_reservation`, `cancel_reservation` (control plane)
 - [ ] S7 `cd xcale-mcp-server && npm run typecheck && npm run format:check && npm test` clean
 - [ ] S8 `mcp-contract-qa` against the Avirato sandbox

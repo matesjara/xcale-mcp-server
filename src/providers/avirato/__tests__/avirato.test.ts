@@ -17,7 +17,10 @@ import promoUnknown from '../__fixtures__/promo-unknown.json';
 import quoteDuplicated from '../__fixtures__/quote-duplicated.json';
 import rate from '../__fixtures__/rate.json';
 import regime from '../__fixtures__/regime.json';
+import reservation from '../__fixtures__/reservation.json';
+import reservationsByClient from '../__fixtures__/reservations-by-client.json';
 import space from '../__fixtures__/space.json';
+import urlsGuest from '../__fixtures__/urls-guest.json';
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -368,4 +371,124 @@ describe('avirato provider — S4 quote_stay', () => {
       expect(capture).toHaveLength(0);
     },
   );
+});
+
+// ---------------------------------------------------------------------------
+// S5 — reservation reads, each declaring whose record it reaches
+// ---------------------------------------------------------------------------
+
+describe('avirato provider — S5 reservation reads', () => {
+  const published = () => new Map(aviratoProvider.listTools().map((t) => [t.name, t]));
+
+  it('get_reservation reads one reservation by id and returns the row, not Avirato’s one-element array', async () => {
+    const { result, capture } = await callWith(
+      'mcp_avirato_get_reservation',
+      { reservation_id: 901 },
+      reservation,
+    );
+
+    expect(capture[0]?.url).toBe('https://apiv3.avirato.com/v3/reservation/901?web_code=1234');
+    expect(result).toMatchObject({ kind: 'success', data: reservation.data[0] });
+  });
+
+  it('get_reservation of a cancelled or unknown id is PROVIDER_ERROR, not found or cancelled', async () => {
+    const { result } = await callWith(
+      'mcp_avirato_get_reservation',
+      { reservation_id: 901 },
+      errorRetrieving,
+      400,
+    );
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
+    expect((result as { message: string }).message).toContain('not found or cancelled');
+  });
+
+  it('find_reservations_by_guest reads by client document and returns { items }', async () => {
+    const { result, capture } = await callWith(
+      'mcp_avirato_find_reservations_by_guest',
+      { client_doc: 'TEST 0001' },
+      reservationsByClient,
+    );
+
+    expect(capture[0]?.url).toBe(
+      'https://apiv3.avirato.com/v3/reservation/client/TEST%200001?web_code=1234',
+    );
+    expect(result).toMatchObject({ kind: 'success', data: { items: reservationsByClient.data } });
+  });
+
+  it('find_reservations_by_guest of an unknown document is an empty list, not an error', async () => {
+    const { result } = await callWith(
+      'mcp_avirato_find_reservations_by_guest',
+      { client_doc: 'NOBODY' },
+      errorRetrieving,
+      400,
+    );
+
+    expect(result).toMatchObject({ kind: 'success', data: { items: [] } });
+  });
+
+  it('get_reservation_links asks for one link type and returns { type, url } verbatim', async () => {
+    const { result, capture } = await callWith(
+      'mcp_avirato_get_reservation_links',
+      { reservation_id: 901, type: 'Guest' },
+      urlsGuest,
+    );
+
+    expect(capture[0]?.url).toBe(
+      'https://apiv3.avirato.com/v3/reservation/urls/901?web_code=1234&type=Guest',
+    );
+    expect(result).toMatchObject({
+      kind: 'success',
+      data: { type: 'Guest', url: urlsGuest.data.url },
+    });
+  });
+
+  it('get_reservation_links refuses a link type Avirato does not offer', async () => {
+    const { result, capture } = await callWith(
+      'mcp_avirato_get_reservation_links',
+      { reservation_id: 901, type: 'Pay' },
+      urlsGuest,
+    );
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+    expect(capture).toHaveLength(0);
+  });
+
+  it('the reads by reservation id are bound to the reservation’s owner', () => {
+    for (const name of ['mcp_avirato_get_reservation', 'mcp_avirato_get_reservation_links']) {
+      expect(published().get(name)?.identityPolicy, name).toEqual({
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'reservation_id',
+        recordOwnershipKind: 'avirato:reservation',
+      });
+      expect(published().get(name)?.readOnly, name).toBe(true);
+    }
+  });
+
+  it('find_reservations_by_guest is bound to the document it names, and its rows to their owner', () => {
+    expect(published().get('mcp_avirato_find_reservations_by_guest')?.identityPolicy).toEqual({
+      mode: 'subject-bound',
+      identityFields: ['client_doc'],
+      ownedResultField: 'reservation_id',
+      recordOwnershipKind: 'avirato:reservation',
+    });
+  });
+
+  it('every declared identity field exists in its tool’s input schema', () => {
+    for (const tool of aviratoProvider.listTools()) {
+      if (tool.identityPolicy?.mode !== 'subject-bound') continue;
+      const properties = Object.keys(
+        (tool.inputSchema as { properties?: Record<string, unknown> }).properties ?? {},
+      );
+      for (const field of [
+        ...tool.identityPolicy.identityFields,
+        ...(tool.identityPolicy.recordOwnershipField
+          ? [tool.identityPolicy.recordOwnershipField]
+          : []),
+      ]) {
+        expect(properties, `${tool.name}: ${field}`).toContain(field);
+      }
+    }
+  });
 });
