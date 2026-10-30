@@ -183,7 +183,7 @@ No sub-issues (Step 6b): one epic, one lane, one PR.
 
 ## Definition of Done
 
-- [ ] S1 skeleton, `get_establishment`, conformance green
+- [x] S1 skeleton, `get_establishment`, conformance green (the logo is deferred: Avirato publishes its mark only as a raster image, so the tile gets its own change)
 - [ ] S2 catalog reads
 - [ ] S3 error mapping
 - [ ] S4 `quote_stay` (control plane)
