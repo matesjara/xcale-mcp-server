@@ -43,9 +43,13 @@ const MAX_ERROR_BODY = 500;
  * provider inherits the protection instead of re-discovering the leak.
  *
  * Parameter NAMES are kept: `?xir=[REDACTED]&xapitoken=[REDACTED]` still says which call failed.
+ *
+ * A value ends at `&`, whitespace or a quote. The quote matters when a provider echoes the request URL
+ * inside a one-line JSON error body (Avirato's `path`): masking past the closing quote would eat the
+ * fields that follow — the error code a provider maps on — and leave the body unparseable.
  */
 export function redactQueryValues(text: string): string {
-  return text.replace(/([?&])([^=&\s]+)=([^&\s]*)/g, (_m, sep: string, key: string) => {
+  return text.replace(/([?&])([^=&\s"']+)=([^&\s"']*)/g, (_m, sep: string, key: string) => {
     return `${sep}${key}=[REDACTED]`;
   });
 }
