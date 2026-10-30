@@ -285,16 +285,16 @@ cancel_reservation:         { reservation_id: number }
 
 ## D. Error mapping
 
-| Avirato                                                             | `ToolResult`                                                                                  |
-| :------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------- |
-| `401` on a data call                                                | `PROVIDER_AUTH_EXPIRED` (the token was superseded or rejected; a fresh mint fixes it)         |
-| `403`                                                               | `PROVIDER_ERROR` (a permission the API user lacks; a reconnect does not fix it)               |
-| `429`                                                               | `PROVIDER_RATE_LIMITED`; the message names the seconds until `X-RateLimit-Reset` when present |
-| `400 INPUT_DATA_VALIDATION_FAILED`                                  | `PROVIDER_INVALID_INPUT`, with Avirato's `errors[]` as the message                            |
-| `400 ERROR_VALIDATING_DATA`                                         | `PROVIDER_INVALID_INPUT`, with Avirato's `message`                                            |
-| `400 ERROR_RETRIEVING_RESERVATIONS` on `find_reservations_by_guest` | success, `{ items: [] }`                                                                      |
-| `400 ERROR_RETRIEVING_RESERVATIONS` on any other tool               | `PROVIDER_ERROR`, message `"reservation not found or cancelled"`                              |
-| `5xx`, network failure, timeout                                     | `PROVIDER_UNAVAILABLE`                                                                        |
+| Avirato                                                             | `ToolResult`                                                                                                                           |
+| :------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------- |
+| `401` on a data call                                                | `PROVIDER_AUTH_EXPIRED` (the token was superseded or rejected; a fresh mint fixes it)                                                  |
+| `403`                                                               | `PROVIDER_ERROR` (a permission the API user lacks; a reconnect does not fix it)                                                        |
+| `429`                                                               | `PROVIDER_RATE_LIMITED` (the core's transport does not hand a provider the response headers, so `X-RateLimit-Reset` is not read in v1) |
+| `400 INPUT_DATA_VALIDATION_FAILED`                                  | `PROVIDER_INVALID_INPUT`, with Avirato's `errors[]` as the message                                                                     |
+| `400 ERROR_VALIDATING_DATA`                                         | `PROVIDER_INVALID_INPUT`, with Avirato's `message`                                                                                     |
+| `400 ERROR_RETRIEVING_RESERVATIONS` on `find_reservations_by_guest` | success, `{ items: [] }`                                                                                                               |
+| `400 ERROR_RETRIEVING_RESERVATIONS` on any other tool               | `PROVIDER_ERROR`, message `"reservation not found or cancelled"`                                                                       |
+| `5xx`, network failure, timeout                                     | `PROVIDER_UNAVAILABLE`                                                                                                                 |
 
 No error message echoes a request URL, header or body (Credential-in-Transit-Only). The login's own `401`/`404` never reach this server: Rail A mints.
 
