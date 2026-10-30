@@ -3,7 +3,7 @@
 > **Design**: [`feature-design.md`](feature-design.md) · **Grill**: [`grill-notes.md`](grill-notes.md) ·
 > **ADR**: [`credential-exchange-session-key-in-body`](../../adr/credential-exchange-session-key-in-body.md) ·
 > **Issue**: #187
-> **Status**: Planned — Phase 0 detailed; Phases 1a and 1b at slice level
+> **Status**: Phase 0a built (this branch); Phase 0b next — Phases 1a and 1b at slice level
 > **Last Updated**: 2026-10-29
 
 ## Meta-description
@@ -79,10 +79,10 @@ Sequential: S0a.1 → S0a.2 → S0a.3 (each builds on the previous types). No fa
 
 ### Definition of Done — Phase 0a
 
-- [ ] `npm run typecheck` clean
-- [ ] `npm run format:check` clean
-- [ ] `npm test` green, conformance and parity included
-- [ ] `.reveal()` still appears only in `authentication-materializer.ts` and the reference nonce site
+- [x] `npm run typecheck` clean
+- [x] `npm run format:check` clean
+- [x] `npm test` green, conformance and parity included (825 tests; end to end in `src/core/__tests__/credential-exchange-body.test.ts`)
+- [x] `.reveal()` still appears only in `authentication-materializer.ts` and the reference nonce site
       (`git grep -n "\.reveal()" src`)
 - [ ] PR body states the `src/core` reach and links the ADR (`/implement` escalates core changes; this PR
       goes through `/pr-review`)
@@ -160,7 +160,7 @@ Gate: Phase 0 merged into both `dev`s; Kunas answered Q-1/Q-2; the login in Dopp
 | S1a.1 | Evidence: login, property read, room types, availability, prices, restrictions, a `401` after logout — `sandbox-evidence.md` | xcale-mcp-server |
 | S1a.2 | `api-contract.md` for the read tools (`/api-contract-authoring`) | xcale-mcp-server |
 | S1a.3 | `src/providers/hotelsync/` reads + fixtures + conformance, one line in `src/providers/index.ts`, logo (`add-provider`) | xcale-mcp-server |
-| S1a.4 | `booking` adapter: quote via `hotelsync_quote_room_type`, restrictions honoured | xcale-backend |
+| S1a.4 | `booking` adapter: quote via `mcp_hotelsync_quote_room_type`, restrictions honoured | xcale-backend |
 | S1a.5 | Connect form (four fields) from the descriptor | xcale-frontend |
 
 ## Phase 1b — Writes and webhooks (slice level)

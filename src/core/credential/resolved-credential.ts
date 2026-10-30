@@ -19,4 +19,10 @@ export interface ResolvedCredential {
    * instead of `secret`. Absent ⇒ single-secret providers (the sole `secret`), unchanged.
    */
   readonly secrets?: Readonly<Record<string, SecretString>>;
+  /**
+   * Body companions (ADR: credential-exchange-session-key-in-body): durable-credential values the
+   * Credential Authority returns beside the minted token, keyed by their LOGICAL name. The materializer
+   * places each under the wire name the descriptor's `bodyCompanions` declares. Absent ⇒ none.
+   */
+  readonly companions?: Readonly<Record<string, SecretString>>;
 }

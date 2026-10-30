@@ -65,8 +65,27 @@ export function materialize(
       // HTTP Basic. Stays single-secret; the server only encodes. ADR 0018.
       headers.authorization = `Basic ${Buffer.from(secret).toString('base64')}`;
       break;
-    case 'oauth2':
     case 'credential_exchange':
+      if (auth.tokenPlacement === 'body') {
+        // ADR credential-exchange-session-key-in-body: the minted token as a body field, then each body
+        // companion under its wire name. A missing name or companion is a descriptor/wiring bug, thrown
+        // rather than sent half-authenticated.
+        if (!auth.tokenBodyField) {
+          throw new Error("credential_exchange tokenPlacement 'body' declares no tokenBodyField");
+        }
+        body = injectBodyParam(body, auth.tokenBodyField, secret);
+        for (const [logical, wire] of Object.entries(auth.bodyCompanions ?? {})) {
+          const companion = resolved.companions?.[logical];
+          if (companion === undefined) {
+            throw new Error(`no resolved body companion "${logical}"`);
+          }
+          body = injectBodyParam(body, wire, companion.reveal());
+        }
+      } else {
+        headers.authorization = `Bearer ${secret}`;
+      }
+      break;
+    case 'oauth2':
       if (auth.tokenPlacement === 'bearer_header') {
         headers.authorization = `Bearer ${secret}`;
       } else {
@@ -119,9 +138,11 @@ function appendQueryParam(url: string, key: string, value: string): string {
 }
 
 /**
- * Inject the credential as a field of the JSON request body (ADR: body-placement-for-api-key). Requires
- * a JSON object string body; a URLSearchParams or absent body with placement:'body' is a descriptor bug,
- * surfaced loudly rather than sent unauthenticated. The value is placed verbatim, never interpolated.
+ * Inject a credential as a field of the JSON request body (ADRs: body-placement-for-api-key,
+ * credential-exchange-session-key-in-body). Requires a JSON object string body; a URLSearchParams or
+ * absent body is a descriptor bug, surfaced loudly rather than sent unauthenticated. A field the handler
+ * already set is never overwritten: a provider handler does not write auth fields, so a clash is a bug.
+ * The value is placed verbatim, never interpolated, and never named in an error.
  */
 function injectBodyParam(
   body: string | URLSearchParams | undefined,
@@ -129,11 +150,14 @@ function injectBodyParam(
   value: string,
 ): string {
   if (typeof body !== 'string') {
-    throw new Error("api_key placement 'body' requires a JSON string request body");
+    throw new Error('body placement requires a JSON string request body');
   }
   const parsed: unknown = JSON.parse(body);
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error("api_key placement 'body' requires a JSON object body");
+    throw new Error('body placement requires a JSON object body');
+  }
+  if (Object.prototype.hasOwnProperty.call(parsed, key)) {
+    throw new Error(`body placement: field "${key}" is already set by the request`);
   }
   return JSON.stringify({ ...(parsed as Record<string, unknown>), [key]: value });
 }

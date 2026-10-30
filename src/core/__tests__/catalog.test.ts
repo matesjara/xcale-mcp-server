@@ -23,9 +23,11 @@ describe('buildCatalog', () => {
     // `{username,password}`). Secret VALUES never enter the descriptor (SecretString +
     // Credential-in-Transit-Only), so excluding only the name-map keeps the `password` term catching a
     // real leak ANYWHERE ELSE in the catalog. See ADR 0020 (0020-authdescriptor-field-names-are-non-secret.md).
+    // `bodyCompanions` is the same kind of name map (ADR credential-exchange-session-key-in-body).
     const scrubbed = catalog.map((e) => {
       const auth = { ...(e.authDescriptor as Record<string, unknown>) };
       delete auth.bodyFields;
+      delete auth.bodyCompanions;
       return { ...e, authDescriptor: auth };
     });
     const json = JSON.stringify(scrubbed);

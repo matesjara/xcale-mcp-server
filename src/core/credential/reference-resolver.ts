@@ -73,11 +73,13 @@ export function createReferenceCredentialResolver(deps: ReferenceResolverDeps): 
       }
 
       if (res.status === 200) {
-        const body = (await res.json()) as { token?: unknown };
+        const body = (await res.json()) as { token?: unknown; companions?: unknown };
         if (typeof body.token !== 'string' || body.token.length === 0) {
           throw new ReferenceResolutionError('resolve returned no token');
         }
-        return { secret: new SecretString(body.token) };
+        const secret = new SecretString(body.token);
+        if (body.companions === undefined) return { secret };
+        return { secret, companions: wrapCompanions(body.companions) };
       }
       if (res.status === 422) {
         throw new ReferenceAuthExpiredError();
@@ -86,4 +88,23 @@ export function createReferenceCredentialResolver(deps: ReferenceResolverDeps): 
       throw new ReferenceResolutionError(`resolve failed (HTTP ${res.status})`);
     },
   };
+}
+
+/**
+ * The resolve response's body companions (ADR: credential-exchange-session-key-in-body), each wrapped in a
+ * `SecretString` on arrival. Anything but an object of non-empty strings is a malformed Authority answer —
+ * transport-owned, never a half credential. The error names no value.
+ */
+function wrapCompanions(raw: unknown): Readonly<Record<string, SecretString>> {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new ReferenceResolutionError('resolve returned malformed companions');
+  }
+  const out: Record<string, SecretString> = {};
+  for (const [logical, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value !== 'string' || value.length === 0) {
+      throw new ReferenceResolutionError(`resolve returned an unusable companion "${logical}"`);
+    }
+    out[logical] = new SecretString(value);
+  }
+  return out;
 }

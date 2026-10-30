@@ -35,6 +35,20 @@ function assertAuthDescriptorShape(auth: ProviderAuthDescriptor, label: string):
         auth.responseFields.token.length,
         `${label}: credential_exchange.responseFields.token`,
       ).toBeGreaterThan(0);
+      // ADR credential-exchange-session-key-in-body: a body-placed token names its field, and a body
+      // companion is a durable credential field — one the login also sends.
+      if (auth.tokenPlacement === 'body') {
+        expect(
+          auth.tokenBodyField?.length ?? 0,
+          `${label}: credential_exchange.tokenBodyField (tokenPlacement 'body')`,
+        ).toBeGreaterThan(0);
+      }
+      for (const logical of Object.keys(auth.bodyCompanions ?? {})) {
+        expect(
+          Object.keys(auth.bodyFields),
+          `${label}: credential_exchange.bodyCompanions "${logical}" must be a bodyFields key`,
+        ).toContain(logical);
+      }
       break;
     case 'basic':
       // Basic declares the credential inputs a consumer must collect (in Basic order); it composes

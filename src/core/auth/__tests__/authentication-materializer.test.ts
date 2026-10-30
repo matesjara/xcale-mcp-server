@@ -169,4 +169,105 @@ describe('AuthenticationMaterializer — credential groups (multi-credential pro
       materialize(grouped, { secret: new SecretString('x') }, postSpec, 'directorio'),
     ).toThrow(/credential group "directorio"/);
   });
+
+  // ADR credential-exchange-session-key-in-body (HotelSync): the minted session key and the partner
+  // token both travel as fields of the JSON body.
+  describe('credential_exchange body placement + body companions', () => {
+    const sessionAuth: ProviderAuthDescriptor = {
+      type: 'credential_exchange',
+      credentialDelivery: 'reference',
+      tokenEndpoint: 'https://pms.test/api/user/auth/login',
+      method: 'POST',
+      bodyFields: { partnerToken: 'token', username: 'username', password: 'password' },
+      responseFields: { token: 'pkey' },
+      tokenPlacement: 'body',
+      tokenBodyField: 'key',
+      bodyCompanions: { partnerToken: 'token' },
+    };
+    const postSpec = (body: unknown): RequestSpec => ({
+      method: 'POST',
+      url: 'https://pms.test/api/room/data/rooms',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const withCompanion = () => ({
+      secret: new SecretString('PKEY'),
+      companions: { partnerToken: new SecretString('PARTNER') },
+    });
+
+    it('places the session key and the companion in the body — nowhere else', () => {
+      const req = materialize(sessionAuth, withCompanion(), postSpec({ id_properties: 'P1' }));
+      expect(JSON.parse(req.body as string)).toEqual({
+        id_properties: 'P1',
+        key: 'PKEY',
+        token: 'PARTNER',
+      });
+      expect(req.headers.authorization).toBeUndefined();
+      expect(req.url).not.toMatch(/PKEY|PARTNER/);
+      expect(JSON.stringify(req.headers)).not.toMatch(/PKEY|PARTNER/);
+    });
+
+    it('a declared companion missing from the resolved credential throws — never sent half-authenticated', () => {
+      const run = () =>
+        materialize(sessionAuth, { secret: new SecretString('PKEY') }, postSpec({}));
+      expect(run).toThrow(/companion "partnerToken"/);
+    });
+
+    it('a non-object body is a descriptor bug that throws', () => {
+      const run = () =>
+        materialize(sessionAuth, withCompanion(), { method: 'POST', url: 'https://pms.test/x' });
+      expect(run).toThrow(/body placement/);
+    });
+
+    it.each(['key', 'token'])(
+      'a body field the handler already set (%s) is never overwritten — it throws',
+      (field) => {
+        const run = () => materialize(sessionAuth, withCompanion(), postSpec({ [field]: 'x' }));
+        expect(run).toThrow(/already set/);
+      },
+    );
+
+    it('no error message carries the session key or the companion', () => {
+      const failures = [
+        () => materialize(sessionAuth, { secret: new SecretString('PKEY') }, postSpec({})),
+        () => materialize(sessionAuth, withCompanion(), postSpec({ key: 'x' })),
+        () => materialize(sessionAuth, withCompanion(), postSpec({ token: 'x' })),
+        () =>
+          materialize({ ...sessionAuth, tokenBodyField: undefined }, withCompanion(), postSpec({})),
+      ];
+      for (const fail of failures) {
+        const err = (() => {
+          try {
+            fail();
+          } catch (e) {
+            return e as Error;
+          }
+          return undefined;
+        })();
+        expect(err).toBeInstanceOf(Error);
+        expect(err?.message).not.toMatch(/PKEY|PARTNER/);
+      }
+    });
+
+    it("'body' placement without tokenBodyField is a descriptor bug that throws", () => {
+      const run = () =>
+        materialize({ ...sessionAuth, tokenBodyField: undefined }, withCompanion(), postSpec({}));
+      expect(run).toThrow(/tokenBodyField/);
+    });
+
+    it('a bearer_header descriptor ignores companions and materializes exactly as before', () => {
+      const bearer: ProviderAuthDescriptor = { ...sessionAuth, tokenPlacement: 'bearer_header' };
+      const {
+        tokenBodyField: _f,
+        bodyCompanions: _c,
+        ...plain
+      } = bearer as typeof bearer & {
+        tokenBodyField?: string;
+        bodyCompanions?: Record<string, string>;
+      };
+      const req = materialize(plain as ProviderAuthDescriptor, withCompanion(), postSpec({ a: 1 }));
+      expect(req.headers.authorization).toBe('Bearer PKEY');
+      expect(JSON.parse(req.body as string)).toEqual({ a: 1 });
+    });
+  });
 });

@@ -103,23 +103,23 @@ All POST; `token`, `key` and `id_properties` are placed by the core, never by a 
 
 | Tool | Endpoint | Phase |
 | --- | --- | --- |
-| `hotelsync_get_property` | `/api/property/data/property` | 1a |
-| `hotelsync_list_room_types` | `/api/room/data/rooms` | 1a |
-| `hotelsync_list_rate_plans` | `/api/pricingPlan/data/pricing_plans` | 1a |
-| `hotelsync_check_availability` | `/api/avail/data/avail` | 1a |
-| `hotelsync_list_restrictions` | `/api/restrictions/data/restrictions` | 1a |
-| `hotelsync_get_reservation` | `/api/reservation/data/reservation` (identity-bound) | 1a |
-| `hotelsync_create_reservation` | `/api/reservation/insert/reservation` | 1b |
-| `hotelsync_modify_reservation` | `/api/reservation/edit/basics_new`, `edit/update_room` (identity-bound) | 1b |
-| `hotelsync_cancel_reservation` | `/api/reservation/edit/status` (identity-bound) | 1b |
+| `mcp_hotelsync_get_property` | `/api/property/data/property` | 1a |
+| `mcp_hotelsync_list_room_types` | `/api/room/data/rooms` | 1a |
+| `mcp_hotelsync_list_rate_plans` | `/api/pricingPlan/data/pricing_plans` | 1a |
+| `mcp_hotelsync_check_availability` | `/api/avail/data/avail` | 1a |
+| `mcp_hotelsync_list_restrictions` | `/api/restrictions/data/restrictions` | 1a |
+| `mcp_hotelsync_get_reservation` | `/api/reservation/data/reservation` (identity-bound) | 1a |
+| `mcp_hotelsync_create_reservation` | `/api/reservation/insert/reservation` | 1b |
+| `mcp_hotelsync_modify_reservation` | `/api/reservation/edit/basics_new`, `edit/update_room` (identity-bound) | 1b |
+| `mcp_hotelsync_cancel_reservation` | `/api/reservation/edit/status` (identity-bound) | 1b |
 
 ### Routable, not listed (`controlPlane`)
 
 | Tool | Endpoint | Why hidden | Phase |
 | --- | --- | --- | --- |
-| `hotelsync_get_prices` | `/api/prices/data/prices` | money | 1a |
-| `hotelsync_quote_room_type` | `/api/prices/data/reservation_room_type_prices` | money — composes `StayQuote` | 1a |
-| `hotelsync_register_webhook` / `_list_webhooks` / `_delete_webhook` | `/api/webhooks/*` | lifecycle, run by the consumer | 1b |
+| `mcp_hotelsync_get_prices` | `/api/prices/data/prices` | money | 1a |
+| `mcp_hotelsync_quote_room_type` | `/api/prices/data/reservation_room_type_prices` | money — composes `StayQuote` | 1a |
+| `mcp_hotelsync_register_webhook` / `mcp_hotelsync_list_webhooks` / `mcp_hotelsync_delete_webhook` | `/api/webhooks/*` | lifecycle, run by the consumer | 1b |
 
 Names and the exact endpoint for each edit are the contract's to fix once observed; cancel via `edit/status`
 vs `delete/delete` is open (Q7).

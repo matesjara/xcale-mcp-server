@@ -121,8 +121,20 @@ export type ProviderAuthDescriptor =
         readonly name: string;
         readonly source: 'deployment';
       }>;
-      /** How the minted token is applied to data calls. */
-      readonly tokenPlacement: 'bearer_header';
+      /**
+       * How the minted token is applied to data calls: an `Authorization: Bearer` header, or a field of the
+       * JSON body named by `tokenBodyField` (ADR: credential-exchange-session-key-in-body — HotelSync's `key`).
+       */
+      readonly tokenPlacement: 'bearer_header' | 'body';
+      /** The body field the minted token is placed in. Required when `tokenPlacement` is `'body'`. */
+      readonly tokenBodyField?: string;
+      /**
+       * Body companions: durable-credential fields the Credential Authority also returns at resolve, each
+       * placed in the JSON body of every data call (logical field → wire name; e.g. HotelSync's partner
+       * token, `{ partnerToken: 'token' }`). Every logical key is also a `bodyFields` key. Names only —
+       * the values are secrets and never appear here (ADR 0020).
+       */
+      readonly bodyCompanions?: Readonly<Record<string, string>>;
     };
 
 /** Optional capabilities a provider may declare. Reserved (modeled, not enforced in v1). */
