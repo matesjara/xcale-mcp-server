@@ -7,7 +7,13 @@ import { SecretString } from '../../../core/secret-string';
 import { runProviderConformance } from '../../../core/testing/provider-conformance';
 import type { ProviderCallContext } from '../../../core/types';
 import { aviratoProvider, createAviratoProvider } from '../provider';
+import availability from '../__fixtures__/availability.json';
 import establishment from '../__fixtures__/establishment.json';
+import extra from '../__fixtures__/extra.json';
+import promoUnknown from '../__fixtures__/promo-unknown.json';
+import rate from '../__fixtures__/rate.json';
+import regime from '../__fixtures__/regime.json';
+import space from '../__fixtures__/space.json';
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -118,5 +124,114 @@ describe('avirato provider — S1 get_establishment', () => {
 
     expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
     expect(capture).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S2 — catalog reads
+// ---------------------------------------------------------------------------
+
+/** Calls one tool against a canned Avirato answer and returns the result and the request it sent. */
+async function callWith(name: string, args: Record<string, unknown>, body: unknown, status = 200) {
+  const capture: Captured[] = [];
+  const provider = createAviratoProvider({ fetchImpl: fakeFetch({ body, status, capture }) });
+  const result = await provider.callTool(name, args, ctx);
+  return { result, capture };
+}
+
+describe('avirato provider — S2 catalog reads', () => {
+  it.each([
+    ['mcp_avirato_list_room_types', 'space', space],
+    ['mcp_avirato_list_rates', 'rate', rate],
+    ['mcp_avirato_list_regimes', 'regime', regime],
+    ['mcp_avirato_list_extras', 'extra', extra],
+  ])(
+    '%s reads /%s of the context web_code and returns the array verbatim',
+    async (name, path, body) => {
+      const { result, capture } = await callWith(name, {}, body);
+
+      expect(result).toMatchObject({ kind: 'success', data: body.data });
+      expect(capture[0]?.init.method).toBe('GET');
+      expect(capture[0]?.url).toBe(`https://apiv3.avirato.com/v3/${path}?web_code=1234`);
+    },
+  );
+
+  it('check_availability sends the stay window and returns the subtypes day by day', async () => {
+    const { result, capture } = await callWith(
+      'mcp_avirato_check_availability',
+      { start_date: '2027-02-16', end_date: '2027-02-17' },
+      availability,
+    );
+
+    expect(result).toMatchObject({ kind: 'success', data: availability.data });
+    expect(capture[0]?.url).toBe(
+      'https://apiv3.avirato.com/v3/availability?web_code=1234&start_date=2027-02-16&end_date=2027-02-17',
+    );
+  });
+
+  it('check_availability narrows to one subtype when asked', async () => {
+    const { capture } = await callWith(
+      'mcp_avirato_check_availability',
+      { start_date: '2027-02-16', end_date: '2027-02-16', space_subtype_id: 2 },
+      availability,
+    );
+
+    expect(capture[0]?.url).toContain('&space_subtype_id=2');
+  });
+
+  it.each([
+    [{ start_date: '2027-02-30', end_date: '2027-03-01' }, 'a day that does not exist'],
+    [{ start_date: '16/02/2027', end_date: '2027-02-17' }, 'a date not in YYYY-MM-DD'],
+    [{ start_date: '2027-02-17', end_date: '2027-02-16' }, 'an end before the start'],
+  ])('check_availability refuses %j (%s) before reaching Avirato', async (args) => {
+    const { result, capture } = await callWith(
+      'mcp_avirato_check_availability',
+      args,
+      availability,
+    );
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+    expect(capture).toHaveLength(0);
+  });
+
+  it('validate_promotional_code answers { valid: false } when Avirato knows no such code', async () => {
+    const { result, capture } = await callWith(
+      'mcp_avirato_validate_promotional_code',
+      { code: 'VERANO 10' },
+      promoUnknown,
+    );
+
+    expect(result).toMatchObject({ kind: 'success', data: { valid: false } });
+    expect(capture[0]?.url).toBe(
+      'https://apiv3.avirato.com/v3/promotional_codes/VERANO%2010?web_code=1234',
+    );
+  });
+
+  it('validate_promotional_code passes a known code through as { valid: true, code }', async () => {
+    const known = { status: 'success', data: { code: 'VERANO10', discount: 10 } };
+    const { result } = await callWith(
+      'mcp_avirato_validate_promotional_code',
+      { code: 'VERANO10' },
+      known,
+    );
+
+    expect(result).toMatchObject({ kind: 'success', data: { valid: true, code: known.data } });
+  });
+
+  it('marks every catalog read read-only and keeps all of them on the agent menu', () => {
+    const listed = aviratoProvider.listTools();
+    for (const name of [
+      'mcp_avirato_get_establishment',
+      'mcp_avirato_list_room_types',
+      'mcp_avirato_list_rates',
+      'mcp_avirato_list_regimes',
+      'mcp_avirato_list_extras',
+      'mcp_avirato_check_availability',
+      'mcp_avirato_validate_promotional_code',
+    ]) {
+      const t = listed.find((tool) => tool.name === name);
+      expect(t, name).toBeDefined();
+      expect(t?.readOnly, name).toBe(true);
+    }
   });
 });

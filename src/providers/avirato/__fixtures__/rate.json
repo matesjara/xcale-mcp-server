@@ -1,0 +1,31 @@
+{
+  "status": "success",
+  "data": [
+    {
+      "rate_id": 2,
+      "rate_name": "Tarifa predeterminada",
+      "minimum_stay": 1,
+      "maximum_stay": 30,
+      "refundable": true,
+      "linked": false,
+      "linked_percentage": 0,
+      "master": true,
+      "space_type_id": 2,
+      "mode": "PRICE",
+      "release_rate": 0
+    },
+    {
+      "rate_id": 5,
+      "rate_name": "Booking",
+      "minimum_stay": 1,
+      "maximum_stay": 30,
+      "refundable": true,
+      "linked": true,
+      "linked_percentage": 15,
+      "master": false,
+      "space_type_id": 2,
+      "mode": "PERCENTAGE",
+      "release_rate": 0
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "status": "success",
+  "data": [
+    {
+      "space_type_id": 2,
+      "hotel_id": 1000,
+      "name": "Cabañas",
+      "space_subtypes": [
+        {
+          "space_subtype_id": 2,
+          "space_type_id": 2,
+          "space_subtype_name": "Cabaña Azul",
+          "lang_name": 0,
+          "hotel_id": 1000,
+          "maximum_capacity": 4,
+          "maximum_adults": 4,
+          "standard_capacity": 2,
+          "zone_id": 0,
+          "catastral_ref": "",
+          "turistic_id": "",
+          "show_contact": "",
+          "lock_periods": 0,
+          "check_in_time": "15:00",
+          "check_out_time": "12:00",
+          "inn_user_id": 0,
+          "featured_text": "Vista al jardín",
+          "accommodation_type": 1,
+          "address": "",
+          "billing_data_id": 1,
+          "spaces": [
+            { "space_id": 2, "space_name": "Azul 1", "space_order": 1, "space_type_id": 2 }
+          ]
+        }
+      ]
+    }
+  ]
+}
