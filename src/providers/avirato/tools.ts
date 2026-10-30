@@ -27,6 +27,49 @@ const isoDate = z
 /** A positive integer id (Avirato's `space_subtype_id`, `rate_id`, `reservation_id`). */
 const id = z.number().int().positive();
 
+/** An ISO 8601 datetime with an offset or `Z` (`2027-02-16T17:00:00.000Z`), as Avirato's create takes. */
+const isoDateTime = z.iso.datetime({ offset: true });
+
+/**
+ * One room of a reservation to create — the observed create body (contract §A.9) minus what the
+ * provider fills. `status` accepts only the value observed on create (`RESERVATION`); which status a
+ * hotel books in is its choice, so another value joins additively once it is observed (design AD-6).
+ */
+const reservationRoom = z
+  .object({
+    space_subtype_id: id,
+    quantity: z.number().int().min(1),
+    adults: z.number().int().min(1),
+    children: z.number().int().min(0),
+    check_in: isoDateTime,
+    check_out: isoDateTime,
+    regime: z.string().trim().min(1).max(16),
+    rate_id: id,
+    status: z.literal('RESERVATION'),
+    client: z
+      .object({
+        client_doc: z.string().trim().min(1).max(64),
+        name: z.string().trim().min(1).max(100),
+        surname: z.string().trim().min(1).max(100),
+        email: z.email().optional(),
+        phone: z.string().trim().min(1).max(32).optional(),
+      })
+      .strict(),
+    payment: z
+      .object({
+        payment_type: z.enum(['CASH', 'CARD', 'TRANSFER', 'CREDIT', 'OTHER']),
+        is_paid: z.boolean(),
+      })
+      .strict(),
+    observations: z.string().max(500).optional(),
+    additional_beds: z.number().int().min(0).optional(),
+  })
+  .strict()
+  .refine((r) => Date.parse(r.check_out) > Date.parse(r.check_in), {
+    message: '`check_out` must be after `check_in`',
+    path: ['check_out'],
+  });
+
 /** The id space of Avirato reservation ids, so they never compare with another provider's or kind's. */
 const RESERVATION_KIND = `${SLUG}:reservation`;
 
@@ -305,6 +348,67 @@ export function buildAviratoTools(
         );
         return outcome.ok ? ok({ items: withoutExactDuplicates(outcome.data) }) : outcome;
       },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_create_reservation`,
+      controlPlane: true,
+      // Intentionally NO identityPolicy: creating a reservation neither reads nor changes anyone's
+      // existing record (the HiMed `create_appointment` precedent). What it creates is owned by its
+      // creator — the consumer records the returned `reservation_id` — and every read or cancel of it
+      // afterwards is bound to that owner.
+      description:
+        'CONTROL PLANE — create a reservation at the connected hotel. Thin passthrough (ADR 0015): one ' +
+        'call is at most one reservation request, never retried here, so a consumer that retries first ' +
+        'looks for its `external_code` (Avirato returns it as `promotional_package`). No amount is ' +
+        'sent: Avirato prices the stay itself, as its quote does; `payment` only says how it is paid. ' +
+        'Send the full client — Avirato creates or updates it inline. Returns Avirato’s reservation ' +
+        'rows verbatim, with their charges and draft bill.',
+      input: z
+        .object({
+          external_code: z.string().trim().min(1).max(64).optional(),
+          promotional_code: z.string().trim().min(1).max(64).optional(),
+          rooms: z.array(reservationRoom).min(1).max(10),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const body = {
+          ...(args.external_code ? { external_code: args.external_code } : {}),
+          ...(args.promotional_code ? { promotional_code: args.promotional_code } : {}),
+          rooms: args.rooms.map(({ payment, observations, additional_beds, ...room }) => ({
+            ...room,
+            // Avirato names it `price`; it is how the stay is paid, never an amount (observed).
+            price: payment,
+            // Required by Avirato, not the consumer's to choose: no operator, no advance, no extras.
+            operator_reservation_id: '0',
+            advance: { total_advance: 0, advance_type: payment.payment_type },
+            observations: observations ?? '',
+            additional_beds: additional_beds ?? 0,
+            extras: [],
+            predefinedCharges: [],
+          })),
+        };
+        return unwrapAvirato(
+          await client.post('reservation', ctx.request, ctx.metadata, body),
+          'create_reservation',
+        );
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_cancel_reservation`,
+      controlPlane: true,
+      identityPolicy: reservationOwner,
+      description:
+        'CONTROL PLANE — cancel a reservation by its `reservation_id`. Avirato keeps it with status ' +
+        '"Reserva cancelada" (it is not erased) and returns it; its charges and draft bill stay. One ' +
+        'call is one request, never retried here.',
+      input: z.object({ reservation_id: id }).strict(),
+      handler: async (args, ctx) =>
+        unwrapAvirato(
+          await client.del(`reservation/${args.reservation_id}`, ctx.request, ctx.metadata),
+          'cancel_reservation',
+        ),
     }),
   ];
 }

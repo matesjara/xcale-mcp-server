@@ -6,8 +6,12 @@ import { createRegistry } from '../../../core/registry';
 import { SecretString } from '../../../core/secret-string';
 import { runProviderConformance } from '../../../core/testing/provider-conformance';
 import type { ProviderCallContext } from '../../../core/types';
+import { createAviratoClient } from '../client';
 import { aviratoProvider, createAviratoProvider } from '../provider';
+import { buildAviratoTools } from '../tools';
 import availability from '../__fixtures__/availability.json';
+import cancelled from '../__fixtures__/cancel.json';
+import created from '../__fixtures__/create.json';
 import errorInvalidToken from '../__fixtures__/error-invalid-token.json';
 import errorRetrieving from '../__fixtures__/error-retrieving.json';
 import errorValidation from '../__fixtures__/error-validation.json';
@@ -490,5 +494,155 @@ describe('avirato provider — S5 reservation reads', () => {
         expect(properties, `${tool.name}: ${field}`).toContain(field);
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S6 — the writes (control plane)
+// ---------------------------------------------------------------------------
+
+describe('avirato provider — S6 create_reservation and cancel_reservation', () => {
+  const room = {
+    space_subtype_id: 2,
+    quantity: 1,
+    adults: 2,
+    children: 0,
+    check_in: '2027-02-16T17:00:00.000Z',
+    check_out: '2027-02-17T17:00:00.000Z',
+    regime: 'BB',
+    rate_id: 2,
+    status: 'RESERVATION',
+    client: { client_doc: 'TEST-0001', name: 'Ana', surname: 'Prueba', email: 'ana@example.test' },
+    payment: { payment_type: 'CARD', is_paid: false },
+  };
+
+  it('both writes are routable by name but withdrawn from the agent menu', () => {
+    const menu = aviratoProvider.listTools().map((t) => t.name);
+    for (const name of ['mcp_avirato_create_reservation', 'mcp_avirato_cancel_reservation']) {
+      expect(menu, name).not.toContain(name);
+      expect(aviratoProvider.routableToolNames(), name).toContain(name);
+    }
+  });
+
+  it('create sends Avirato’s exact body: payment becomes `price`, the fields we have no say in are filled', async () => {
+    const { result, capture } = await callWith(
+      'mcp_avirato_create_reservation',
+      { external_code: 'xcale-test-0001', rooms: [room] },
+      created,
+      201,
+    );
+
+    expect(capture).toHaveLength(1);
+    expect(capture[0]?.init.method).toBe('POST');
+    expect(capture[0]?.url).toBe('https://apiv3.avirato.com/v3/reservation?web_code=1234');
+    expect(JSON.parse(capture[0]?.init.body ?? '{}')).toEqual({
+      external_code: 'xcale-test-0001',
+      rooms: [
+        {
+          space_subtype_id: 2,
+          quantity: 1,
+          adults: 2,
+          children: 0,
+          check_in: '2027-02-16T17:00:00.000Z',
+          check_out: '2027-02-17T17:00:00.000Z',
+          regime: 'BB',
+          rate_id: 2,
+          status: 'RESERVATION',
+          client: {
+            client_doc: 'TEST-0001',
+            name: 'Ana',
+            surname: 'Prueba',
+            email: 'ana@example.test',
+          },
+          price: { payment_type: 'CARD', is_paid: false },
+          operator_reservation_id: '0',
+          advance: { total_advance: 0, advance_type: 'CARD' },
+          observations: '',
+          additional_beds: 0,
+          extras: [],
+          predefinedCharges: [],
+        },
+      ],
+    });
+    expect(result).toMatchObject({ kind: 'success', data: created.data });
+  });
+
+  it('create carries a promotional code and observations when given, and no amount ever', async () => {
+    const { capture } = await callWith(
+      'mcp_avirato_create_reservation',
+      { promotional_code: 'VERANO10', rooms: [{ ...room, observations: 'Llega tarde' }] },
+      created,
+      201,
+    );
+
+    const body = JSON.parse(capture[0]?.init.body ?? '{}');
+    expect(body.promotional_code).toBe('VERANO10');
+    expect(body.external_code).toBeUndefined();
+    expect(body.rooms[0].observations).toBe('Llega tarde');
+    expect(JSON.stringify(body)).not.toMatch(/"(amount|total|price)"\s*:\s*\d/);
+  });
+
+  it.each([
+    [{ rooms: [] }, 'no room'],
+    [{ rooms: [{ ...room, status: 'Reserva' }] }, 'a status Avirato’s create does not take'],
+    [{ rooms: [{ ...room, check_out: room.check_in }] }, 'a check-out not after check-in'],
+    [{ rooms: [{ ...room, check_in: '2027-02-16' }] }, 'a check-in that is not a datetime'],
+    [
+      { rooms: [{ ...room, client: { client_doc: 'TEST-0001' } }] },
+      'a client with only a document',
+    ],
+    [{ rooms: [{ ...room, price: 395000 }] }, 'an amount'],
+  ] as Array<[Record<string, unknown>, string]>)(
+    'create refuses %j (%s) before reaching Avirato',
+    async (args) => {
+      const { result, capture } = await callWith(
+        'mcp_avirato_create_reservation',
+        args,
+        created,
+        201,
+      );
+
+      expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+      expect(capture).toHaveLength(0);
+    },
+  );
+
+  it('create is one request: a failure is returned, never retried', async () => {
+    const { result, capture } = await callWith(
+      'mcp_avirato_create_reservation',
+      { rooms: [room] },
+      'Bad Gateway',
+      502,
+    );
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_UNAVAILABLE });
+    expect(capture).toHaveLength(1);
+  });
+
+  it('cancel DELETEs the reservation and returns it, now `Reserva cancelada`', async () => {
+    const { result, capture } = await callWith(
+      'mcp_avirato_cancel_reservation',
+      { reservation_id: 901 },
+      cancelled,
+    );
+
+    expect(capture[0]?.init.method).toBe('DELETE');
+    expect(capture[0]?.url).toBe('https://apiv3.avirato.com/v3/reservation/901?web_code=1234');
+    expect(result).toMatchObject({ kind: 'success', data: { status: 'Reserva cancelada' } });
+  });
+
+  it('cancel is bound to the reservation’s owner; create declares no policy (it reads nobody)', () => {
+    const tools = new Map(
+      buildAviratoTools(createAviratoClient()).map((t) => [t.name, t] as const),
+    );
+
+    expect(tools.get('mcp_avirato_cancel_reservation')?.identityPolicy).toEqual({
+      mode: 'subject-bound',
+      identityFields: [],
+      recordOwnershipField: 'reservation_id',
+      recordOwnershipKind: 'avirato:reservation',
+    });
+    expect(tools.get('mcp_avirato_create_reservation')?.identityPolicy).toBeUndefined();
+    expect(tools.get('mcp_avirato_cancel_reservation')?.readOnly).toBeUndefined();
   });
 });

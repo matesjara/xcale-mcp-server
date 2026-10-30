@@ -36,6 +36,8 @@ export interface AviratoClient {
     ctx: AviratoContext,
     body: Record<string, unknown>,
   ): Promise<RequestResult>;
+  /** DELETE `${baseUrl}/{path}?web_code=…`. One call, one request, never retried here. */
+  del(path: string, request: AuthedRequest, ctx: AviratoContext): Promise<RequestResult>;
 }
 
 export function createAviratoClient(deps: AviratoClientDeps = {}): AviratoClient {
@@ -58,5 +60,7 @@ export function createAviratoClient(deps: AviratoClientDeps = {}): AviratoClient
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       }),
+
+    del: (path, request, ctx) => request({ method: 'DELETE', url: url(path, ctx) }),
   };
 }
