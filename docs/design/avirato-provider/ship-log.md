@@ -69,10 +69,10 @@ The record is on #190.
 
 ## Open
 
-- **P-1:** which link (`Guest` or `Shop`) lets the guest pay. It needs a live production reservation, because a sandbox reservation's Guest link opens the production guest app.
+- **P-1:** none of the three links was observed taking payment (production, reservation 234, 2026-10-31). `Shop` is the hotel's store, `AutoCheck` is check-in only, and `Guest` did not render. How a guest pays online is to be asked of Avirato.
 - **`predefinedCharges` on a modify:** not observed (the CTO's pre-release item). The other item, an advance re-sent as `CASH`, survives (reservation 242).
 - **Logo:** the house tile, in its own change.
 - **Production test leftovers** in Reserva Donato's Avirato, for the hotel:
-  - cancelled reservations 225, 227 and 230;
+  - cancelled reservations 225, 227, 230 and 234;
   - draft bills 282, 284 and 287;
   - the client `XCALEPRUEBA1`.

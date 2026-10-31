@@ -221,7 +221,13 @@ Query: `web_code`, `type` = `AutoCheck` | `Guest` | `Shop`. → `200 { data: { u
 | `Guest`     | `https://guest.avirato.com/…` (a JS application)                                                                  |
 | `Shop`      | `http://shop.avirato.com/index.php…` → redirects to `https://shop.avirato.com/productos`, the hotel's online shop |
 
-Which link pays _this reservation_ is P-1. The contract returns each URL verbatim and names none of them "the payment link".
+**P-1, observed on production 2026-10-31 (reservation 234):** none of the three links was seen taking payment for the reservation.
+
+- `Shop` is `?code=<web_code>`: the hotel's online shop, not this reservation.
+- `AutoCheck` is a 4-step online check-in with no payment step.
+- `Guest` rendered only the hotel's theme CSS, with no buttons, twice.
+
+The contract returns each URL verbatim and names none of them "the payment link". How a guest pays a reservation online is a question for Avirato.
 
 ---
 
@@ -512,9 +518,9 @@ Fixtures live in `src/providers/avirato/__fixtures__/`. They are built from the 
 
 ## F. Roadmap — what joins this contract, additively
 
-| Item                              | Joins when                                                                             |
-| :-------------------------------- | :------------------------------------------------------------------------------------- |
-| A second `status` value on create | a tenant needs one and it is observed (AD-6)                                           |
-| Which link pays                   | P-1, observed in the Guest application. The tool already returns all three.            |
-| A longer token lifetime           | measured in the sandbox. It changes `tokenTtlSeconds`, not a tool.                     |
-| A known promotional code's shape  | a hotel with codes. Today `validate_promotional_code` passes Avirato's `data` through. |
+| Item                                  | Joins when                                                                                        |
+| :------------------------------------ | :------------------------------------------------------------------------------------------------ |
+| A second `status` value on create     | a tenant needs one and it is observed (AD-6)                                                      |
+| How a guest pays a reservation online | Avirato's answer (none of the three links took payment, P-1). The tool already returns all three. |
+| A longer token lifetime               | measured in the sandbox. It changes `tokenTtlSeconds`, not a tool.                                |
+| A known promotional code's shape      | a hotel with codes. Today `validate_promotional_code` passes Avirato's `data` through.            |
