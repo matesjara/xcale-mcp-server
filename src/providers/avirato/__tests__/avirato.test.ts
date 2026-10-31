@@ -17,6 +17,7 @@ import errorRetrieving from '../__fixtures__/error-retrieving.json';
 import errorValidation from '../__fixtures__/error-validation.json';
 import establishment from '../__fixtures__/establishment.json';
 import extra from '../__fixtures__/extra.json';
+import modified from '../__fixtures__/modify.json';
 import promoUnknown from '../__fixtures__/promo-unknown.json';
 import quoteDuplicated from '../__fixtures__/quote-duplicated.json';
 import rate from '../__fixtures__/rate.json';
@@ -652,7 +653,7 @@ describe('avirato provider — S6 create_reservation and cancel_reservation', ()
 // ---------------------------------------------------------------------------
 
 describe('avirato provider — S7 surface', () => {
-  it('publishes exactly the ten menu tools and routes the three control-plane ones too', () => {
+  it('publishes exactly the ten menu tools and routes the four control-plane ones too', () => {
     const menu = [
       'mcp_avirato_get_establishment',
       'mcp_avirato_list_room_types',
@@ -669,6 +670,7 @@ describe('avirato provider — S7 surface', () => {
       'mcp_avirato_quote_stay',
       'mcp_avirato_create_reservation',
       'mcp_avirato_cancel_reservation',
+      'mcp_avirato_modify_reservation',
     ];
 
     expect(new Set(aviratoProvider.listTools().map((t) => t.name))).toEqual(new Set(menu));
@@ -788,4 +790,167 @@ describe('avirato provider — the client’s address on create', () => {
       expect(capture).toHaveLength(0);
     },
   );
+});
+
+// ---------------------------------------------------------------------------
+// S9 — modify_reservation (control plane), observed on the sandbox 2026-10-31
+// ---------------------------------------------------------------------------
+
+describe('avirato provider — S9 modify_reservation', () => {
+  const room = {
+    space_subtype_id: 2,
+    adults: 1,
+    children: 0,
+    check_in: '2027-02-15T17:00:00.000Z',
+    check_out: '2027-02-16T17:00:00.000Z',
+    regime: 'BB',
+    rate_id: 2,
+    status: 'RESERVATION',
+    client: { client_doc: 'TEST-0001', name: 'Ana', surname: 'Prueba', email: 'ana@example.test' },
+    payment: { payment_type: 'CASH', is_paid: false },
+  };
+
+  it('is routable by name but withdrawn from the agent menu', () => {
+    expect(aviratoProvider.listTools().map((t) => t.name)).not.toContain(
+      'mcp_avirato_modify_reservation',
+    );
+    expect(aviratoProvider.routableToolNames()).toContain('mcp_avirato_modify_reservation');
+  });
+
+  it('PATCHes the full record Avirato requires: action MODIFY, rateId, the paid-how as price, the fields we fill', async () => {
+    const { result, capture } = await callWith(
+      'mcp_avirato_modify_reservation',
+      { reservation_id: 901, room },
+      modified,
+    );
+
+    expect(capture).toHaveLength(1);
+    expect(capture[0]?.init.method).toBe('PATCH');
+    expect(capture[0]?.url).toBe('https://apiv3.avirato.com/v3/reservation/901?web_code=1234');
+    expect(JSON.parse(capture[0]?.init.body ?? '{}')).toEqual({
+      rooms: [
+        {
+          action: 'MODIFY',
+          reservation_id: 901,
+          space_subtype_id: 2,
+          adults: 1,
+          children: 0,
+          check_in: '2027-02-15T17:00:00.000Z',
+          check_out: '2027-02-16T17:00:00.000Z',
+          regime: 'BB',
+          rateId: 2,
+          status: 'RESERVATION',
+          client: {
+            client_doc: 'TEST-0001',
+            name: 'Ana',
+            surname: 'Prueba',
+            email: 'ana@example.test',
+          },
+          price: { payment_type: 'CASH', is_paid: false },
+          advance: { total_advance: 0, advance_type: 'CASH' },
+          operator_reservation_id: '0',
+          observations: '',
+          additional_beds: 0,
+          extras: [],
+        },
+      ],
+    });
+    expect(result).toMatchObject({ kind: 'success' });
+  });
+
+  it.each([
+    [
+      { reservation_id: 901, room: { ...room, quantity: 1 } },
+      'a quantity — Avirato refuses it on modify',
+    ],
+    [
+      { reservation_id: 901, room: { ...room, client: undefined } },
+      'no client — a partial record fails',
+    ],
+    [
+      { reservation_id: 901, room: { ...room, check_out: room.check_in } },
+      'a check-out not after check-in',
+    ],
+    [{ room }, 'no reservation id'],
+  ] as Array<[Record<string, unknown>, string]>)(
+    'refuses %j (%s) before reaching Avirato',
+    async (args) => {
+      const { result, capture } = await callWith('mcp_avirato_modify_reservation', args, modified);
+
+      expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+      expect(capture).toHaveLength(0);
+    },
+  );
+
+  it('a modify Avirato refuses comes back typed, and is not retried', async () => {
+    const refused = {
+      statusCode: 400,
+      errorCode: 'ERROR_ON_UPDATE',
+      message: 'Unable to modify the reservation',
+    };
+    const { result, capture } = await callWith(
+      'mcp_avirato_modify_reservation',
+      { reservation_id: 901, room },
+      refused,
+      400,
+    );
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+    expect((result as { message: string }).message).toContain('ERROR_ON_UPDATE');
+    expect(capture).toHaveLength(1);
+  });
+
+  it('is bound to the reservation’s owner', () => {
+    const tool = buildAviratoTools(createAviratoClient()).find(
+      (t) => t.name === 'mcp_avirato_modify_reservation',
+    );
+    expect(tool?.identityPolicy).toEqual({
+      mode: 'subject-bound',
+      identityFields: [],
+      recordOwnershipField: 'reservation_id',
+      recordOwnershipKind: 'avirato:reservation',
+    });
+  });
+});
+
+describe('avirato provider — S9 what modify does to the tag and to a cancelled reservation', () => {
+  const room = {
+    space_subtype_id: 2,
+    adults: 1,
+    children: 0,
+    check_in: '2027-02-15T17:00:00.000Z',
+    check_out: '2027-02-16T17:00:00.000Z',
+    regime: 'BB',
+    rate_id: 2,
+    status: 'RESERVATION',
+    client: { client_doc: 'TEST-0001', name: 'Ana', surname: 'Prueba' },
+    payment: { payment_type: 'CASH', is_paid: false },
+  };
+
+  it('refuses external_code — Avirato rejects it on modify ("property externalCode should not exist")', async () => {
+    const { result, capture } = await callWith(
+      'mcp_avirato_modify_reservation',
+      { reservation_id: 901, external_code: 'xcale-test-0001', room },
+      modified,
+    );
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+    expect(capture).toHaveLength(0);
+  });
+
+  it('a modify of a cancelled reservation is "not found or cancelled", not bad input', async () => {
+    const gone = {
+      statusCode: 400,
+      errorCode: 'ERROR_RETRIEVING_DATA',
+      message: 'Unable to retrieve data',
+    };
+    const { result } = await callWith(
+      'mcp_avirato_modify_reservation',
+      { reservation_id: 901, room },
+      gone,
+      400,
+    );
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
+    expect((result as { message: string }).message).toContain('not found or cancelled');
+  });
 });

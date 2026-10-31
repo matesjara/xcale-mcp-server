@@ -5,26 +5,31 @@
 > **Upstream**: [feature-design.md](feature-design.md) · ADR [credential-exchange-response-path-and-token-ttl](../../adr/credential-exchange-response-path-and-token-ttl.md) · the evidence comments on matesjara/xcale-mcp-server#189.
 > **Last updated**: 2026-10-30.
 
-> **🔬 Evidence.** Every wire value below was observed against Avirato's **production** API on 2026-10-30. The calls were read-only, plus three test reservations, created and cancelled with Sara's go. **`modify_reservation` is not in this contract:** Avirato's `PATCH` has not been observed working (P-7), and the tool joins by an additive revision once it is (§F). Nothing here is taken from the spec alone. Where the spec and the wire disagree, the wire is written and the disagreement is named.
+> **🔬 Evidence.** Every wire value below was observed against Avirato's real API.
+>
+> - **Production, 2026-10-30:** read-only calls, plus three test reservations created and cancelled with Sara's go.
+> - **Sandbox, 2026-10-31:** all 14 tools through the provider itself, the writes included: create, modify (party, then dates) and cancel, on reservations 238–240.
+>
+> Nothing here is taken from the spec alone. Where the spec and the wire disagree, the wire is written and the disagreement is named.
 
 ---
 
 ## 0. Resolved facts at a glance
 
-| Datum              | Value                                                                                                                         | Source                               |
-| :----------------- | :---------------------------------------------------------------------------------------------------------------------------- | :----------------------------------- |
-| Base URL           | `https://apiv3.avirato.com/v3` (the sandbox, `https://sandbox.avirato.com/v3`, has a byte-identical spec)                     | Observed                             |
-| Auth               | `POST /token/login` `{ email, password }` → `201 { status, data: { token, web_codes[] } }`                                    | Observed (spec's `expiry` is absent) |
-| Token lifetime     | not stated (no `expiry`, JWT has no `exp`); **a second login invalidates the first token**                                    | Observed                             |
-| Token placement    | `Authorization: Bearer <token>`                                                                                               | Observed                             |
-| Context            | `web_code` (a number), query parameter on every call below                                                                    | Observed                             |
-| Envelope           | every success is `{ status: "success", data }`; every error is `{ statusCode, timestamp, path, errorCode, message, errors? }` | Observed                             |
-| Rate limit         | 600 requests / 5 min per IP; `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` (epoch s)                      | Observed (Avirato's email said 750)  |
-| Field naming       | snake_case, **except** `/reservation/dates`, which is camelCase                                                               | Observed                             |
-| Reservation price  | computed by Avirato; the create input `price` is `{ payment_type, is_paid }`, not an amount                                   | Observed                             |
-| Reconciliation tag | `external_code` on create comes back as `promotional_package`                                                                 | Observed                             |
-| Cancel             | `DELETE` keeps the reservation as `Reserva cancelada`; its draft bill and charges stay                                        | Observed                             |
-| Modify             | not observed working (P-7) — not in this contract                                                                             | Observed failure                     |
+| Datum              | Value                                                                                                                                                                                                       | Source                               |
+| :----------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------- |
+| Base URL           | `https://apiv3.avirato.com/v3` (the sandbox, `https://sandbox.avirato.com/v3`, has a byte-identical spec)                                                                                                   | Observed                             |
+| Auth               | `POST /token/login` `{ email, password }` → `201 { status, data: { token, web_codes[] } }`                                                                                                                  | Observed (spec's `expiry` is absent) |
+| Token lifetime     | not stated by production (no `expiry`, JWT has no `exp`); the sandbox sometimes sends `expiry`, inconsistently; a token was still accepted after **17 min**; **a second login invalidates the first token** | Observed                             |
+| Token placement    | `Authorization: Bearer <token>`                                                                                                                                                                             | Observed                             |
+| Context            | `web_code` (a number), query parameter on every call below                                                                                                                                                  | Observed                             |
+| Envelope           | every success is `{ status: "success", data }`; every error is `{ statusCode, timestamp, path, errorCode, message, errors? }`                                                                               | Observed                             |
+| Rate limit         | 600 requests / 5 min per IP; `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` (epoch s)                                                                                                    | Observed (Avirato's email said 750)  |
+| Field naming       | snake_case, **except** `/reservation/dates`, which is camelCase                                                                                                                                             | Observed                             |
+| Reservation price  | computed by Avirato; the create input `price` is `{ payment_type, is_paid }`, not an amount                                                                                                                 | Observed                             |
+| Reconciliation tag | `external_code` on create comes back as `promotional_package`                                                                                                                                               | Observed                             |
+| Cancel             | `DELETE` keeps the reservation as `Reserva cancelada`; its draft bill and charges stay                                                                                                                      | Observed                             |
+| Modify             | `PATCH /reservation/{reservation_id}` with the room's **full record** (`action: "MODIFY"`, `rateId`, no `quantity`); Avirato reprices; it clears the reconciliation tag                                     | Observed (sandbox)                   |
 
 ---
 
@@ -57,14 +62,16 @@
 
 ### A.3 Errors on data calls
 
-| Status | `errorCode`                        | Observed on                                                                      |
-| :----- | :--------------------------------- | :------------------------------------------------------------------------------- |
-| `401`  | `Unauthorized` (`"Invalid token"`) | any data call with a bad or superseded token                                     |
-| `400`  | `INPUT_DATA_VALIDATION_FAILED`     | a missing or ill-typed parameter; `errors[]` lists each, in English              |
-| `400`  | `ERROR_RETRIEVING_RESERVATIONS`    | a reservation id that is cancelled or does not exist; an unknown client document |
-| `400`  | `ERROR_VALIDATING_DATA`            | create/modify payload Avirato rejects (`message` says why)                       |
-| `400`  | `ERROR_ON_UPDATE`                  | modify (P-7)                                                                     |
-| `429`  | —                                  | not provoked; the rate-limit headers are present on every response               |
+| Status | `errorCode`                        | Observed on                                                                            |
+| :----- | :--------------------------------- | :------------------------------------------------------------------------------------- |
+| `401`  | `Unauthorized` (`"Invalid token"`) | any data call with a bad or superseded token                                           |
+| `400`  | `INPUT_DATA_VALIDATION_FAILED`     | a missing or ill-typed parameter; `errors[]` lists each, in English                    |
+| `400`  | `ERROR_RETRIEVING_RESERVATIONS`    | a reservation id that is cancelled or does not exist; an unknown client document       |
+| `400`  | `ERROR_RETRIEVING_DATA`            | a modify of a cancelled reservation ("not found or cancelled")                         |
+| `400`  | `ERROR_ON_INSERT`                  | a create Avirato cannot insert; on the sandbox, a client without `state` and `country` |
+| `400`  | `ERROR_VALIDATING_DATA`            | create/modify payload Avirato rejects (`message` says why)                             |
+| `400`  | `ERROR_ON_UPDATE`                  | a modify with a partial record (status alone, status and client)                       |
+| `429`  | —                                  | not provoked; the rate-limit headers are present on every response                     |
 
 ### A.4 `GET /establishment`
 
@@ -158,6 +165,48 @@ Query: `web_code`, `start_date`, `end_date` (`YYYY-MM-DD`, both nights inclusive
 
 **Cancel — `DELETE /reservation/{reservation_id}`** (optional `delete_group`) → `200 { data: ReservationRow }` with `status: "Reserva cancelada"`. The reservation stays listed by date and is no longer readable by id. Its `charges` and its draft bill stay.
 
+**Modify — `PATCH /reservation/{reservation_id}`** → `200 { data: ReservationRow[] }`, the updated reservation (observed on the sandbox, 2026-10-31).
+
+```json
+{
+  "rooms": [
+    {
+      "action": "MODIFY",
+      "reservation_id": 239,
+      "space_subtype_id": 2,
+      "adults": 1,
+      "children": 0,
+      "check_in": "2027-02-15T17:00:00.000Z",
+      "check_out": "2027-02-16T17:00:00.000Z",
+      "regime": "BB",
+      "rateId": 2,
+      "status": "RESERVATION",
+      "client": {
+        "client_doc": "…",
+        "name": "…",
+        "surname": "…",
+        "email": "…",
+        "state": "…",
+        "country": "COL"
+      },
+      "price": { "payment_type": "CASH", "is_paid": false },
+      "advance": { "total_advance": 0, "advance_type": "CASH" },
+      "operator_reservation_id": "0",
+      "observations": "…",
+      "additional_beds": 0,
+      "extras": []
+    }
+  ]
+}
+```
+
+- **The full record, every time.** A partial room (status alone, or status and client) answers `400 ERROR_ON_UPDATE "Unable to modify the reservation"`. `status` is required (`Wrong status type` without it). `quantity` is refused (`Cannot set quantity when modifying.`).
+- **The rate is `rateId`** (camelCase), where create takes `rate_id`.
+- **The path takes the `reservation_id`.** A single-room reservation has no master (`master_reservation_id` is `""` on create and `0` after a modify).
+- **Avirato reprices.** Going from one night to two moved `price` from 395000 to 790000, exactly the two-night quote. Fewer adults on the same night kept 395000.
+- **The reconciliation tag is cleared.** After any modify, `promotional_package` reads `""`. A top-level `external_code` is refused on modify (`400 property externalCode should not exist`), although the spec lists it. `observations` are kept, since they are part of the record.
+- **A cancelled reservation cannot be modified:** `400 ERROR_RETRIEVING_DATA`.
+
 **Statuses** seen on the wire: `Reserva`, `Reserva confirmada`, `Reserva cancelada`, `Eliminada`. The create input takes `RESERVATION`.
 
 ### A.10 `GET /reservation/urls/{reservation_id}`
@@ -223,6 +272,7 @@ All names are `mcp_avirato_<verb>`. Every handler sends `web_code` from the cont
 | `get_reservation_links`      | `GET /reservation/urls/{id}`        | menu          | ✓          | `subject-bound`, `identityFields: []`, `recordOwnershipField: 'reservation_id'`, `recordOwnershipKind: 'avirato:reservation'`         |
 | `quote_stay`                 | `POST /price/price_for_reservation` | control plane | ✓          | none                                                                                                                                  |
 | `create_reservation`         | `POST /reservation`                 | control plane |            | none — it reads and changes no existing record; what it creates is owned by its creator (the HiMed `create_appointment` precedent)    |
+| `modify_reservation`         | `PATCH /reservation/{id}`           | control plane |            | `subject-bound`, `identityFields: []`, `recordOwnershipField: 'reservation_id'`, `recordOwnershipKind: 'avirato:reservation'`         |
 | `cancel_reservation`         | `DELETE /reservation/{id}`          | control plane |            | `subject-bound`, `identityFields: []`, `recordOwnershipField: 'reservation_id'`, `recordOwnershipKind: 'avirato:reservation'`         |
 
 ### C.1 Inputs
@@ -259,6 +309,18 @@ create_reservation: {
     observations?: string; additional_beds?: number;                                               // default 0
   }>;
 }
+modify_reservation: {
+  reservation_id: number;
+  room: {                                                                                           // the FULL record, as it should stand
+    space_subtype_id: number; adults: number; children: number;                                    // no quantity
+    check_in: string; check_out: string; regime: string; rate_id: number;                          // rate_id is sent as Avirato's `rateId`
+    status: 'RESERVATION';
+    client: { client_doc: string; name: string; surname: string; email?: string; phone?: string;
+              state?: string; country?: string; city?: string; address?: string; zip_code?: string };
+    payment: { payment_type: 'CASH' | 'CARD' | 'TRANSFER' | 'CREDIT' | 'OTHER'; is_paid: boolean };
+    observations?: string; additional_beds?: number;
+  };
+}
 cancel_reservation:         { reservation_id: number }
 ```
 
@@ -280,22 +342,23 @@ cancel_reservation:         { reservation_id: number }
 | `get_reservation_links`                       | `{ type, url }`                                                                                         |
 | `quote_stay`                                  | `{ items: QuoteRow[] }`, exact duplicates removed, Avirato's order kept                                 |
 | `create_reservation`                          | `Reservation[]` (A.9), verbatim, `charges` and `billing` included                                       |
+| `modify_reservation`                          | `ReservationRow[]` (A.9), the updated reservation, verbatim: Avirato's new `price`, the tag cleared     |
 | `cancel_reservation`                          | `ReservationRow` with `status: "Reserva cancelada"`                                                     |
 
 ---
 
 ## D. Error mapping
 
-| Avirato                                                             | `ToolResult`                                                                                                                                                                                            |
-| :------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `401` on a data call                                                | `PROVIDER_AUTH_EXPIRED` (the token was superseded or rejected; a fresh mint fixes it)                                                                                                                   |
-| `403`                                                               | `PROVIDER_ERROR` (a permission the API user lacks; a reconnect does not fix it)                                                                                                                         |
-| `429`                                                               | `PROVIDER_RATE_LIMITED` (the core's transport does not hand a provider the response headers, so `X-RateLimit-Reset` is not read in v1)                                                                  |
-| `400 INPUT_DATA_VALIDATION_FAILED`                                  | `PROVIDER_INVALID_INPUT`, with Avirato's `errors[]` sentences that are plain words about a parameter (a sentence with quotes, braces, colons, slashes or a credential word is dropped, never forwarded) |
-| `400 ERROR_VALIDATING_DATA`                                         | `PROVIDER_INVALID_INPUT`, with Avirato's `message` under the same rule                                                                                                                                  |
-| `400 ERROR_RETRIEVING_RESERVATIONS` on `find_reservations_by_guest` | success, `{ items: [] }`                                                                                                                                                                                |
-| `400 ERROR_RETRIEVING_RESERVATIONS` on any other tool               | `PROVIDER_ERROR`, message `"reservation not found or cancelled"`                                                                                                                                        |
-| `5xx`, network failure, timeout                                     | `PROVIDER_UNAVAILABLE`                                                                                                                                                                                  |
+| Avirato                                                                          | `ToolResult`                                                                                                                                                                                            |
+| :------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `401` on a data call                                                             | `PROVIDER_AUTH_EXPIRED` (the token was superseded or rejected; a fresh mint fixes it)                                                                                                                   |
+| `403`                                                                            | `PROVIDER_ERROR` (a permission the API user lacks; a reconnect does not fix it)                                                                                                                         |
+| `429`                                                                            | `PROVIDER_RATE_LIMITED` (the core's transport does not hand a provider the response headers, so `X-RateLimit-Reset` is not read in v1)                                                                  |
+| `400 INPUT_DATA_VALIDATION_FAILED`                                               | `PROVIDER_INVALID_INPUT`, with Avirato's `errors[]` sentences that are plain words about a parameter (a sentence with quotes, braces, colons, slashes or a credential word is dropped, never forwarded) |
+| `400 ERROR_VALIDATING_DATA`                                                      | `PROVIDER_INVALID_INPUT`, with Avirato's `message` under the same rule                                                                                                                                  |
+| `400 ERROR_RETRIEVING_RESERVATIONS` on `find_reservations_by_guest`              | success, `{ items: [] }`                                                                                                                                                                                |
+| `400 ERROR_RETRIEVING_RESERVATIONS` or `ERROR_RETRIEVING_DATA` on any other tool | `PROVIDER_ERROR`, message `"reservation not found or cancelled"`                                                                                                                                        |
+| `5xx`, network failure, timeout                                                  | `PROVIDER_UNAVAILABLE`                                                                                                                                                                                  |
 
 No error message echoes a request URL, header or body (Credential-in-Transit-Only). The login's own `401`/`404` never reach this server: Rail A mints.
 
@@ -439,10 +502,9 @@ Fixtures live in `src/providers/avirato/__fixtures__/`. They are built from the 
 
 ## F. Roadmap — what joins this contract, additively
 
-| Item                                                            | Joins when                                                                             |
-| :-------------------------------------------------------------- | :------------------------------------------------------------------------------------- |
-| `modify_reservation` (control plane, `PATCH /reservation/{id}`) | a modify is observed succeeding (P-7): its input, the `status` it needs, its answer    |
-| A second `status` value on create                               | a tenant needs one and it is observed (AD-6)                                           |
-| Which link pays                                                 | P-1, observed in the Guest application. The tool already returns all three.            |
-| The token's real lifetime                                       | measured in the sandbox. It changes `tokenTtlSeconds`, not a tool.                     |
-| A known promotional code's shape                                | a hotel with codes. Today `validate_promotional_code` passes Avirato's `data` through. |
+| Item                              | Joins when                                                                             |
+| :-------------------------------- | :------------------------------------------------------------------------------------- |
+| A second `status` value on create | a tenant needs one and it is observed (AD-6)                                           |
+| Which link pays                   | P-1, observed in the Guest application. The tool already returns all three.            |
+| A longer token lifetime           | measured in the sandbox. It changes `tokenTtlSeconds`, not a tool.                     |
+| A known promotional code's shape  | a hotel with codes. Today `validate_promotional_code` passes Avirato's `data` through. |

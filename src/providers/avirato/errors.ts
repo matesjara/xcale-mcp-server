@@ -28,6 +28,8 @@ const MACHINE_CODE = /^[A-Za-z][A-Za-z0-9_]{2,63}$/;
 
 /** Avirato's answer for a reservation id that is cancelled or does not exist, or an unknown client. */
 export const NOT_FOUND_CODE = 'ERROR_RETRIEVING_RESERVATIONS';
+/** The same "not found or cancelled", as a modify answers it (observed on a cancelled reservation). */
+const NOT_FOUND_CODES: ReadonlySet<string> = new Set([NOT_FOUND_CODE, 'ERROR_RETRIEVING_DATA']);
 
 const VALIDATION_CODES: ReadonlySet<string> = new Set([
   'INPUT_DATA_VALIDATION_FAILED',
@@ -91,7 +93,7 @@ export function unwrapAvirato(res: RequestResult, operation: string): ToolOutcom
   const code = aviratoErrorCode(res.body);
   const label = `Avirato ${operation} failed (HTTP ${res.status}${code ? `, ${code}` : ''})`;
 
-  if (code === NOT_FOUND_CODE) {
+  if (code && NOT_FOUND_CODES.has(code)) {
     return err(ProviderErrorCode.PROVIDER_ERROR, `${label}: reservation not found or cancelled`);
   }
   if (code && VALIDATION_CODES.has(code)) {

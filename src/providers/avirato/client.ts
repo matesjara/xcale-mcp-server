@@ -36,6 +36,13 @@ export interface AviratoClient {
     ctx: AviratoContext,
     body: Record<string, unknown>,
   ): Promise<RequestResult>;
+  /** PATCH `${baseUrl}/{path}?web_code=…` with a JSON body. One call, one request, never retried. */
+  patch(
+    path: string,
+    request: AuthedRequest,
+    ctx: AviratoContext,
+    body: Record<string, unknown>,
+  ): Promise<RequestResult>;
   /** DELETE `${baseUrl}/{path}?web_code=…`. One call, one request, never retried here. */
   del(path: string, request: AuthedRequest, ctx: AviratoContext): Promise<RequestResult>;
 }
@@ -56,6 +63,14 @@ export function createAviratoClient(deps: AviratoClientDeps = {}): AviratoClient
     post: (path, request, ctx, body) =>
       request({
         method: 'POST',
+        url: url(path, ctx),
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+
+    patch: (path, request, ctx, body) =>
+      request({
+        method: 'PATCH',
         url: url(path, ctx),
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),

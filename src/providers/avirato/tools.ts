@@ -31,55 +31,66 @@ const id = z.number().int().positive();
 const isoDateTime = z.iso.datetime({ offset: true });
 
 /**
- * One room of a reservation to create — the observed create body (contract §A.9) minus what the
- * provider fills. `status` accepts only the value observed on create (`RESERVATION`); which status a
- * hotel books in is its choice, so another value joins additively once it is observed (design AD-6).
+ * A room's full record — the fields create and modify both send (contract §A.9) minus what the provider
+ * fills. `status` accepts only the value observed (`RESERVATION`); which status a hotel books in is its
+ * choice, so another value joins additively once it is observed (design AD-6).
  */
+const roomRecord = {
+  space_subtype_id: id,
+  adults: z.number().int().min(1),
+  children: z.number().int().min(0),
+  check_in: isoDateTime,
+  check_out: isoDateTime,
+  regime: z.string().trim().min(1).max(16),
+  rate_id: id,
+  status: z.literal('RESERVATION'),
+  client: z
+    .object({
+      client_doc: z.string().trim().min(1).max(64),
+      name: z.string().trim().min(1).max(100),
+      surname: z.string().trim().min(1).max(100),
+      email: z.email().optional(),
+      phone: z.string().trim().min(1).max(32).optional(),
+      // Observed 2026-10-31: the sandbox refuses a reservation whose client has no `state` and
+      // `country` — a bare `ERROR_ON_INSERT` — while production accepted one without them on
+      // 2026-10-30. Optional here, so Avirato stays the judge; a consumer should send them.
+      state: z.string().trim().min(1).max(100).optional(),
+      country: z
+        .string()
+        .regex(/^[A-Z]{3}$/, 'ISO 3166-1 alpha-3, upper case (e.g. COL)')
+        .optional(),
+      city: z.string().trim().min(1).max(100).optional(),
+      address: z.string().trim().min(1).max(200).optional(),
+      zip_code: z.string().trim().min(1).max(16).optional(),
+    })
+    .strict(),
+  payment: z
+    .object({
+      payment_type: z.enum(['CASH', 'CARD', 'TRANSFER', 'CREDIT', 'OTHER']),
+      is_paid: z.boolean(),
+    })
+    .strict(),
+  observations: z.string().max(500).optional(),
+  additional_beds: z.number().int().min(0).optional(),
+};
+
+/** Both create and modify refuse a stay whose check-out is not after its check-in. */
+const checkOutAfterCheckIn = (r: { check_in: string; check_out: string }) =>
+  Date.parse(r.check_out) > Date.parse(r.check_in);
+const checkOutIssue = { message: '`check_out` must be after `check_in`', path: ['check_out'] };
+
+/** One room of a reservation to create: the full record and how many such rooms (`quantity`). */
 const reservationRoom = z
-  .object({
-    space_subtype_id: id,
-    quantity: z.number().int().min(1),
-    adults: z.number().int().min(1),
-    children: z.number().int().min(0),
-    check_in: isoDateTime,
-    check_out: isoDateTime,
-    regime: z.string().trim().min(1).max(16),
-    rate_id: id,
-    status: z.literal('RESERVATION'),
-    client: z
-      .object({
-        client_doc: z.string().trim().min(1).max(64),
-        name: z.string().trim().min(1).max(100),
-        surname: z.string().trim().min(1).max(100),
-        email: z.email().optional(),
-        phone: z.string().trim().min(1).max(32).optional(),
-        // Observed 2026-10-31: the sandbox refuses a reservation whose client has no `state` and
-        // `country` — a bare `ERROR_ON_INSERT` — while production accepted one without them on
-        // 2026-10-30. Optional here, so Avirato stays the judge; a consumer should send them.
-        state: z.string().trim().min(1).max(100).optional(),
-        country: z
-          .string()
-          .regex(/^[A-Z]{3}$/, 'ISO 3166-1 alpha-3, upper case (e.g. COL)')
-          .optional(),
-        city: z.string().trim().min(1).max(100).optional(),
-        address: z.string().trim().min(1).max(200).optional(),
-        zip_code: z.string().trim().min(1).max(16).optional(),
-      })
-      .strict(),
-    payment: z
-      .object({
-        payment_type: z.enum(['CASH', 'CARD', 'TRANSFER', 'CREDIT', 'OTHER']),
-        is_paid: z.boolean(),
-      })
-      .strict(),
-    observations: z.string().max(500).optional(),
-    additional_beds: z.number().int().min(0).optional(),
-  })
+  .object({ ...roomRecord, quantity: z.number().int().min(1) })
   .strict()
-  .refine((r) => Date.parse(r.check_out) > Date.parse(r.check_in), {
-    message: '`check_out` must be after `check_in`',
-    path: ['check_out'],
-  });
+  .refine(checkOutAfterCheckIn, checkOutIssue);
+
+/**
+ * The room of an existing reservation, as modify takes it: the full record again. Observed on the
+ * sandbox 2026-10-31 — a partial body (status alone, status and client) answers `400 ERROR_ON_UPDATE`,
+ * and `quantity` is refused ("Cannot set quantity when modifying."), so it is not accepted here.
+ */
+const modifiedRoom = z.object(roomRecord).strict().refine(checkOutAfterCheckIn, checkOutIssue);
 
 /** The id space of Avirato reservation ids, so they never compare with another provider's or kind's. */
 const RESERVATION_KIND = `${SLUG}:reservation`;
@@ -402,6 +413,51 @@ export function buildAviratoTools(
         return unwrapAvirato(
           await client.post('reservation', ctx.request, ctx.metadata, body),
           'create_reservation',
+        );
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_modify_reservation`,
+      controlPlane: true,
+      identityPolicy: reservationOwner,
+      description:
+        'CONTROL PLANE — change a reservation by its `reservation_id`: dates, room subtype, party, ' +
+        'rate, regime, client or observations. Avirato takes the room’s FULL record, not just what ' +
+        'changes — a partial one is refused — so send every field as it should stand after the change. ' +
+        'No amount and no quantity: Avirato reprices the stay itself (two nights instead of one doubled ' +
+        'the price, as the quote does). A modify clears the reconciliation tag (`promotional_package` ' +
+        'becomes "") and Avirato refuses `external_code` here; `observations` are kept. Thin passthrough ' +
+        '(ADR 0015): one call, one request, never retried. Returns Avirato’s ' +
+        'updated reservation rows verbatim. A cancelled reservation cannot be modified.',
+      input: z
+        .object({
+          reservation_id: id,
+          room: modifiedRoom,
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        const { payment, observations, additional_beds, rate_id, ...room } = args.room;
+        const body = {
+          rooms: [
+            {
+              action: 'MODIFY',
+              reservation_id: args.reservation_id,
+              ...room,
+              // Observed: modify takes the rate as `rateId` (create takes `rate_id`).
+              rateId: rate_id,
+              price: payment,
+              advance: { total_advance: 0, advance_type: payment.payment_type },
+              operator_reservation_id: '0',
+              observations: observations ?? '',
+              additional_beds: additional_beds ?? 0,
+              extras: [],
+            },
+          ],
+        };
+        return unwrapAvirato(
+          await client.patch(`reservation/${args.reservation_id}`, ctx.request, ctx.metadata, body),
+          'modify_reservation',
         );
       },
     }),
