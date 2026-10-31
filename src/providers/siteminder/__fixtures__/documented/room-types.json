@@ -1,0 +1,21 @@
+{
+  "results": [
+    {
+      "uuid": "403950b4-0919-4396-afa1-3957a38a83f8",
+      "name": "Deluxe Double",
+      "description": null,
+      "category": null,
+      "roomSize": null,
+      "roomSizeUnit": null,
+      "bathroomQuantity": "1",
+      "maxOccupancy": 2,
+      "maxAdultOccupancy": 2,
+      "maxChildOccupancy": 1,
+      "maxInfantOccupancy": 1,
+      "code": null,
+      "categoryCode": null,
+      "smokingPolicy": "non_smoking"
+    }
+  ],
+  "pagination": { "page": 1, "perPage": 10, "total": 1, "totalPages": 1 }
+}

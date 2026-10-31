@@ -1,0 +1,31 @@
+{
+  "uuid": "f63ce398-da03-4573-856d-ed8d71e57e3d",
+  "name": "Example Beach Hotel",
+  "description": "A small hotel by the sea.",
+  "termsAndConditions": null,
+  "instructionsToLocation": null,
+  "latitude": -33.8688,
+  "longitude": 151.2093,
+  "timezone": "Australia/Sydney",
+  "currencyIsoCode": "AUD",
+  "bookingEngineUrl": "https://direct-book.com/properties/propertyChannelCode",
+  "address": {
+    "addressLine1": "1 Example Street",
+    "suburb": "Example",
+    "state": "NSW",
+    "postcode": "2000",
+    "country": "AU"
+  },
+  "features": { "facilities": [], "parking": [], "transport": [] },
+  "policies": {
+    "smokingPolicy": { "smokeFreeProperty": true, "nonSmokingRooms": null, "allPublicAreasNonSmoking": null },
+    "checkInCheckOut": {
+      "checkInStartTime": "14:00",
+      "checkInEndTime": "22:00",
+      "checkOutStartTime": null,
+      "checkOutEndTime": "10:00",
+      "restrictedCheckInCheckOut": false
+    }
+  },
+  "photos": []
+}
