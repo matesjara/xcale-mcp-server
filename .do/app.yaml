@@ -44,6 +44,14 @@ services:
       - key: LOG_LEVEL
         scope: RUN_TIME
         value: info
+      # HiMed's production hosts — deployment config, not credentials (docs/deploy.md). Unset, every
+      # HiMed tool fails closed with PROVIDER_UNAVAILABLE.
+      - key: HIMED_BASE_URL
+        scope: RUN_TIME
+        value: https://m.medsas.co/interoperabilidad/Api/Controllers
+      - key: HIMED_SCHEDULING_BASE_URL
+        scope: RUN_TIME
+        value: https://notificaciones.medsas.co/notificaciones/envioConsumoAutoagendamiento
       # Hop B — the shared secret consumers authenticate with. Rendered from Doppler.
       - key: MCP_SERVER_SECRET
         scope: RUN_TIME
