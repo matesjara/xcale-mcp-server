@@ -656,7 +656,7 @@ describe('avirato provider — S6 create_reservation and cancel_reservation', ()
 // ---------------------------------------------------------------------------
 
 describe('avirato provider — S7 surface', () => {
-  it('publishes exactly the ten menu tools and routes the five control-plane ones too', () => {
+  it('publishes exactly the ten menu tools and routes the six control-plane ones too', () => {
     const menu = [
       'mcp_avirato_get_establishment',
       'mcp_avirato_list_room_types',
@@ -675,6 +675,7 @@ describe('avirato provider — S7 surface', () => {
       'mcp_avirato_cancel_reservation',
       'mcp_avirato_modify_reservation',
       'mcp_avirato_get_reservation_charges',
+      'mcp_avirato_list_reservations',
     ];
 
     expect(new Set(aviratoProvider.listTools().map((t) => t.name))).toEqual(new Set(menu));
@@ -1331,5 +1332,125 @@ describe('avirato provider — second review fixes', () => {
     );
 
     expect(capture[0]?.url).toContain('web_code=1234');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S11 — list_reservations: the history read a consumer imports from
+// ---------------------------------------------------------------------------
+
+describe('avirato provider — S11 list_reservations', () => {
+  const NAME = 'mcp_avirato_list_reservations';
+  // Observed on production 2026-10-30: an array of arrays, one per master reservation, rows in camelCase.
+  const row = (reservationId: number, status: string) => ({
+    reservationId,
+    checkInDate: '2027-02-16 17:00:00',
+    checkOutDate: '2027-02-17 17:00:00',
+    status,
+    price: 395000,
+    clientId: 77,
+    clientName: 'Ana Prueba',
+    client: { clientDoc: 'TEST-0001' },
+    promotionalPackage: '',
+  });
+  const page = {
+    status: 'success',
+    data: [[row(901, 'Reserva'), row(902, 'Reserva cancelada')], [row(903, 'Eliminada')]],
+    meta: { take: 50, itemCount: 3, itemRemaining: 0, hasNextPage: false, cursor: 903 },
+  };
+  const dates = { date_type: 'CREATED', start_date: '2026-01-01', end_date: '2026-10-30' };
+
+  const params = (url: string | undefined) => Object.fromEntries(new URL(url ?? '').searchParams);
+
+  it('GETs /reservation/dates with the dates, status TODAS, take 50 and charges=false by default', async () => {
+    const { capture } = await callWith(NAME, dates, page);
+
+    expect(capture).toHaveLength(1);
+    expect(capture[0]?.init.method).toBe('GET');
+    expect(new URL(capture[0]?.url ?? '').pathname).toBe('/v3/reservation/dates');
+    expect(params(capture[0]?.url)).toEqual({
+      web_code: '1234',
+      date_type: 'CREATED',
+      start_date: '2026-01-01',
+      end_date: '2026-10-30',
+      status: 'TODAS',
+      take: '50',
+      charges: 'false',
+    });
+  });
+
+  it('passes the status, take and cursor as given', async () => {
+    const { capture } = await callWith(
+      NAME,
+      { ...dates, date_type: 'CHECKIN', status: 'Reserva', take: 100, cursor: 'abc123' },
+      page,
+    );
+
+    expect(params(capture[0]?.url)).toMatchObject({
+      date_type: 'CHECKIN',
+      status: 'Reserva',
+      take: '100',
+      cursor: 'abc123',
+      charges: 'false',
+    });
+  });
+
+  it('passes a numeric cursor as Avirato returned it', async () => {
+    const { capture } = await callWith(NAME, { ...dates, cursor: 903 }, page);
+
+    expect(params(capture[0]?.url).cursor).toBe('903');
+  });
+
+  it('returns the groups and the meta verbatim — camelCase, grouped, cancelled and deleted rows kept', async () => {
+    const { result } = await callWith(NAME, dates, page);
+
+    expect(result).toMatchObject({ kind: 'success' });
+    expect((result as { data: unknown }).data).toEqual({ groups: page.data, meta: page.meta });
+  });
+
+  it('answers no groups when Avirato sends no array', async () => {
+    const { result } = await callWith(NAME, dates, { status: 'success', data: null });
+
+    expect(result).toMatchObject({ kind: 'success', data: { groups: [] } });
+  });
+
+  it('maps an Avirato refusal through the module’s error shaping', async () => {
+    const { result } = await callWith(NAME, dates, errorValidation, 400);
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+  });
+
+  it.each([
+    [{ ...dates, start_date: '2026-02-30' }, 'a non-existent day'],
+    [{ ...dates, end_date: '30/10/2026' }, 'a non-ISO date'],
+    [{ ...dates, start_date: '2026-10-30', end_date: '2026-10-01' }, 'end before start'],
+    [{ ...dates, date_type: 'UPDATED' }, 'an unknown date_type'],
+    [{ start_date: '2026-01-01', end_date: '2026-10-30' }, 'no date_type'],
+    [{ ...dates, take: 0 }, 'take below 1'],
+    [{ ...dates, take: 101 }, 'take above 100'],
+    [{ ...dates, take: 2.5 }, 'a fractional take'],
+    [{ ...dates, charges: true }, 'a caller-set charges'],
+  ] as Array<[Record<string, unknown>, string]>)(
+    'refuses %j (%s) before reaching Avirato',
+    async (args) => {
+      const { result, capture } = await callWith(NAME, args, page);
+
+      expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+      expect(capture).toHaveLength(0);
+    },
+  );
+
+  it('is control plane and read-only: routable by name, never on the agent’s menu', () => {
+    expect(aviratoProvider.listTools().map((t) => t.name)).not.toContain(NAME);
+    expect(aviratoProvider.routableToolNames()).toContain(NAME);
+    const tool = buildAviratoTools(createAviratoClient()).find((t) => t.name === NAME);
+    expect(tool?.controlPlane).toBe(true);
+    expect(tool?.readOnly).toBe(true);
+  });
+
+  it('is subject-scoped: it returns other people’s reservations without naming anyone', () => {
+    const tool = buildAviratoTools(createAviratoClient()).find((t) => t.name === NAME);
+
+    expect(tool?.identityPolicy).toEqual({ mode: 'subject-scoped' });
   });
 });

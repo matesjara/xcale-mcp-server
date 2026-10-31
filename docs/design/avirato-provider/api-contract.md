@@ -3,12 +3,12 @@
 > **Module**: `src/providers/avirato/` (xcale-mcp-server). The connection's registration and the mint live in xcale-backend (Rail A); they are referenced here, not specified.
 > **Kind**: external-provider adapter contract. It documents three surfaces: (A) **Avirato's API v3, as observed**, (B) the **`credential_exchange` authDescriptor**, (C) the **MCP tools** the provider publishes.
 > **Upstream**: [feature-design.md](feature-design.md) · ADR [credential-exchange-response-path-and-token-ttl](../../adr/credential-exchange-response-path-and-token-ttl.md) · the evidence comments on matesjara/xcale-mcp-server#189.
-> **Last updated**: 2026-10-30.
+> **Last updated**: 2026-10-31.
 
 > **🔬 Evidence.** Every wire value below was observed against Avirato's real API.
 >
 > - **Production, 2026-10-30:** read-only calls, plus three test reservations created and cancelled with Sara's go.
-> - **Sandbox, 2026-10-31:** all 15 tools through the provider itself, the writes included: create, modify (party, then dates) and cancel, on reservations 238–240.
+> - **Sandbox, 2026-10-31:** 15 tools through the provider itself, the writes included: create, modify (party, then dates) and cancel, on reservations 238–240.
 >
 > Nothing here is taken from the spec alone. Where the spec and the wire disagree, the wire is written and the disagreement is named.
 
@@ -209,6 +209,13 @@ Query: `web_code`, `start_date`, `end_date` (`YYYY-MM-DD`, both nights inclusive
 - **A modify replaces extras and the advance with what it sends** (observed, reservation 241): sent without them, a 25000 extra charge disappeared and an advance of 50000 became 0. Sent with them, as `extras: [{ extra_id, quantity }]` and `advance: { total_advance, advance_type: "CASH" }`, both are kept (reservation 242). Reads give the advance (`advance`), and give the extras only as charges (`GET /charge/{id}`, `type: "extra"`, by `concept`, with no `extra_id`). **[CTO 2026-10-31]** The tool guards this (§C).
 - **Not observed:** `predefinedCharges` on a modify.
 
+**By date — `GET /reservation/dates`** (observed on production, 2026-10-30) → `200 { status, data: DatedRow[][], meta: { take, itemCount, itemRemaining, hasNextPage, cursor } }`.
+
+- Query: `date_type` (`CREATED` | `MODIFIED` | `CHECKIN` | `CHECKOUT` | `DEFAULT`), `start_date`, `end_date` (`YYYY-MM-DD`), `status` (`TODAS` includes every status), `take`, `cursor`, and **`charges`, which Avirato requires**: without it the call answers `400`, though the spec marks it optional. The tool always sends `charges=false`.
+- `data` is an **array of arrays**, one per master reservation. The rows are **camelCase**, unlike every other read: `reservationId`, `checkInDate`, `checkOutDate`, `status`, `price`, `clientId`, `clientName`, `client: { clientDoc, … }`, `promotionalPackage`, ….
+- Cancelled (`Reserva cancelada`) and deleted (`Eliminada`) reservations are listed.
+- Pagination is by cursor: pass `meta.cursor` back while `meta.hasNextPage`. Each page counts against the 600 requests / 5 min per IP limit.
+
 **Statuses** seen on the wire: `Reserva`, `Reserva confirmada`, `Reserva cancelada`, `Eliminada`. The create input takes `RESERVATION`.
 
 ### A.10 `GET /reservation/urls/{reservation_id}`
@@ -291,6 +298,7 @@ All names are `mcp_avirato_<verb>`. Every handler sends `web_code` from the cont
 | `get_reservation_charges`    | `GET /charge/{id}`                  | control plane | ✓          | `subject-bound`, `identityFields: []`, `recordOwnershipField: 'reservation_id'`, `recordOwnershipKind: 'avirato:reservation'`         |
 | `modify_reservation`         | `PATCH /reservation/{id}`           | control plane |            | `subject-bound`, `identityFields: []`, `recordOwnershipField: 'reservation_id'`, `recordOwnershipKind: 'avirato:reservation'`         |
 | `cancel_reservation`         | `DELETE /reservation/{id}`          | control plane |            | `subject-bound`, `identityFields: []`, `recordOwnershipField: 'reservation_id'`, `recordOwnershipKind: 'avirato:reservation'`         |
+| `list_reservations`          | `GET /reservation/dates`            | control plane | ✓          | `subject-scoped` — it names nobody and returns other people's reservations; for a consumer's history import                           |
 
 ### C.1 Inputs
 
@@ -343,6 +351,13 @@ modify_reservation: {
   };
 }
 cancel_reservation:         { reservation_id: number }
+list_reservations: {
+  date_type: 'CREATED' | 'MODIFIED' | 'CHECKIN' | 'CHECKOUT' | 'DEFAULT';
+  start_date: string; end_date: string;                                                            // end_date >= start_date
+  status?: string;                                                                                 // default "TODAS" (every status)
+  take?: number;                                                                                   // 1..100, default 50
+  cursor?: string | number;                                                                        // meta.cursor of the previous page, as Avirato returned it
+}                                                                                                  // charges=false is always sent; the caller cannot set it
 ```
 
 - **`create_reservation` takes no amount.** Its `payment` input is sent as Avirato's `price` field, renamed so that no reader mistakes it for an amount.
@@ -351,21 +366,22 @@ cancel_reservation:         { reservation_id: number }
 
 ### C.2 Results
 
-| Tool                                          | `data` returned                                                                                                                    |
-| :-------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------- |
-| `get_establishment`                           | `Establishment` (A.4)                                                                                                              |
-| `list_room_types`                             | `SpaceType[]` (A.5)                                                                                                                |
-| `list_rates` / `list_regimes` / `list_extras` | the arrays of A.6                                                                                                                  |
-| `check_availability`                          | `{ space_subtypes: [...] }` (A.7)                                                                                                  |
-| `validate_promotional_code`                   | `{ valid: false }` when Avirato answers `data: ""`; otherwise `{ valid: true, code: <Avirato's data> }`                            |
-| `get_reservation`                             | `ReservationRow` (A.9), the first element of Avirato's array                                                                       |
-| `find_reservations_by_guest`                  | `{ items: ReservationRow[] }`. An unknown document answers `{ items: [] }`, not an error (§D).                                     |
-| `get_reservation_links`                       | `{ type, url }`                                                                                                                    |
-| `quote_stay`                                  | `{ items: QuoteRow[] }`, exact duplicates removed, Avirato's order kept                                                            |
-| `create_reservation`                          | `Reservation[]` (A.9), verbatim, `charges` and `billing` included                                                                  |
-| `get_reservation_charges`                     | `{ items: Charge[] }`, verbatim: `{ type: "habitacion" or "regimen" or "extra", concept, price, quantity, vat, total, status, … }` |
-| `modify_reservation`                          | `ReservationRow[]` (A.9), the updated reservation, verbatim: Avirato's new `price`, the tag cleared                                |
-| `cancel_reservation`                          | `ReservationRow` with `status: "Reserva cancelada"`                                                                                |
+| Tool                                          | `data` returned                                                                                                                                                                                                                                                       |
+| :-------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_establishment`                           | `Establishment` (A.4)                                                                                                                                                                                                                                                 |
+| `list_room_types`                             | `SpaceType[]` (A.5)                                                                                                                                                                                                                                                   |
+| `list_rates` / `list_regimes` / `list_extras` | the arrays of A.6                                                                                                                                                                                                                                                     |
+| `check_availability`                          | `{ space_subtypes: [...] }` (A.7)                                                                                                                                                                                                                                     |
+| `validate_promotional_code`                   | `{ valid: false }` when Avirato answers `data: ""`; otherwise `{ valid: true, code: <Avirato's data> }`                                                                                                                                                               |
+| `get_reservation`                             | `ReservationRow` (A.9), the first element of Avirato's array                                                                                                                                                                                                          |
+| `find_reservations_by_guest`                  | `{ items: ReservationRow[] }`. An unknown document answers `{ items: [] }`, not an error (§D).                                                                                                                                                                        |
+| `get_reservation_links`                       | `{ type, url }`                                                                                                                                                                                                                                                       |
+| `quote_stay`                                  | `{ items: QuoteRow[] }`, exact duplicates removed, Avirato's order kept                                                                                                                                                                                               |
+| `create_reservation`                          | `Reservation[]` (A.9), verbatim, `charges` and `billing` included                                                                                                                                                                                                     |
+| `get_reservation_charges`                     | `{ items: Charge[] }`, verbatim: `{ type: "habitacion" or "regimen" or "extra", concept, price, quantity, vat, total, status, … }`                                                                                                                                    |
+| `modify_reservation`                          | `ReservationRow[]` (A.9), the updated reservation, verbatim: Avirato's new `price`, the tag cleared                                                                                                                                                                   |
+| `cancel_reservation`                          | `ReservationRow` with `status: "Reserva cancelada"`                                                                                                                                                                                                                   |
+| `list_reservations`                           | `{ groups: DatedRow[][], meta: { take, itemCount, itemRemaining, hasNextPage, cursor } }` (A.9) — Avirato's `data` and `meta` verbatim, grouping and camelCase kept; a non-array `data` gives `groups: []`. Page while `meta.hasNextPage`, passing `meta.cursor` back |
 
 ---
 

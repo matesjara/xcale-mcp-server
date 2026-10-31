@@ -571,6 +571,54 @@ export function buildAviratoTools(
     }),
 
     tool({
+      name: `mcp_${SLUG}_list_reservations`,
+      readOnly: true,
+      controlPlane: true,
+      // Takes no person identifier and returns other people's stays anyway: the hotel's own history, for
+      // a consumer's import — never something to read out to whoever is in a conversation.
+      identityPolicy: { mode: 'subject-scoped' },
+      description:
+        'CONTROL PLANE — list the connected hotel’s reservations by date, for a consumer’s history ' +
+        'import: `date_type` (CREATED | MODIFIED | CHECKIN | CHECKOUT | DEFAULT) between `start_date` ' +
+        'and `end_date` (YYYY-MM-DD), optionally one `status` (default `TODAS`, every status — cancelled ' +
+        '"Reserva cancelada" and deleted "Eliminada" rows included). Returns `{ groups, meta }` verbatim: ' +
+        '`groups` is Avirato’s array of arrays, one per master reservation, and its rows are camelCase ' +
+        '(`reservationId`, `checkInDate`, `clientName`, `client.clientDoc`), unlike get_reservation. ' +
+        'Page with `take` (1..100, default 50) and pass `meta.cursor` back as `cursor` while ' +
+        '`meta.hasNextPage`. Every page counts against the shared rate limit (600 requests / 5 min per IP).',
+      input: z
+        .object({
+          date_type: z.enum(['CREATED', 'MODIFIED', 'CHECKIN', 'CHECKOUT', 'DEFAULT']),
+          start_date: isoDate,
+          end_date: isoDate,
+          status: z.string().trim().min(1).max(64).default('TODAS'),
+          take: z.number().int().min(1).max(100).default(50),
+          cursor: z.union([z.string().trim().min(1).max(256), z.number().int()]).optional(),
+        })
+        .strict()
+        .refine((a) => a.end_date >= a.start_date, {
+          message: '`end_date` must not be before `start_date`',
+          path: ['end_date'],
+        }),
+      handler: async (args, ctx) => {
+        const res = await client.get('reservation/dates', ctx.request, ctx.metadata, {
+          date_type: args.date_type,
+          start_date: args.start_date,
+          end_date: args.end_date,
+          status: args.status,
+          take: args.take,
+          cursor: args.cursor,
+          // Observed: Avirato answers 400 without `charges`, though its spec says it is optional.
+          charges: false,
+        });
+        // `unwrapAvirato` keeps `data` only; the page's `meta` (the cursor) is needed too.
+        if (!res.ok) return unwrapAvirato(res, 'list_reservations');
+        const { data, meta } = (res.data ?? {}) as { data?: unknown; meta?: unknown };
+        return ok({ groups: Array.isArray(data) ? data : [], meta });
+      },
+    }),
+
+    tool({
       name: `mcp_${SLUG}_cancel_reservation`,
       controlPlane: true,
       identityPolicy: reservationOwner,
