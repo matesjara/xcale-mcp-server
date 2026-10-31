@@ -44,12 +44,15 @@ const MAX_ERROR_BODY = 500;
  *
  * Parameter NAMES are kept: `?xir=[REDACTED]&xapitoken=[REDACTED]` still says which call failed.
  *
- * A value ends at `&`, whitespace or a quote. The quote matters when a provider echoes the request URL
- * inside a one-line JSON error body (Avirato's `path`): masking past the closing quote would eat the
- * fields that follow — the error code a provider maps on — and leave the body unparseable.
+ * A value ends at `&`, whitespace or a double quote. The quote matters when a provider echoes the
+ * request URL inside a one-line JSON error body (Avirato's `path`): masking past the closing quote would
+ * eat the fields that follow — the error code a provider maps on — and leave the body unparseable. A
+ * double quote cannot sit inside a query value we send (the materializer's `encodeURIComponent` makes it
+ * `%22`), so ending there masks every credential whole. A single quote is NOT a terminator: the
+ * materializer leaves `'` raw, and a value like `ab'cd` must stay masked in full.
  */
 export function redactQueryValues(text: string): string {
-  return text.replace(/([?&])([^=&\s"']+)=([^&\s"']*)/g, (_m, sep: string, key: string) => {
+  return text.replace(/([?&])([^=&\s"]+)=([^&\s"]*)/g, (_m, sep: string, key: string) => {
     return `${sep}${key}=[REDACTED]`;
   });
 }

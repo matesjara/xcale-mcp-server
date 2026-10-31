@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-import { ok, toolFactory, type ToolDefinition } from '../../core/tool';
+import { ProviderErrorCode } from '../../core/errors';
+import { err, ok, toolFactory, type ToolDefinition } from '../../core/tool';
 import type { ToolIdentityPolicy } from '../../core/types';
 import type { AviratoClient } from './client';
 import type { AviratoContext } from './context';
@@ -26,6 +27,18 @@ const isoDate = z
 
 /** A positive integer id (Avirato's `space_subtype_id`, `rate_id`, `reservation_id`). */
 const id = z.number().int().positive();
+
+/**
+ * A value that becomes one URL path segment (a client document, a promotional code). `encodeURIComponent`
+ * leaves `.` as is, and a segment made only of dots is resolved by URL parsing as `.`/`..`, walking the
+ * request to another Avirato endpoint (review of #190) — refused here.
+ */
+const pathSegment = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .refine((s) => !/^\.+$/.test(s), 'Not a value: a run of dots');
 
 /** An ISO 8601 datetime with an offset or `Z` (`2027-02-16T17:00:00.000Z`), as Avirato's create takes. */
 const isoDateTime = z.iso.datetime({ offset: true });
@@ -225,7 +238,7 @@ export function buildAviratoTools(
         'Check whether a promotional code exists at the connected hotel before it is promised to a ' +
         'guest. Returns `{ valid: false }` when the hotel has no such code, or `{ valid: true, code }` ' +
         'with Avirato’s record of it.',
-      input: z.object({ code: z.string().trim().min(1).max(64) }).strict(),
+      input: z.object({ code: pathSegment }).strict(),
       handler: async (args, ctx) => {
         const outcome = unwrapAvirato(
           await client.get(
@@ -265,7 +278,15 @@ export function buildAviratoTools(
           'get_reservation',
         );
         // Observed: Avirato answers a one-element array for one id.
-        return outcome.ok && Array.isArray(outcome.data) ? ok(outcome.data[0]) : outcome;
+        if (!outcome.ok) return outcome;
+        // Observed: Avirato answers a one-element array for one id. An empty one is not a reservation.
+        const row = Array.isArray(outcome.data) ? outcome.data[0] : outcome.data;
+        return row
+          ? ok(row)
+          : err(
+              ProviderErrorCode.PROVIDER_ERROR,
+              'Avirato get_reservation: not found or cancelled',
+            );
       },
     }),
 
@@ -283,7 +304,7 @@ export function buildAviratoTools(
         'it). Returns `{ items }`, cancelled reservations included; an unknown document returns no ' +
         'items. Avirato was observed returning one reservation of several under the same document, so ' +
         'when the guest has their reservation id, `get_reservation` is the reliable read.',
-      input: z.object({ client_doc: z.string().trim().min(1).max(64) }).strict(),
+      input: z.object({ client_doc: pathSegment }).strict(),
       handler: async (args, ctx) => {
         const res = await client.get(
           `reservation/client/${encodeURIComponent(args.client_doc)}`,
@@ -295,7 +316,13 @@ export function buildAviratoTools(
         if (!res.ok && aviratoErrorCode(res.body) === NOT_FOUND_CODE) return ok({ items: [] });
         const outcome = unwrapAvirato(res, 'find_reservations_by_guest');
         return outcome.ok
-          ? ok({ items: Array.isArray(outcome.data) ? outcome.data : [] })
+          ? ok({
+              items: Array.isArray(outcome.data)
+                ? outcome.data
+                : outcome.data
+                  ? [outcome.data]
+                  : [],
+            })
           : outcome;
       },
     }),
@@ -403,7 +430,8 @@ export function buildAviratoTools(
             price: payment,
             // Required by Avirato, not the consumer's to choose: no operator, no advance, no extras.
             operator_reservation_id: '0',
-            advance: { total_advance: 0, advance_type: payment.payment_type },
+            // No advance is taken through the API; CASH is the only advance type observed accepted.
+            advance: { total_advance: 0, advance_type: 'CASH' },
             observations: observations ?? '',
             additional_beds: additional_beds ?? 0,
             extras: [],
@@ -429,7 +457,8 @@ export function buildAviratoTools(
         'the price, as the quote does). A modify clears the reconciliation tag (`promotional_package` ' +
         'becomes "") and Avirato refuses `external_code` here; `observations` are kept. Thin passthrough ' +
         '(ADR 0015): one call, one request, never retried. Returns Avirato’s ' +
-        'updated reservation rows verbatim. A cancelled reservation cannot be modified.',
+        'updated reservation rows verbatim. A cancelled reservation cannot be modified. It sends no ' +
+        'extras and no advance; whether that resets extras or an advance added in Avirato is not observed.',
       input: z
         .object({
           reservation_id: id,
@@ -447,7 +476,8 @@ export function buildAviratoTools(
               // Observed: modify takes the rate as `rateId` (create takes `rate_id`).
               rateId: rate_id,
               price: payment,
-              advance: { total_advance: 0, advance_type: payment.payment_type },
+              // No advance is taken through the API; CASH is the only advance type observed accepted.
+              advance: { total_advance: 0, advance_type: 'CASH' },
               operator_reservation_id: '0',
               observations: observations ?? '',
               additional_beds: additional_beds ?? 0,

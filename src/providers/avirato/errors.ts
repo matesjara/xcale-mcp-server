@@ -43,16 +43,23 @@ interface AviratoErrorBody {
 }
 
 /**
- * The error body as JSON. Avirato echoes the request `path`, query string included; the core's transport
- * masks its values before a provider sees the body (`redactQueryValues`), ending each at the closing
- * quote, so the body still parses. A body that does not (a proxy's HTML page) reads as no fields.
+ * The error body's fields. Avirato's body is JSON, but the core's transport hands a provider at most its
+ * first 500 characters, and a body with a long `errors[]` before its `errorCode` arrives cut mid-array
+ * (review of #190). When it does not parse, the fields are recovered by pattern: the `errorCode`, the
+ * `message`, and the `errors[]` sentences that arrived whole.
  */
 function parseBody(body: string): AviratoErrorBody {
   try {
     const parsed = JSON.parse(body) as unknown;
     return parsed && typeof parsed === 'object' ? (parsed as AviratoErrorBody) : {};
   } catch {
-    return {};
+    const field = (name: string) => body.match(new RegExp(`"${name}"\\s*:\\s*"([^"]*)"`))?.[1];
+    const list = body.match(/"errors"\s*:\s*\[([^\]]*)/)?.[1];
+    return {
+      errorCode: field('errorCode'),
+      message: field('message'),
+      errors: list === undefined ? undefined : [...list.matchAll(/"([^"]*)"/g)].map((m) => m[1]),
+    };
   }
 }
 
@@ -94,10 +101,14 @@ export function unwrapAvirato(res: RequestResult, operation: string): ToolOutcom
   const label = `Avirato ${operation} failed (HTTP ${res.status}${code ? `, ${code}` : ''})`;
 
   if (code && NOT_FOUND_CODES.has(code)) {
-    return err(ProviderErrorCode.PROVIDER_ERROR, `${label}: reservation not found or cancelled`);
+    return err(ProviderErrorCode.PROVIDER_ERROR, `${label}: not found or cancelled`);
   }
-  if (code && VALIDATION_CODES.has(code)) {
-    const reasons = validationMessages(res.body, code);
+  // A body cut by the transport can lose its `errorCode` but keep the validation sentences before it:
+  // a 400 that still carries `errors[]` is a validation refusal.
+  const truncatedValidation =
+    !code && res.status === 400 && Array.isArray(parseBody(res.body).errors);
+  if ((code && VALIDATION_CODES.has(code)) || truncatedValidation) {
+    const reasons = validationMessages(res.body, code ?? 'INPUT_DATA_VALIDATION_FAILED');
     return err(
       ProviderErrorCode.INVALID_INPUT,
       reasons.length > 0 ? `${label}: ${reasons.join('; ')}` : label,

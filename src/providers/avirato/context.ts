@@ -8,6 +8,14 @@ import { z } from 'zod';
  * establishment, so it is named per call, like Cloudbeds' `propertyID`. A user reaching several
  * establishments is several connections. Avirato types it as a number on the wire (Observed).
  */
-export const aviratoContext = z.object({ web_code: z.coerce.number().int().positive() }).strict();
+export const aviratoContext = z
+  .object({
+    // A number, or a string of digits (metadata may arrive as text) — never a coerced `true` or `'1e3'`.
+    web_code: z.preprocess(
+      (v) => (typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : v),
+      z.number().int().positive(),
+    ),
+  })
+  .strict();
 
 export type AviratoContext = z.infer<typeof aviratoContext>;

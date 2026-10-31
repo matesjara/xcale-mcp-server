@@ -146,3 +146,14 @@ describe('sendRequest — the credential never survives in a result', () => {
     if (!res.ok) expect(res.body).not.toContain(TOKEN);
   });
 });
+
+describe('redactQueryValues — a single quote does not end a value', () => {
+  it("masks a credential that contains an apostrophe in full (encodeURIComponent leaves ' raw)", () => {
+    const redacted = redactQueryValues(
+      "GET https://api.example.com/x?xapitoken=ab'cd-secret failed",
+    );
+
+    expect(redacted).toContain('xapitoken=[REDACTED]');
+    expect(redacted).not.toContain('cd-secret');
+  });
+});

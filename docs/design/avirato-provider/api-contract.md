@@ -206,6 +206,7 @@ Query: `web_code`, `start_date`, `end_date` (`YYYY-MM-DD`, both nights inclusive
 - **Avirato reprices.** Going from one night to two moved `price` from 395000 to 790000, exactly the two-night quote. Fewer adults on the same night kept 395000.
 - **The reconciliation tag is cleared.** After any modify, `promotional_package` reads `""`. A top-level `external_code` is refused on modify (`400 property externalCode should not exist`), although the spec lists it. `observations` are kept, since they are part of the record.
 - **A cancelled reservation cannot be modified:** `400 ERROR_RETRIEVING_DATA`.
+- **Not observed:** whether a modify that sends `extras: []` and a zero advance resets extras or an advance that hotel staff added in Avirato's back-office.
 
 **Statuses** seen on the wire: `Reserva`, `Reserva confirmada`, `Reserva cancelada`, `Eliminada`. The create input takes `RESERVATION`.
 

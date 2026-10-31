@@ -557,7 +557,7 @@ describe('avirato provider — S6 create_reservation and cancel_reservation', ()
           },
           price: { payment_type: 'CARD', is_paid: false },
           operator_reservation_id: '0',
-          advance: { total_advance: 0, advance_type: 'CARD' },
+          advance: { total_advance: 0, advance_type: 'CASH' },
           observations: '',
           additional_beds: 0,
           extras: [],
@@ -952,5 +952,112 @@ describe('avirato provider — S9 what modify does to the tag and to a cancelled
 
     expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
     expect((result as { message: string }).message).toContain('not found or cancelled');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Review fixes — xcale-mcp-server#190 (/code-review, /security-review, 2026-10-31)
+// ---------------------------------------------------------------------------
+
+describe('avirato provider — review fixes', () => {
+  it.each([
+    ['mcp_avirato_find_reservations_by_guest', { client_doc: '..' }],
+    ['mcp_avirato_find_reservations_by_guest', { client_doc: '.' }],
+    ['mcp_avirato_validate_promotional_code', { code: '..' }],
+  ])(
+    '%s refuses a dot segment that would walk the URL to another endpoint (%j)',
+    async (name, args) => {
+      const { result, capture } = await callWith(name, args, reservationsByClient);
+
+      expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+      expect(capture).toHaveLength(0);
+    },
+  );
+
+  it('reads the error code of a body the transport truncated mid-array', async () => {
+    const long = JSON.stringify({
+      statusCode: 400,
+      path: '/v3/price/price_for_reservation?web_code=1234',
+      errors: Array.from({ length: 12 }, (_, i) => `rooms.${i}.adults must be a positive number`),
+      errorCode: 'INPUT_DATA_VALIDATION_FAILED',
+      message: 'Input data validation failed',
+    });
+    expect(long.length).toBeGreaterThan(500);
+    const { result } = await callWith('mcp_avirato_get_establishment', {}, long, 400);
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+    // The errorCode sits past the 500 characters the transport keeps; the sentences before it arrive.
+    expect((result as { message: string }).message).toContain(
+      'rooms.0.adults must be a positive number',
+    );
+  });
+
+  it('a not-found code on a non-reservation call does not claim a reservation is missing', async () => {
+    const gone = {
+      statusCode: 400,
+      errorCode: 'ERROR_RETRIEVING_DATA',
+      message: 'Unable to retrieve data',
+    };
+    const { result } = await callWith('mcp_avirato_list_rates', {}, gone, 400);
+
+    expect((result as { message: string }).message).toContain('not found or cancelled');
+    expect((result as { message: string }).message).not.toContain('reservation');
+  });
+
+  it('get_reservation of an empty answer is not found, not an empty success', async () => {
+    const { result } = await callWith(
+      'mcp_avirato_get_reservation',
+      { reservation_id: 901 },
+      { status: 'success', data: [] },
+    );
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
+  });
+
+  it('find_reservations_by_guest keeps a single reservation Avirato returns as an object', async () => {
+    const one = reservationsByClient.data[0];
+    const { result } = await callWith(
+      'mcp_avirato_find_reservations_by_guest',
+      { client_doc: 'TEST-0001' },
+      { status: 'success', data: one },
+    );
+
+    expect(result).toMatchObject({ kind: 'success', data: { items: [one] } });
+  });
+
+  it.each([true, '1e3', '12abc', 0])('refuses the context web_code %j', async (web_code) => {
+    const capture: Captured[] = [];
+    const provider = createAviratoProvider({
+      fetchImpl: fakeFetch({ body: establishment, capture }),
+    });
+    const result = await provider.callTool(
+      'mcp_avirato_get_establishment',
+      {},
+      {
+        credential: ctx.credential,
+        metadata: { web_code },
+      },
+    );
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+    expect(capture).toHaveLength(0);
+  });
+
+  it('accepts web_code as a number or as a string of digits', async () => {
+    for (const web_code of [1234, '1234']) {
+      const capture: Captured[] = [];
+      const provider = createAviratoProvider({
+        fetchImpl: fakeFetch({ body: establishment, capture }),
+      });
+      await provider.callTool(
+        'mcp_avirato_get_establishment',
+        {},
+        {
+          credential: ctx.credential,
+          metadata: { web_code },
+        },
+      );
+      expect(capture[0]?.url).toContain('web_code=1234');
+    }
   });
 });
