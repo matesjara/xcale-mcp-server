@@ -12,14 +12,13 @@ export const SLUG = 'avirato';
  *
  * No `contextDiscovery`: no Avirato endpoint lists the establishments a user reaches — the login's own
  * `web_codes` do, and the consumer reads them from its mint.
- *
- * No `logoUrl` yet: Avirato publishes its mark only as a raster image; the house tile is traced in its own
- * change rather than invented here.
  */
 export const aviratoManifest: ProviderManifest = {
   slug: SLUG,
   displayName: 'Avirato',
   category: 'hospitality',
+  // The house tile (black, rx 6, the mark in white), traced from Avirato's own app icon.
+  logoUrl: `/assets/${SLUG}.svg`,
   schemaVersion: '2026-10-30',
   providerVersion: '0.1.0',
 };
