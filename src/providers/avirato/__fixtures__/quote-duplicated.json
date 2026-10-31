@@ -1,0 +1,44 @@
+{
+  "status": "success",
+  "data": [
+    {
+      "check_in_date": "2027-02-16",
+      "check_out_date": "2027-02-17",
+      "space_subtype_id": 2,
+      "rate_id": 2,
+      "adults": 2,
+      "children": 0,
+      "price": 395000,
+      "base": 395000,
+      "increase": { "pax_increase": 0, "bed_increase": 0 },
+      "regimes": { "cost": 0, "quantity": 2 },
+      "fee": {}
+    },
+    {
+      "check_in_date": "2027-02-16",
+      "check_out_date": "2027-02-17",
+      "space_subtype_id": 2,
+      "rate_id": 2,
+      "adults": 2,
+      "children": 0,
+      "price": 395000,
+      "base": 395000,
+      "increase": { "pax_increase": 0, "bed_increase": 0 },
+      "regimes": { "cost": 0, "quantity": 2 },
+      "fee": {}
+    },
+    {
+      "check_in_date": "2027-02-16",
+      "check_out_date": "2027-02-17",
+      "space_subtype_id": 2,
+      "rate_id": 5,
+      "adults": 2,
+      "children": 0,
+      "price": 454250,
+      "base": 454250,
+      "increase": { "pax_increase": 0, "bed_increase": 0 },
+      "regimes": { "cost": 0, "quantity": 2 },
+      "fee": {}
+    }
+  ]
+}

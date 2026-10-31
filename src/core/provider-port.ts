@@ -111,8 +111,18 @@ export type ProviderAuthDescriptor =
       readonly method: 'POST';
       /** Map logical credential fields → the provider's wire field names (used verbatim, never interpolated). */
       readonly bodyFields: Readonly<Record<string, string>>;
-      /** Where to read the token (and optional expiry) in the mint response. */
+      /**
+       * Where to read the token (and optional expiry) in the mint response: a top-level key, or a
+       * closed dotted key path into nested objects (`data.token`) — keys of `[A-Za-z0-9_]` joined by
+       * `.`, nothing more (ADR: credential-exchange-response-path-and-token-ttl).
+       */
       readonly responseFields: { readonly token: string; readonly expiry?: string };
+      /**
+       * How long, in seconds, a minted token is valid when the mint response carries no usable
+       * expiry (Avirato: none, observed). A read expiry wins. Absent, the consumer has no lifetime
+       * to reuse the token by.
+       */
+      readonly tokenTtlSeconds?: number;
       /**
        * Non-secret static headers required on every call (e.g. Siigo `Partner-Id`). The header name
        * is knowledge; its VALUE comes from deployment config, never from this descriptor or the catalog.

@@ -1,4 +1,5 @@
 import type { IProvider } from '../core/provider-port';
+import { aviratoProvider } from './avirato';
 import { cloudbedsProvider } from './cloudbeds';
 import { echoProvider } from './echo';
 import { erbonProvider } from './erbon';
@@ -28,4 +29,5 @@ export const PROVIDERS: readonly IProvider[] = [
   himedProvider,
   profitroomProvider,
   wompiProvider,
+  aviratoProvider,
 ];

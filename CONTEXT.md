@@ -240,9 +240,12 @@ of the [Credential Authority](#). _Avoid_: the server reading a credential store
 for providers that mint a short-lived bearer token from durable credentials via a token endpoint
 (Siigo: `POST /auth` with `username`+`access_key` → 24h JWT). Rail A (the Credential Authority) runs
 it **generically** from the descriptor. Strictly **declarative**: `tokenEndpoint`, `method`,
-`bodyFields` (logical→wire name mapping), `responseFields` (token + expiry keys; OAuth-style
-defaults), `staticHeaders` (name + source), `tokenPlacement`. It carries **no behavior** — no hooks,
-templates, expressions, signing, or JSON-path. A provider needing *imperative* auth (HMAC/signing)
+`bodyFields` (logical→wire name mapping), `responseFields` (token + expiry, each a top-level key or a
+closed dotted key path such as `data.token`), `tokenTtlSeconds` (the lifetime the consumer applies
+when the response states none), `staticHeaders` (name + source), `tokenPlacement`. It carries **no
+behavior** — no hooks, templates, expressions, signing, or general JSON-path: a dotted path is keys
+joined by `.`, with no indices, wildcards or filters (ADR
+`credential-exchange-response-path-and-token-ttl`). A provider needing *imperative* auth (HMAC/signing)
 does NOT extend this variant: it reopens where the mint runs (a declarative descriptor can't express
 it and Rail A can't run the server's code) and requires its own variant + an ADR. _Avoid_: growing
 this into a config-DSL / interpreter.

@@ -5,6 +5,9 @@ import type { IProvider, ProviderAuthDescriptor } from '../provider-port';
 import { SecretString } from '../secret-string';
 
 const SLUG_RE = /^[a-z0-9-]+$/;
+// The closed dotted key path of `credential_exchange.responseFields` (ADR:
+// credential-exchange-response-path-and-token-ttl) — keys joined by `.`, no indices or wildcards.
+const RESPONSE_PATH_RE = /^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$/;
 
 /**
  * Shape-per-variant + serializability for ONE auth descriptor. Applied to `provider.auth` and to
@@ -32,9 +35,21 @@ function assertAuthDescriptorShape(auth: ProviderAuthDescriptor, label: string):
         `${label}: credential_exchange.bodyFields`,
       ).toBeGreaterThan(0);
       expect(
-        auth.responseFields.token.length,
+        auth.responseFields.token,
         `${label}: credential_exchange.responseFields.token`,
-      ).toBeGreaterThan(0);
+      ).toMatch(RESPONSE_PATH_RE);
+      if (auth.responseFields.expiry !== undefined) {
+        expect(
+          auth.responseFields.expiry,
+          `${label}: credential_exchange.responseFields.expiry`,
+        ).toMatch(RESPONSE_PATH_RE);
+      }
+      if (auth.tokenTtlSeconds !== undefined) {
+        expect(
+          Number.isInteger(auth.tokenTtlSeconds) && auth.tokenTtlSeconds > 0,
+          `${label}: credential_exchange.tokenTtlSeconds must be a positive integer`,
+        ).toBe(true);
+      }
       break;
     case 'basic':
       // Basic declares the credential inputs a consumer must collect (in Basic order); it composes
