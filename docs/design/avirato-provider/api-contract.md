@@ -221,7 +221,15 @@ Query: `web_code`, `type` = `AutoCheck` | `Guest` | `Shop`. → `200 { data: { u
 | `Guest`     | `https://guest.avirato.com/…` (a JS application)                                                                  |
 | `Shop`      | `http://shop.avirato.com/index.php…` → redirects to `https://shop.avirato.com/productos`, the hotel's online shop |
 
-**P-1, observed on production 2026-10-31 (reservation 234):** none of the three links was seen taking payment for the reservation.
+**P-1, observed on production 2026-10-31 (reservations 234 and 237):** none of the three links charges the reservation.
+
+- `Shop` is `?code=<web_code>`: the hotel's online shop.
+- `AutoCheck` is a 4-step online check-in with no payment step.
+- `Guest` falls back to a broken template, because the hotel's template validation answers `useNewTemplate: false, reason: "error_fallback"`. That is the hotel's Avirato configuration.
+
+**Avirato charges a reservation through "Solicitar pago" in its back-office.** Staff pick an amount and an email, and Avirato emails a payment link to a Reserva Donato page on **MercadoPago**.
+
+**The API exposes no equivalent:** only `POST /payment` (record a payment) and `GET /payment/{id}`. The contract returns the links verbatim and names none of them "the payment link".
 
 - `Shop` is `?code=<web_code>`: the hotel's online shop, not this reservation.
 - `AutoCheck` is a 4-step online check-in with no payment step.
@@ -518,9 +526,9 @@ Fixtures live in `src/providers/avirato/__fixtures__/`. They are built from the 
 
 ## F. Roadmap — what joins this contract, additively
 
-| Item                                  | Joins when                                                                                        |
-| :------------------------------------ | :------------------------------------------------------------------------------------------------ |
-| A second `status` value on create     | a tenant needs one and it is observed (AD-6)                                                      |
-| How a guest pays a reservation online | Avirato's answer (none of the three links took payment, P-1). The tool already returns all three. |
-| A longer token lifetime               | measured in the sandbox. It changes `tokenTtlSeconds`, not a tool.                                |
-| A known promotional code's shape      | a hotel with codes. Today `validate_promotional_code` passes Avirato's `data` through.            |
+| Item                              | Joins when                                                                                |
+| :-------------------------------- | :---------------------------------------------------------------------------------------- |
+| A second `status` value on create | a tenant needs one and it is observed (AD-6)                                              |
+| A payment request through the API | Avirato exposing "Solicitar pago" (today panel-only, MercadoPago). Asked through Esteban. |
+| A longer token lifetime           | measured in the sandbox. It changes `tokenTtlSeconds`, not a tool.                        |
+| A known promotional code's shape  | a hotel with codes. Today `validate_promotional_code` passes Avirato's `data` through.    |

@@ -78,10 +78,14 @@ The record is on #190.
 
 ## Open
 
-- **P-1:** none of the three links was observed taking payment (production, reservation 234, 2026-10-31). `Shop` is the hotel's store, `AutoCheck` is check-in only, and `Guest` did not render. How a guest pays online is to be asked of Avirato.
+- **P-1, answered (reservations 234 and 237):**
+  - Avirato charges a reservation only through **"Solicitar pago" in its back-office**: an amount and an email, then a MercadoPago link by email.
+  - **The API has no endpoint for it.** No `/reservation/urls` link charges the reservation.
+  - The hotel's Guest template is misconfigured (`error_fallback`).
+  - Asked of Avirato through Esteban: can it be automated or exposed in the API?
 - **`predefinedCharges` on a modify:** not observed (the CTO's pre-release item). The other item, an advance re-sent as `CASH`, survives (reservation 242).
 - **Logo:** the house tile, in its own change.
 - **Production test leftovers** in Reserva Donato's Avirato, for the hotel:
-  - cancelled reservations 225, 227, 230 and 234;
+  - cancelled reservations 225, 227, 230, 234 and 237, plus a payment request for 237 sent to Sara's email (not paid);
   - draft bills 282, 284 and 287;
   - the client `XCALEPRUEBA1`.
