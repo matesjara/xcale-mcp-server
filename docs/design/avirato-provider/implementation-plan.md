@@ -190,5 +190,5 @@ No sub-issues (Step 6b): one epic, one lane, one PR.
 - [x] S5 reservation reads with identity policies
 - [x] S6 `create_reservation`, `cancel_reservation` (control plane)
 - [x] S7 `cd xcale-mcp-server && npm run typecheck && npm run format:check && npm test` clean (881 tests; `himed-credentials.integration.test.ts` times out in its `beforeAll` under the full parallel suite on Windows, passes alone — unrelated)
-- [ ] S8 `mcp-contract-qa` against the Avirato sandbox
+- [ ] S8 `mcp-contract-qa` against the Avirato sandbox — reads, availability, promo and quote certified on the sandbox (2026-10-31); the sandbox refuses every insert (`ERROR_ON_INSERT`), so the writes stand on the production evidence until Avirato answers (#189)
 - [ ] PR to `dev` with the ADR, the core change and the provider, linked to #189; the backend's consumer issue linked (provider before consumer)
