@@ -6,6 +6,9 @@
 >
 > - **Repos:** `xcale-mcp-server` (rama `feat/himed-provider`, provider único `himed`) + `xcale-backend`
 >   (rama `feat/himed-connect`, consumidor + lifecycle-messages).
+> - **Status:** in-soak — sin clínica conectada en producción todavía.
+> - **Released to prod:** 2026-10-28 — PR #125 en la release #157 (merge `0eec0b69`, despliegue DO `6b93f344` ACTIVE
+>   16:05 UTC). Ver «Producción — release 2026-10-28» al final.
 > - **Ambiente:** Sandbox de HiMed. Ventana de pruebas del ship-log previo: **2026-10-01 → 2026-10-09**.
 > - **Hosts del sandbox** (via override de env, sin cambio de código):
 >   - Demográficos + directorio: `https://demo.medsas.co/interoperabilidad/Api/Controllers`
@@ -297,6 +300,18 @@ tres tokens + `codigo_servicio` (ventana sandbox hasta 2026-10-09).
 **Lo que revirtió de la Opción A:** se eliminaron el provider `himed-directory`, el flag
 `connectWithoutProbe` y su ADR `probe-less-credential-connect`, y se plegaron `himed-directory` +
 `himed-scheduling` dentro de `himed`. ADR que gobierna el modelo nuevo: `himed-multi-credential-provider`.
+
+---
+
+## Producción — release 2026-10-28
+
+- ✅ Release #157 desplegada (`6b93f344` ACTIVE 16:05 UTC): `/health` ok; `/discover` responde 401 sin auth y lista
+  los providers con el secreto de `prd`. El backend (xcale-backend#1918) salió después, el mismo día.
+- ⬜ Config de prod: Doppler `prd` no tiene `HIMED_BASE_URL` ni `HIMED_SCHEDULING_BASE_URL`. Sin ellas HiMed falla
+  cerrado y los demás providers no se enteran; sin clínica conectada todavía no hacen falta. Se ponen (los hosts de
+  producción, `m.medsas.co` y `notificaciones.medsas.co`, en el ship-log `himed-connect` del backend) antes de
+  conectar la primera clínica.
+- ⬜ Verificación en vivo con la primera clínica conectada en producción.
 
 ## 2026-10-28 — Op post-deploy: hosts de HiMed en producción (prd)
 
