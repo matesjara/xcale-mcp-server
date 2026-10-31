@@ -16,17 +16,18 @@ Avirato (a Spanish hotel PMS, API v3) as a standard provider.
 - **Context:** `web_code`, Avirato's establishment id, is strict call context, never a tool argument.
 - **Data and errors:** data is returned verbatim, the envelope stripped. Errors carry the machine code and only plain validation sentences, never the echoed request.
 
-## What shipped (14 tools)
+## What shipped (15 tools)
 
-| Tool                                                                                | Agent menu      | Purpose                                                                                     |
-| ----------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------- |
-| `get_establishment`, `list_room_types`, `list_rates`, `list_regimes`, `list_extras` | ✅              | Hotel catalog reads                                                                         |
-| `check_availability`, `validate_promotional_code`                                   | ✅              | Free rooms per night; whether a code exists                                                 |
-| `get_reservation`, `find_reservations_by_guest`, `get_reservation_links`            | ✅              | One guest's stay, by id or document, and its Guest/Shop/AutoCheck links; bound to its owner |
-| `quote_stay`                                                                        | ❌ controlPlane | Price of a stay per rate (money guard)                                                      |
-| `create_reservation`                                                                | ❌ controlPlane | One reservation; Avirato prices it; the tag reads back as `promotional_package`             |
-| `modify_reservation`                                                                | ❌ controlPlane | The room's full record; Avirato reprices; clears the tag                                    |
-| `cancel_reservation`                                                                | ❌ controlPlane | Leaves it `Reserva cancelada`; its draft bill stays                                         |
+| Tool                                                                                | Agent menu      | Purpose                                                                                                                                     |
+| ----------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_establishment`, `list_room_types`, `list_rates`, `list_regimes`, `list_extras` | ✅              | Hotel catalog reads                                                                                                                         |
+| `check_availability`, `validate_promotional_code`                                   | ✅              | Free rooms per night; whether a code exists                                                                                                 |
+| `get_reservation`, `find_reservations_by_guest`, `get_reservation_links`            | ✅              | One guest's stay, by id or document, and its Guest/Shop/AutoCheck links; bound to its owner                                                 |
+| `quote_stay`                                                                        | ❌ controlPlane | Price of a stay per rate (money guard)                                                                                                      |
+| `create_reservation`                                                                | ❌ controlPlane | One reservation; Avirato prices it; the tag reads back as `promotional_package`                                                             |
+| `modify_reservation`                                                                | ❌ controlPlane | The room's full record; Avirato reprices; clears the tag; **refuses (WOULD_REMOVE) to drop an extra or an advance the call does not state** |
+| `get_reservation_charges`                                                           | ❌ controlPlane | A reservation's charges — room, regime, extras by name                                                                                      |
+| `cancel_reservation`                                                                | ❌ controlPlane | Leaves it `Reserva cancelada`; its draft bill stays                                                                                         |
 
 Also in this PR, in `src/core/`:
 
@@ -36,7 +37,7 @@ Also in this PR, in `src/core/`:
 ## Evidence
 
 - **Production, 2026-10-30:** every read; the quote; three test reservations (225, 227, 230), created and cancelled at once.
-- **Sandbox, 2026-10-31:** all 14 tools through the provider.
+- **Sandbox, 2026-10-31:** all 15 tools through the provider.
   - Reservations 238 (create, links, cancel), 239 (party modify) and 240 (date modify, repriced 395000 → 790000; modify refused once cancelled).
   - The same token was accepted after 17 minutes.
 
@@ -53,10 +54,23 @@ Also in this PR, in `src/core/`:
 - **Advance:** the advance type sent on create and modify is `CASH`, the only one observed accepted.
 - **Redaction:** a single quote no longer ends a redacted query value.
 
+## The modify guard [CTO 2026-10-31]
+
+**Observed (reservation 241):** a modify that does not send them removes the extras and the advance staff added. A 25000 extra disappeared and an advance of 50000 became 0.
+
+**Decided:** the tool reads first and refuses with the facts (WOULD_REMOVE) unless the caller states `extras` and `advance`, and the read `get_reservation_charges` was added.
+
+**Verified live (reservation 242):**
+
+- the refusal changed nothing;
+- the stated modify kept both the extra and the advance.
+
+The record is on #190.
+
 ## Open
 
 - **P-1:** which link (`Guest` or `Shop`) lets the guest pay. It needs a live production reservation, because a sandbox reservation's Guest link opens the production guest app.
-- **Modify and staff changes:** a modify sends no extras and no advance. Whether that resets extras or an advance that hotel staff added in Avirato's back-office is not observed.
+- **`predefinedCharges` on a modify:** not observed (the CTO's pre-release item). The other item, an advance re-sent as `CASH`, survives (reservation 242).
 - **Logo:** the house tile, in its own change.
 - **Production test leftovers** in Reserva Donato's Avirato, for the hotel:
   - cancelled reservations 225, 227 and 230;

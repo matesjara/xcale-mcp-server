@@ -8,10 +8,10 @@
 
 This plan adds `src/providers/avirato/`, a thin adapter over Avirato's API v3. It follows Erbon's shape (`credential_exchange` + `reference`, control-plane money and writes) and Cloudbeds' shape (a numeric context id on every call, identity policies on reservation tools).
 
-The provider publishes the **14 tools of the contract** (§C):
+The provider publishes the **15 tools of the contract** (§C):
 
 - 10 on the agent's menu: 7 catalog reads and 3 reservation reads;
-- 4 control-plane tools: `quote_stay`, `create_reservation`, `modify_reservation` and `cancel_reservation`.
+- 5 control-plane tools: `quote_stay`, `create_reservation`, `modify_reservation`, `cancel_reservation` and `get_reservation_charges`.
 
 It reaches nothing outside its footprint (its folder, one registry line, its logo). The one core change it needs, the dotted token path and `tokenTtlSeconds`, is **already committed** on this branch with its ADR (`dc793e9`).
 
@@ -57,7 +57,7 @@ src/providers/avirato/                       NEW
 ├── client.ts                                NEW  URL builder + get/post/del over AuthedRequest
 ├── errors.ts                                NEW  unwrapAvirato + body errorCode reading
 ├── manifest.ts                              NEW  SLUG, aviratoManifest
-├── tools.ts                                 NEW  buildAviratoTools (14 tools)
+├── tools.ts                                 NEW  buildAviratoTools (15 tools)
 ├── provider.ts                              NEW  createAviratoProvider(deps), aviratoProvider
 ├── index.ts                                 NEW  re-exports
 ├── __fixtures__/                            NEW  invented values on observed shapes (contract §E)
@@ -193,4 +193,5 @@ No sub-issues (Step 6b): one epic, one lane, one PR.
 - [x] S7 `cd xcale-mcp-server && npm run typecheck && npm run format:check && npm test` clean (881 tests; `himed-credentials.integration.test.ts` times out in its `beforeAll` under the full parallel suite on Windows, passes alone — unrelated)
 - [x] S8 `mcp-contract-qa` against the Avirato sandbox (2026-10-31): the surface offline, and all 13 tools of that day live — 16/17 calls, the one failure the expected read of a cancelled reservation; the token still accepted after 17 min; modify observed working (P-7). P-1 cannot be answered on the sandbox (its Guest link opens the production guest app)
 - [x] S9 `modify_reservation` (control plane), added once a modify was observed on the sandbox (P-7, 2026-10-31): the full record, `rateId`, no `quantity`, no `external_code`; `ERROR_RETRIEVING_DATA` joins "not found or cancelled"; exercised live — party, then dates (repriced 395000 → 790000), then refused on the cancelled reservation
+- [x] S10 the modify guard [CTO 2026-10-31]: `modify_reservation` takes optional `extras` and `advance`; when not stated it reads the reservation and its charges and refuses (`WOULD_REMOVE`, no PATCH) if an extra or an advance would be lost; `get_reservation_charges` (control plane, owner-bound) added; verified live on reservation 242
 - [ ] PR to `dev` with the ADR, the core change and the provider, linked to #189; the backend's consumer issue linked (provider before consumer)

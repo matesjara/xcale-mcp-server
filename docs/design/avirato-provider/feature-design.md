@@ -61,7 +61,7 @@
 
 - [ ] An `avirato` provider: `credential_exchange` auth against `POST /v3/token/login`, `reference` delivery, and a `contextSchema` with `web_code` (AD-1, AD-3).
 - [ ] The core change AD-2: a closed dotted key path in `responseFields` and a declared `tokenTtlSeconds`, with one ADR. The backend's reader follows in a linked PR.
-- [ ] The 14 tools of §6.1, published or control-plane as that table says.
+- [ ] The 15 tools of the contract §C (§6.1 plus `get_reservation_charges`), published or control-plane as that table says.
 - [ ] Verbatim data (Fidelity over Unification), with typed errors: 401/403 → `PROVIDER_AUTH_EXPIRED` or `PROVIDER_ERROR` per the error-ownership boundary, 429 → `PROVIDER_RATE_LIMITED`, no internal retries.
 - [ ] Identity policies on every tool that reads or names a reservation or a person (ADR 0019, 0023).
 - [ ] Fixtures from observed sandbox responses with no personal data, the conformance suite, a redaction test, and `mcp-contract-qa` against the sandbox.
@@ -251,7 +251,7 @@ reservation ──has──▶ links (AutoCheck · Guest · Shop)
 | Phase                       | Scope Summary       | Key Deliverables                                                                                                                                                                                 | Dependencies                                                                               | Est. Effort |
 | :-------------------------- | :------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------- | :---------- |
 | **0 — Spike**               | Observe the sandbox | Login, every read, a test reservation created, modified and cancelled; answers to P-1, P-3 to P-6 and the token's lifetime; `sandbox-evidence.md`. The reads are already observed on production. | The API user's credentials in Doppler (created 2026-10-30, in the sandbox from 2026-10-31) | S           |
-| **1 — Provider**            | This design         | ADR for AD-2 + core change; `src/providers/avirato/` with the 14 tools; contract; conformance; `mcp-contract-qa`                                                                                 | Phase 0                                                                                    | M           |
+| **1 — Provider**            | This design         | ADR for AD-2 + core change; `src/providers/avirato/` with the 15 tools; contract; conformance; `mcp-contract-qa`                                                                                 | Phase 0                                                                                    | M           |
 | **2 — Backend** (own issue) | Consumer            | Rail A: the path reader and Avirato's `credential-exchange-providers` entry; `booking/adapters/avirato/` behind the existing ports; connect flow with the `web_code` choice                      | Phase 1 merged (provider before consumer)                                                  | M           |
 | **3 — Live**                | Reserva Donato      | Real connection, E2E over WhatsApp, release                                                                                                                                                      | Phase 2                                                                                    | S           |
 

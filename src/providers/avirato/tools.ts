@@ -451,21 +451,72 @@ export function buildAviratoTools(
       identityPolicy: reservationOwner,
       description:
         'CONTROL PLANE — change a reservation by its `reservation_id`: dates, room subtype, party, ' +
-        'rate, regime, client or observations. Avirato takes the room’s FULL record, not just what ' +
-        'changes — a partial one is refused — so send every field as it should stand after the change. ' +
-        'No amount and no quantity: Avirato reprices the stay itself (two nights instead of one doubled ' +
-        'the price, as the quote does). A modify clears the reconciliation tag (`promotional_package` ' +
-        'becomes "") and Avirato refuses `external_code` here; `observations` are kept. Thin passthrough ' +
-        '(ADR 0015): one call, one request, never retried. Returns Avirato’s ' +
-        'updated reservation rows verbatim. A cancelled reservation cannot be modified. It sends no ' +
-        'extras and no advance; whether that resets extras or an advance added in Avirato is not observed.',
+        'rate, regime, client or observations. Avirato REPLACES the room’s record with what is sent — a ' +
+        'partial one is refused, and extras or an advance left out are removed (observed) — so send ' +
+        'every field as it should stand after the change. State `extras` and `advance` to set them (an ' +
+        'empty list removes the extras on purpose). When one is not stated, the tool first reads the ' +
+        'reservation and its charges; if an extra or an advance is there, it modifies NOTHING and ' +
+        'answers WOULD_REMOVE with what would be lost (resolve an extra’s id with `list_extras`). No ' +
+        'amount and no quantity: Avirato reprices the stay itself. A modify clears the reconciliation tag ' +
+        '(`promotional_package` becomes "") and Avirato refuses `external_code` here; `observations` are ' +
+        'kept. At most one mutation per call, never retried. Returns Avirato’s updated reservation rows ' +
+        'verbatim. A cancelled reservation cannot be modified.',
       input: z
         .object({
           reservation_id: id,
           room: modifiedRoom,
+          extras: z
+            .array(z.object({ extra_id: id, quantity: z.number().int().min(1) }).strict())
+            .optional(),
+          // Only "CASH" has been observed accepted as an advance type.
+          advance: z
+            .object({
+              total_advance: z.number().min(0),
+              advance_type: z.string().trim().min(1).max(32),
+            })
+            .strict()
+            .optional(),
         })
         .strict(),
       handler: async (args, ctx) => {
+        // [CTO 2026-10-31, #190] Never wipe what the hotel added: a field the caller did not state is
+        // read first, and a modify that would remove an extra or an advance is refused with the facts.
+        const wouldRemove: { extras?: unknown[]; advance?: number } = {};
+        if (args.advance === undefined) {
+          const read = unwrapAvirato(
+            await client.get(`reservation/${args.reservation_id}`, ctx.request, ctx.metadata),
+            'modify_reservation',
+          );
+          if (!read.ok) return read;
+          const row = (Array.isArray(read.data) ? read.data[0] : read.data) as
+            | { advance?: unknown }
+            | undefined;
+          if (typeof row?.advance === 'number' && row.advance > 0)
+            wouldRemove.advance = row.advance;
+        }
+        if (args.extras === undefined) {
+          const read = unwrapAvirato(
+            await client.get(`charge/${args.reservation_id}`, ctx.request, ctx.metadata),
+            'modify_reservation',
+          );
+          if (!read.ok) return read;
+          const extras = (Array.isArray(read.data) ? read.data : [])
+            .filter(
+              (c): c is { type: string; concept?: unknown; quantity?: unknown; total?: unknown } =>
+                typeof c === 'object' && c !== null && (c as { type?: unknown }).type === 'extra',
+            )
+            .map(({ concept, quantity, total }) => ({ concept, quantity, total }));
+          if (extras.length > 0) wouldRemove.extras = extras;
+        }
+        if (wouldRemove.extras || wouldRemove.advance !== undefined) {
+          return err(
+            ProviderErrorCode.PROVIDER_ERROR,
+            `Avirato modify_reservation refused (WOULD_REMOVE): the reservation carries what this modify ` +
+              `would remove — ${JSON.stringify(wouldRemove)}. Nothing was changed. State \`extras\` and ` +
+              `\`advance\` to keep or remove them on purpose; resolve an extra's id with list_extras.`,
+          );
+        }
+
         const { payment, observations, additional_beds, rate_id, ...room } = args.room;
         const body = {
           rooms: [
@@ -476,12 +527,11 @@ export function buildAviratoTools(
               // Observed: modify takes the rate as `rateId` (create takes `rate_id`).
               rateId: rate_id,
               price: payment,
-              // No advance is taken through the API; CASH is the only advance type observed accepted.
-              advance: { total_advance: 0, advance_type: 'CASH' },
+              advance: args.advance ?? { total_advance: 0, advance_type: 'CASH' },
               operator_reservation_id: '0',
               observations: observations ?? '',
               additional_beds: additional_beds ?? 0,
-              extras: [],
+              extras: args.extras ?? [],
             },
           ],
         };
@@ -489,6 +539,27 @@ export function buildAviratoTools(
           await client.patch(`reservation/${args.reservation_id}`, ctx.request, ctx.metadata, body),
           'modify_reservation',
         );
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_get_reservation_charges`,
+      readOnly: true,
+      controlPlane: true,
+      identityPolicy: reservationOwner,
+      description:
+        'CONTROL PLANE — read a reservation’s charges: room, regime and extras, each `{ type ' +
+        '("habitacion" | "regimen" | "extra"), concept, price, quantity, vat, total, status }`. Avirato ' +
+        'names an extra only by its concept, not its id. Returns `{ items }`, verbatim.',
+      input: z.object({ reservation_id: id }).strict(),
+      handler: async (args, ctx) => {
+        const outcome = unwrapAvirato(
+          await client.get(`charge/${args.reservation_id}`, ctx.request, ctx.metadata),
+          'get_reservation_charges',
+        );
+        return outcome.ok
+          ? ok({ items: Array.isArray(outcome.data) ? outcome.data : [] })
+          : outcome;
       },
     }),
 

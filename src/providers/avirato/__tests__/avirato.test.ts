@@ -656,7 +656,7 @@ describe('avirato provider — S6 create_reservation and cancel_reservation', ()
 // ---------------------------------------------------------------------------
 
 describe('avirato provider — S7 surface', () => {
-  it('publishes exactly the ten menu tools and routes the four control-plane ones too', () => {
+  it('publishes exactly the ten menu tools and routes the five control-plane ones too', () => {
     const menu = [
       'mcp_avirato_get_establishment',
       'mcp_avirato_list_room_types',
@@ -674,6 +674,7 @@ describe('avirato provider — S7 surface', () => {
       'mcp_avirato_create_reservation',
       'mcp_avirato_cancel_reservation',
       'mcp_avirato_modify_reservation',
+      'mcp_avirato_get_reservation_charges',
     ];
 
     expect(new Set(aviratoProvider.listTools().map((t) => t.name))).toEqual(new Set(menu));
@@ -820,10 +821,12 @@ describe('avirato provider — S9 modify_reservation', () => {
     expect(aviratoProvider.routableToolNames()).toContain('mcp_avirato_modify_reservation');
   });
 
-  it('PATCHes the full record Avirato requires: action MODIFY, rateId, the paid-how as price, the fields we fill', async () => {
+  const stated = { extras: [], advance: { total_advance: 0, advance_type: 'CASH' } };
+
+  it('PATCHes the full record Avirato requires: action MODIFY, rateId, the paid-how as price, the stated extras and advance', async () => {
     const { result, capture } = await callWith(
       'mcp_avirato_modify_reservation',
-      { reservation_id: 901, room },
+      { reservation_id: 901, room, ...stated },
       modified,
     );
 
@@ -893,7 +896,7 @@ describe('avirato provider — S9 modify_reservation', () => {
     };
     const { result, capture } = await callWith(
       'mcp_avirato_modify_reservation',
-      { reservation_id: 901, room },
+      { reservation_id: 901, room, ...stated },
       refused,
       400,
     );
@@ -1075,5 +1078,159 @@ describe('avirato provider — logo', () => {
     expect(svg).toContain('viewBox="0 0 35 35"');
     expect(svg).toContain('<rect width="35" height="35" rx="6" fill="#000000"/>');
     expect(svg).not.toMatch(/<script|on\w+=|javascript:/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The guard on modify — CTO decision of 2026-10-31 on #190: never wipe staff-added extras or an advance
+// ---------------------------------------------------------------------------
+
+/** A fake fetch answering each call by method and path, recording every request in order. */
+function routedFetch(routes: Record<string, unknown>, capture: Captured[]): typeof fetch {
+  return (async (url: string, init: Captured['init']) => {
+    capture.push({ url, init });
+    const path = new URL(url).pathname.replace('/v3/', '');
+    const body = routes[`${init.method ?? 'GET'} ${path}`];
+    if (body === undefined) return new Response('{}', { status: 404 });
+    return new Response(JSON.stringify(body), { status: 200 });
+  }) as unknown as typeof fetch;
+}
+
+describe('avirato provider — modify never silently wipes what the hotel added', () => {
+  const room = {
+    space_subtype_id: 2,
+    adults: 1,
+    children: 0,
+    check_in: '2027-02-15T17:00:00.000Z',
+    check_out: '2027-02-16T17:00:00.000Z',
+    regime: 'BB',
+    rate_id: 2,
+    status: 'RESERVATION',
+    client: { client_doc: 'TEST-0001', name: 'Ana', surname: 'Prueba' },
+    payment: { payment_type: 'CASH', is_paid: false },
+  };
+  const roomCharge = { type: 'habitacion', concept: 'Cabaña Azul', quantity: 1, total: 395000 };
+  const extraCharge = {
+    type: 'extra',
+    concept: 'Fogata con malvaviscos',
+    quantity: 1,
+    total: 25000,
+  };
+  const reservationWith = (advance: number) => ({
+    status: 'success',
+    data: [{ ...reservation.data[0], advance }],
+  });
+
+  async function modify(args: Record<string, unknown>, routes: Record<string, unknown>) {
+    const capture: Captured[] = [];
+    const provider = createAviratoProvider({ fetchImpl: routedFetch(routes, capture) });
+    const result = await provider.callTool(
+      'mcp_avirato_modify_reservation',
+      { reservation_id: 901, room, ...args },
+      ctx,
+    );
+    return { result, capture, patches: capture.filter((c) => c.init.method === 'PATCH') };
+  }
+
+  it('refuses, and modifies nothing, when an extra charge would be removed', async () => {
+    const { result, patches } = await modify(
+      {},
+      {
+        'GET reservation/901': reservationWith(0),
+        'GET charge/901': { status: 'success', data: [roomCharge, extraCharge] },
+      },
+    );
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
+    const message = (result as { message: string }).message;
+    expect(message).toContain('WOULD_REMOVE');
+    expect(message).toContain('Fogata con malvaviscos');
+    expect(patches).toHaveLength(0);
+  });
+
+  it('refuses, and modifies nothing, when an advance would be removed', async () => {
+    const { result, patches } = await modify(
+      {},
+      {
+        'GET reservation/901': reservationWith(50000),
+        'GET charge/901': { status: 'success', data: [roomCharge] },
+      },
+    );
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
+    expect((result as { message: string }).message).toContain('50000');
+    expect(patches).toHaveLength(0);
+  });
+
+  it('modifies when the reservation carries no extra and no advance', async () => {
+    const { result, patches } = await modify(
+      {},
+      {
+        'GET reservation/901': reservationWith(0),
+        'GET charge/901': { status: 'success', data: [roomCharge] },
+        'PATCH reservation/901': modified,
+      },
+    );
+
+    expect(result).toMatchObject({ kind: 'success' });
+    expect(patches).toHaveLength(1);
+    const body = JSON.parse(patches[0]?.init.body ?? '{}');
+    expect(body.rooms[0].extras).toEqual([]);
+    expect(body.rooms[0].advance).toEqual({ total_advance: 0, advance_type: 'CASH' });
+  });
+
+  it('sends what the caller states, without reading first — an empty list included', async () => {
+    const { result, capture, patches } = await modify(
+      {
+        extras: [{ extra_id: 2, quantity: 1 }],
+        advance: { total_advance: 50000, advance_type: 'CASH' },
+      },
+      { 'PATCH reservation/901': modified },
+    );
+
+    expect(result).toMatchObject({ kind: 'success' });
+    expect(capture).toHaveLength(1);
+    const body = JSON.parse(patches[0]?.init.body ?? '{}');
+    expect(body.rooms[0].extras).toEqual([{ extra_id: 2, quantity: 1 }]);
+    expect(body.rooms[0].advance).toEqual({ total_advance: 50000, advance_type: 'CASH' });
+  });
+
+  it('reads only what the caller did not state', async () => {
+    const { capture } = await modify(
+      { extras: [] },
+      { 'GET reservation/901': reservationWith(0), 'PATCH reservation/901': modified },
+    );
+
+    expect(capture.map((c) => `${c.init.method ?? 'GET'} ${new URL(c.url).pathname}`)).toEqual([
+      'GET /v3/reservation/901',
+      'PATCH /v3/reservation/901',
+    ]);
+  });
+
+  it('get_reservation_charges reads the charges verbatim, bound to the reservation’s owner', async () => {
+    const charges = { status: 'success', data: [roomCharge, extraCharge] };
+    const { result, capture } = await callWith(
+      'mcp_avirato_get_reservation_charges',
+      { reservation_id: 901 },
+      charges,
+    );
+
+    expect(capture[0]?.url).toBe('https://apiv3.avirato.com/v3/charge/901?web_code=1234');
+    expect(result).toMatchObject({ kind: 'success', data: { items: charges.data } });
+    // Money read: routable by the consumer, off the agent's menu (the money guard of the quote).
+    expect(aviratoProvider.listTools().map((t) => t.name)).not.toContain(
+      'mcp_avirato_get_reservation_charges',
+    );
+    expect(aviratoProvider.routableToolNames()).toContain('mcp_avirato_get_reservation_charges');
+    const tool = buildAviratoTools(createAviratoClient()).find(
+      (t) => t.name === 'mcp_avirato_get_reservation_charges',
+    );
+    expect(tool?.identityPolicy).toEqual({
+      mode: 'subject-bound',
+      identityFields: [],
+      recordOwnershipField: 'reservation_id',
+      recordOwnershipKind: 'avirato:reservation',
+    });
+    expect(tool?.readOnly).toBe(true);
   });
 });
