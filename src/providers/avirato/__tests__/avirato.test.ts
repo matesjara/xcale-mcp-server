@@ -1454,3 +1454,39 @@ describe('avirato provider — S11 list_reservations', () => {
     expect(tool?.identityPolicy).toEqual({ mode: 'subject-scoped' });
   });
 });
+
+describe('avirato provider — list_reservations windows (observed on the sandbox, 2026-10-31)', () => {
+  const window = { date_type: 'CREATED', start_date: '2026-01-01', end_date: '2026-01-31' };
+
+  it('an empty window is no reservations, not an error (Avirato answers 400 ERROR_RETRIEVING_DATA)', async () => {
+    const empty = {
+      statusCode: 400,
+      errorCode: 'ERROR_RETRIEVING_DATA',
+      message: 'Unable to retrieve the reservations',
+    };
+    const { result } = await callWith('mcp_avirato_list_reservations', window, empty, 400);
+
+    expect(result).toMatchObject({ kind: 'success', data: { groups: [] } });
+  });
+
+  it('refuses a window longer than 366 days before reaching Avirato (it answers the same error as empty)', async () => {
+    const { result, capture } = await callWith(
+      'mcp_avirato_list_reservations',
+      { date_type: 'CREATED', start_date: '2025-10-01', end_date: '2026-10-31' },
+      { status: 'success', data: [] },
+    );
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+    expect(capture).toHaveLength(0);
+  });
+
+  it('accepts a window of exactly 366 days', async () => {
+    const { result } = await callWith(
+      'mcp_avirato_list_reservations',
+      { date_type: 'CREATED', start_date: '2025-10-31', end_date: '2026-10-31' },
+      { status: 'success', data: [], meta: { hasNextPage: false } },
+    );
+
+    expect(result).toMatchObject({ kind: 'success' });
+  });
+});

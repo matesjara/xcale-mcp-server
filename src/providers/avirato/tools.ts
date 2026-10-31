@@ -105,6 +105,16 @@ const reservationRoom = z
  */
 const modifiedRoom = z.object(roomRecord).strict().refine(checkOutAfterCheckIn, checkOutIssue);
 
+/** The longest window `GET /reservation/dates` answers (observed: 12 months and a day; 13 months fails). */
+const MAX_LIST_WINDOW_DAYS = 366;
+
+/** Whole days from one ISO calendar date to another. */
+function daysBetween(start: string, end: string): number {
+  return Math.round(
+    (Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000,
+  );
+}
+
 /** The id space of Avirato reservation ids, so they never compare with another provider's or kind's. */
 const RESERVATION_KIND = `${SLUG}:reservation`;
 
@@ -599,6 +609,13 @@ export function buildAviratoTools(
         .refine((a) => a.end_date >= a.start_date, {
           message: '`end_date` must not be before `start_date`',
           path: ['end_date'],
+        })
+        // Observed on the sandbox (2026-10-31): a window up to 12 months and a day answers; 13 months
+        // answers the same `ERROR_RETRIEVING_DATA` as an empty window. Refusing a longer one here keeps
+        // that error unambiguous below: inside the limit it can only mean "no reservations".
+        .refine((a) => daysBetween(a.start_date, a.end_date) <= MAX_LIST_WINDOW_DAYS, {
+          message: `A window may span at most ${MAX_LIST_WINDOW_DAYS} days; split a longer one`,
+          path: ['end_date'],
         }),
       handler: async (args, ctx) => {
         const res = await client.get('reservation/dates', ctx.request, ctx.metadata, {
@@ -611,6 +628,11 @@ export function buildAviratoTools(
           // Observed: Avirato answers 400 without `charges`, though its spec says it is optional.
           charges: false,
         });
+        // Observed: a window with no reservations answers 400 ERROR_RETRIEVING_DATA, not an empty
+        // list. The window is within Avirato's limit (refined above), so it means "none".
+        if (!res.ok && aviratoErrorCode(res.body) === 'ERROR_RETRIEVING_DATA') {
+          return ok({ groups: [], meta: { itemCount: 0, hasNextPage: false } });
+        }
         // `unwrapAvirato` keeps `data` only; the page's `meta` (the cursor) is needed too.
         if (!res.ok) return unwrapAvirato(res, 'list_reservations');
         const { data, meta } = (res.data ?? {}) as { data?: unknown; meta?: unknown };
