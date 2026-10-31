@@ -53,6 +53,17 @@ const reservationRoom = z
         surname: z.string().trim().min(1).max(100),
         email: z.email().optional(),
         phone: z.string().trim().min(1).max(32).optional(),
+        // Observed 2026-10-31: the sandbox refuses a reservation whose client has no `state` and
+        // `country` — a bare `ERROR_ON_INSERT` — while production accepted one without them on
+        // 2026-10-30. Optional here, so Avirato stays the judge; a consumer should send them.
+        state: z.string().trim().min(1).max(100).optional(),
+        country: z
+          .string()
+          .regex(/^[A-Z]{3}$/, 'ISO 3166-1 alpha-3, upper case (e.g. COL)')
+          .optional(),
+        city: z.string().trim().min(1).max(100).optional(),
+        address: z.string().trim().min(1).max(200).optional(),
+        zip_code: z.string().trim().min(1).max(16).optional(),
       })
       .strict(),
     payment: z

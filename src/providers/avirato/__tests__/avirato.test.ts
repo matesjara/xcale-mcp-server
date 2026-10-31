@@ -731,3 +731,61 @@ describe('avirato provider — credential containment', () => {
     expect(JSON.stringify(result)).not.toContain('minted-jwt');
   });
 });
+
+describe('avirato provider — the client’s address on create', () => {
+  const base = {
+    space_subtype_id: 2,
+    quantity: 1,
+    adults: 2,
+    children: 0,
+    check_in: '2027-02-16T17:00:00.000Z',
+    check_out: '2027-02-17T17:00:00.000Z',
+    regime: 'BB',
+    rate_id: 2,
+    status: 'RESERVATION',
+    payment: { payment_type: 'CASH', is_paid: false },
+  };
+
+  it('passes state, ISO3 country, city, address and zip code through — the sandbox requires state and country', async () => {
+    const client = {
+      client_doc: 'TEST-0001',
+      name: 'Ana',
+      surname: 'Prueba',
+      state: 'Antioquia',
+      country: 'COL',
+      city: 'Medellín',
+      address: 'Calle 1',
+      zip_code: '050001',
+    };
+    const { capture } = await callWith(
+      'mcp_avirato_create_reservation',
+      { rooms: [{ ...base, client }] },
+      created,
+      201,
+    );
+
+    expect(JSON.parse(capture[0]?.init.body ?? '{}').rooms[0].client).toEqual(client);
+  });
+
+  it.each(['CO', 'col', 'Colombia'])(
+    'refuses country %j — Avirato takes ISO 3166-1 alpha-3',
+    async (country) => {
+      const { result, capture } = await callWith(
+        'mcp_avirato_create_reservation',
+        {
+          rooms: [
+            {
+              ...base,
+              client: { client_doc: 'TEST-0001', name: 'Ana', surname: 'Prueba', country },
+            },
+          ],
+        },
+        created,
+        201,
+      );
+
+      expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+      expect(capture).toHaveLength(0);
+    },
+  );
+});

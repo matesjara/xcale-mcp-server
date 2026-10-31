@@ -144,7 +144,7 @@ Query: `web_code`, `start_date`, `end_date` (`YYYY-MM-DD`, both nights inclusive
   - `reservation_id`, `master_reservation_id` (`""` for a single room), `status: "Reserva"`, `price`, `base`, `client_id`, `client_name`, `check_in_date`/`check_out_date` (`"YYYY-MM-DD HH:mm:ss"`), `is_paid`, `advance`, `advance_type`;
   - `promotional_package`, which holds the `external_code`;
   - `charges[]` (`{ type: "habitacion"|"regimen", concept, price, vat, total, status: "Pendiente" }`) and `billing[]` (`{ bill_id, bill_number: "0", type: "Factura", status: "Pendiente", base, vat, total }`).
-- Send the **full** `client`. With `client_doc` alone, an existing client was written as `client_name: "undefined undefined"`.
+- Send the **full** `client`. With `client_doc` alone, an existing client was written as `client_name: "undefined undefined"`. **Send `state` and `country` (ISO3, `COL`) too:** the sandbox refuses a reservation without them with a bare `400 ERROR_ON_INSERT` ("Unable to insert the reservation"), observed 2026-10-31, while production accepted one without them on 2026-10-30. With them, the sandbox created reservation 237 at the quoted price.
 
 **Read by id — `GET /reservation/{reservation_id}`** → `200 { data: [ReservationRow] }`, snake_case.
 
@@ -253,7 +253,8 @@ create_reservation: {
     regime: string;                                                                                // a /regime name, e.g. "BB"
     rate_id: number;
     status: 'RESERVATION';                                                                         // the one value observed
-    client: { client_doc: string; name: string; surname: string; email?: string; phone?: string };
+    client: { client_doc: string; name: string; surname: string; email?: string; phone?: string;
+              state?: string; country?: string; city?: string; address?: string; zip_code?: string }; // country: ISO 3166-1 alpha-3 ("COL")
     payment: { payment_type: 'CASH' | 'CARD' | 'TRANSFER' | 'CREDIT' | 'OTHER'; is_paid: boolean }; // sent as Avirato's `price`
     observations?: string; additional_beds?: number;                                               // default 0
   }>;
