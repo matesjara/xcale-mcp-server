@@ -1,3 +1,4 @@
+import { loadConfig } from '../../config';
 import type { FetchLike } from '../../core/http';
 import { createProvider } from '../../core/provider-factory';
 import type { IProvider } from '../../core/provider-port';
@@ -30,5 +31,11 @@ export function createAviratoProvider(deps: AviratoProviderDeps = {}): IProvider
   });
 }
 
-/** Default instance registered in src/providers/index.ts. */
-export const aviratoProvider = createAviratoProvider();
+/**
+ * Default instance registered in src/providers/index.ts: production, unless the deployment points it
+ * elsewhere with `AVIRATO_BASE_URL` (the sandbox, in development).
+ */
+const { aviratoBaseUrl } = loadConfig();
+export const aviratoProvider = createAviratoProvider(
+  aviratoBaseUrl ? { baseUrl: aviratoBaseUrl } : {},
+);

@@ -33,6 +33,7 @@ Avirato (a Spanish hotel PMS, API v3) as a standard provider.
 Also in this PR, in `src/core/`:
 
 - the `credential_exchange` descriptor gains a closed dotted key path and `tokenTtlSeconds` (ADR);
+- an optional deployment field, `AVIRATO_BASE_URL` (`src/config.ts`, `.env.example`). Empty means production. Development sets the sandbox (`https://sandbox.avirato.com/v3`), so the consumer's end-to-end QA (xcale-backend#2218) never books in a real hotel. Asked by the consumer on 2026-10-31: its pinned token endpoint must name the same host;
 - `redactQueryValues` ends a value at a double quote, so a provider's one-line JSON error body that echoes the request URL stays parseable, and a single quote stays masked.
 
 ## Evidence
