@@ -1234,3 +1234,102 @@ describe('avirato provider — modify never silently wipes what the hotel added'
     expect(tool?.readOnly).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Second review of #190 (/code-review on ecbed58..db6a2e4, 2026-10-31)
+// ---------------------------------------------------------------------------
+
+describe('avirato provider — second review fixes', () => {
+  const room = {
+    space_subtype_id: 2,
+    adults: 1,
+    children: 0,
+    check_in: '2027-02-15T17:00:00.000Z',
+    check_out: '2027-02-16T17:00:00.000Z',
+    regime: 'BB',
+    rate_id: 2,
+    status: 'RESERVATION',
+    client: { client_doc: 'TEST-0001', name: 'Ana', surname: 'Prueba' },
+    payment: { payment_type: 'CASH', is_paid: false },
+  };
+  const extraCharge = {
+    type: 'extra',
+    concept: 'Fogata con malvaviscos',
+    quantity: 1,
+    total: 25000,
+  };
+
+  async function modify(routes: Record<string, unknown>) {
+    const capture: Captured[] = [];
+    const provider = createAviratoProvider({ fetchImpl: routedFetch(routes, capture) });
+    const result = await provider.callTool(
+      'mcp_avirato_modify_reservation',
+      { reservation_id: 901, room },
+      ctx,
+    );
+    return { result, patches: capture.filter((c) => c.init.method === 'PATCH') };
+  }
+
+  it('the guard still refuses when Avirato answers the charges as a single object', async () => {
+    const { result, patches } = await modify({
+      'GET reservation/901': { status: 'success', data: [{ ...reservation.data[0], advance: 0 }] },
+      'GET charge/901': { status: 'success', data: extraCharge },
+    });
+
+    expect((result as { message: string }).message).toContain('WOULD_REMOVE');
+    expect(patches).toHaveLength(0);
+  });
+
+  it('the guard still refuses when the advance comes back as a numeric string', async () => {
+    const { result, patches } = await modify({
+      'GET reservation/901': {
+        status: 'success',
+        data: [{ ...reservation.data[0], advance: '50000.00' }],
+      },
+      'GET charge/901': { status: 'success', data: [] },
+    });
+
+    expect((result as { message: string }).message).toContain('50000');
+    expect(patches).toHaveLength(0);
+  });
+
+  it('get_reservation_charges keeps a single-object answer', async () => {
+    const { result } = await callWith(
+      'mcp_avirato_get_reservation_charges',
+      { reservation_id: 901 },
+      { status: 'success', data: extraCharge },
+    );
+
+    expect(result).toMatchObject({ kind: 'success', data: { items: [extraCharge] } });
+  });
+
+  it('forwards no punctuation-only fragment as a validation reason', async () => {
+    const body = JSON.stringify({
+      statusCode: 400,
+      errors: [', ', '.', 'charges must be a boolean value'],
+      errorCode: 'INPUT_DATA_VALIDATION_FAILED',
+    });
+    const { result } = await callWith('mcp_avirato_get_establishment', {}, body, 400);
+
+    const message = (result as { message: string }).message;
+    expect(message).toContain('charges must be a boolean value');
+    expect(message).not.toMatch(/: ,|; ,|; \.$/);
+  });
+
+  it('accepts a web_code string with surrounding whitespace', async () => {
+    const capture: Captured[] = [];
+    const provider = createAviratoProvider({
+      fetchImpl: fakeFetch({ body: establishment, capture }),
+    });
+    await provider.callTool(
+      'mcp_avirato_get_establishment',
+      {},
+      {
+        credential: ctx.credential,
+        metadata: { web_code: ' 1234\n' },
+      },
+    );
+
+    expect(capture[0]?.url).toContain('web_code=1234');
+  });
+});

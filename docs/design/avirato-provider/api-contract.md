@@ -338,7 +338,7 @@ cancel_reservation:         { reservation_id: number }
 ```
 
 - **`create_reservation` takes no amount.** Its `payment` input is sent as Avirato's `price` field, renamed so that no reader mistakes it for an amount.
-- The provider fills the fields Avirato requires that the consumer has no say in: `operator_reservation_id: "0"`, `advance: { total_advance: 0, advance_type: payment.payment_type }`, `extras: []` and `predefinedCharges: []`.
+- The provider fills the fields Avirato requires that the consumer has no say in: `operator_reservation_id: "0"`, `advance: { total_advance: 0, advance_type: "CASH" }` (the only advance type observed accepted), `extras: []` and `predefinedCharges: []`.
 - `status` accepts only the value observed. A tenant's choice of status widens it by an additive revision once a second value is observed (AD-6).
 
 ### C.2 Results

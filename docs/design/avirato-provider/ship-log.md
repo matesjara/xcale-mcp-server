@@ -54,6 +54,15 @@ Also in this PR, in `src/core/`:
 - **Advance:** the advance type sent on create and modify is `CASH`, the only one observed accepted.
 - **Redaction:** a single quote no longer ends a redacted query value.
 
+**Second review** (`/code-review` and `/security-review` on the commits after the first review, 2026-10-31). Security found nothing at confidence ≥ 8. Fixed:
+
+- **The guard failed open:** a single-object charges answer read as "no extras", and an advance sent as a numeric string read as 0. Now one helper reads every Avirato answer shape (`asItems`, `firstRow`, `amount`), and the guard's two reads run in parallel.
+- **Fragments:** punctuation-only fragments are no longer forwarded as validation reasons.
+- **`web_code`:** a value with surrounding whitespace is accepted.
+- **Docs:** the contract and plan no longer say the advance type is the payment type.
+
+**Not changed:** a cancelled extra charge still counts in the guard. That errs on the side of refusing, and no cancelled extra has been observed.
+
 ## The modify guard [CTO 2026-10-31]
 
 **Observed (reservation 241):** a modify that does not send them removes the extras and the advance staff added. A 25000 extra disappeared and an advance of 50000 became 0.

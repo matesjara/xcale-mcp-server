@@ -135,6 +135,25 @@ function withoutExactDuplicates(rows: unknown): unknown[] {
   });
 }
 
+/**
+ * Avirato answers a list in mixed shapes: an array, a single object where one row is expected, or
+ * nothing (observed: `/reservation/{id}` is a one-element array, a search may answer one object). Every
+ * tool reads rows through these two, so no path silently drops a row another path keeps.
+ */
+function asItems(data: unknown): unknown[] {
+  if (Array.isArray(data)) return data;
+  return data !== null && typeof data === 'object' ? [data] : [];
+}
+function firstRow(data: unknown): Record<string, unknown> | undefined {
+  const row = asItems(data)[0];
+  return row !== null && typeof row === 'object' ? (row as Record<string, unknown>) : undefined;
+}
+/** An amount Avirato may send as a number or a numeric string ("50000.00"); anything else is 0. */
+function amount(value: unknown): number {
+  const n = typeof value === 'string' ? Number(value.trim()) : value;
+  return typeof n === 'number' && Number.isFinite(n) ? n : 0;
+}
+
 /** The catalog reads that take no argument: tool verb, Avirato path, what the description says. */
 const CATALOG_LISTS = [
   {
@@ -277,10 +296,9 @@ export function buildAviratoTools(
           await client.get(`reservation/${args.reservation_id}`, ctx.request, ctx.metadata),
           'get_reservation',
         );
-        // Observed: Avirato answers a one-element array for one id.
         if (!outcome.ok) return outcome;
         // Observed: Avirato answers a one-element array for one id. An empty one is not a reservation.
-        const row = Array.isArray(outcome.data) ? outcome.data[0] : outcome.data;
+        const row = firstRow(outcome.data);
         return row
           ? ok(row)
           : err(
@@ -315,15 +333,7 @@ export function buildAviratoTools(
         // means "nothing found".
         if (!res.ok && aviratoErrorCode(res.body) === NOT_FOUND_CODE) return ok({ items: [] });
         const outcome = unwrapAvirato(res, 'find_reservations_by_guest');
-        return outcome.ok
-          ? ok({
-              items: Array.isArray(outcome.data)
-                ? outcome.data
-                : outcome.data
-                  ? [outcome.data]
-                  : [],
-            })
-          : outcome;
+        return outcome.ok ? ok({ items: asItems(outcome.data) }) : outcome;
       },
     }),
 
@@ -482,25 +492,24 @@ export function buildAviratoTools(
         // [CTO 2026-10-31, #190] Never wipe what the hotel added: a field the caller did not state is
         // read first, and a modify that would remove an extra or an advance is refused with the facts.
         const wouldRemove: { extras?: unknown[]; advance?: number } = {};
-        if (args.advance === undefined) {
-          const read = unwrapAvirato(
-            await client.get(`reservation/${args.reservation_id}`, ctx.request, ctx.metadata),
-            'modify_reservation',
-          );
+        const [reservationRead, chargesRead] = await Promise.all([
+          args.advance === undefined
+            ? client.get(`reservation/${args.reservation_id}`, ctx.request, ctx.metadata)
+            : undefined,
+          args.extras === undefined
+            ? client.get(`charge/${args.reservation_id}`, ctx.request, ctx.metadata)
+            : undefined,
+        ]);
+        if (reservationRead) {
+          const read = unwrapAvirato(reservationRead, 'modify_reservation');
           if (!read.ok) return read;
-          const row = (Array.isArray(read.data) ? read.data[0] : read.data) as
-            | { advance?: unknown }
-            | undefined;
-          if (typeof row?.advance === 'number' && row.advance > 0)
-            wouldRemove.advance = row.advance;
+          const advance = amount(firstRow(read.data)?.advance);
+          if (advance > 0) wouldRemove.advance = advance;
         }
-        if (args.extras === undefined) {
-          const read = unwrapAvirato(
-            await client.get(`charge/${args.reservation_id}`, ctx.request, ctx.metadata),
-            'modify_reservation',
-          );
+        if (chargesRead) {
+          const read = unwrapAvirato(chargesRead, 'modify_reservation');
           if (!read.ok) return read;
-          const extras = (Array.isArray(read.data) ? read.data : [])
+          const extras = asItems(read.data)
             .filter(
               (c): c is { type: string; concept?: unknown; quantity?: unknown; total?: unknown } =>
                 typeof c === 'object' && c !== null && (c as { type?: unknown }).type === 'extra',
@@ -557,9 +566,7 @@ export function buildAviratoTools(
           await client.get(`charge/${args.reservation_id}`, ctx.request, ctx.metadata),
           'get_reservation_charges',
         );
-        return outcome.ok
-          ? ok({ items: Array.isArray(outcome.data) ? outcome.data : [] })
-          : outcome;
+        return outcome.ok ? ok({ items: asItems(outcome.data) }) : outcome;
       },
     }),
 

@@ -79,8 +79,13 @@ export function aviratoErrorCode(body: string): string | undefined {
 const PLAIN_SENTENCE = /^[A-Za-z0-9 .,_()'-]{1,200}$/;
 const NAMES_A_CREDENTIAL = /bearer|authori[sz]ation|password|token|eyJ/i;
 
+/** A sentence says something: at least two words of letters, not a stray `, ` or `.`. */
+const HAS_WORDS = /[A-Za-z]{2,}.*\s.*[A-Za-z]{2,}/;
+
 function forwardable(sentence: string): boolean {
-  return PLAIN_SENTENCE.test(sentence) && !NAMES_A_CREDENTIAL.test(sentence);
+  return (
+    PLAIN_SENTENCE.test(sentence) && HAS_WORDS.test(sentence) && !NAMES_A_CREDENTIAL.test(sentence)
+  );
 }
 
 /** Avirato's validation sentences (`errors[]`, or the `message` of `ERROR_VALIDATING_DATA`). */

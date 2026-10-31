@@ -12,7 +12,7 @@ export const aviratoContext = z
   .object({
     // A number, or a string of digits (metadata may arrive as text) — never a coerced `true` or `'1e3'`.
     web_code: z.preprocess(
-      (v) => (typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : v),
+      (v) => (typeof v === 'string' && /^\d+$/.test(v.trim()) ? Number(v.trim()) : v),
       z.number().int().positive(),
     ),
   })
