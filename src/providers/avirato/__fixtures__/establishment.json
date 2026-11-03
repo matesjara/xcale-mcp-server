@@ -1,0 +1,28 @@
+{
+  "status": "success",
+  "data": {
+    "currency": "COP",
+    "cif": "900000000-1",
+    "name": "Hotel Ejemplo",
+    "owner": "Hoteles Ejemplo S.A.S.",
+    "address": "Calle 1 # 2-3",
+    "city": "Ciudad Ejemplo",
+    "zip_code": "000000",
+    "state": "Departamento Ejemplo",
+    "country": "COL",
+    "phone": "+57 600 000 0000",
+    "mobile_phone": "+57 300 000 0000",
+    "email": "reservas@hotel-ejemplo.test",
+    "website": "https://hotel-ejemplo.test",
+    "default_vat": "10",
+    "default_vat_for_extras": 19,
+    "type": "Hotel",
+    "booking_online": {
+      "google_maps_address": "Calle 1 # 2-3, Ciudad Ejemplo",
+      "legal_texts": { "es": "Texto legal de ejemplo." },
+      "info_texts": { "es": "Información de ejemplo." },
+      "refundable_texts": { "es": "Tarifa reembolsable de ejemplo." },
+      "no_refundable_texts": { "es": "Tarifa no reembolsable de ejemplo." }
+    }
+  }
+}
