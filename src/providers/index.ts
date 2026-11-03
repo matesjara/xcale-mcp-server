@@ -6,6 +6,7 @@ import { himedProvider } from './himed';
 import { profitroomProvider } from './profitroom';
 import { siigoProvider } from './siigo';
 import { lobbypmsProvider } from './lobbypms';
+import { siteminderProvider } from './siteminder';
 import { toteatProvider } from './toteat';
 import { wompiProvider } from './wompi';
 import { woocommerceProvider } from './woocommerce';
@@ -27,5 +28,6 @@ export const PROVIDERS: readonly IProvider[] = [
   woocommerceProvider,
   himedProvider,
   profitroomProvider,
+  siteminderProvider,
   wompiProvider,
 ];
