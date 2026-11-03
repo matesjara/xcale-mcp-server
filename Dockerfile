@@ -4,7 +4,7 @@
 # docs/adr/0012-deployment-runtime-and-hosting.md). `tsx` is therefore a runtime
 # dependency, not a dev tool — that is why it lives in `dependencies`.
 
-FROM node:22-alpine
+FROM node:22.23.4-alpine
 
 ENV NODE_ENV=production
 WORKDIR /app
