@@ -1,0 +1,7 @@
+{
+  "statusCode": 401,
+  "timestamp": "2026-10-30T16:31:13.598Z",
+  "path": "/v3/establishment?web_code=1234",
+  "errorCode": "Unauthorized",
+  "message": "Invalid token"
+}
