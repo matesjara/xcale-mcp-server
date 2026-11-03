@@ -1,12 +1,11 @@
 # Profitroom Provider — Ship Log
 
-- **Status:** PR open — design #143, code #144 (`feat/implementation-profitroom-provider`, stacked on
-  #143); not yet merged into `dev`. Merge #143 first, with a merge commit (not squash), then #144.
-  Tracking: #142, epic `xcale-backend#1598`.
-- **Released to prod:** not yet
-- **Release order:** deploy this **before** `xcale-backend#1599` goes live. The backend's Profitroom
-  booking adapter calls `get_stay_prices`, and the connect flow needs the probe and the `hotelKey`
-  discovery. No new env var: the provider has no credential (auth `none`).
+- **Status:** in-soak — design #143, code #144, room photos and logo #146, black SVG logo #171. Tracking: #142, epic
+  `xcale-backend#1598`.
+- **Released to prod:** 2026-10-28 (release #157, merge `0eec0b69`, DO deployment `6b93f344` ACTIVE 16:05 UTC)
+- **Release order:** this before `xcale-backend#1599`: the backend's Profitroom booking adapter calls
+  `get_stay_prices`, and the connect flow needs the probe and the `hotelKey` discovery. Held on 2026-10-28: the
+  backend followed in xcale-backend#1918 the same day. No new env var: the provider has no credential (auth `none`).
 - **Related:** `feature-design.md` · `api-contract.md` (§B.1 connect support) ·
   `implementation-plan.md` (build logs §0.5, §1.8, §1.9) · ADR `credential-less-provider-auth` ·
   ADR 0009 (fidelity over unification) · ADR 0013 (control-plane tools) · backend
@@ -51,12 +50,14 @@ in one release).
 
 ### Feature flags / config
 
-- ⬜ Drift workflow (`.github/workflows/profitroom-drift.yml`, the repo's second workflow): GitHub runs
-  `schedule` triggers only from the default branch (`main`), so the **daily** probe starts with the
-  release to `main`. On `dev` it runs only by hand (`workflow_dispatch`). It needs no secret.
+- ✅ Drift workflow (`.github/workflows/profitroom-drift.yml`, the repo's second workflow): on `main` since release
+  #157, so the **daily** probe runs; its first scheduled run, 2026-10-29 on `main`, passed. GitHub runs `schedule`
+  triggers only from the default branch; on `dev` it runs only by hand (`workflow_dispatch`). It needs no secret.
 
 ### Deploy verification (prod)
 
+- [x] release deployed: `6b93f344` ACTIVE, `/health` ok, `/discover` 401 without auth and lists the providers with the
+  `prd` secret — ✅ done (2026-10-28)
 - [ ] prod gateway lists `profitroom` with `connectionProbe` and `contextDiscovery` — ⬜ pending
 
 ## Reviews
