@@ -1,0 +1,7 @@
+{
+  "statusCode": 400,
+  "timestamp": "2026-10-30T20:12:46.402Z",
+  "path": "/v3/reservation/901?web_code=1234",
+  "errorCode": "ERROR_RETRIEVING_RESERVATIONS",
+  "message": "Unable to retrieve reservations"
+}
