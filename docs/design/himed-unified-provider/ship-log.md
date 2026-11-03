@@ -312,3 +312,29 @@ tres tokens + `codigo_servicio` (ventana sandbox hasta 2026-10-09).
   producción, `m.medsas.co` y `notificaciones.medsas.co`, en el ship-log `himed-connect` del backend) antes de
   conectar la primera clínica.
 - ⬜ Verificación en vivo con la primera clínica conectada en producción.
+
+## 2026-10-28 — Op post-deploy: hosts de HiMed en producción (prd)
+
+Registrada aquí como op post-deploy del release (cada cosa lleva su ship-log, Mateo 2026-10-28). El PR
+`#182` (`chore(deploy): set HiMed's production hosts in the app spec`) agrega los dos hosts al
+`.do/app.yaml`. **Mergear a `main` redespliega el código pero NO cambia las env vars**: hay que
+re-aplicar el spec.
+
+**Quién:** Mateo (sesión de `doctl`; Sara no tiene acceso a DigitalOcean). **Cuándo:** tras el release
+a `main`, desde un checkout en `main` con el `.do/app.yaml` del #182.
+
+```bash
+APP_ID=$(doctl apps list --format ID,Spec.Name --no-header | awk '$2=="xcale-mcp-server"{print $1}')
+doppler run --project xcale-mcp-server --config prd -- \
+  sh -c "envsubst '\${MCP_SERVER_SECRET}' < .do/app.yaml" \
+  | doctl apps update "$APP_ID" --spec -
+```
+
+| Variable | Valor (producción) | Apunta a |
+| :--- | :--- | :--- |
+| `HIMED_BASE_URL` | `https://m.medsas.co/interoperabilidad/Api/Controllers` | Demográficos + Directorio |
+| `HIMED_SCHEDULING_BASE_URL` | `https://notificaciones.medsas.co/notificaciones/envioConsumoAutoagendamiento` | Autoagendamiento |
+
+Son URLs de config, **no credenciales**: los tokens de la clínica los ingresa la clínica en el connect
+form, nunca en Doppler ni en el spec. **Verificar** tras aplicar: `mcp_himed_list_locations` deja de
+devolver `PROVIDER_UNAVAILABLE`.
