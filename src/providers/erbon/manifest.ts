@@ -27,6 +27,8 @@ export const erbonManifest: ProviderManifest = {
   logoUrl: `/assets/${SLUG}.svg`,
   // `providerVersion` 0.3.1 (2026-10-26, for traceability): `list_currencies` (#137) is a backend-only read,
   // withdrawn from `tools/list`, so the published contract did not move and `schemaVersion` stays.
-  schemaVersion: '2026-10-06',
-  providerVersion: '0.3.1',
+  // 0.4.0 (xcale-backend#1859): `find_guest_bookings` is a new published tool, a record lookup in the
+  // vocabulary of ADR 0023 (Own Records), so the published contract moves.
+  schemaVersion: '2026-10-27',
+  providerVersion: '0.4.0',
 };
