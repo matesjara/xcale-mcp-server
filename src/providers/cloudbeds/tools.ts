@@ -225,10 +225,11 @@ function unwrapPayments(
   requiredFields: readonly string[],
 ): Unwrapped {
   if (!res.ok) {
+    const { code, detail } = classifyTransportFailure(res);
     return {
       ok: false,
-      code: res.errorCode,
-      message: `Cloudbeds ${what} failed (HTTP ${res.status})`,
+      code,
+      message: `Cloudbeds ${what} failed (HTTP ${res.status})${detail ? `: ${detail}` : ''}`,
     };
   }
   const body = res.data as Record<string, unknown> | null;

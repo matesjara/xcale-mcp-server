@@ -94,6 +94,27 @@ describe('redactQueryValues (credential-in-URL containment)', () => {
   it('leaves text with no query string untouched', () => {
     expect(redactQueryValues('ECONNREFUSED')).toBe('ECONNREFUSED');
   });
+
+  // A provider that echoes the request URL inside a JSON error body (Avirato's `path`, observed
+  // 2026-10-30) sends it on one line, with no whitespace after the URL. The value ends at the quote
+  // that closes the JSON string; masking past it would eat the fields that follow.
+  it('ends a value at a quote, so a URL inside a JSON string keeps the fields after it', () => {
+    const body = JSON.stringify({
+      path: `/v3/reservation/9?web_code=1234&xapitoken=${TOKEN}`,
+      errorCode: 'ERROR_RETRIEVING_RESERVATIONS',
+      message: 'Unable to retrieve reservations',
+    });
+
+    const redacted = redactQueryValues(body);
+
+    expect(redacted).not.toContain(TOKEN);
+    expect(redacted).not.toContain('1234');
+    expect(JSON.parse(redacted)).toEqual({
+      path: '/v3/reservation/9?web_code=[REDACTED]&xapitoken=[REDACTED]',
+      errorCode: 'ERROR_RETRIEVING_RESERVATIONS',
+      message: 'Unable to retrieve reservations',
+    });
+  });
 });
 
 describe('sendRequest — the credential never survives in a result', () => {
@@ -123,5 +144,16 @@ describe('sendRequest — the credential never survives in a result', () => {
 
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.body).not.toContain(TOKEN);
+  });
+});
+
+describe('redactQueryValues — a single quote does not end a value', () => {
+  it("masks a credential that contains an apostrophe in full (encodeURIComponent leaves ' raw)", () => {
+    const redacted = redactQueryValues(
+      "GET https://api.example.com/x?xapitoken=ab'cd-secret failed",
+    );
+
+    expect(redacted).toContain('xapitoken=[REDACTED]');
+    expect(redacted).not.toContain('cd-secret');
   });
 });

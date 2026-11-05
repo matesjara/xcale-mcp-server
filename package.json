@@ -5,7 +5,7 @@
   "type": "module",
   "description": "xcale's own MCP integration platform (a 'Composio LATAM'). Provider knowledge lives here; consumers consume capabilities over stable, consumer-agnostic MCP contracts.",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.23.4"
   },
   "scripts": {
     "dev": "doppler run -- tsx watch src/server.ts",

@@ -104,7 +104,7 @@ describe('erbon provider — S1 discovery shape', () => {
 // ---------------------------------------------------------------------------
 
 describe('erbon provider — S2 menu reads', () => {
-  it('publishes exactly the four money-free reads on the agent menu', () => {
+  it('publishes exactly the five money-free reads on the agent menu', () => {
     const names = erbonProvider.listTools().map((t) => t.name);
     expect(new Set(names)).toEqual(
       new Set([
@@ -112,6 +112,7 @@ describe('erbon provider — S2 menu reads', () => {
         'mcp_erbon_list_room_types',
         'mcp_erbon_list_rates',
         'mcp_erbon_get_hotel',
+        'mcp_erbon_find_guest_bookings',
       ]),
     );
   });
@@ -345,7 +346,7 @@ describe('erbon provider — S5 create_booking (write)', () => {
 // ---------------------------------------------------------------------------
 
 describe('erbon provider — S6 guest tools', () => {
-  it('the agent menu is exactly the 4 reads; every money/write tool is routable-only', () => {
+  it('the agent menu is exactly the 5 reads; every money/write tool is routable-only', () => {
     const menu = erbonProvider.listTools().map((t) => t.name);
     expect(new Set(menu)).toEqual(
       new Set([
@@ -353,6 +354,7 @@ describe('erbon provider — S6 guest tools', () => {
         'mcp_erbon_list_room_types',
         'mcp_erbon_list_rates',
         'mcp_erbon_get_hotel',
+        'mcp_erbon_find_guest_bookings',
       ]),
     );
     const routable = erbonProvider.routableToolNames();
@@ -490,6 +492,153 @@ describe('erbon provider — booking reads (get_booking / search_booking)', () =
 
     expect(res.kind).toBe('success');
     expect(capture[0]?.init.headers?.onlineSaleChannelNumber).toBe('xbk-1-r0');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// find_guest_bookings — the record lookup (ADR 0023, xcale-backend#1852)
+// ---------------------------------------------------------------------------
+
+/** A `booking/search` row as the sandbox answers it (2026-10-28), trimmed to the fields read. */
+function searchRow(id: number, phone: string, email: string) {
+  return {
+    bookingInternalID: id,
+    erbonNumber: `E-${id}`,
+    onlineSaleChannelNumber: `xbk-${id}`,
+    status: 'ACTIVE',
+    confirmedStatus: 'CONFIRMED',
+    roomTypeID: 2,
+    roomTypeDescription: 'SUITE ESTANDAR',
+    checkInDateTime: '2026-11-10T15:00:00',
+    checkOutDateTime: '2026-11-12T12:00:00',
+    adultQuantity: 2,
+    childrenQuantity: 0,
+    totalBookingRate: 480000,
+    guestList: [
+      { id: 9, mainGuest: false, name: 'Companion', email: 'other@x.co', phone: '3000000000' },
+      { id: 8, mainGuest: true, name: 'Main Guest', email, phone },
+    ],
+  };
+}
+
+describe('erbon provider — find_guest_bookings (record lookup)', () => {
+  it('declares a subject-bound record lookup whose rows name their person', () => {
+    const t = erbonProvider.listTools().find((x) => x.name === 'mcp_erbon_find_guest_bookings');
+    expect(t?.identityPolicy).toMatchObject({
+      mode: 'subject-bound',
+      identityFields: ['guestPhone', 'guestEmail'],
+      identityFieldKinds: { guestPhone: 'phone', guestEmail: 'email' },
+      recordLookup: true,
+      recordKind: 'reservation',
+      resultItemsPath: 'items',
+      resultIdentityFields: { guestPhone: 'phone', guestEmail: 'email' },
+      resultRecordIdField: 'bookingInternalID',
+      recordOwnershipKind: 'erbon:booking',
+      resultDateField: 'checkOut',
+    });
+    expect(t?.readOnly).toBe(true);
+  });
+
+  it('POSTs booking/search with the phone as mainguestTel and maps each row to its main guest', async () => {
+    const capture: Captured[] = [];
+    const provider = createErbonProvider({
+      fetchImpl: fakeFetch({ body: [searchRow(1734, '+573122882382', 'sara@xcale.app')], capture }),
+    });
+
+    const res = await provider.callTool(
+      'mcp_erbon_find_guest_bookings',
+      { guestPhone: ' +573122882382 ' },
+      ctx,
+    );
+
+    expect(capture[0]?.init.method).toBe('POST');
+    expect(capture[0]?.url).toMatch(/\/hotel\/H1\/booking\/search$/);
+    expect(capture[0]?.init.headers?.mainguestTel).toBe('+573122882382');
+    expect(capture[0]?.init.headers?.mainguestEmail).toBeUndefined();
+    expect(res.kind).toBe('success');
+    if (res.kind === 'success')
+      expect(res.data).toEqual({
+        items: [
+          {
+            bookingInternalID: '1734',
+            erbonNumber: 'E-1734',
+            status: 'CONFIRMED',
+            checkIn: '2026-11-10',
+            checkOut: '2026-11-12',
+            roomTypeDescription: 'SUITE ESTANDAR',
+            adults: 2,
+            children: 0,
+            guestPhone: '+573122882382',
+            guestEmail: 'sara@xcale.app',
+          },
+        ],
+        hasMore: false,
+      });
+  });
+
+  it('sends the email as mainguestEmail', async () => {
+    const capture: Captured[] = [];
+    const provider = createErbonProvider({ fetchImpl: fakeFetch({ body: [], capture }) });
+
+    const res = await provider.callTool(
+      'mcp_erbon_find_guest_bookings',
+      { guestEmail: 'sara@xcale.app' },
+      ctx,
+    );
+
+    expect(capture[0]?.init.headers?.mainguestEmail).toBe('sara@xcale.app');
+    expect(capture[0]?.init.headers?.mainguestTel).toBeUndefined();
+    if (res.kind === 'success') expect(res.data).toEqual({ items: [], hasMore: false });
+  });
+
+  it('a row with no main guest still lists, with empty contact fields — it never borrows a companion', async () => {
+    const row = {
+      ...searchRow(1, '+57300', 'a@b.co'),
+      guestList: [{ mainGuest: false, phone: '+57300' }],
+    };
+    const provider = createErbonProvider({ fetchImpl: fakeFetch({ body: [row] }) });
+
+    const res = await provider.callTool(
+      'mcp_erbon_find_guest_bookings',
+      { guestPhone: '+57300' },
+      ctx,
+    );
+
+    if (res.kind !== 'success') throw new Error('expected success');
+    const items = (res.data as { items: Array<Record<string, unknown>> }).items;
+    expect(items[0]?.guestPhone).toBe('');
+    expect(items[0]?.guestEmail).toBe('');
+  });
+
+  it('cuts a long list at the ceiling and says so with hasMore', async () => {
+    const rows = Array.from({ length: 12 }, (_, i) => searchRow(i + 1, '+57300', 'a@b.co'));
+    const provider = createErbonProvider({ fetchImpl: fakeFetch({ body: rows }) });
+
+    const res = await provider.callTool(
+      'mcp_erbon_find_guest_bookings',
+      { guestPhone: '+57300' },
+      ctx,
+    );
+
+    if (res.kind !== 'success') throw new Error('expected success');
+    const data = res.data as { items: unknown[]; hasMore: boolean };
+    expect(data.items).toHaveLength(10);
+    expect(data.hasMore).toBe(true);
+  });
+
+  it.each([
+    [{}],
+    [{ guestPhone: '' }],
+    [{ guestEmail: '   ' }],
+    [{ guestPhone: '+57300', extra: 1 }],
+  ])('refuses %o before anything reaches Erbon — never the unfiltered search', async (args) => {
+    const capture: Captured[] = [];
+    const provider = createErbonProvider({ fetchImpl: fakeFetch({ body: [], capture }) });
+
+    const res = await provider.callTool('mcp_erbon_find_guest_bookings', args, ctx);
+
+    expect(res.kind).not.toBe('success');
+    expect(capture).toHaveLength(0);
   });
 });
 

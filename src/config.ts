@@ -35,6 +35,12 @@ export interface Config {
    * provider says so at boot instead of at a clinic's first booking.
    */
   readonly himedBaseUrl: string;
+  /**
+   * Avirato's API v3 base URL. Empty means production (`https://apiv3.avirato.com/v3`); a development
+   * deployment sets the sandbox (`https://sandbox.avirato.com/v3`) so end-to-end QA never books in a
+   * real hotel. The consumer's pinned token endpoint must name the same host.
+   */
+  readonly aviratoBaseUrl?: string;
   readonly himedSchedulingBaseUrl: string;
 }
 
@@ -72,6 +78,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     credentialResolveSecret: env.CREDENTIAL_RESOLVE_SECRET ?? '',
     siigoPartnerId: env.SIIGO_PARTNER_ID ?? '',
     himedBaseUrl: env.HIMED_BASE_URL ?? '',
+    aviratoBaseUrl: env.AVIRATO_BASE_URL ?? '',
     himedSchedulingBaseUrl: env.HIMED_SCHEDULING_BASE_URL ?? '',
   };
 }
