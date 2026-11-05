@@ -1591,3 +1591,80 @@ describe('woocommerce provider — logo', () => {
     expect(existsSync(join(process.cwd(), 'assets', 'woocommerce.svg'))).toBe(true);
   });
 });
+
+describe('woocommerce find_customer_orders (record lookup, ADR 0023)', () => {
+  it('searches the orders by the phone, newest first, one more than it lists', async () => {
+    const { provider: p, calls } = provider([orderGet]);
+
+    const data = successData(
+      await p.callTool(
+        'mcp_woocommerce_find_customer_orders',
+        { customerPhone: ' 3001234567 ' },
+        CTX,
+      ),
+    ) as { items: Array<Record<string, unknown>>; hasMore: boolean };
+
+    const url = new URL(calls[0]!);
+    expect(url.pathname).toMatch(/\/orders$/);
+    expect(url.searchParams.get('search')).toBe('3001234567');
+    expect(url.searchParams.get('per_page')).toBe('11');
+    expect(url.searchParams.get('orderby')).toBe('date');
+    expect(url.searchParams.get('order')).toBe('desc');
+    expect(data.hasMore).toBe(false);
+    expect(data.items[0]).toMatchObject({
+      id: String(orderGet.id),
+      number: orderGet.number,
+      customerPhone: '3001234567',
+      customerEmail: 'maria@example.com',
+    });
+    expect(Array.isArray(data.items[0]?.items)).toBe(true);
+  });
+
+  it('searches by the email when that is what it is given', async () => {
+    const { provider: p, calls } = provider([]);
+
+    const data = successData(
+      await p.callTool(
+        'mcp_woocommerce_find_customer_orders',
+        { customerEmail: 'maria@example.com' },
+        CTX,
+      ),
+    );
+
+    expect(new URL(calls[0]!).searchParams.get('search')).toBe('maria@example.com');
+    expect(data).toEqual({ items: [], hasMore: false });
+  });
+
+  it('cuts at ten and says there are more', async () => {
+    const rows = Array.from({ length: 11 }, (_, i) => ({ ...orderGet, id: i + 1 }));
+    const { provider: p } = provider(rows);
+
+    const data = successData(
+      await p.callTool(
+        'mcp_woocommerce_find_customer_orders',
+        { customerPhone: '3001234567' },
+        CTX,
+      ),
+    ) as { items: unknown[]; hasMore: boolean };
+
+    expect(data.items).toHaveLength(10);
+    expect(data.hasMore).toBe(true);
+  });
+
+  it.each([
+    [{}],
+    [{ customerPhone: '' }],
+    [{ customerEmail: '   ' }],
+    [{ customerPhone: '3001234567', customerEmail: 'maria@example.com' }],
+  ])(
+    'refuses %o before anything reaches the store — a blank search is the whole order list',
+    async (args) => {
+      const { provider: p, calls } = provider([]);
+
+      const res = await p.callTool('mcp_woocommerce_find_customer_orders', args, CTX);
+
+      expect(res.kind).not.toBe('success');
+      expect(calls).toHaveLength(0);
+    },
+  );
+});
