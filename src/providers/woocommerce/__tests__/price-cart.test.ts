@@ -140,6 +140,8 @@ describe('woocommerce provider — price_cart (Store API, #140)', () => {
         currencyCode: 'COP',
         currencyMinorUnit: 0,
       },
+      // The double's cart does not say `needs_shipping`: unknown, not guessed.
+      needsShipping: null,
     });
     // Emptied before the items go in and again at the end; no address is set without a destination.
     expect(calls[0]).toBe('GET /cart');
@@ -197,6 +199,7 @@ describe('woocommerce provider — price_cart (Store API, #140)', () => {
       selected: true,
     };
     const { impl, calls } = cartFetch({
+      needs_shipping: true,
       items: [SIMPLE_X3],
       totals: { ...TOTALS, total_shipping: '18000', total_price: '1043950' },
       shipping_rates: [{ package_id: 0, shipping_rates: [rate] }],
@@ -206,6 +209,7 @@ describe('woocommerce provider — price_cart (Store API, #140)', () => {
       destination: { country: 'CO', state: 'CO-DC' },
     });
     expect(successData(result)).toMatchObject({
+      needsShipping: true,
       totals: { shipping: '18000', total: '1043950' },
       shippingOptions: [{ rateId: 'flat_rate:2', cost: '18000', selected: true, packageId: '0' }],
     });
@@ -220,9 +224,9 @@ describe('woocommerce provider — price_cart (Store API, #140)', () => {
     expect('shippingOptions' in data).toBe(false);
   });
 
-  it('a price the store did not send is absent, never 0', async () => {
-    const noPrice = { ...SIMPLE_X3, prices: { currency_minor_unit: 0 }, totals: {} };
-    const { impl } = cartFetch({ items: [noPrice], totals: {} });
+  it('a unit price the store did not send is absent, never 0', async () => {
+    const noUnitPrice = { ...SIMPLE_X3, prices: { currency_minor_unit: 0 } };
+    const { impl } = cartFetch({ items: [noUnitPrice], totals: {} });
     const result = await price(impl, { items: [{ productId: '102985', quantity: 3 }] });
     expect(successData(result)).toMatchObject({
       lines: [
@@ -231,10 +235,96 @@ describe('woocommerce provider — price_cart (Store API, #140)', () => {
           unitPrice: null,
           regularUnitPrice: null,
           discounted: null,
-          lineTotal: null,
+          lineTotal: '310714',
         },
       ],
       totals: { items: null, total: null },
+    });
+  });
+
+  it('a line whose line total or quantity cannot be read is refused, not priced', async () => {
+    const noTotal = { ...SIMPLE_X3, totals: {} };
+    const noQuantity = { ...VARIATION, quantity: undefined };
+    const { impl } = cartFetch({ items: [noTotal, noQuantity], totals: TOTALS });
+    const result = await price(impl, {
+      items: [
+        { productId: '102985', quantity: 3 },
+        { productId: '101517', quantity: 1 },
+      ],
+    });
+    expect(successData(result)).toMatchObject({
+      lines: [
+        { productId: '102985', status: 'rejected', quantity: 3, code: 'unreadable_line' },
+        { productId: '101517', status: 'rejected', quantity: 1, code: 'unreadable_line' },
+      ],
+    });
+  });
+
+  it('an address the store does not serve is a successful answer with no freight and no total — never free shipping', async () => {
+    // What the Store API answers for an unserved destination: no rates, and "0" freight.
+    const { impl } = cartFetch({
+      needs_shipping: true,
+      items: [SIMPLE_X3],
+      totals: { ...TOTALS, total_shipping: '0', total_price: '1025950' },
+      shipping_rates: [{ package_id: 0, shipping_rates: [] }],
+    });
+    const result = await price(impl, {
+      items: [{ productId: '102985', quantity: 3 }],
+      destination: { country: 'CO', state: 'CO-AMA' },
+    });
+    expect(result.kind).toBe('success');
+    expect(successData(result)).toMatchObject({
+      needsShipping: true,
+      shippingOptions: [],
+      lines: [{ productId: '102985', status: 'priced', lineTotal: '310714' }],
+      totals: { items: '862143', tax: '163807', shipping: null, total: null },
+    });
+  });
+
+  it('a package the store left without a selected rate makes the total unknown', async () => {
+    const rate = (id: string, selected: boolean) => ({
+      rate_id: id,
+      name: id,
+      method_id: 'flat_rate',
+      price: '18000',
+      currency_code: 'COP',
+      currency_minor_unit: 0,
+      selected,
+    });
+    const { impl } = cartFetch({
+      needs_shipping: true,
+      items: [SIMPLE_X3],
+      totals: { ...TOTALS, total_shipping: '18000', total_price: '1043950' },
+      shipping_rates: [
+        { package_id: 0, shipping_rates: [rate('flat_rate:1', true)] },
+        { package_id: 1, shipping_rates: [rate('flat_rate:2', false)] },
+      ],
+    });
+    const result = await price(impl, {
+      items: [{ productId: '102985', quantity: 3 }],
+      destination: { country: 'CO', state: 'CO-DC' },
+    });
+    expect(successData(result)).toMatchObject({
+      totals: { shipping: null, total: null },
+      shippingOptions: [{ packageId: '0' }, { packageId: '1' }],
+    });
+  });
+
+  it('an all-virtual cart keeps the "0" freight the store reports, which is true there', async () => {
+    const { impl } = cartFetch({
+      needs_shipping: false,
+      items: [SIMPLE_X3],
+      totals: TOTALS,
+      shipping_rates: [],
+    });
+    const result = await price(impl, {
+      items: [{ productId: '102985', quantity: 3 }],
+      destination: { country: 'CO', state: 'CO-DC' },
+    });
+    expect(successData(result)).toMatchObject({
+      needsShipping: false,
+      shippingOptions: [],
+      totals: { shipping: '0', total: '1025950' },
     });
   });
 

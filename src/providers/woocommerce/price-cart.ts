@@ -70,10 +70,20 @@ export interface CartTotals {
   readonly itemsTax: string | null;
   /** Cart-level discounts (coupons). A plugin that rewrites line prices leaves this at "0". */
   readonly discount: string | null;
-  /** The freight, only when a destination was given; otherwise null. */
+  /**
+   * The freight of the rate the store selected for each package. Null without a destination, when the
+   * store does not serve the destination, or when a package has no selected rate. An all-virtual cart
+   * (`needsShipping: false`) keeps the store's "0", which is true there.
+   */
   readonly shipping: string | null;
+  /** Without a destination, the store computes it for its default location, not the buyer's. */
   readonly tax: string | null;
-  /** What the buyer pays. Includes the freight only when a destination was given. */
+  /**
+   * What the buyer pays, for the priced lines only (a rejected line is not in it). With a destination
+   * it includes the rate the store selected for each package; for another option, the payable figure
+   * is the one `create_order` returns, never `total − selected + other` (freight can carry tax). Null
+   * when the store does not serve the destination or a package has no selected rate.
+   */
   readonly total: string | null;
   readonly currencyCode: string | null;
   readonly currencyMinorUnit: number | null;
@@ -83,6 +93,12 @@ export interface CartPricing {
   /** One per requested item, in the order asked. */
   readonly lines: CartLine[];
   readonly totals: CartTotals;
+  /**
+   * Whether the cart needs shipping, as the store says (`needs_shipping`); null when it does not say.
+   * With a destination, `needsShipping: true` and no `shippingOptions` means the store does not serve
+   * that address.
+   */
+  readonly needsShipping: boolean | null;
   /** The freight options for the destination; present only when a destination was given. */
   readonly shippingOptions?: WooShippingOption[];
 }
@@ -108,6 +124,7 @@ interface RawCartItem {
   };
 }
 interface RawPricedCart extends RawCart {
+  readonly needs_shipping?: boolean;
   readonly items?: readonly RawCartItem[];
   readonly totals?: {
     readonly total_items?: string;
@@ -145,15 +162,30 @@ function storeError(status: number): PriceCartResult {
   };
 }
 
-function toPricedLine(productId: string, item: RawCartItem): PricedCartLine {
+/**
+ * A line the cart holds, priced — or refused as `unreadable_line` when the store sent no readable
+ * `line_total` or quantity: `lineTotal` is what an order charges, so a line without it is not priced.
+ */
+function toLine(productId: string, askedQuantity: number, item: RawCartItem): CartLine {
   const minor = item.prices?.currency_minor_unit ?? item.totals?.currency_minor_unit ?? 0;
+  const lineTotal = toMajor(item.totals?.line_total, minor);
+  const quantity = item.quantity;
+  if (lineTotal === null || typeof quantity !== 'number' || !(quantity > 0)) {
+    return {
+      productId,
+      status: 'rejected',
+      quantity: askedQuantity,
+      code: 'unreadable_line',
+      message: 'The cart holds the item but its quantity or line total could not be read.',
+    };
+  }
   const unitPrice = toMajor(item.prices?.price, minor);
   const regularUnitPrice = toMajor(item.prices?.regular_price, minor);
   return {
     productId,
     status: 'priced',
     type: item.type ?? null,
-    quantity: item.quantity ?? 0,
+    quantity,
     unitPrice,
     regularUnitPrice,
     discounted:
@@ -161,12 +193,27 @@ function toPricedLine(productId: string, item: RawCartItem): PricedCartLine {
         ? Number(unitPrice) < Number(regularUnitPrice)
         : null,
     lineSubtotal: toMajor(item.totals?.line_subtotal, minor),
-    lineTotal: toMajor(item.totals?.line_total, minor),
+    lineTotal,
     lineTax: toMajor(item.totals?.line_total_tax, minor),
   };
 }
 
-function toTotals(cart: RawPricedCart, withShipping: boolean): CartTotals {
+/**
+ * Whether the freight in the cart's totals is a figure the buyer would pay. With a destination, the
+ * store reports "0" freight both for an address it does not serve and for a package it left without a
+ * selected rate — read as free shipping, it would quote a total the order never charges. An
+ * all-virtual cart says `needs_shipping: false`, and its "0" is true. A store that does not say is
+ * treated as needing shipping.
+ */
+function freightIsPayable(cart: RawPricedCart, options: readonly WooShippingOption[]): boolean {
+  if (cart.needs_shipping === false) return true;
+  if (options.length === 0) return false;
+  return (cart.shipping_rates ?? []).every((pkg) =>
+    (pkg.shipping_rates ?? []).some((r) => Boolean(r.selected)),
+  );
+}
+
+function toTotals(cart: RawPricedCart, freight: 'none' | 'payable' | 'unknown'): CartTotals {
   const t = cart.totals;
   const minor = t?.currency_minor_unit ?? 0;
   return {
@@ -174,9 +221,9 @@ function toTotals(cart: RawPricedCart, withShipping: boolean): CartTotals {
     itemsTax: toMajor(t?.total_items_tax, minor),
     discount: toMajor(t?.total_discount, minor),
     // Without an address the cart reports "0" freight — not a free-shipping offer, so it is withheld.
-    shipping: withShipping ? toMajor(t?.total_shipping, minor) : null,
+    shipping: freight === 'payable' ? toMajor(t?.total_shipping, minor) : null,
     tax: toMajor(t?.total_tax, minor),
-    total: toMajor(t?.total_price, minor),
+    total: freight === 'unknown' ? null : toMajor(t?.total_price, minor),
     currencyCode: t?.currency_code ?? null,
     currencyMinorUnit: t?.currency_minor_unit ?? null,
   };
@@ -264,15 +311,22 @@ export async function priceCart(
           message: 'The store accepted the item but the cart does not hold it.',
         };
       }
-      return toPricedLine(it.productId, item);
+      return toLine(it.productId, it.quantity, item);
     });
 
+    const shippingOptions = destination ? toShippingOptions(cart) : undefined;
+    const freight = !shippingOptions
+      ? 'none'
+      : freightIsPayable(cart, shippingOptions)
+        ? 'payable'
+        : 'unknown';
     return {
       ok: true,
       pricing: {
         lines,
-        totals: toTotals(cart, destination !== undefined),
-        ...(destination ? { shippingOptions: toShippingOptions(cart) } : {}),
+        totals: toTotals(cart, freight),
+        needsShipping: typeof cart.needs_shipping === 'boolean' ? cart.needs_shipping : null,
+        ...(shippingOptions ? { shippingOptions } : {}),
       },
     };
   } catch {

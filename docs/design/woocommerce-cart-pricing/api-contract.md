@@ -1,6 +1,6 @@
 # WooCommerce cart pricing — `mcp_woocommerce_price_cart` (#140)
 
-> **Status:** implemented · **Issue:** matesjara/xcale-mcp-server#140 · **Epic:** matesjara/xcale-backend#1545
+> **Last modified:** 2026-11-05 · **Status:** implemented · **Issue:** matesjara/xcale-mcp-server#140 · **Epic:** matesjara/xcale-backend#1545
 > · **Consumer:** matesjara/xcale-backend#1546 (charge) and #1547 (quote).
 
 ## Why
@@ -34,8 +34,12 @@ A repeated `productId` is refused before any call, because the cart would merge 
         lineTax: string | null }
     | { productId; status: 'rejected'; quantity: number /* asked */; code: string; message: string }
   )[];
-  totals: { items; itemsTax; discount; shipping /* null without a destination */; tax; total;
+  totals: { items; itemsTax; discount;
+            shipping;  // the selected rate of each package; null without a destination, for an unserved address, or a package with no selected rate
+            tax;       // without a destination: computed for the store's default location
+            total;     // the priced lines only; with a destination, includes the selected rate of each package; null when shipping is unknown
             currencyCode: string | null; currencyMinorUnit: number | null };
+  needsShipping: boolean | null;                // the cart's own `needs_shipping`; null when the store does not say
   shippingOptions?: WooShippingOption[];        // only with a destination; same shape as quote_shipping
 }
 ```
@@ -43,7 +47,12 @@ A repeated `productId` is refused before any call, because the cart would merge 
 Rules:
 
 - **A refused line is a fact, not a failed call.** When the store answers `add-item` with 400, the store's own `code` and `message` are returned for that line. If the store accepted an item but the cart read does not hold it, the line comes back as `code: 'not_in_cart'`. Any other non-OK status (401/403 → `PROVIDER_ERROR`, 5xx → `PROVIDER_UNAVAILABLE`) fails the call.
-- **A price that cannot be read is `null`, never `"0"`.**
+- **A price that cannot be read is `null`, never `"0"`.** A line whose `line_total` or quantity cannot be read is not priced: it comes back `status: 'rejected'`, `code: 'unreadable_line'`, since `lineTotal` is what an order charges.
+- **The totals cover only the priced lines.** With a rejected line, `totals.total` is the total of the others, not of everything asked.
+- **An address the store does not serve is a successful answer, not an error** (CTO, 2026-10-27, #168). `needsShipping: true` with no `shippingOptions` means the store does not ship there: `shipping: null` and `totals.total: null`, while the lines stay priced and `items` and `tax` stay. The cart reports `"0"` freight there, and passing it on would read as free shipping to an address the store cannot reach.
+- **`totals.total` includes the rate the store selected for each package** (the `selected: true` option). When a package has no selected rate, `shipping` and `total` are `null`. For another option, the payable figure is the one `create_order` returns, never `total − selected + other`, because freight can carry tax.
+- **An all-virtual cart** (`needsShipping: false`) keeps the store's `"0"` freight, which is true there. A store that does not say `needs_shipping` is treated as needing shipping.
+- **The price is an anonymous guest's** (CPO, 2026-10-27, #168): it includes what the store applies in the cart on its own; no coupon code the customer mentions is checked or applied, and prices tied to who the buyer is (wholesale, first order, per email) are not included. A pay link built from this price charges this price. The description says only that, and never promises that a code is applied at checkout. Codes come next, quoting and charging together: matesjara/xcale-mcp-server#177.
 - **No arithmetic beyond the minor-unit conversion**, which is the same as the freight's. The one comparison is `discounted`.
 - **Session discipline is the same as the freight quote.** The cart is anonymous and throwaway, with no credential sent. It is emptied before the items go in and again at the end, whatever happens. No order is placed.
 - Without a destination, the cart's freight is reported as `null`, not `"0"`: the cart says `"0"` when it has no address, which is not a free-shipping offer.

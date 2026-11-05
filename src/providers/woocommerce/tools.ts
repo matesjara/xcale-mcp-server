@@ -1510,14 +1510,21 @@ export function buildWoocommerceTools(
     tool({
       name: `mcp_${SLUG}_price_cart`,
       description:
-        "Price items the way the store's own cart charges them — including what the store applies in " +
-        'the cart (a discount-rules plugin, quantity pricing, exclusions), which the product reads do ' +
-        'not show. Per line: `unitPrice` and `regularUnitPrice` as the store displays them, `discounted`, ' +
-        'and the tax-exclusive `lineSubtotal`/`lineTotal` (`lineTotal` is what create_order takes as a ' +
-        "line `total`); a line the store refuses comes back `status: 'rejected'` with the store's code " +
-        "and message. Plus the cart `totals`. Items are product ids, or a variation's OWN id for a " +
-        'variable product. With a `destination` it also returns `shippingOptions` and the freight in ' +
-        'the totals. Read-only: a throwaway Store API cart, emptied before and after — no order is placed.',
+        "Price items the way the store's own cart charges an anonymous guest today — including what " +
+        'the store applies in the cart on its own (a discount-rules plugin, quantity pricing, ' +
+        'exclusions), which the product reads do not show. No coupon code the customer mentions is ' +
+        'checked or applied, and prices tied to who the buyer is (wholesale, first order, per email) are ' +
+        'not included. A pay link built from this price charges this price. Per line: `unitPrice` and ' +
+        '`regularUnitPrice` as the store displays them, `discounted`, and the tax-exclusive ' +
+        '`lineSubtotal`/`lineTotal` (`lineTotal` is what create_order takes as a line `total`); a line ' +
+        "the store refuses, or whose line total cannot be read, comes back `status: 'rejected'` with a " +
+        'code and message, and the `totals` cover only the priced lines. Items are product ids, or a ' +
+        "variation's OWN id for a variable product. Without a `destination` the tax is the store's " +
+        "default location's and there is no freight. With one it also returns `shippingOptions`, and " +
+        '`totals.total` includes the rate the store selected for each package; `needsShipping: true` ' +
+        'with no `shippingOptions` means the store does not ship to that address, and then `shipping` ' +
+        'and `total` are null — never free shipping. Read-only: a throwaway Store API cart, emptied ' +
+        'before and after — no order is placed.',
       input: priceCartInput,
       handler: async (args, ctx) => {
         const result = await priceCart(
