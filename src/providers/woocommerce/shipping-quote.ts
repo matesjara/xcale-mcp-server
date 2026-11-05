@@ -63,7 +63,7 @@ interface RawRate {
   readonly currency_minor_unit?: number;
   readonly selected?: boolean;
 }
-interface RawCart {
+export interface RawCart {
   readonly shipping_rates?: ReadonlyArray<{
     readonly package_id?: number | string;
     readonly shipping_rates?: readonly RawRate[];
@@ -88,6 +88,32 @@ function storeError(status: number): ShippingQuoteResult {
     code: mapped === ProviderErrorCode.AUTH_EXPIRED ? ProviderErrorCode.PROVIDER_ERROR : mapped,
     message: `WooCommerce shipping quote error (HTTP ${status})`,
   };
+}
+
+/** The cart's per-package rates as curated options. Shared by the freight quote and the cart pricing. */
+export function toShippingOptions(cart: RawCart): WooShippingOption[] {
+  return (cart.shipping_rates ?? []).flatMap((pkg, index) =>
+    (pkg.shipping_rates ?? [])
+      // A rate without a readable price is dropped, never defaulted: a "0" would charge free
+      // freight the store did not offer. A real free rate arrives as "0" and stays.
+      .filter(
+        (r): r is RawRate & { rate_id: string; price: string } =>
+          typeof r.rate_id === 'string' &&
+          typeof r.price === 'string' &&
+          r.price.trim() !== '' &&
+          Number.isFinite(Number(r.price)),
+      )
+      .map((r) => ({
+        rateId: r.rate_id,
+        methodId: r.method_id ?? '',
+        title: r.name ?? '',
+        cost: toMajorUnit(r.price, r.currency_minor_unit ?? 0),
+        currencyCode: r.currency_code ?? '',
+        currencyMinorUnit: r.currency_minor_unit ?? 0,
+        selected: Boolean(r.selected),
+        packageId: String(pkg.package_id ?? index),
+      })),
+  );
 }
 
 export async function quoteShipping(
@@ -149,28 +175,7 @@ export async function quoteShipping(
     const cart = (await upd.json()) as RawCart;
     // 4) Flatten the per-package rates into curated options. Empty ⇒ the store does not serve the
     //    destination (the caller says so; it never estimates).
-    const options: WooShippingOption[] = (cart.shipping_rates ?? []).flatMap((pkg, index) =>
-      (pkg.shipping_rates ?? [])
-        // A rate without a readable price is dropped, never defaulted: a "0" would charge free
-        // freight the store did not offer. A real free rate arrives as "0" and stays.
-        .filter(
-          (r): r is RawRate & { rate_id: string; price: string } =>
-            typeof r.rate_id === 'string' &&
-            typeof r.price === 'string' &&
-            r.price.trim() !== '' &&
-            Number.isFinite(Number(r.price)),
-        )
-        .map((r) => ({
-          rateId: r.rate_id,
-          methodId: r.method_id ?? '',
-          title: r.name ?? '',
-          cost: toMajorUnit(r.price, r.currency_minor_unit ?? 0),
-          currencyCode: r.currency_code ?? '',
-          currencyMinorUnit: r.currency_minor_unit ?? 0,
-          selected: Boolean(r.selected),
-          packageId: String(pkg.package_id ?? index),
-        })),
-    );
+    const options = toShippingOptions(cart);
     return { ok: true, options };
   } catch {
     return {

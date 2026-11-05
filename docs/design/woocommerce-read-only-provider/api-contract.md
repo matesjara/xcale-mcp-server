@@ -63,6 +63,7 @@ Namespaced `mcp_woocommerce_{verb}`. The zod `input` is the single source of tru
 | `mcp_woocommerce_get_shipping_zone_methods` | `GET /wp-json/wc/v3/shipping/zones/{id}/methods` | `{ id: string }` | Methods + **base rates** (`baseCost` from `settings.cost.value`, may be a formula — not a cart quote, R-6); not paginated — **implemented S4** |
 | `mcp_woocommerce_list_orders` | `GET /wp-json/wc/v3/orders` | `{ status?, after?, before?, page?, pageSize? }` | Owner use; filters by status/date — **implemented S5** |
 | `mcp_woocommerce_get_order` | `GET /wp-json/wc/v3/orders/{id}` | `{ id: string }` | Detail: line items + condensed `customer` (contact + shipping address) — **implemented S5** |
+| `mcp_woocommerce_price_cart` | Store API `wc/store/v1/cart` (throwaway, emptied) | `{ items: {productId, quantity}[], destination? }` | What the store's cart charges per line + totals (cart-level pricing rules included) — **#140**, see [`../woocommerce-cart-pricing/api-contract.md`](../woocommerce-cart-pricing/api-contract.md) |
 
 > **Not a tool (by design):** a composite `get_shipping_options(location)` that resolves which zone applies to a customer address and returns its options is **not** an MCP tool — the zone-matching (country/state/postcode ranges) is WooCommerce-internal business logic and must not live in the adapter. If ever needed, it is a **backend use case** over the three thin shipping tools, decided separately. `list_coupons`/`list_payment_gateways` are also out of v1 (see feature design § Out of Scope / Fase 2).
 
