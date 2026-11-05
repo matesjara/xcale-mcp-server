@@ -45,8 +45,8 @@ const isoDateTime = z.iso.datetime({ offset: true });
 
 /**
  * A room's full record — the fields create and modify both send (contract §A.9) minus what the provider
- * fills. `status` accepts only the value observed (`RESERVATION`); which status a hotel books in is its
- * choice, so another value joins additively once it is observed (design AD-6).
+ * fills. `status` is the hotel's call (design AD-6; CPO 2026-11-03, #192): any non-empty value is sent,
+ * and Avirato judges it — a value it does not take comes back as its own refusal.
  */
 const roomRecord = {
   space_subtype_id: id,
@@ -56,7 +56,7 @@ const roomRecord = {
   check_out: isoDateTime,
   regime: z.string().trim().min(1).max(16),
   rate_id: id,
-  status: z.literal('RESERVATION'),
+  status: z.string().trim().min(1).max(64),
   client: z
     .object({
       client_doc: z.string().trim().min(1).max(64),
@@ -102,8 +102,18 @@ const reservationRoom = z
  * The room of an existing reservation, as modify takes it: the full record again. Observed on the
  * sandbox 2026-10-31 — a partial body (status alone, status and client) answers `400 ERROR_ON_UPDATE`,
  * and `quantity` is refused ("Cannot set quantity when modifying."), so it is not accepted here.
+ * Avirato REPLACES the record, so `observations` and `additional_beds` have no default here: a staff note
+ * or an extra bed is never erased because a caller left it out; `''` and `0` clear them on purpose
+ * (CTO 2026-11-03, #192).
  */
-const modifiedRoom = z.object(roomRecord).strict().refine(checkOutAfterCheckIn, checkOutIssue);
+const modifiedRoom = z
+  .object({
+    ...roomRecord,
+    observations: z.string().max(500),
+    additional_beds: z.number().int().min(0),
+  })
+  .strict()
+  .refine(checkOutAfterCheckIn, checkOutIssue);
 
 /** The longest window `GET /reservation/dates` answers (observed: 12 months and a day; 13 months fails). */
 const MAX_LIST_WINDOW_DAYS = 366;
@@ -478,8 +488,9 @@ export function buildAviratoTools(
         'reservation and its charges; if an extra or an advance is there, it modifies NOTHING and ' +
         'answers WOULD_REMOVE with what would be lost (resolve an extra’s id with `list_extras`). No ' +
         'amount and no quantity: Avirato reprices the stay itself. A modify clears the reconciliation tag ' +
-        '(`promotional_package` becomes "") and Avirato refuses `external_code` here; `observations` are ' +
-        'kept. At most one mutation per call, never retried. Returns Avirato’s updated reservation rows ' +
+        '(`promotional_package` becomes "") and Avirato refuses `external_code` here. `observations` and ' +
+        '`additional_beds` are required: they are kept only as stated, so send them as read (`""` and `0` ' +
+        'clear them). `status` is sent as given. At most one mutation per call, never retried. Returns Avirato’s updated reservation rows ' +
         'verbatim. A cancelled reservation cannot be modified.',
       input: z
         .object({
@@ -548,8 +559,8 @@ export function buildAviratoTools(
               price: payment,
               advance: args.advance ?? { total_advance: 0, advance_type: 'CASH' },
               operator_reservation_id: '0',
-              observations: observations ?? '',
-              additional_beds: additional_beds ?? 0,
+              observations,
+              additional_beds,
               extras: args.extras ?? [],
             },
           ],

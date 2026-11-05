@@ -571,6 +571,17 @@ describe('avirato provider — S6 create_reservation and cancel_reservation', ()
     expect(result).toMatchObject({ kind: 'success', data: created.data });
   });
 
+  it('create sends the status the caller states — the hotel’s call, Avirato the judge', async () => {
+    const { capture } = await callWith(
+      'mcp_avirato_create_reservation',
+      { rooms: [{ ...room, status: 'Bloqueo' }] },
+      created,
+      201,
+    );
+
+    expect(JSON.parse(capture[0]?.init.body ?? '{}').rooms[0].status).toBe('Bloqueo');
+  });
+
   it('create carries a promotional code and observations when given, and no amount ever', async () => {
     const { capture } = await callWith(
       'mcp_avirato_create_reservation',
@@ -588,7 +599,7 @@ describe('avirato provider — S6 create_reservation and cancel_reservation', ()
 
   it.each([
     [{ rooms: [] }, 'no room'],
-    [{ rooms: [{ ...room, status: 'Reserva' }] }, 'a status Avirato’s create does not take'],
+    [{ rooms: [{ ...room, status: ' ' }] }, 'a blank status'],
     [{ rooms: [{ ...room, check_out: room.check_in }] }, 'a check-out not after check-in'],
     [{ rooms: [{ ...room, check_in: '2027-02-16' }] }, 'a check-in that is not a datetime'],
     [
@@ -813,6 +824,8 @@ describe('avirato provider — S9 modify_reservation', () => {
     status: 'RESERVATION',
     client: { client_doc: 'TEST-0001', name: 'Ana', surname: 'Prueba', email: 'ana@example.test' },
     payment: { payment_type: 'CASH', is_paid: false },
+    observations: '',
+    additional_beds: 0,
   };
 
   it('is routable by name but withdrawn from the agent menu', () => {
@@ -879,6 +892,15 @@ describe('avirato provider — S9 modify_reservation', () => {
       'a check-out not after check-in',
     ],
     [{ room }, 'no reservation id'],
+    [
+      { reservation_id: 901, room: { ...room, observations: undefined }, ...stated },
+      'no observations — a staff note is never erased by omission',
+    ],
+    [
+      { reservation_id: 901, room: { ...room, additional_beds: undefined }, ...stated },
+      'no additional_beds — an extra bed is never erased by omission',
+    ],
+    [{ reservation_id: 901, room: { ...room, status: '' }, ...stated }, 'a blank status'],
   ] as Array<[Record<string, unknown>, string]>)(
     'refuses %j (%s) before reaching Avirato',
     async (args) => {
@@ -888,6 +910,25 @@ describe('avirato provider — S9 modify_reservation', () => {
       expect(capture).toHaveLength(0);
     },
   );
+
+  it('carries the note, the extra bed and the status exactly as stated', async () => {
+    const { capture } = await callWith(
+      'mcp_avirato_modify_reservation',
+      {
+        reservation_id: 901,
+        room: { ...room, observations: 'Alergia al maní', additional_beds: 1, status: 'Bloqueo' },
+        ...stated,
+      },
+      modified,
+    );
+
+    const sent = JSON.parse(capture[0]?.init.body ?? '{}').rooms[0];
+    expect(sent).toMatchObject({
+      observations: 'Alergia al maní',
+      additional_beds: 1,
+      status: 'Bloqueo',
+    });
+  });
 
   it('a modify Avirato refuses comes back typed, and is not retried', async () => {
     const refused = {
@@ -932,6 +973,8 @@ describe('avirato provider — S9 what modify does to the tag and to a cancelled
     status: 'RESERVATION',
     client: { client_doc: 'TEST-0001', name: 'Ana', surname: 'Prueba' },
     payment: { payment_type: 'CASH', is_paid: false },
+    observations: '',
+    additional_beds: 0,
   };
 
   it('refuses external_code — Avirato rejects it on modify ("property externalCode should not exist")', async () => {
@@ -1109,6 +1152,8 @@ describe('avirato provider — modify never silently wipes what the hotel added'
     status: 'RESERVATION',
     client: { client_doc: 'TEST-0001', name: 'Ana', surname: 'Prueba' },
     payment: { payment_type: 'CASH', is_paid: false },
+    observations: '',
+    additional_beds: 0,
   };
   const roomCharge = { type: 'habitacion', concept: 'Cabaña Azul', quantity: 1, total: 395000 };
   const extraCharge = {
@@ -1252,6 +1297,8 @@ describe('avirato provider — second review fixes', () => {
     status: 'RESERVATION',
     client: { client_doc: 'TEST-0001', name: 'Ana', surname: 'Prueba' },
     payment: { payment_type: 'CASH', is_paid: false },
+    observations: '',
+    additional_beds: 0,
   };
   const extraCharge = {
     type: 'extra',
