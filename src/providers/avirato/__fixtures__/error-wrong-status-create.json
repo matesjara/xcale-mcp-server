@@ -1,0 +1,7 @@
+{
+  "statusCode": 400,
+  "timestamp": "2026-11-05T17:16:26.908Z",
+  "path": "/v3/reservation?web_code=73985671",
+  "errorCode": "WRONG_STATUS_TYPE",
+  "message": "Wrong status type"
+}

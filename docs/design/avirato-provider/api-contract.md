@@ -3,7 +3,7 @@
 > **Module**: `src/providers/avirato/` (xcale-mcp-server). The connection's registration and the mint live in xcale-backend (Rail A); they are referenced here, not specified.
 > **Kind**: external-provider adapter contract. It documents three surfaces: (A) **Avirato's API v3, as observed**, (B) the **`credential_exchange` authDescriptor**, (C) the **MCP tools** the provider publishes.
 > **Upstream**: [feature-design.md](feature-design.md) · ADR [credential-exchange-response-path-and-token-ttl](../../adr/credential-exchange-response-path-and-token-ttl.md) · the evidence comments on matesjara/xcale-mcp-server#189.
-> **Last updated**: 2026-10-31.
+> **Last updated**: 2026-11-05.
 
 > **🔬 Evidence.** Every wire value below was observed against Avirato's real API.
 >
@@ -200,14 +200,15 @@ Query: `web_code`, `start_date`, `end_date` (`YYYY-MM-DD`, both nights inclusive
 }
 ```
 
-- **The full record, every time.** A partial room (status alone, or status and client) answers `400 ERROR_ON_UPDATE "Unable to modify the reservation"`. `status` is required (`Wrong status type` without it). `quantity` is refused (`Cannot set quantity when modifying.`).
+- **The full record, every time.** A partial room (status alone, or status and client) answers `400 ERROR_ON_UPDATE "Unable to modify the reservation"`. `status` is required (`Wrong status type` without it), and `RESERVATION` is the only value taken (below). `quantity` is refused (`Cannot set quantity when modifying.`).
 - **The rate is `rateId`** (camelCase), where create takes `rate_id`.
 - **The path takes the `reservation_id`.** A single-room reservation has no master (`master_reservation_id` is `""` on create and `0` after a modify).
 - **Avirato reprices.** Going from one night to two moved `price` from 395000 to 790000, exactly the two-night quote. Fewer adults on the same night kept 395000.
-- **The reconciliation tag is cleared.** After any modify, `promotional_package` reads `""`. A top-level `external_code` is refused on modify (`400 property externalCode should not exist`), although the spec lists it. `observations` are kept, since they are part of the record.
+- **The reconciliation tag is cleared.** After any modify, `promotional_package` reads `""`. A top-level `external_code` is refused on modify (`400 property externalCode should not exist`), although the spec lists it.
+- **The record stands as sent; what is left out of the client is kept** (sandbox, 2026-11-05). Reservation 252 carried a note, an extra bed and `operator_reservation_id: "777"`; moved one night with the note and the bed sent as read and `operator_reservation_id: "0"`, it kept the note, the bed, the operator id, the full client and its price (790000, same rate). Reservation 253, modified with only the client's document, name, surname, state and country, kept its email, phone, city, address and zip code. **[CTO 2026-11-03]** `observations` and `additional_beds` are therefore required on modify (§C.1): the record is replaced, so a field left out would be blanked.
 - **A cancelled reservation cannot be modified:** `400 ERROR_RETRIEVING_DATA`.
 - **A modify replaces extras and the advance with what it sends** (observed, reservation 241): sent without them, a 25000 extra charge disappeared and an advance of 50000 became 0. Sent with them, as `extras: [{ extra_id, quantity }]` and `advance: { total_advance, advance_type: "CASH" }`, both are kept (reservation 242). Reads give the advance (`advance`), and give the extras only as charges (`GET /charge/{id}`, `type: "extra"`, by `concept`, with no `extra_id`). **[CTO 2026-10-31]** The tool guards this (§C).
-- **Not observed:** `predefinedCharges` on a modify.
+- **`predefinedCharges` on a modify cannot be observed.** The spec's modify has no such field, and the hotel has no predefined charge (`GET /predefined_charge` answers `data: []`, sandbox 2026-11-05). Create sends `[]`.
 
 **By date — `GET /reservation/dates`** (observed on production, 2026-10-30) → `200 { status, data: DatedRow[][], meta: { take, itemCount, itemRemaining, hasNextPage, cursor } }`.
 
@@ -222,7 +223,7 @@ Query: `web_code`, `start_date`, `end_date` (`YYYY-MM-DD`, both nights inclusive
 - Cancelled (`Reserva cancelada`) and deleted (`Eliminada`) reservations are listed.
 - Pagination is by cursor: pass `meta.cursor` back while `meta.hasNextPage`. Each page counts against the 600 requests / 5 min per IP limit.
 
-**Statuses** seen on the wire: `Reserva`, `Reserva confirmada`, `Reserva cancelada`, `Eliminada`. The create input takes `RESERVATION`.
+**Statuses** seen on the wire: `Reserva`, `Reserva confirmada`, `Reserva cancelada`, `Eliminada`. The input takes only `RESERVATION`, which reads back as `Reserva` (sandbox, 2026-11-05). Create refuses every other value tried — `CONFIRMED`, `Reserva`, `Reserva confirmada`, `PRE_RESERVATION`, `BLOCKED`, `OPTION`, `PREBOOKING`, `reservation` — with `400 WRONG_STATUS_TYPE "Wrong status type"`. Modify refuses `CONFIRMED`, `Reserva confirmada`, `CHECKIN` and `reservation` with `400 ERROR_VALIDATING_DATA "Wrong status type"`, and the reservation stays as it was. No input holds a room provisionally.
 
 ### A.10 `GET /reservation/urls/{reservation_id}`
 
@@ -333,7 +334,7 @@ create_reservation: {
     check_in: string; check_out: string;                                                           // ISO 8601 datetimes
     regime: string;                                                                                // a /regime name, e.g. "BB"
     rate_id: number;
-    status: 'RESERVATION';                                                                         // the one value observed
+    status: string;                                                                                // the hotel's call; only "RESERVATION" observed accepted
     client: { client_doc: string; name: string; surname: string; email?: string; phone?: string;
               state?: string; country?: string; city?: string; address?: string; zip_code?: string }; // country: ISO 3166-1 alpha-3 ("COL")
     payment: { payment_type: 'CASH' | 'CARD' | 'TRANSFER' | 'CREDIT' | 'OTHER'; is_paid: boolean }; // sent as Avirato's `price`
@@ -349,11 +350,11 @@ modify_reservation: {
   room: {                                                                                           // the FULL record, as it should stand
     space_subtype_id: number; adults: number; children: number;                                    // no quantity
     check_in: string; check_out: string; regime: string; rate_id: number;                          // rate_id is sent as Avirato's `rateId`
-    status: 'RESERVATION';
+    status: string;                                                                                // sent as given; Avirato judges it
     client: { client_doc: string; name: string; surname: string; email?: string; phone?: string;
               state?: string; country?: string; city?: string; address?: string; zip_code?: string };
     payment: { payment_type: 'CASH' | 'CARD' | 'TRANSFER' | 'CREDIT' | 'OTHER'; is_paid: boolean };
-    observations?: string; additional_beds?: number;
+    observations: string; additional_beds: number;                                                 // required: kept only as stated ("" and 0 clear them)
   };
 }
 cancel_reservation:         { reservation_id: number }
@@ -368,7 +369,8 @@ list_reservations: {
 
 - **`create_reservation` takes no amount.** Its `payment` input is sent as Avirato's `price` field, renamed so that no reader mistakes it for an amount.
 - The provider fills the fields Avirato requires that the consumer has no say in: `operator_reservation_id: "0"`, `advance: { total_advance: 0, advance_type: "CASH" }` (the only advance type observed accepted), `extras: []` and `predefinedCharges: []`.
-- `status` accepts only the value observed. A tenant's choice of status widens it by an additive revision once a second value is observed (AD-6).
+- **`status` is the hotel's call [CPO 2026-11-03]:** any non-empty value is sent as given, and Avirato judges it. Only `RESERVATION` has been seen accepted; a value it does not take comes back as `PROVIDER_INVALID_INPUT` with `Wrong status type` (create: `WRONG_STATUS_TYPE`; modify: `ERROR_VALIDATING_DATA`).
+- **`modify_reservation` requires `observations` and `additional_beds` [CTO 2026-11-03]**, with no default: a call that omits one fails validation before anything reaches Avirato, and `""` or `0` clears it on purpose. Create keeps its defaults (`""`, `0`).
 
 ### C.2 Results
 

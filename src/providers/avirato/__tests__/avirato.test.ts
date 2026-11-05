@@ -18,6 +18,8 @@ import created from '../__fixtures__/create.json';
 import errorInvalidToken from '../__fixtures__/error-invalid-token.json';
 import errorRetrieving from '../__fixtures__/error-retrieving.json';
 import errorValidation from '../__fixtures__/error-validation.json';
+import errorWrongStatusCreate from '../__fixtures__/error-wrong-status-create.json';
+import errorWrongStatusModify from '../__fixtures__/error-wrong-status-modify.json';
 import establishment from '../__fixtures__/establishment.json';
 import extra from '../__fixtures__/extra.json';
 import modified from '../__fixtures__/modify.json';
@@ -582,6 +584,19 @@ describe('avirato provider — S6 create_reservation and cancel_reservation', ()
     expect(JSON.parse(capture[0]?.init.body ?? '{}').rooms[0].status).toBe('Bloqueo');
   });
 
+  it('a status Avirato’s create does not take comes back as its validation refusal', async () => {
+    const { result } = await callWith(
+      'mcp_avirato_create_reservation',
+      { rooms: [{ ...room, status: 'CONFIRMED' }] },
+      errorWrongStatusCreate,
+      400,
+    );
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+    expect((result as { message: string }).message).toContain('WRONG_STATUS_TYPE');
+    expect((result as { message: string }).message).toContain('Wrong status type');
+  });
+
   it('create carries a promotional code and observations when given, and no amount ever', async () => {
     const { capture } = await callWith(
       'mcp_avirato_create_reservation',
@@ -928,6 +943,40 @@ describe('avirato provider — S9 modify_reservation', () => {
       additional_beds: 1,
       status: 'Bloqueo',
     });
+  });
+
+  it('returns Avirato’s updated reservation rows (sandbox, 2026-11-05: note, bed and operator id kept)', async () => {
+    const { result } = await callWith(
+      'mcp_avirato_modify_reservation',
+      { reservation_id: 901, room, ...stated },
+      modified,
+    );
+
+    expect(result).toMatchObject({
+      kind: 'success',
+      data: [
+        {
+          reservation_id: 252,
+          status: 'Reserva',
+          observations: 'QA #192 — nota del staff: alergia al maní',
+          additional_beds: 1,
+          operator_reservation_id: '777',
+        },
+      ],
+    });
+  });
+
+  it('a status Avirato does not take comes back as its own validation refusal', async () => {
+    const { result, capture } = await callWith(
+      'mcp_avirato_modify_reservation',
+      { reservation_id: 901, room: { ...room, status: 'CONFIRMED' }, ...stated },
+      errorWrongStatusModify,
+      400,
+    );
+
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+    expect((result as { message: string }).message).toContain('Wrong status type');
+    expect(capture).toHaveLength(1);
   });
 
   it('a modify Avirato refuses comes back typed, and is not retried', async () => {

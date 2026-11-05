@@ -441,7 +441,8 @@ export function buildAviratoTools(
         'call is at most one reservation request, never retried here, so a consumer that retries first ' +
         'looks for its `external_code` (Avirato returns it as `promotional_package`). No amount is ' +
         'sent: Avirato prices the stay itself, as its quote does; `payment` only says how it is paid. ' +
-        'Send the full client — Avirato creates or updates it inline. Returns Avirato’s reservation ' +
+        'Send the full client — Avirato creates or updates it inline. `status` is the hotel’s call, sent ' +
+        'as given; Avirato judges it (only `RESERVATION` observed accepted). Returns Avirato’s reservation ' +
         'rows verbatim, with their charges and draft bill.',
       input: z
         .object({
@@ -490,7 +491,8 @@ export function buildAviratoTools(
         'amount and no quantity: Avirato reprices the stay itself. A modify clears the reconciliation tag ' +
         '(`promotional_package` becomes "") and Avirato refuses `external_code` here. `observations` and ' +
         '`additional_beds` are required: they are kept only as stated, so send them as read (`""` and `0` ' +
-        'clear them). `status` is sent as given. At most one mutation per call, never retried. Returns Avirato’s updated reservation rows ' +
+        'clear them); client fields left out are kept. `status` is sent as given and Avirato judges it ' +
+        '(only `RESERVATION` observed accepted). At most one mutation per call, never retried. Returns Avirato’s updated reservation rows ' +
         'verbatim. A cancelled reservation cannot be modified.',
       input: z
         .object({
