@@ -53,8 +53,12 @@ export const cloudbedsManifest: ProviderManifest = {
   // is accepted; xcale-backend already sends only `status: 'canceled'` and always stamps
   // `thirdPartyIdentifier`, so its calls are unchanged. The status description states what each
   // front-desk status does in Cloudbeds and leaves when to send it to the tenant's instructions.
-  schemaVersion: '2026-10-22',
-  providerVersion: '0.13.0',
+  // Bumped again: `find_guest_reservations` is a new tool, published with the record-lookup
+  // vocabulary of ADR 0023 (xcale-backend#1852, Own Records).
+  // Bumped again (xcale-backend#1859): the lookup names the id space of its reservation ids
+  // (`cloudbeds:reservation`), so they compare with the by-id tools' ids.
+  schemaVersion: '2026-10-27',
+  providerVersion: '0.14.1',
   logoUrl: '/assets/cloudbeds.svg',
   capabilities: { pagination: true },
   // A Cloudbeds token is scoped to its property; discover the propertyID via getHotels instead of

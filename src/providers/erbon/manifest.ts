@@ -25,6 +25,10 @@ export const erbonManifest: ProviderManifest = {
   category: 'hospitality',
   // The house tile (black, rx 6, the mark in white), traced from Erbon's own chevron.
   logoUrl: `/assets/${SLUG}.svg`,
-  schemaVersion: '2026-10-06',
-  providerVersion: '0.3.0',
+  // `providerVersion` 0.3.1 (2026-10-26, for traceability): `list_currencies` (#137) is a backend-only read,
+  // withdrawn from `tools/list`, so the published contract did not move and `schemaVersion` stays.
+  // 0.4.0 (xcale-backend#1859): `find_guest_bookings` is a new published tool, a record lookup in the
+  // vocabulary of ADR 0023 (Own Records), so the published contract moves.
+  schemaVersion: '2026-10-27',
+  providerVersion: '0.4.0',
 };

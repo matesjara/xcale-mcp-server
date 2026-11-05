@@ -519,7 +519,11 @@ export function buildHimedTools(
     // Each result item carries its `idCita` (`[{ idCita, textoCita }]`), so a patient who has not been
     // verified still sees the citas THEY booked through this channel (the consumer filters the list to
     // owned records); everything else on that cédula stays withheld until Tier 2.
-    identityPolicy: { ...actsOnPatient('idPaciente'), ownedResultField: 'idCita' },
+    identityPolicy: {
+      ...actsOnPatient('idPaciente'),
+      ownedResultField: 'idCita',
+      recordOwnershipKind: 'himed:cita',
+    },
     input: z
       .object({
         idPaciente: z.string().min(4).max(20),
@@ -542,7 +546,11 @@ export function buildHimedTools(
     // Subject-bound on the patient (Tier 2: a verified cédula) AND record-ownership on the cita
     // (Tier 1): a patient may cancel an appointment THEY booked through this channel even before the
     // clinic has verified them, while cancelling anyone else's stays gated.
-    identityPolicy: { ...actsOnPatient('idPaciente'), recordOwnershipField: 'idCita' },
+    identityPolicy: {
+      ...actsOnPatient('idPaciente'),
+      recordOwnershipField: 'idCita',
+      recordOwnershipKind: 'himed:cita',
+    },
     input: z
       .object({
         idCita: z.string().min(1),

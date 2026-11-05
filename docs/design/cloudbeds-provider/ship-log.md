@@ -16,6 +16,9 @@
 | `get_room_calendar` — forward availability | **released** | PR #62, merged into `dev` 2026-09-25; on `main` since release #110 (2026-09-27) — verified against `main`'s history |
 | Per-tool audience marks, `get_reservation_rate_details`, `modify_reservation` `rooms[]` shape | **released** 2026-10-19 | PR #131, release #150 |
 | `readOnlyHint` on the reads a knowledge source needs; `list_addons` pages | **released** 2026-10-19 | PR #134, release #150 |
+| Each date's weekday on availability and the calendar | **released** 2026-10-28 | PR #163, release #157 (merge `0eec0b69`) |
+| Reservation write tools' inputs hardened (status enum, required `thirdPartyIdentifier`) | **released** 2026-10-28 | PR #164, release #157 |
+| `unwrap` says what Cloudbeds said and survives a non-object 200; its review follow-ups | **released** 2026-10-28 | PRs #165 and #173, release #157 |
 
 ---
 

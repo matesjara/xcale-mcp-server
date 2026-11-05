@@ -76,6 +76,7 @@ describe('HiMed unified provider — credential groups', () => {
       mode: 'subject-bound',
       identityFields: ['idPaciente'],
       ownedResultField: 'idCita',
+      recordOwnershipKind: 'himed:cita',
       alwaysEnforce: true,
     });
     // Cancel is also record-owned (Tier 1): a patient may cancel the cita THEY booked here.
@@ -83,6 +84,7 @@ describe('HiMed unified provider — credential groups', () => {
       mode: 'subject-bound',
       identityFields: ['idPaciente'],
       recordOwnershipField: 'idCita',
+      recordOwnershipKind: 'himed:cita',
       alwaysEnforce: true,
     });
     expect(byName['mcp_himed_change_patient_document']?.identityPolicy).toEqual({

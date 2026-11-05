@@ -1,0 +1,35 @@
+{
+  "status": "success",
+  "data": [
+    {
+      "extra_id": 7,
+      "cost": 30000,
+      "vat": 19,
+      "category": "Servicios",
+      "stock": 10,
+      "selectable_qty": true,
+      "space_subtype_ids": [2],
+      "rate_ids": [2],
+      "names": {
+        "es": "Masaje",
+        "en": "Massage",
+        "fr": "Massage",
+        "de": "Massage",
+        "it": "Massaggio",
+        "ru": "Массаж",
+        "pt": "Massagem",
+        "ca": "Massatge"
+      },
+      "descriptions": {
+        "es": "Masaje de ejemplo",
+        "en": "Example massage",
+        "fr": "",
+        "de": "",
+        "it": "",
+        "ru": "",
+        "pt": "",
+        "ca": ""
+      }
+    }
+  ]
+}
