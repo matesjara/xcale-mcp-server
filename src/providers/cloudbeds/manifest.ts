@@ -58,8 +58,8 @@ export const cloudbedsManifest: ProviderManifest = {
   // reservation ids (`cloudbeds:reservation`).
   // Bumped again (xcale-backend#1859): nine tools that reach one reservation or one guest by its id
   // now publish a `subject-bound` policy with that id as the record field and the `recordAction` of
-  // what they do with it (`read`, or `change` for the writes), and `assign_guest_to_room` publishes
-  // `subject-scoped`.
+  // what they do with it (`read`, or `change` for the writes; `modify_reservation` declares none, as it
+  // also cancels), and `assign_guest_to_room` publishes `subject-scoped`.
   schemaVersion: '2026-10-27',
   providerVersion: '0.16.0',
   logoUrl: '/assets/cloudbeds.svg',
