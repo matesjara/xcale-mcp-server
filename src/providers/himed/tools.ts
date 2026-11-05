@@ -67,12 +67,18 @@ export function buildHimedTools(
    * consumer's job — this server only says which field names the patient.
    *
    * `alwaysEnforce: true` because this is health data (Ley 1581): its protection is not the clinic's
-   * to opt out of, so the consumer gates it regardless of the tenant's identity mode. (The CREATE
-   * tools — book/register — carry no policy at all and stay open; creating is not reading someone's
-   * records.)
+   * to opt out of, so the consumer gates it regardless of the tenant's identity mode. Every patient
+   * field is a document number (`identityFieldKinds`, ADR 0023): it never compares as a phone.
+   * (Registering a patient carries no policy and stays open; booking declares only what it creates —
+   * creating is not reading someone's records.)
    */
   const actsOnPatient = (...identityFields: string[]) =>
-    ({ mode: 'subject-bound', identityFields, alwaysEnforce: true }) as const;
+    ({
+      mode: 'subject-bound',
+      identityFields,
+      identityFieldKinds: Object.fromEntries(identityFields.map((f) => [f, 'document' as const])),
+      alwaysEnforce: true,
+    }) as const;
 
   /** Autoagendamiento dispatch: adds `accion` + `codigo_servicio` (context); the materializer injects `token`. */
   const call = (ctx: Ctx, accion: string, fields: Record<string, unknown>) =>
@@ -473,10 +479,20 @@ export function buildHimedTools(
     name: 'mcp_himed_create_appointment',
     description: 'Book an appointment for an existing patient. Confirm the patient exists first.',
     credentialGroup: 'autoagendamiento',
-    // Intentionally NO identityPolicy: booking a NEW appointment must work for a patient who is not
-    // verified yet (the common first contact). Booking neither reads nor cancels anyone's data — the
-    // worst case is a spurious appointment the clinic sees and manages. The leak the gate exists for
-    // is reading/cancelling an existing patient's data, which stays protected (cancel/list below).
+    // Declares only what it CREATES (ADR 0023 `createdRecordIdField`): the new cita belongs to whoever
+    // booked it, by construction, so they can later see and cancel it (Tier 1). No identity field:
+    // booking a NEW appointment must work for a patient who is not verified yet (the common first
+    // contact), and booking neither reads nor cancels anyone's data — the worst case is a spurious
+    // appointment the clinic sees and manages. The leak the gate exists for is reading/cancelling an
+    // existing patient's data, which stays protected (cancel/list below). A consumer must read a
+    // policy that only creates as a create, never as a call scoped to nobody.
+    identityPolicy: {
+      mode: 'subject-bound',
+      identityFields: [],
+      recordKind: 'appointment',
+      createdRecordIdField: 'idCita',
+      recordOwnershipKind: 'himed:cita',
+    },
     input: z
       .object({
         idPaciente: z.string().min(4).max(20),
@@ -519,10 +535,18 @@ export function buildHimedTools(
     // Each result item carries its `idCita` (`[{ idCita, textoCita }]`), so a patient who has not been
     // verified still sees the citas THEY booked through this channel (the consumer filters the list to
     // owned records); everything else on that cédula stays withheld until Tier 2.
+    // Its rows are `{ idCita, textoCita }`: no identity and no date (Q-5, xcale-backend#1842), so it is
+    // no record lookup. `textoCita` is a text HiMed composes with the date, the place and the DOCTOR,
+    // so it is declared more sensitive than the projection (`projectionDetail`), and nothing is safe
+    // to show by default (`projection: []`, said, not omitted).
     identityPolicy: {
       ...actsOnPatient('idPaciente'),
       ownedResultField: 'idCita',
       recordOwnershipKind: 'himed:cita',
+      recordKind: 'appointment',
+      resultRecordIdField: 'idCita',
+      projection: [],
+      projectionDetail: ['textoCita'],
     },
     input: z
       .object({
@@ -550,6 +574,8 @@ export function buildHimedTools(
       ...actsOnPatient('idPaciente'),
       recordOwnershipField: 'idCita',
       recordOwnershipKind: 'himed:cita',
+      recordKind: 'appointment',
+      recordAction: 'cancel',
     },
     input: z
       .object({

@@ -67,41 +67,61 @@ describe('HiMed unified provider — credential groups', () => {
       expect(byName[name]?.identityPolicy, name).toEqual({
         mode: 'subject-bound',
         identityFields: ['idPaciente'],
+        identityFieldKinds: { idPaciente: 'document' },
         alwaysEnforce: true,
       });
     }
     // The appointment list is filtered to owned records: a patient sees the citas THEY booked here,
     // and a stranger's cédula returns nothing of that patient's.
+    // Its rows carry no identity and no date, so it is no record lookup; `textoCita` names the doctor,
+    // so it is detail, and nothing is safe to show by default (Q-5).
     expect(byName['mcp_himed_list_patient_appointments']?.identityPolicy).toEqual({
       mode: 'subject-bound',
       identityFields: ['idPaciente'],
+      identityFieldKinds: { idPaciente: 'document' },
       ownedResultField: 'idCita',
       recordOwnershipKind: 'himed:cita',
+      recordKind: 'appointment',
+      resultRecordIdField: 'idCita',
+      projection: [],
+      projectionDetail: ['textoCita'],
       alwaysEnforce: true,
     });
     // Cancel is also record-owned (Tier 1): a patient may cancel the cita THEY booked here.
     expect(byName['mcp_himed_cancel_appointment']?.identityPolicy).toEqual({
       mode: 'subject-bound',
       identityFields: ['idPaciente'],
+      identityFieldKinds: { idPaciente: 'document' },
       recordOwnershipField: 'idCita',
       recordOwnershipKind: 'himed:cita',
+      recordKind: 'appointment',
+      recordAction: 'cancel',
       alwaysEnforce: true,
     });
     expect(byName['mcp_himed_change_patient_document']?.identityPolicy).toEqual({
       mode: 'subject-bound',
       identityFields: ['idPacienteActual', 'idPacienteNuevo'],
+      identityFieldKinds: { idPacienteActual: 'document', idPacienteNuevo: 'document' },
       alwaysEnforce: true,
     });
   });
 
-  it('the CREATE tools are intentionally open — a new patient must be able to register and book', () => {
+  it('the CREATE tools are open — a new patient can register and book; booking declares only what it creates', () => {
     // Creating a patient or booking an appointment cannot require prior verification (there is nothing
     // to bind to yet) and neither reads nor cancels anyone's data. Gating them would lock a new patient
     // out of the clinic. The protection is on the reads and cancel/change above, where the leak is.
     const provider = createHimedProvider({ ...HOSTS, fetchImpl: fakeFetch(200, []) });
     const byName = Object.fromEntries(provider.listTools().map((t) => [t.name, t]));
     expect(byName['mcp_himed_create_patient']?.identityPolicy).toBeUndefined();
-    expect(byName['mcp_himed_create_appointment']?.identityPolicy).toBeUndefined();
+    // No identity field and nothing it reads: the policy says only that the new cita (its `idCita`)
+    // belongs to whoever booked it (ADR 0023). Never `alwaysEnforce`: booking stays open.
+    expect(byName['mcp_himed_create_appointment']?.identityPolicy).toEqual({
+      mode: 'subject-bound',
+      identityFields: [],
+      recordKind: 'appointment',
+      createdRecordIdField: 'idCita',
+      recordOwnershipKind: 'himed:cita',
+    });
   });
 
   it('a tool that READS a patient document never ships without an identity policy', () => {
