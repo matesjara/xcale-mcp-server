@@ -737,7 +737,9 @@ export function buildCloudbedsTools(
         identityFields: [],
         recordOwnershipField: 'reservationID',
         recordOwnershipKind: `${SLUG}:reservation`,
-        recordAction: 'change',
+        // No `recordAction`: this tool also cancels (status "canceled"), and a consent given for a
+        // change must never carry a cancellation. Cancellations go through the consumer's own booking
+        // tool (xcale-backend#1859, CTO 2026-11-03).
       },
       requiredScopes: ['write:reservation'], // spec: putReservation
       description:

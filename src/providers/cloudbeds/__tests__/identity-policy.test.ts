@@ -72,15 +72,16 @@ describe('cloudbeds publishes whose data each tool can reach', () => {
     // Each takes an id and names nobody: without a policy, a consumer enforcing "only the person
     // writing" would serve any guessed reservation or guest id (xcale-backend#1859, slice 25).
     // The action is what the call does to that record: `read` returns it, `change` writes it
-    // (`modify_reservation` also cancels, by status — one tool, so one action: the broader write).
-    const byId: Record<string, [string, string, 'read' | 'change']> = {
+    // `modify_reservation` also cancels, by status, so it declares no action: a consent given for a change
+    // must never carry a cancellation (CTO, xcale-backend#1859).
+    const byId: Record<string, [string, string, 'read' | 'change' | undefined]> = {
       mcp_cloudbeds_get_reservation: ['reservationID', 'cloudbeds:reservation', 'read'],
       mcp_cloudbeds_get_reservation_rate_details: [
         'reservationID',
         'cloudbeds:reservation',
         'read',
       ],
-      mcp_cloudbeds_modify_reservation: ['reservationID', 'cloudbeds:reservation', 'change'],
+      mcp_cloudbeds_modify_reservation: ['reservationID', 'cloudbeds:reservation', undefined],
       mcp_cloudbeds_list_reservation_notes: ['reservationID', 'cloudbeds:reservation', 'read'],
       mcp_cloudbeds_add_reservation_note: ['reservationID', 'cloudbeds:reservation', 'change'],
       mcp_cloudbeds_get_guest: ['guestID', 'cloudbeds:guest', 'read'],
@@ -95,7 +96,7 @@ describe('cloudbeds publishes whose data each tool can reach', () => {
         identityFields: [],
         recordOwnershipField: field,
         recordOwnershipKind: kind,
-        recordAction: action,
+        ...(action ? { recordAction: action } : {}),
       });
       const properties = Object.keys(
         (tool?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {},
