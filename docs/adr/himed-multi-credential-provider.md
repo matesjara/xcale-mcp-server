@@ -71,3 +71,25 @@ consumer's ADR 0065): with a real probe, no provider needs to connect unvalidate
 - **Reveal in the handler (variant b)** — rejected: moves `.reveal()` out of the materializer, breaking
   the single-reveal invariant and the pattern where HiMed handlers never touch the secret.
 - **One provider, one shared token** — impossible: the three HiMed APIs reject each other's tokens.
+
+## Amendment — 2026-11-06: Doctores is its own group
+
+The sandbox showed that the directory is two APIs, not one: HiMed's portal (Cliente › Administración de
+APIs) issues a separate key for **Sedes** and for **Doctores**, and each key 401s on the other's endpoint
+(`Sedes/consultarSedes.php` and `Usuarios/consultarUsuarios.php`). The reasoning above — one token per
+HiMed API, so one credential group per API — therefore gives **four** groups, not three:
+
+| Group | Tools | Secret (body) |
+|:--|:--|:--|
+| `demograficos` | patient create/update/change-document | `api_key` = Demográficos key |
+| `directorio` | list_locations | `api_key` = Sedes key |
+| `doctores` | list_doctors | `api_key` = Doctores key |
+| `autoagendamiento` | the scheduling set | `token` = Autoagendamiento key |
+
+- **Additive.** `directorio` keeps its key (it is the Sedes group; its connect label already read "Token de
+  sedes"), so a stored bundle stays valid for `list_locations`. `doctores` is new: `list_doctors` on a bundle
+  without it fails closed and never falls back to the Sedes key.
+- **Each group has its own probe** (`groups[].probe`; `list_doctors` for `doctores`), so a mistyped key is
+  caught at connect. This replaces the single `connectionProbe`-only validation described under Decision.
+- No clinic was connected to HiMed in production at the 2026-10-28 release (ship-log), so no stored connection needed a migration.
+

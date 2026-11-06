@@ -1,17 +1,19 @@
 /**
  * HiMed unified-provider sandbox E2E (S9 of himed-unified-provider).
  *
- * Drives the ONE `himed` provider through its three credential groups against the LIVE HiMed sandbox,
+ * Drives the ONE `himed` provider through its four credential groups against the LIVE HiMed sandbox,
  * proving the unification end-to-end: each tool resolves its own group secret and reaches its own host
  * (Demográficos + directory on demo.medsas.co, Autoagendamiento on demo-notificaciones.medsas.co),
- * from a single connection carrying the three-secret bundle + codigo_servicio.
+ * from a single connection carrying the four-secret bundle + codigo_servicio.
  *
  * Secrets come from the environment — NEVER committed (see docs/design/himed-unified-provider/ship-log.md).
- * Sandbox window per the ship-log: 2026-10-01 → 2026-10-09.
+ * The sandbox serves Monday to Friday, 7:00 a. m. to 5:00 p. m. (Colombia).
  *
- *   HIMED_DEMOGRAFICOS_TOKEN          Token Demográficos (patient writes)
- *   HIMED_DIRECTORIO_TOKEN            Token de Servicio (directory: sedes/doctores)
- *   HIMED_AUTOAGENDAMIENTO_TOKEN      Autoagendamiento token
+ * HiMed issues ONE key per API, from the portal's Cliente › Administración de APIs:
+ *   HIMED_DEMOGRAFICOS_TOKEN          Demográficos key, "desde software externo hacia HiMed" (patient writes)
+ *   HIMED_DIRECTORIO_TOKEN            Sedes key (the `directorio` group)
+ *   HIMED_DOCTORES_TOKEN              Doctores key (the `doctores` group)
+ *   HIMED_AUTOAGENDAMIENTO_TOKEN      Autoagendamiento key
  *   HIMED_CODIGO_SERVICIO             Autoagendamiento service code (the connection accountKey)
  *
  * Optional overrides (default to the sandbox hosts):
@@ -20,10 +22,11 @@
  *
  * Optional booking inputs (default to the ship-log's verified sandbox values):
  *   HIMED_E2E_ID_PACIENTE (1099999001), HIMED_E2E_ID_SEDE (1),
- *   HIMED_E2E_ID_USUARIO (1152442529), HIMED_E2E_FECHA (DD-MM-YYYY), HIMED_E2E_HORA (09:00:00)
+ *   HIMED_E2E_ID_USUARIO (1152442529), HIMED_E2E_HORA (09:00:00), HIMED_E2E_FECHA (DD-MM-YYYY;
+ *   default: the next business day at least two days ahead, Colombia time — HiMed rejects a past slot)
  *
  * Modes:
- *   - All four credential vars set  → FULL happy-path flow (mutates the sandbox, then cleans up).
+ *   - All five credential vars set  → FULL happy-path flow (mutates the sandbox, then cleans up).
  *   - Credentials absent            → PROBE mode (dummy secrets, no real credentials needed): asserts
  *                                     each group reaches its host and a bad token classifies as
  *                                     AUTH_EXPIRED. This is what runs in CI / a dev box with no secrets.
@@ -74,10 +77,13 @@ const SCHEDULING_BASE_URL =
 
 const demograficos = process.env.HIMED_DEMOGRAFICOS_TOKEN;
 const directorio = process.env.HIMED_DIRECTORIO_TOKEN;
+const doctores = process.env.HIMED_DOCTORES_TOKEN;
 const autoagendamiento = process.env.HIMED_AUTOAGENDAMIENTO_TOKEN;
 const codigoServicio = process.env.HIMED_CODIGO_SERVICIO;
 
-const HAVE_CREDS = Boolean(demograficos && directorio && autoagendamiento && codigoServicio);
+const HAVE_CREDS = Boolean(
+  demograficos && directorio && doctores && autoagendamiento && codigoServicio,
+);
 
 const provider = createHimedProvider({
   baseUrl: BASE_URL,
@@ -87,6 +93,7 @@ const provider = createHimedProvider({
 function ctx(secrets: {
   demograficos: string;
   directorio: string;
+  doctores: string;
   autoagendamiento: string;
   codigoServicio: string;
 }) {
@@ -96,6 +103,7 @@ function ctx(secrets: {
       secrets: {
         demograficos: new SecretString(secrets.demograficos),
         directorio: new SecretString(secrets.directorio),
+        doctores: new SecretString(secrets.doctores),
         autoagendamiento: new SecretString(secrets.autoagendamiento),
       },
     },
@@ -117,9 +125,18 @@ async function probeMode(): Promise<void> {
   const dummy = ctx({
     demograficos: 'xcale-s9-dummy',
     directorio: 'xcale-s9-dummy',
+    doctores: 'xcale-s9-dummy',
     autoagendamiento: 'xcale-s9-dummy',
     codigoServicio: '0000',
   });
+
+  // doctores group → demo.medsas.co/Usuarios/consultarUsuarios.php
+  const doc = await provider.callTool('mcp_himed_list_doctors', {}, dummy);
+  check(
+    'doctores group reached its host and classified a bad token as AUTH_EXPIRED',
+    doc.kind === 'error' && doc.code === 'PROVIDER_AUTH_EXPIRED',
+    doc,
+  );
 
   // directorio group → demo.medsas.co/Sedes/consultarSedes.php
   const dir = await provider.callTool('mcp_himed_list_locations', {}, dummy);
@@ -160,11 +177,26 @@ async function probeMode(): Promise<void> {
   );
 }
 
+/**
+ * The next business day at least two days ahead, as DD-MM-YYYY in Colombia time (UTC-5, no DST).
+ * A hard-coded date goes stale — HiMed answers "La fecha y hora de la cita no puede ser inferior a la
+ * fecha y hora actual" — so the default moves with the calendar.
+ */
+function defaultBookingDate(now: Date = new Date()): string {
+  const d = new Date(now.getTime() - 5 * 3_600_000); // shift to Colombia wall-clock, read with getUTC*
+  d.setUTCDate(d.getUTCDate() + 2);
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() + 1);
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${dd}-${mm}-${d.getUTCFullYear()}`;
+}
+
 async function fullFlow(): Promise<void> {
   console.log('\n=== FULL happy-path flow (live sandbox, with credentials) ===\n');
   const c = ctx({
     demograficos: demograficos!,
     directorio: directorio!,
+    doctores: doctores!,
     autoagendamiento: autoagendamiento!,
     codigoServicio: codigoServicio!,
   });
@@ -172,12 +204,16 @@ async function fullFlow(): Promise<void> {
   const idPaciente = process.env.HIMED_E2E_ID_PACIENTE ?? '1099999001';
   const idSede = process.env.HIMED_E2E_ID_SEDE ?? '1';
   const idUsuario = process.env.HIMED_E2E_ID_USUARIO ?? '1152442529';
-  const fechaCita = process.env.HIMED_E2E_FECHA ?? '08-10-2026';
+  const fechaCita = process.env.HIMED_E2E_FECHA ?? defaultBookingDate();
   const horaInicioCita = process.env.HIMED_E2E_HORA ?? '09:00:00';
 
   // 1) directory read (the probe tool) — directorio group
   const locations = await provider.callTool('mcp_himed_list_locations', {}, c);
   check('list_locations (directorio) succeeds', locations.kind === 'success', locations);
+
+  // 1b) the other directory API — its own key (the Sedes key 401s here)
+  const doctors = await provider.callTool('mcp_himed_list_doctors', {}, c);
+  check('list_doctors (doctores) succeeds', doctors.kind === 'success', doctors);
 
   // 2) create the test patient — demograficos group
   const patient = await provider.callTool(
@@ -266,7 +302,7 @@ async function main(): Promise<void> {
     HAVE_CREDS
       ? 'S9: full sandbox flow GREEN through the unified provider.'
       : 'S9 PROBE GREEN: unified provider routes each group to its host and classifies auth correctly. ' +
-          'Set HIMED_DEMOGRAFICOS_TOKEN / HIMED_DIRECTORIO_TOKEN / HIMED_AUTOAGENDAMIENTO_TOKEN / ' +
+          'Set HIMED_DEMOGRAFICOS_TOKEN / HIMED_DIRECTORIO_TOKEN / HIMED_DOCTORES_TOKEN / HIMED_AUTOAGENDAMIENTO_TOKEN / ' +
           'HIMED_CODIGO_SERVICIO for the full happy-path flow.',
   );
 }
