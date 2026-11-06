@@ -86,10 +86,16 @@ HiMed API, so one credential group per API — therefore gives **four** groups, 
 | `doctores` | list_doctors | `api_key` = Doctores key |
 | `autoagendamiento` | the scheduling set | `token` = Autoagendamiento key |
 
-- **Additive.** `directorio` keeps its key (it is the Sedes group; its connect label already read "Token de
-  sedes"), so a stored bundle stays valid for `list_locations`. `doctores` is new: `list_doctors` on a bundle
-  without it fails closed and never falls back to the Sedes key.
+- **Additive on the wire.** `directorio` keeps its key (it is the Sedes group; its connect label already read
+  "Token de sedes"), so the Sedes secret of a stored bundle stays valid. `doctores` is new: the provider
+  fails closed on a bundle without it and never falls back to the Sedes key.
+- **A connection stored before this change reconnects once.** The consumer treats a stored bundle that lacks a
+  declared group as a broken credential and asks that whole connection to reconnect
+  (`resolveStoredSecrets` in xcale-backend's `mcp-tool-executor.ts`), the same as when `codigo_servicio`
+  became a secret. The clinic enters the Doctores key then; if HiMed gave it one shared value, it pastes it
+  in each field.
 - **Each group has its own probe** (`groups[].probe`; `list_doctors` for `doctores`), so a mistyped key is
   caught at connect. This replaces the single `connectionProbe`-only validation described under Decision.
-- No clinic was connected to HiMed in production at the 2026-10-28 release (ship-log), so no stored connection needed a migration.
+- No clinic was connected to HiMed in production at the 2026-10-28 release (ship-log), so the reconnect should
+  reach only development connections. Confirm that before the release that ships this.
 
