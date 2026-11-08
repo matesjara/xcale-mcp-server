@@ -29,13 +29,14 @@ const HOSTS = {
   schedulingBaseUrl: 'https://himed-scheduling.test/envioConsumoAutoagendamiento',
 };
 
-/** A context carrying the three-group credential bundle + the codigo_servicio service context. */
+/** A context carrying the four-group credential bundle + the codigo_servicio service context. */
 const ctx = () => ({
   credential: {
     secret: new SecretString('IGNORED'),
     secrets: {
       demograficos: new SecretString('DEMO_SEC'),
       directorio: new SecretString('DIR_SEC'),
+      doctores: new SecretString('DOC_SEC'),
       autoagendamiento: new SecretString('SCHED_SEC'),
     },
   },
@@ -164,7 +165,7 @@ describe('HiMed unified provider — credential groups', () => {
     expect(body.fecha_nacimiento).toBe('1990-01-01');
   });
 
-  it('list_locations (directorio group, the probe) injects the Service secret as body.api_key', async () => {
+  it('list_locations (directorio group = the Sedes API key) injects its own secret as body.api_key', async () => {
     const sink: Captured[] = [];
     const provider = createHimedProvider({
       ...HOSTS,
@@ -191,6 +192,49 @@ describe('HiMed unified provider — credential groups', () => {
       ]);
       expect(JSON.stringify(res.data)).not.toContain('x@x.com'); // PHI curated out
     }
+  });
+
+  it('list_doctors (doctores group) injects the Doctores secret, never the Sedes one', async () => {
+    // Sandbox 2026-11-06: HiMed issues one key per API — the Sedes key 401s on Usuarios/consultarUsuarios
+    // and the Doctores key 401s on Sedes/consultarSedes.
+    const sink: Captured[] = [];
+    const provider = createHimedProvider({
+      ...HOSTS,
+      fetchImpl: fakeFetch(
+        200,
+        {
+          estado: 'success',
+          usuarios: [{ id_usuario: '101010', nombres: 'Ana', email: 'x@x.com' }],
+        },
+        sink,
+      ),
+    });
+    const res = await provider.callTool('mcp_himed_list_doctors', {}, ctx());
+    expect(res.kind).toBe('success');
+    const req = sink[0]!;
+    expect(req.url).toContain('/Usuarios/consultarUsuarios.php');
+    const body = JSON.parse(req.body ?? '{}') as Record<string, unknown>;
+    expect(body.api_key).toBe('DOC_SEC');
+    expect(req.body).not.toContain('DIR_SEC');
+  });
+
+  it('list_doctors fails closed when the bundle has no Doctores secret (it never falls back to Sedes)', async () => {
+    const sink: Captured[] = [];
+    const provider = createHimedProvider({ ...HOSTS, fetchImpl: fakeFetch(200, {}, sink) });
+    const withoutDoctores = {
+      credential: {
+        secret: new SecretString('IGNORED'),
+        secrets: {
+          demograficos: new SecretString('DEMO_SEC'),
+          directorio: new SecretString('DIR_SEC'),
+          autoagendamiento: new SecretString('SCHED_SEC'),
+        },
+      },
+      metadata: { codigo_servicio: 'CS1' },
+    };
+    const res = await provider.callTool('mcp_himed_list_doctors', {}, withoutDoctores);
+    expect(res.kind).toBe('error');
+    expect(sink).toHaveLength(0); // nothing left the process
   });
 
   it('create_appointment (autoagendamiento group) injects the scheduling token + codigo_servicio', async () => {
@@ -538,6 +582,7 @@ describe('HiMed per-group credential probes (connect verifies EVERY token)', () 
     expect(Object.fromEntries(groups.map((g) => [g.key, g.probe]))).toEqual({
       demograficos: 'mcp_himed_verify_demograficos',
       directorio: 'mcp_himed_list_locations',
+      doctores: 'mcp_himed_list_doctors',
       autoagendamiento: 'mcp_himed_verify_autoagendamiento',
     });
   });

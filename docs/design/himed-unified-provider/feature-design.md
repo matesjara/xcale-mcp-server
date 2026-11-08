@@ -90,12 +90,14 @@ surface.
 - Clicking **Connect** opens **one** form (order: context → secrets):
   - `codigo_servicio` (text, required) — the Autoagendamiento service code.
   - `demograficos_api_key` (secret, required) — Demográficos token.
-  - `directorio_api_key` (secret, required) — the "Token de Servicio" (Doctors + Sedes).
+  - `directorio_api_key` (secret, required) — the Sedes key.
+  - `doctores_api_key` (secret, required) — the Doctores key.
   - `autoagendamiento_token` (secret, required) — Autoagendamiento token.
   - Each field with its i18n label + instruction (ES/EN), noting HiMed issues **a distinct token per
     API**.
-- On submit: the backend **validates** by calling `list_locations` (directory) with
-  `directorio_api_key`.
+- On submit: the backend **validates every key** by running each group's probe tool (`groups[].probe`):
+  `list_locations` (Sedes), `list_doctors` (Doctores), and a no-write check for Demográficos and
+  Autoagendamiento.
   - **Success** → one connection is persisted with the encrypted bundle; the card shows "Connected".
   - **Failure** (401 / no response) → a localized "check the tokens HiMed issued" message; nothing is
     stored.
@@ -121,7 +123,8 @@ injects it into every call. HiMed needs **each tool** to use a different credent
 | Group | Tools | Secret (body) | Context |
 |:--|:--|:--|:--|
 | `demograficos` | create/update/change patient | `api_key` = demograficos token | — |
-| `directorio` | list_locations, list_doctors | `api_key` = servicio token | — |
+| `directorio` | list_locations | `api_key` = Sedes key | — |
+| `doctores` | list_doctors | `api_key` = Doctores key | — |
 | `autoagendamiento` | patient_exists, availability, create/cancel appointment, list_patient_appointments, list_* | `token` = autoagendamiento token | `codigo_servicio` |
 
 **Decision:** the `authDescriptor` declares **several named secret fields** (each with its placement),
