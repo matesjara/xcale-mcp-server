@@ -31,9 +31,16 @@ export const NOT_FOUND_CODE = 'ERROR_RETRIEVING_RESERVATIONS';
 /** The same "not found or cancelled", as a modify answers it (observed on a cancelled reservation). */
 const NOT_FOUND_CODES: ReadonlySet<string> = new Set([NOT_FOUND_CODE, 'ERROR_RETRIEVING_DATA']);
 
+/** Refusals whose `message` is itself the validation sentence (no `errors[]`). */
+const MESSAGE_VALIDATION_CODES: ReadonlySet<string> = new Set([
+  'ERROR_VALIDATING_DATA',
+  // A `status` Avirato does not take, on create (sandbox, 2026-11-05: "Wrong status type").
+  'WRONG_STATUS_TYPE',
+]);
+
 const VALIDATION_CODES: ReadonlySet<string> = new Set([
   'INPUT_DATA_VALIDATION_FAILED',
-  'ERROR_VALIDATING_DATA',
+  ...MESSAGE_VALIDATION_CODES,
 ]);
 
 interface AviratoErrorBody {
@@ -88,12 +95,12 @@ function forwardable(sentence: string): boolean {
   );
 }
 
-/** Avirato's validation sentences (`errors[]`, or the `message` of `ERROR_VALIDATING_DATA`). */
+/** Avirato's validation sentences (`errors[]`, or the `message` of a message-validation code). */
 function validationMessages(body: string, code: string): string[] {
   const parsed = parseBody(body);
   const candidates = Array.isArray(parsed.errors)
     ? parsed.errors
-    : code === 'ERROR_VALIDATING_DATA'
+    : MESSAGE_VALIDATION_CODES.has(code)
       ? [parsed.message]
       : [];
   return candidates.filter((e): e is string => typeof e === 'string' && forwardable(e));

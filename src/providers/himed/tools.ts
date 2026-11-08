@@ -21,11 +21,12 @@ function rows(data: unknown): ReadonlyArray<Record<string, unknown>> {
 }
 
 /**
- * The unified HiMed provider (ADR: himed-multi-credential-provider). One provider, three credential
+ * The unified HiMed provider (ADR: himed-multi-credential-provider). One provider, four credential
  * groups — each tool declares its `credentialGroup` and the materializer injects that group's secret:
  *  - `demograficos` (api_key): patient writes on `m.medsas.co/.../Demograficos/*.php`.
- *  - `directorio` (api_key, the "Service token"): Sedes + Doctores on `m.medsas.co`. `list_locations`
- *    is the `connectionProbe`.
+ *  - `directorio` (api_key, the Sedes key): `list_locations` on `m.medsas.co`; it is the `connectionProbe`.
+ *  - `doctores` (api_key, the Doctores key): `list_doctors` on `m.medsas.co`. HiMed issues one key per
+ *    API, so the Sedes key does not work here and this group never falls back to it.
  *  - `autoagendamiento` (token + `codigo_servicio` context): the Autoagendamiento RPC endpoint.
  * Sandbox-verified (ship-log 2026-10-01): Demográficos dates are YYYY-MM-DD; scheduling dates DD-MM-YYYY
  * / times HH:mm:ss; availability keys the professional on `idEspecialista`; cancel needs `idPaciente`.
@@ -182,7 +183,7 @@ export function buildHimedTools(
     },
   });
 
-  // ─── Directory (group: directorio) ───────────────────────────────────────
+  // ─── Sedes (group: directorio) and Doctores (group: doctores) ────────────────────────────────
   const listLocations = tool({
     name: 'mcp_himed_list_locations',
     description:
@@ -220,7 +221,7 @@ export function buildHimedTools(
     description:
       'List active health professionals (full directory), optionally filtered by specialty or user. ' +
       'Richer than the scheduling list; use for professional info beyond booking.',
-    credentialGroup: 'directorio',
+    credentialGroup: 'doctores',
     input: z
       .object({
         tipoUser: z.string().optional().describe('User type filter (e.g. "2" = professional)'),
@@ -252,7 +253,7 @@ export function buildHimedTools(
   // ─── Autoagendamiento (group: autoagendamiento) ──────────────────────────
   // ─── Per-group credential probes (control-plane: never on the agent's menu) ───────────────────
   // The consumer runs every group's probe at connect (auth.ts `groups[].probe`), so no token is stored
-  // unverified. The directory group's probe is the read `list_locations`.
+  // unverified. Each directory group's probe is its own read: `list_locations` (Sedes), `list_doctors` (Doctores).
 
   const verifyDemograficos = tool({
     name: 'mcp_himed_verify_demograficos',
