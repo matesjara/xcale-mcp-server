@@ -273,6 +273,22 @@ Sara intentó pagar (2026-11-09) con las tarjetas de prueba de Autocore:
 - No depende de `allowed_payment_options`. Lo más probable es la configuración del hotel 5 en Staging
   (`payment_gateway_options: null` en sus tres servicios de Redeban). Reportado a Autocore.
 
+### La Terminal virtual del panel
+
+Para separar el checkout de links del procesamiento, se probó la Terminal virtual de la web app de Autocore (sesión
+del usuario de Staging de xcale, hotel 5, $1.000 COP, cliente de prueba):
+
+- Carga el formulario de tarjeta y, al hacerlo, llama al API con éxito: `GET /v2/hotels…`, `/v2/otas`,
+  `/v2/virtual-terminal/unique-code`, **`/v2/nuvei/session-token`** (una sesión del procesador Nuvei, aunque el hotel
+  declara Redeban) y `/v2/exchange-rates`, todos `200`. La consola registra
+  `TypeError: Cannot read properties of undefined (reading 'rate')` al cargar las tasas.
+- Al cobrar con la tarjeta de prueba de cobro exitoso (lo hizo Sara a mano), responde
+  **"El origen indicado no pertenece al usuario."**
+
+El "origen" es el `source` de la cuenta (`xcale`, el que Autocore pone en cada link). El usuario o el hotel no lo
+tienen bien asociado: es configuración de Autocore, y es la explicación más probable también del fallo del checkout
+de links. Reportado.
+
 **Sigue pendiente, hasta que Autocore lo arregle:** un pago `applied` y su voucher (monto y moneda pagados, **P-7**);
 pagar dos veces el mismo link y anular uno pagado (**P-1**); los estados intermedios con las tarjetas pendientes (`1ig48efsia90`,
 `5armyx2wbps0`); el webhook.
