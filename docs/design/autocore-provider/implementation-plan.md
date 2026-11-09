@@ -132,7 +132,7 @@ at its gate, from the evidence E-1 – E-6 of the preflight.
 | A4  | Link cancellation                    | `tools.ts` (deactivate), `deactivatePaymentLink.json`, its cases in `autocore.test.ts`                      | A3                        | `DELETE` path from the code; idempotent `200` → `ok`; an invalid code refused with no call; 401 → `AUTH_EXPIRED`; conformance includes it.           |
 | S1  | The status tool                      | `tools.ts` (status), its fixtures and tests                                                                 | A4 + the preflight lifted | Authored at its gate.                                                                                                                                |
 
-- [ ] C1
+- [x] C1
 - [ ] A1
 - [ ] A2
 - [ ] A3
