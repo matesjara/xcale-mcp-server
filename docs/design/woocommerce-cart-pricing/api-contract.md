@@ -1,6 +1,6 @@
 # WooCommerce cart pricing — `mcp_woocommerce_price_cart` (#140)
 
-> **Last modified:** 2026-11-05 · **Status:** implemented · **Issue:** matesjara/xcale-mcp-server#140 · **Epic:** matesjara/xcale-backend#1545
+> **Last modified:** 2026-11-08 · **Status:** implemented · **Issue:** matesjara/xcale-mcp-server#140 · **Epic:** matesjara/xcale-backend#1545
 > · **Consumer:** matesjara/xcale-backend#1546 (charge) and #1547 (quote).
 
 ## Why
@@ -56,6 +56,22 @@ Rules:
 - **No arithmetic beyond the minor-unit conversion**, which is the same as the freight's. The one comparison is `discounted`.
 - **Session discipline is the same as the freight quote.** The cart is anonymous and throwaway, with no credential sent. It is emptied before the items go in and again at the end, whatever happens. No order is placed.
 - Without a destination, the cart's freight is reported as `null`, not `"0"`: the cart says `"0"` when it has no address, which is not a free-shipping offer.
+
+## Evidence — live, The Chair (2026-11-08): freight and `needs_shipping`
+
+These rows were recorded by calling `mcp_woocommerce_price_cart` on `thechaircol.com`'s public cart, with CUZCO `100558` ×1. The cart was anonymous and throwaway, emptied after each call, and no order was placed. The store's raw answer was read from its `cart/update-customer` response.
+
+| Destination                 | Store's raw cart                                                                                       | `price_cart` result                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| CO-DC Bogotá (served)       | `needs_shipping: true`; one package with `flat_rate:7` 150000, selected; `total_shipping` 150000       | `needsShipping: true`, `shipping` 150000, `total` 2337050 (1837857 + 349193 tax + 150000), one selected option             |
+| US-NY New York (not served) | `needs_shipping: true`; one package with **no rates**; `total_shipping` **"0"**; `total_price` 1837857 | `needsShipping: true`, `shippingOptions: []`, `shipping: null`, `total: null`; the line stays priced (`lineTotal` 1837857) |
+| CO-AMA Leticia (not served) | `needs_shipping: true`; one package with **no rates**; `total_shipping` **"0"**; `total_price` 2187050 | the same: `shipping: null`, `total: null`, the line priced, `tax` 349193 kept                                              |
+
+What this run confirms:
+
+- **The real cart carries `needs_shipping`** for a physical product, served or not.
+- **An address the store does not serve really answers `"0"` freight and a total without freight.** Passed on, that read as free shipping. The tool now returns `null` for both.
+- **Not observed:** a virtual-only cart, because The Chair sells no virtual product. The `needsShipping: false` branch (the store's `"0"` kept) is covered by a test only. So is a package with no selected rate, which no store run produced.
 
 ## Evidence — live, The Chair (2026-10-23)
 
