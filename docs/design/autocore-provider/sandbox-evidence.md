@@ -34,7 +34,9 @@
    pago_). ⚠️ Reportar a Autocore.
 7. **El checkout de Staging no deja pagar** ("Not found content type"): el camino pagado no se pudo observar (ver
    _Pagos_).
-8. **Los errores no repiten las llaves.** Todos tienen la forma `{ "code": 0, "message": "Error http: <n>", "detail":
+8. **Un link se puede anular**, aunque la documentación no lo diga: `DELETE /v2/bookings/chatbot/<code>` con el
+   `Auth-Token` (ver _Anular un link_). Resuelve la mitad de **P-1**.
+9. **Los errores no repiten las llaves.** Todos tienen la forma `{ "code": 0, "message": "Error http: <n>", "detail":
 "<texto en español>" }`; `detail` es texto libre, sin código estable.
 
 ---
@@ -186,8 +188,31 @@ defecto.
 | `external_ref_id` repetido                                         | `200`, un segundo link (`ucynerg01k2t`)        |
 | `hotel_id: 6` (no alcanzado por las llaves)                        | `404` `"Hotel no encontrado"`                  |
 
-Pendiente de ver en la página de pago: qué monto y qué medios muestran los links con decimales (`d6wiiu1ms346`),
-`CRC` (`zo0ggmbzlixh`), sin moneda (`qd9c8ezi2a1n`) y `nequi` (`tuk89yla2a3a`).
+La lista de links de la web app de Autocore muestra el de decimales como **$150.000,50 COP** y el de `CRC` como
+**₡150.000,00 CRC**: Autocore guarda y cobra la fracción y la moneda tal como llegan.
+
+---
+
+## Anular un link
+
+La web app de Autocore (`app-stg.autocore.pro`, sesión del usuario de Staging de xcale) tiene, en el menú de cada
+link, **"Detalles"** y **"Cancelar cobro"**. Se canceló el link de prueba `gmoiew13h8zz` ($100 COP) con el registro de
+red activo (2026-11-09, con el OK de Sara):
+
+- La web app pide confirmación ("¿Seguro deseas cancelar el cobro?") y llama
+  **`DELETE https://api-stg.autocore.pro/v2/bookings/chatbot/gmoiew13h8zz` → `200`**; muestra "Reserva cancelada
+  correctamente" y el link queda **"Pago cancelado"**.
+- **El mismo `DELETE` con el `Auth-Token` de la API** sobre el link ya cancelado → `200`
+  `{ "msg": "Reserva cancelada correctamente" }`: funciona con nuestras llaves y es idempotente.
+- Sin autenticación → `401` `"Credenciales inválidas"`.
+- Después, `transaction-status` del link → `200` con `status_code: "cancelled"`, `status_detail: "Cancelado"`,
+  `transaction_id: ""`.
+- El checkout ya no lo procesa: `GET /v2/links/schedule/gmoiew13h8zz?validate_link_status=true` → `400`
+  `"El link de pago no puede ser procesado. Estado: Cancelado"`.
+- La ruta es la de la reserva del chatbot (la doc de Bookings documenta `GET /v2/bookings/chatbot/{chatbot_id}`, no
+  el `DELETE`): el `code` del link es su `chatbot_id`.
+
+No observado: anular un link ya pagado (bloqueado por el checkout, ver _Pagos_).
 
 ---
 
@@ -249,5 +274,5 @@ Sara intentó pagar (2026-11-09) con las tarjetas de prueba de Autocore:
   (`payment_gateway_options: null` en sus tres servicios de Redeban). Reportado a Autocore.
 
 **Sigue pendiente, hasta que Autocore lo arregle:** un pago `applied` y su voucher (monto y moneda pagados, **P-7**);
-pagar dos veces el mismo link (**P-1**); los estados intermedios con las tarjetas pendientes (`1ig48efsia90`,
+pagar dos veces el mismo link y anular uno pagado (**P-1**); los estados intermedios con las tarjetas pendientes (`1ig48efsia90`,
 `5armyx2wbps0`); el webhook.

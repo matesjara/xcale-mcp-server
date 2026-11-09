@@ -1,8 +1,8 @@
 # Autocore Hotels Provider (v1) — Feature Design
 
 > **Feature**: Onboard Autocore Hotels as a credential provider (two keys, one composed secret, delivered by
-> reference and turned into a timestamped `Auth-Token` per request) with three `controlPlane` tools that let a
-> consumer prove a connection, create a payment link and read the status of what paid it.
+> reference and turned into a timestamped `Auth-Token` per request) with four `controlPlane` tools that let a
+> consumer prove a connection, create a payment link, cancel it and read the status of what paid it.
 > **Priority**: P1 High
 > **Owner**: Sara
 > **Status**: Draft — observed against Staging except the paid path (P-1, P-7: Autocore's Staging checkout fails)
@@ -39,7 +39,7 @@ run through Autocore (matesjara/xcale-backend#2074, meeting of 2026-10-23).
 
 Autocore is built for hotels in Colombia and Costa Rica. Its payment links are hosted checkout pages — card, PSE,
 Nequi, Daviplata, SINPE Móvil, gift cards and preloaded balances — that collect the payer's own data and card, so
-xcale never handles card data. The consumer needs three capabilities from it, and none of them belongs in front of
+xcale never handles card data. The consumer needs four capabilities from it, and none of them belongs in front of
 the agent.
 
 ### Who's affected?
@@ -81,7 +81,7 @@ data ever leaving it.
 - **Context**: its Autocore gateway adapter implements the Payment Request gateway port (`IPaymentGatewayPort`).
 - **Motivation**: connect a hotel, create links and settle them with the hotel's keys.
 - **Pain today**: no Autocore provider.
-- **Expected benefit**: three tools with stable shapes and stable error codes.
+- **Expected benefit**: four tools with stable shapes and stable error codes.
 
 ### Operator (xcale engineer)
 
@@ -102,6 +102,8 @@ data ever leaving it.
   reference, for a named guest, and get back its code and checkout URL.
 - **US-03**: As the consumer, I want to choose whether Autocore emails the link to the guest, so a guest is never
   emailed by omission.
+- **US-08**: As the consumer, I want to cancel a link, so a request the agent or the tenant cancels can no longer be
+  paid.
 - **US-04**: As the consumer, I want to read a link's status and, when it is paid, the amount and currency actually
   paid, so I settle against the truth and not against a webhook anyone could post.
 - **US-05**: As the consumer, I want Staging and Production to work from the same deployment, chosen per connection.
@@ -127,7 +129,7 @@ data ever leaving it.
 - [ ] Context schema: `hotelId` (positive integer) and `environment` (`staging` | `production`, required).
 - [ ] Client: base URL from `environment`; nothing else picks the host.
 - [ ] Tools, all `controlPlane: true`: `mcp_autocore_check_credentials`, `mcp_autocore_create_payment_link`,
-      `mcp_autocore_get_transaction_status`.
+      `mcp_autocore_deactivate_payment_link`, `mcp_autocore_get_transaction_status`.
 - [ ] The probe checks the `hotelId` is among the hotels the keys reach, paging to `total_items` with a hard cap, and
       returns the hotel's name and currencies only.
 - [ ] Creating a link is never retried by the provider (Autocore has no idempotency).
@@ -147,7 +149,6 @@ data ever leaving it.
 
 | Excluded                                                               | Why                                                                                                                                        |
 | :--------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------- |
-| Deactivating a link                                                    | No endpoint in the docs (P-1). No invented tool; the consumer reports it cannot, and the tenant's lever is a short validity.               |
 | Webhook ingress and verification                                       | The consumer's. Unsigned, so the consumer confirms every webhook with the status read.                                                     |
 | Direct Charge (virtual terminal)                                       | It takes card data encrypted with a key pair: PCI scope. Hosted links exist so xcale never touches a card.                                 |
 | Refunds                                                                | Neither the port nor Wompi has them. Fast-follow when a hotel asks.                                                                        |
@@ -168,7 +169,7 @@ owns.
 | Auth variant           | Rail A recognises `timestamped_hash_token`: collects both `fields` at connect, stores them composed `access_key:secret_key`, resolves them by `reference`. It computes nothing.                                                                                                                                 | Rail A (the Credential Authority)               |
 | Toolbox entry          | `slug: 'autocore'`, the MCP server URL, `accountKeyFields: ['hotelId', 'environment']`                                                                                                                                                                                                                          | `mcpToolboxes` (`src/modules/mcp/toolboxes.ts`) |
 | Context it must send   | `hotelId` and `environment`, both asked in the connect form, `environment` with no default                                                                                                                                                                                                                      | The gateway connect extension                   |
-| Tools it calls by name | the three `mcp_autocore_*` tools                                                                                                                                                                                                                                                                                | The Autocore gateway adapter                    |
+| Tools it calls by name | the four `mcp_autocore_*` tools                                                                                                                                                                                                                                                                                 | The Autocore gateway adapter                    |
 | Its own policy         | `amountMinor` → whole units (refuse a fraction); the currency checked against the probe's currencies; `expiresAt` → `availableHours` rounded down; the buyer's name; `sendLinkByEmail` from a tenant setting that ships off; no blind retry of a create; status mapping; the webhook confirmed by a status read | The adapter, and its own grill (CPO + CTO)      |
 | Errors it must handle  | `PROVIDER_AUTH_EXPIRED` → the credential is rejected; `PROVIDER_INVALID_INPUT` on the probe → the hotel id is wrong                                                                                                                                                                                             | Same adapter                                    |
 
@@ -207,13 +208,19 @@ whether Autocore should email the guest. The provider answers with the link's co
 returns; the consumer sends the URL over its own channel. On the checkout the guest enters their own document,
 contact and card. Autocore later posts its webhook to the consumer.
 
-### 6.4 Settling
+### 6.4 Cancelling
+
+When the agent or the tenant cancels a request, or the tenant disconnects the gateway, the consumer calls
+`mcp_autocore_deactivate_payment_link` with the link's code. Autocore cancels it; the guest who opens the link sees it
+can no longer be paid, and the status read answers `cancelled`. Cancelling again is harmless.
+
+### 6.5 Settling
 
 For each pending link the consumer calls `mcp_autocore_get_transaction_status` with the link's code. While unpaid it
 sees `pending` (observed) or `in_process`; when paid it sees `applied` with the amount and currency paid, read from
 the voucher; a declined payment comes back `rejected` or `invalid_card`.
 
-### 6.5 Call outcomes
+### 6.6 Call outcomes
 
 | Situation                                                          | Result                                                          |
 | :----------------------------------------------------------------- | :-------------------------------------------------------------- |
@@ -265,7 +272,8 @@ Autocore ──webhook (temp_webhook_url = the consumer's notificationUrl)──
 | AD-8  | Email to the guest | `sendLinkByEmail` required, no default                                                                                                                                                                                  | Autocore emails the guest unless told not to; no consumer can do it by omission (grill D-8).                                                                                                                 |
 | AD-9  | No retry on create | The provider never retries `POST /v2/links/schedule/`                                                                                                                                                                   | Autocore creates a second link for a repeated `external_ref_id` and cannot look one up by it (observed; grill D-12).                                                                                         |
 | AD-10 | Errors             | Core status policy; own message `Autocore <operation> failed (HTTP n)`; the body is never propagated                                                                                                                    | Autocore's `detail` is free Spanish text with no stable code (observed; grill D-11).                                                                                                                         |
-| AD-11 | Visibility         | All three tools `controlPlane: true`                                                                                                                                                                                    | The agent charges only through the consumer's guarded `payment_request_*` tools (charge ceiling, approval).                                                                                                  |
+| AD-11 | Cancelling a link  | `DELETE /v2/bookings/chatbot/<code>` with the `Auth-Token`; idempotent                                                                                                                                                  | Undocumented, but observed: `200` also on an already-cancelled link, then `cancelled` and a checkout that refuses it (grill D-2).                                                                            |
+| AD-12 | Visibility         | All four tools `controlPlane: true`                                                                                                                                                                                     | The agent charges only through the consumer's guarded `payment_request_*` tools (charge ceiling, approval).                                                                                                  |
 
 ---
 
@@ -277,7 +285,7 @@ Autocore ──webhook (temp_webhook_url = the consumer's notificationUrl)──
 | :-- | :--------------------------------------------------------------------------------------------------- | :----------------- | :----- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | R-1 | The first imperative auth variant in the core                                                        | Certain (decided)  | High   | ADR and its six binding tests (deterministic clock, parity vector, split failing closed, never logged, a token per request, no regression); own commit; CTO review. |
 | R-2 | The server clock drifts past Autocore's 30 s window: every call 401s and reads as reconnect-required | Low                | High   | App Platform keeps NTP time; accepted in the ADR, no skew detection in v1.                                                                                          |
-| R-3 | A link cannot be voided, so a cancelled request stays payable until it expires                       | High (no endpoint) | Medium | The consumer says so to the agent; the tenant sets a short validity; P-1 asked.                                                                                     |
+| R-3 | The cancel endpoint is undocumented and could change; cancelling a paid link is unobserved           | Medium             | Medium | Observed and covered by a fixture; P-1 asks Autocore what it does on a paid link; the consumer treats a failed cancel as "not cancelled".                           |
 | R-4 | A create's response is lost and a payable link exists that the consumer never recorded               | Low                | Medium | No retry (AD-9); a payment on it still reaches the consumer by webhook with its `externalRef`.                                                                      |
 | R-5 | Autocore exposes a link's status and the guest's contact to anyone with its code                     | Observed           | Medium | Reported to Autocore; the provider never logs a link's URL or code; the consumer weighs what guest data to send.                                                    |
 | R-6 | An Autocore error body leaks a key or payer data into a result or a log                              | Low (not observed) | High   | AD-10; a test feeds an error body containing a key and asserts it never appears.                                                                                    |
@@ -286,10 +294,10 @@ Autocore ──webhook (temp_webhook_url = the consumer's notificationUrl)──
 
 ### Open Questions
 
-| #   | Question                                                                                         | Owner                 | Resolution path                                                                            |
-| :-- | :----------------------------------------------------------------------------------------------- | :-------------------- | :----------------------------------------------------------------------------------------- |
-| P-1 | Does a link close after an approved payment? Can a link be voided before it expires?             | Sara (asked Autocore) | Autocore's answer and a payment in Staging; then the backend CTO decides the port          |
-| P-7 | The `applied` status, its `transaction_id` and the voucher; the intermediate states; the webhook | Sara                  | Autocore fixing its Staging checkout ("Not found content type"), then the spike's payments |
+| #   | Question                                                                                                   | Owner | Resolution path                                                                            |
+| :-- | :--------------------------------------------------------------------------------------------------------- | :---- | :----------------------------------------------------------------------------------------- |
+| P-1 | Does a link close after an approved payment, or can it be paid twice? What does cancelling a paid link do? | Sara  | A payment in Staging, once Autocore fixes its checkout                                     |
+| P-7 | The `applied` status, its `transaction_id` and the voucher; the intermediate states; the webhook           | Sara  | Autocore fixing its Staging checkout ("Not found content type"), then the spike's payments |
 
 Resolved by the Staging spike (2026-11-09): which auth (only the `Auth-Token`), `ref_number` (the link's `code`), the
 amount's unit (whole units), `email` (optional), the hotel listing (scoped to the keys), an unpaid link (`200

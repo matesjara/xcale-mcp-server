@@ -7,7 +7,7 @@
 > `.strict()`: an undeclared key → `PROVIDER_INVALID_INPUT`. Every Autocore value below was observed against Staging
 > (`https://api-stg.autocore.pro`, hotel 5) on 2026-11-09.
 >
-> **Scope of this version.** The provider, its connection probe and link creation. The third tool,
+> **Scope of this version.** The provider, its connection probe, link creation and link cancellation. The fourth tool,
 > `mcp_autocore_get_transaction_status`, is not in this contract: its paid half (`applied`, the voucher) is not
 > observed because Autocore's Staging checkout fails before sending a payment. Its verified and pending facts are in
 > [`api-contract-preflight.md`](./api-contract-preflight.md); it enters here, additively, once observed.
@@ -153,6 +153,25 @@ Observed Autocore validation (why the schema is stricter than Autocore):
 
 ---
 
+### 1.3 `mcp_autocore_deactivate_payment_link`
+
+|               |                                                                                                                                                 |
+| :------------ | :---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Input         | `z.object({ code: z.string().regex(/^[a-z0-9]{1,64}$/) }).strict()` — the link's `code` (a path segment: anything else is refused, not encoded) |
+| Autocore call | `DELETE /v2/bookings/chatbot/<code>` (undocumented by Autocore; it is what its web app's "Cancelar cobro" calls)                                |
+| Success       | `200` `{ "msg": "Reserva cancelada correctamente" }` → `ok({ code, cancelled: true })`                                                          |
+| Failure       | per §2                                                                                                                                          |
+
+Observed (link `gmoiew13h8zz`):
+
+- Idempotent: the same call on a link already cancelled answers the same `200`.
+- Afterwards the link's status reads `cancelled` (`"Cancelado"`), and its checkout refuses it with `400`
+  `"El link de pago no puede ser procesado. Estado: Cancelado"`.
+- The response does not echo the link; `msg` is not returned.
+
+Cancelling a link that has already been paid is not observed (the Staging checkout cannot pay;
+`api-contract-preflight.md` E-5).
+
 ## 2. Errors
 
 Codes are the core's `ProviderErrorCode` (`src/core/errors.ts:6-15`), assigned by the core's status policy
@@ -174,7 +193,7 @@ Autocore's error body is always `{ "code": 0, "message": "Error http: <n>", "det
 | Context: `environment` missing or unknown, `hotelId` not a positive integer | `PROVIDER_INVALID_INPUT`                          | the core's input validation message (no call)                                 |
 | Composed secret without `:` or with an empty part                           | — (the core fails closed before any request, ADR) | fixed core message, no credential material                                    |
 
-`<operation>` is `check credentials` or `create payment link`.
+`<operation>` is `check credentials`, `create payment link` or `deactivate payment link`.
 
 **Redaction rule (binding).** No Autocore response body, `detail` or `message`, no `Auth-Token`, and no link URL or
 code beyond what an outcome returns, reaches a tool outcome, an error message or a log line. A test asserts it with
@@ -248,6 +267,28 @@ an error body that carries a fake key.
 
 ---
 
+### `mcp_autocore_deactivate_payment_link`
+
+```json
+{ "ok": true, "data": { "code": "gmoiew13h8zz", "cancelled": true } }
+```
+
+```json
+{
+  "ok": false,
+  "code": "PROVIDER_INVALID_INPUT",
+  "message": "code: Invalid string: must match pattern /^[a-z0-9]{1,64}$/"
+}
+```
+
+```json
+{
+  "ok": false,
+  "code": "PROVIDER_AUTH_EXPIRED",
+  "message": "Autocore deactivate payment link failed (HTTP 401)"
+}
+```
+
 ## 4. Fixtures
 
 From the Staging spike, with no key and placeholders for any personal or company data:
@@ -256,6 +297,7 @@ From the Staging spike, with no key and placeholders for any personal or company
 | :------------------------------- | :--------------------------------------------------------------------------------------------------------------------------- |
 | `listHotels.json`                | `GET /v2/hotels` → 200, one hotel (id 5), phone/address/company/commissions replaced by placeholders                         |
 | `createPaymentLink.json`         | `POST /v2/links/schedule/` → 200 `{ msg, url, code, reservation_id: null }`                                                  |
+| `deactivatePaymentLink.json`     | `DELETE /v2/bookings/chatbot/<code>` → 200 `{ "msg": "Reserva cancelada correctamente" }`                                    |
 | `errors/invalidCredentials.json` | 401 `{"code":0,"message":"Error http: 401","detail":"Credenciales inválidas"}`                                               |
 | `errors/missingFields.json`      | 422 `{"code":0,"message":"Error http: 422","detail":"El campo 'guest_name' es requerido\nEl campo 'amount' es requerido\n"}` |
 | `errors/hotelNotFound.json`      | 404 `{"code":0,"message":"Error http: 404","detail":"Hotel no encontrado"}`                                                  |
@@ -275,7 +317,8 @@ From the Staging spike, with no key and placeholders for any personal or company
 - **Store `code`**, not just the URL: it is the link's id for reading its status.
 - **Two Autocore reads are public** (observed): a link's status and `GET /v2/links/schedule/<code>`, which returns
   the guest's name, email and phone to anyone with the code. Send Autocore only the guest data a payment needs.
-- **No deactivation exists.** A link lives until `availableHours` runs out.
+- **Cancel with `mcp_autocore_deactivate_payment_link`** when a request is cancelled or the gateway disconnected; it is
+  idempotent, so a retry is safe. Its endpoint is undocumented by Autocore: treat any failure as "not cancelled".
 
 ## 6. Roadmap (additive)
 
@@ -284,3 +327,4 @@ From the Staging spike, with no key and placeholders for any personal or company
 | `mcp_autocore_get_transaction_status`         | A paid link in Staging: `applied`, its `transaction_id`, the voucher (`api-contract-preflight.md`) |
 | `phone`, `countryCode`, `installments` inputs | One observed link with each (the docs disagree on `country_code`'s format)                         |
 | Refunds, the open link                        | A consumer asking                                                                                  |
+| Cancelling a paid link (its outcome)          | A paid link in Staging (`api-contract-preflight.md` E-5)                                           |
