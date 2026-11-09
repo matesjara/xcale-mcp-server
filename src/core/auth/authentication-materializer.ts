@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import type { ResolvedCredential } from '../credential/resolved-credential';
 import type { SecretString } from '../secret-string';
 import { assertNever } from '../errors';
@@ -26,6 +28,11 @@ export function materialize(
    * single-secret (the sole `resolved.secret` + `fields[0]`), byte-identical to before.
    */
   group?: string,
+  /**
+   * The current time in ms since the epoch, read only by `timestamped_hash_token`. Injected so the
+   * token is deterministic in tests; the system clock otherwise.
+   */
+  now: () => number = Date.now,
 ): HttpRequest {
   const headers: Record<string, string> = { ...(spec.headers ?? {}) };
   let url = spec.url;
@@ -65,6 +72,22 @@ export function materialize(
       // HTTP Basic. Stays single-secret; the server only encodes. ADR 0018.
       headers.authorization = `Basic ${Buffer.from(secret).toString('base64')}`;
       break;
+    case 'timestamped_hash_token': {
+      // The composed `key:secret` is split only here, after the one reveal. A fresh token per request:
+      // this runs once per HTTP request. ADR timestamped-hash-token-auth-scheme.
+      const sep = secret.indexOf(':');
+      const key = sep > 0 ? secret.slice(0, sep) : '';
+      const keySecret = sep > 0 ? secret.slice(sep + 1) : '';
+      if (key === '' || keySecret === '') {
+        throw new CredentialShapeError();
+      }
+      const ts = String(Math.floor(now() / 1000));
+      const digest = createHash('sha256')
+        .update(keySecret + ts, 'utf8')
+        .digest('hex');
+      headers[auth.header] = Buffer.from(`${key};${ts};${digest}`, 'utf8').toString('base64');
+      break;
+    }
     case 'oauth2':
     case 'credential_exchange':
       if (auth.tokenPlacement === 'bearer_header') {
@@ -80,6 +103,18 @@ export function materialize(
   }
 
   return plainRequest(spec, headers, url, body);
+}
+
+/**
+ * The resolved credential does not have the shape its descriptor declares — today, a
+ * `timestamped_hash_token` secret that is not `key:secret` with both parts present. Thrown before any
+ * request is sent. Its message is fixed and carries no credential material.
+ */
+export class CredentialShapeError extends Error {
+  constructor() {
+    super('Stored credential is malformed — reconnect the account');
+    this.name = 'CredentialShapeError';
+  }
 }
 
 function plainRequest(

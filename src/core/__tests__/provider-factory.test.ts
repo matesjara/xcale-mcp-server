@@ -78,3 +78,59 @@ describe('createProvider dispatcher', () => {
     expect(r).toMatchObject({ kind: 'success', data: { hi: 'Ana', account: 'acc1' } });
   });
 });
+
+describe('createProvider — timestamped_hash_token', () => {
+  // ADR timestamped-hash-token-auth-scheme. Dummy keys only.
+  const tokenAuth: ProviderAuthDescriptor = {
+    type: 'timestamped_hash_token',
+    header: 'Auth-Token',
+    fields: [
+      { key: 'access_key', label: 'Access key' },
+      { key: 'secret_key', label: 'Secret key' },
+    ],
+  };
+  const seen: Array<Record<string, string>> = [];
+  const fakeFetch: typeof globalThis.fetch = async (_url, init) => {
+    seen.push({ ...((init?.headers ?? {}) as Record<string, string>) });
+    return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  const tokenProvider = createProvider({
+    manifest,
+    auth: tokenAuth,
+    tools: [
+      toolFactory<unknown>()({
+        name: 'mcp_demo_ping',
+        description: 'two requests in one call',
+        input: z.object({}).strict(),
+        handler: async (_args, toolCtx) => {
+          await toolCtx.request({ method: 'GET', url: 'https://api.test/a' });
+          await toolCtx.request({ method: 'GET', url: 'https://api.test/b' });
+          return ok({ done: true });
+        },
+      }),
+    ],
+    fetchImpl: fakeFetch,
+    clock: () => 1_700_000_000_000,
+  });
+  const secretCtx = (secret: string) => ({ credential: { secret: new SecretString(secret) } });
+
+  it('passes the injected clock to materialization: every request carries the token for that time', async () => {
+    seen.length = 0;
+    const r = await tokenProvider.callTool('mcp_demo_ping', {}, secretCtx('AK123:SK456'));
+    expect(r).toMatchObject({ kind: 'success' });
+    expect(seen).toHaveLength(2);
+    for (const headers of seen) {
+      expect(headers['Auth-Token']).toBe(
+        'QUsxMjM7MTcwMDAwMDAwMDs2ZjA4ODc5N2FkOWM1MGQyNTYzZTQwOTNiODhhZjI2NzMyMzMxOGM1OWIxYzI2OWNlNDBhYjQwNDliNjMzMzEz',
+      );
+    }
+  });
+
+  it('a malformed composed secret → AUTH_EXPIRED as a typed outcome, with no request sent and no secret in it', async () => {
+    seen.length = 0;
+    const r = await tokenProvider.callTool('mcp_demo_ping', {}, secretCtx('nocolonsecret'));
+    expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.AUTH_EXPIRED });
+    expect(seen).toHaveLength(0);
+    expect(JSON.stringify(r)).not.toContain('nocolonsecret');
+  });
+});
