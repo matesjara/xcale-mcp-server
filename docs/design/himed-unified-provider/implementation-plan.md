@@ -8,7 +8,7 @@
 ## Meta
 
 Collapse the three HiMed providers into **one** `himed` provider with three **credential groups**
-(`demograficos` / `directorio` / `autoagendamiento`). The core gains a group-aware materializer so each
+(`demograficos` / `directorio` / `doctores` / `autoagendamiento`). The core gains a group-aware materializer so each
 tool injects its own secret; the consumer gains a multi-secret connect form that stores a credential
 bundle and forwards it. One catalog card, one connection, one agent, one `list_locations` probe.
 "Done" = sandbox booking flow works end-to-end through a single `himed` connection; `tsc`/lint/tests
@@ -113,10 +113,10 @@ F1 into F3's branch of work).
 
 | File:anchor | Symbol / change | Intent | Seam | Kind |
 |:--|:--|:--|:--|:--|
-| `src/providers/himed/auth.ts` | `himedAuth` → `type:'api_key'`, `groups: [demograficos, directorio, autoagendamiento]` | declare the three groups | auth | MODIFIED |
+| `src/providers/himed/auth.ts` | `himedAuth` → `type:'api_key'`, `groups: [demograficos, directorio, doctores, autoagendamiento]` | declare the four groups | auth | MODIFIED |
 | `src/providers/himed/manifest.ts` | `displayName:'HiMed'`, `connectionProbe:{tool:'mcp_himed_list_locations'}`, bump version | one card, directory probe | manifest | MODIFIED |
 | `src/providers/himed/client.ts` | `createHimedClient({ baseUrl, schedulingBaseUrl })` + a `callScheduling(...)` path | per-group base URL: demográficos/directorio POST `.php` on `baseUrl`; autoagendamiento RPC on `schedulingBaseUrl` | client | MODIFIED |
-| `src/providers/himed/tools.ts` | 3 demográficos tools (`credentialGroup:'demograficos'`) + `list_locations`/`list_doctors` (`'directorio'`) + the autoagendamiento set (`'autoagendamiento'`), names `mcp_himed_*` | the unified tool set, each tagged | tools | MODIFIED |
+| `src/providers/himed/tools.ts` | 3 demográficos tools (`credentialGroup:'demograficos'`) + `list_locations` (`'directorio'`) + `list_doctors` (`'doctores'`) + the autoagendamiento set (`'autoagendamiento'`), names `mcp_himed_*` | the unified tool set, each tagged | tools | MODIFIED |
 | `src/providers/himed/tools.ts` | keep: fecha YYYY-MM-DD; `cancel_appointment` requires `idPaciente`; `get_availability` → `idEspecialista` | sandbox fixes carried over | tools | MODIFIED |
 | `src/providers/himed/provider.ts` | wire `HIMED_BASE_URL` + `HIMED_SCHEDULING_BASE_URL` (drop `HIMED_DIRECTORY_BASE_URL`; directory shares `HIMED_BASE_URL`) | env routing | provider | MODIFIED |
 | `src/providers/himed/errors.ts` | keep `unwrapHimed` (Demográficos 201/207) + directory/scheduling unwrap | error mapping | errors | MODIFIED |

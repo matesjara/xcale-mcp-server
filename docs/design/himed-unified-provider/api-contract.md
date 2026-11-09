@@ -34,7 +34,7 @@ export interface AuthField {
 
 /** A named credential used by a subset of a provider's tools. */
 export interface CredentialGroup {
-  key: string;            // 'demograficos' | 'directorio' | 'autoagendamiento'
+  key: string;            // 'demograficos' | 'directorio' (Sedes) | 'doctores' | 'autoagendamiento'
   label: string;          // human label for the connect form
   field: AuthField;       // the secret this group injects (one secret per group)
 }
@@ -99,7 +99,8 @@ When the gateway dispatches `tools/call`, it reads the called `ToolDefinition.cr
     "credentialDelivery": "forwarded",
     "groups": [
       { "key": "demograficos",     "label": "Demográficos token",     "field": { "key": "api_key", "label": "API key (Demográficos)", "placement": "body" } },
-      { "key": "directorio",       "label": "Service token (directory)", "field": { "key": "api_key", "label": "Service token",         "placement": "body" } },
+      { "key": "directorio",       "label": "Sedes token",             "field": { "key": "api_key", "label": "Sedes key",             "placement": "body" } },
+      { "key": "doctores",         "label": "Doctores token",          "field": { "key": "api_key", "label": "Doctores key",          "placement": "body" } },
       { "key": "autoagendamiento", "label": "Autoagendamiento token",  "field": { "key": "token",   "label": "Token",                 "placement": "body" } }
     ]
   },
@@ -128,7 +129,7 @@ All tool names collapse to the `mcp_himed_*` namespace. Wire values are sandbox-
 | `mcp_himed_update_patient` | demograficos | `HIMED_BASE_URL` | POST `Demograficos/modificarPaciente.php` | |
 | `mcp_himed_change_patient_document` | demograficos | `HIMED_BASE_URL` | POST `Demograficos/modificarIdTipoIdPaciente.php` | |
 | `mcp_himed_list_locations` | directorio | `HIMED_BASE_URL` | POST `Sedes/consultarSedes.php` | **connectionProbe** |
-| `mcp_himed_list_doctors` | directorio | `HIMED_BASE_URL` | POST `Usuarios/consultarUsuarios.php` | curated (PHI allow-list) |
+| `mcp_himed_list_doctors` | doctores | `HIMED_BASE_URL` | POST `Usuarios/consultarUsuarios.php` | curated (PHI allow-list) |
 | `mcp_himed_patient_exists` | autoagendamiento | `HIMED_SCHEDULING_BASE_URL` | `accion: existePaciente` | identityPolicy subject-scoped |
 | `mcp_himed_list_specialties` | autoagendamiento | scheduling | `accion: listarEspecialidades` | |
 | `mcp_himed_list_professionals` | autoagendamiento | scheduling | `accion: listarUsuarios` | |
@@ -145,7 +146,7 @@ scheduling `listarSedes` tool is **dropped** in favor of it — see Open Questio
 `idSede` ≡ scheduling `idSede`, which the sandbox suggested: both returned `idSede: 1` "Poblado").
 
 **Body shapes (sandbox-verified):**
-- demograficos/directorio: `{ ...payload, api_key }` (api_key injected by materializer per group).
+- demograficos/directorio/doctores: `{ ...payload, api_key }` (api_key injected by materializer per group; HiMed issues one key per API, so each of the three works only on its own endpoints).
 - autoagendamiento: `{ accion, ...fields, codigo_servicio, token }` (`codigo_servicio` handler-placed from `ctx.metadata`; `token` materializer-injected).
 
 ---
@@ -172,11 +173,13 @@ Remove `connectWithoutProbe` (reverts ADR 0065).
 
 - **Form:** when `authDescriptor.groups` is present, the connect form is: the required `contextSchema`
   keys (`codigo_servicio`, text) + **one secret field per group** (`demograficos`, `directorio`,
-  `autoagendamiento`). Today the function throws on >1 secret; it now accepts N **named** secrets when
+  `doctores`, `autoagendamiento`). Today the function throws on >1 secret; it now accepts N **named** secrets when
   they come from `groups`.
-- **Probe:** call `connectionProbe.tool` (`mcp_himed_list_locations`). Since that tool is the
-  `directorio` group, the gateway materializes it with the directory secret. A 200 validates the
-  connection (directory-only probe, by decision). Demográficos/Autoagendamiento validate on first use.
+- **Probe:** each group names its own probe tool (`groups[].probe`) and the consumer runs every one before
+  it stores the bundle, so no key is stored unverified: `mcp_himed_list_locations` (`directorio`),
+  `mcp_himed_list_doctors` (`doctores`), `mcp_himed_verify_demograficos` and
+  `mcp_himed_verify_autoagendamiento` (control-plane, never on the agent's menu). The gateway
+  materializes each with its own group's secret.
 - **Storage (`MappedCredential`):** the credential is a **bundle** — a JSON object of the named secrets,
   stored encrypted (the `credential_exchange` pattern: credential-as-JSON), not a single `accessToken`.
   `codigo_servicio` → `metadata` and the `accountKey`.

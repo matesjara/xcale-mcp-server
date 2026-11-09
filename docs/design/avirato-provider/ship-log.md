@@ -1,6 +1,6 @@
 # Avirato Provider — Ship Log
 
-- **Status:** in review — PR **#190** to `dev`. Tracking: #189.
+- **Status:** merged into `dev` (#190, 2026-11-03). Before its first release: #192, a modify never erases staff's notes and the status is the hotel's. Tracking: #189.
 - **Release order:** this provider ships **before** `xcale-backend#2218`, its consumer. The consumer resolves the dotted token path, applies `tokenTtlSeconds` and mints single-flight. Until it lands, an Avirato connection cannot mint. No new env var: `reference` resolution reuses `CREDENTIAL_RESOLVE_URL` / `CREDENTIAL_RESOLVE_SECRET`.
 - **Before the merge:** number the ADR (`npm run adr:number -- --apply`).
 - **Related:**
@@ -78,6 +78,16 @@ Also in this PR, in `src/core/`:
 
 The record is on #190.
 
+## Before the release — #192 [CTO, CPO 2026-11-03]
+
+- **`observations` and `additional_beds` are required on modify**, with no default; `""` and `0` clear them on purpose. Create keeps its defaults.
+- **`status` is any non-empty string** on create and modify, the hotel's call; Avirato's refusal (`Wrong status type`) reaches the caller as `PROVIDER_INVALID_INPUT`.
+- **Observed on the sandbox, 2026-11-05** (reservations 252 and 253, cancelled after):
+  - a move of one night with the note and the bed sent as read kept the note, the bed, the full client, the price and `operator_reservation_id: "777"` (the tool sends `"0"`);
+  - client fields left out of a modify are kept, not blanked, so they need no guard;
+  - only `RESERVATION` is taken as a status: eight other values on create and four on modify were refused, and a refused modify leaves the reservation as it was;
+  - modify answers `200 { status, data: [ReservationRow] }`, recorded in `__fixtures__/modify.json`.
+
 ## Open
 
 - **P-1, answered (reservations 234 and 237):**
@@ -85,7 +95,7 @@ The record is on #190.
   - **The API has no endpoint for it.** No `/reservation/urls` link charges the reservation.
   - The hotel's Guest template is misconfigured (`error_fallback`).
   - Asked of Avirato through Esteban: can it be automated or exposed in the API?
-- **`predefinedCharges` on a modify:** not observed (the CTO's pre-release item). The other item, an advance re-sent as `CASH`, survives (reservation 242).
+- **`predefinedCharges` on a modify:** cannot be observed — the spec's modify has no such field and the hotel has none (`GET /predefined_charge` answers `[]`, sandbox 2026-11-05). An advance re-sent as `CASH` survives (reservation 242).
 - **Logo:** the house tile, in its own change.
 - **Production test leftovers** in Reserva Donato's Avirato, for the hotel:
   - cancelled reservations 225, 227, 230, 234 and 237, plus a payment request for 237 sent to Sara's email (not paid);
