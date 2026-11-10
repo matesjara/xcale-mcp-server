@@ -211,6 +211,26 @@ function unwrap(res: RequestResult, method: string): Unwrapped {
 }
 
 /**
+ * The rows of a list read, or the error that says they could not be read (xcale-mcp-server#193). A
+ * success envelope whose `data` is not a list used to be coerced to `[]` — "there are none" — which a
+ * consumer reads as no reservation, no guest, no group. Only the method name goes into the message:
+ * never the body, which can echo the request.
+ */
+function listOf(
+  u: Extract<Unwrapped, { ok: true }>,
+  method: string,
+): unknown[] | Extract<Unwrapped, { ok: false }> {
+  if (Array.isArray(u.data)) return u.data;
+  return {
+    ok: false,
+    code: ProviderErrorCode.PROVIDER_ERROR,
+    message:
+      `Cloudbeds answered ${method} with an unexpected shape, so the list could not be read. ` +
+      'This is not an empty result: try again, or report it if it persists.',
+  };
+}
+
+/**
  * Trust guard for **Payments v2** 2xx responses (pay-by-link). v2 is documented to answer JSON
  * directly with failures as HTTP status — but that shape is NOT yet confirmed against a live call
  * (the payments sandbox is blocked), and this same vendor's v1.3 API reports failures as HTTP 200 +
@@ -355,11 +375,9 @@ export function buildCloudbedsTools(
         // Reuse the shared envelope unwrap — same `success/data/total` contract as every other tool.
         const u = unwrap(res, 'getReservations');
         if (!u.ok) return { ok: false, code: u.code, message: u.message };
-        return {
-          ok: true,
-          items: Array.isArray(u.data) ? u.data : [],
-          totalResults: u.total,
-        };
+        const items = listOf(u, 'getReservations');
+        if (!Array.isArray(items)) return items;
+        return { ok: true, items, totalResults: u.total };
       },
     }),
 
@@ -958,7 +976,9 @@ export function buildCloudbedsTools(
         });
         const u = unwrap(res, 'getGuestList');
         if (!u.ok) return { ok: false, code: u.code, message: u.message };
-        return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+        const items = listOf(u, 'getGuestList');
+        if (!Array.isArray(items)) return items;
+        return { ok: true, items, totalResults: u.total };
       },
     }),
 
@@ -1018,7 +1038,8 @@ export function buildCloudbedsTools(
         });
         const u = unwrap(list, 'getGuestList');
         if (!u.ok) return err(u.code, u.message);
-        const rows = Array.isArray(u.data) ? u.data : [];
+        const rows = listOf(u, 'getGuestList');
+        if (!Array.isArray(rows)) return rows;
         const matches = new Map<string, string>();
         for (const row of rows) {
           const r = row as { reservationID?: unknown; guestID?: unknown };
@@ -1649,7 +1670,9 @@ export function buildCloudbedsTools(
         });
         const u = unwrap(res, 'getGroups');
         if (!u.ok) return { ok: false, code: u.code, message: u.message };
-        return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+        const items = listOf(u, 'getGroups');
+        if (!Array.isArray(items)) return items;
+        return { ok: true, items, totalResults: u.total };
       },
     }),
 
@@ -1670,7 +1693,9 @@ export function buildCloudbedsTools(
         });
         const u = unwrap(res, 'getGroupNotes');
         if (!u.ok) return { ok: false, code: u.code, message: u.message };
-        return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+        const items = listOf(u, 'getGroupNotes');
+        if (!Array.isArray(items)) return items;
+        return { ok: true, items, totalResults: u.total };
       },
     }),
 
@@ -1773,7 +1798,9 @@ export function buildCloudbedsTools(
         });
         const u = unwrap(res, 'getRoomBlocks');
         if (!u.ok) return { ok: false, code: u.code, message: u.message };
-        return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+        const items = listOf(u, 'getRoomBlocks');
+        if (!Array.isArray(items)) return items;
+        return { ok: true, items, totalResults: u.total };
       },
     }),
 
@@ -1870,7 +1897,9 @@ export function buildCloudbedsTools(
         });
         const u = unwrap(res, 'getAllotmentBlocks');
         if (!u.ok) return { ok: false, code: u.code, message: u.message };
-        return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+        const items = listOf(u, 'getAllotmentBlocks');
+        if (!Array.isArray(items)) return items;
+        return { ok: true, items, totalResults: u.total };
       },
     }),
 
@@ -1947,7 +1976,9 @@ export function buildCloudbedsTools(
         });
         const u = unwrap(res, 'listAllotmentBlockNotes');
         if (!u.ok) return { ok: false, code: u.code, message: u.message };
-        return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+        const items = listOf(u, 'listAllotmentBlockNotes');
+        if (!Array.isArray(items)) return items;
+        return { ok: true, items, totalResults: u.total };
       },
     }),
 
