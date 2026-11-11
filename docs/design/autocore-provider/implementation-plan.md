@@ -136,7 +136,7 @@ at its gate, from the evidence E-1 – E-6 of the preflight.
 - [x] A1
 - [x] A2
 - [x] A3
-- [ ] A4
+- [x] A4
 - [ ] S1 (gated on Autocore)
 
 ### Test order (one red → green at a time)

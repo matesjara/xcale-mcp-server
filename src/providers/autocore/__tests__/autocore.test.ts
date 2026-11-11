@@ -7,6 +7,8 @@ import { createAutocoreProvider } from '../provider';
 
 import createPaymentLink from '../__fixtures__/createPaymentLink.json';
 import missingFields from '../__fixtures__/errors/missingFields.json';
+import deactivatePaymentLink from '../__fixtures__/deactivatePaymentLink.json';
+import hotelNotFound from '../__fixtures__/errors/hotelNotFound.json';
 import invalidCredentials from '../__fixtures__/errors/invalidCredentials.json';
 import listHotels from '../__fixtures__/listHotels.json';
 
@@ -322,5 +324,69 @@ describe('autocore provider — create payment link', () => {
       code: ProviderErrorCode.PROVIDER_ERROR,
       message: 'Autocore create payment link returned an unexpected response',
     });
+  });
+});
+
+describe('autocore provider — deactivate payment link', () => {
+  // Undocumented by Autocore: what its web app's "Cancelar cobro" calls (observed on Staging).
+  it('cancels the link by its code and confirms it, without passing Autocore message on', async () => {
+    const { fetchImpl, calls } = recordingFetch({ body: deactivatePaymentLink });
+    const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
+      'mcp_autocore_deactivate_payment_link',
+      { code: 'gmoiew13h8zz' },
+      STAGING,
+    );
+    expect(successData(result)).toEqual({ code: 'gmoiew13h8zz', cancelled: true });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.method).toBe('DELETE');
+    expect(calls[0]!.url).toBe('https://api-stg.autocore.pro/v2/bookings/chatbot/gmoiew13h8zz');
+    expect(calls[0]!.headers['Auth-Token']).toBe(TOKEN_AT_1700000000);
+    expect(JSON.stringify(result)).not.toContain('Reserva');
+  });
+
+  it('is idempotent: cancelling an already-cancelled link succeeds again', async () => {
+    const { fetchImpl } = recordingFetch({ body: deactivatePaymentLink });
+    const provider = createAutocoreProvider({ fetchImpl, clock });
+    for (let i = 0; i < 2; i++) {
+      const result = await provider.callTool(
+        'mcp_autocore_deactivate_payment_link',
+        { code: 'gmoiew13h8zz' },
+        STAGING,
+      );
+      expect(result).toMatchObject({ kind: 'success' });
+    }
+  });
+
+  // The code becomes a path segment: anything else is refused, never encoded into another route.
+  it.each([['../x'], ['ABC'], [''], ['a/b']])(
+    'refuses the code %j without calling Autocore',
+    async (code) => {
+      const { fetchImpl, calls } = recordingFetch({ body: deactivatePaymentLink });
+      const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
+        'mcp_autocore_deactivate_payment_link',
+        { code },
+        STAGING,
+      );
+      expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+      expect(calls).toHaveLength(0);
+    },
+  );
+
+  it('keeps the core classification for rejected keys and an unknown link', async () => {
+    const rejected = await createAutocoreProvider({
+      fetchImpl: recordingFetch({ status: 401, body: invalidCredentials }).fetchImpl,
+      clock,
+    }).callTool('mcp_autocore_deactivate_payment_link', { code: 'abc123' }, STAGING);
+    expect(rejected).toMatchObject({
+      kind: 'error',
+      code: ProviderErrorCode.AUTH_EXPIRED,
+      message: 'Autocore deactivate payment link failed (HTTP 401)',
+    });
+
+    const unknown = await createAutocoreProvider({
+      fetchImpl: recordingFetch({ status: 404, body: hotelNotFound }).fetchImpl,
+      clock,
+    }).callTool('mcp_autocore_deactivate_payment_link', { code: 'abc123' }, STAGING);
+    expect(unknown).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
   });
 });

@@ -85,6 +85,14 @@ const CreatePaymentLinkInput = z
   })
   .strict();
 
+/**
+ * A link's code (`vlxcvpqhcjc8` on Staging). It becomes a URL path segment, so anything beyond lowercase
+ * letters and digits is refused rather than encoded: no caller can steer the DELETE to another route.
+ */
+const DeactivatePaymentLinkInput = z
+  .object({ code: z.string().regex(/^[a-z0-9]{1,64}$/) })
+  .strict();
+
 /** `POST /v2/links/schedule/` answers `{ msg, url, code, reservation_id }`; the URL is returned, never built. */
 const CreatedLink = z.object({ code: z.string().min(1), url: z.string().url() });
 
@@ -181,6 +189,26 @@ export function buildAutocoreTools(
         const created = CreatedLink.safeParse(result.data);
         if (!created.success) return toOutcome(unexpected('create payment link'));
         return ok({ code: created.data.code, url: created.data.url });
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_deactivate_payment_link`,
+      description:
+        'Cancel an Autocore payment link by its code, so it can no longer be paid. Cancelling a link ' +
+        'that is already cancelled succeeds again.',
+      input: DeactivatePaymentLinkInput,
+      // Part of the consumer's charge lifecycle (a cancelled request, a disconnected gateway).
+      controlPlane: true,
+      handler: async (args, ctx) => {
+        // Undocumented by Autocore: the call its web app's "Cancelar cobro" makes. It answers 200
+        // `{ msg }` also for a link already cancelled, after which the link reads `cancelled` and its
+        // checkout refuses it (observed on Staging, 2026-11-09).
+        const result = unwrapAutocore(
+          await client.delete(`/v2/bookings/chatbot/${args.code}`, ctx.request, ctx.metadata),
+          'deactivate payment link',
+        );
+        return result.ok ? ok({ code: args.code, cancelled: true }) : toOutcome(result);
       },
     }),
   ];

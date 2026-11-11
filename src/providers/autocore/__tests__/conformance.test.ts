@@ -5,7 +5,11 @@ import { SecretString } from '../../../core/secret-string';
 import { PROVIDERS } from '../..';
 import { autocoreProvider, createAutocoreProvider } from '..';
 
-const TOOLS = ['mcp_autocore_check_credentials', 'mcp_autocore_create_payment_link'] as const;
+const TOOLS = [
+  'mcp_autocore_check_credentials',
+  'mcp_autocore_create_payment_link',
+  'mcp_autocore_deactivate_payment_link',
+] as const;
 
 /** Visibly fake keys, composed as the consumer stores them. */
 const CTX = {
