@@ -19,7 +19,8 @@ export const autocoreManifest: ProviderManifest = {
   category: 'payment-gateway',
   schemaVersion: '2026-11-09',
   providerVersion: '0.1.0',
-  // No `logoUrl` yet: Autocore publishes only a PNG, and assets here are .svg or .webp.
+  // Autocore publishes only a PNG; the asset wraps it in an SVG, the format assets here take.
+  logoUrl: '/assets/autocore.svg',
   connectionProbe: { tool: `mcp_${SLUG}_check_credentials` },
   accountContextKeys: ['hotelId', 'environment'],
 };

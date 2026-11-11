@@ -39,6 +39,7 @@ describe('autocore provider — conformance', () => {
       tool: 'mcp_autocore_check_credentials',
     });
     expect(autocoreProvider.manifest.accountContextKeys).toEqual(['hotelId', 'environment']);
+    expect(autocoreProvider.manifest.logoUrl).toBe('/assets/autocore.svg');
     expect(autocoreProvider.contextSchema).toMatchObject({ type: 'object' });
   });
 
