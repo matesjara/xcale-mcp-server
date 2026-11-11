@@ -1,0 +1,5 @@
+{
+  "code": 0,
+  "message": "Error http: 422",
+  "detail": "El campo 'guest_name' es requerido\nEl campo 'amount' es requerido\n"
+}

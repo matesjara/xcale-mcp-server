@@ -1,0 +1,24 @@
+import { z } from 'zod';
+
+/**
+ * Autocore call context (Explicit Context principle). Published to the consumer as `contextSchema`.
+ *
+ * `hotelId` is the hotel the connection charges for — Autocore's own id, the one `GET /v2/hotels`
+ * lists. One set of keys can reach several hotels, so the id is context, checked by the connection
+ * probe against the hotels the keys reach.
+ *
+ * `environment` is the tenant's choice at connect, with no default: Autocore's keys are issued per
+ * environment and carry no prefix that would tell them apart (Staging keys answer 401 on any other
+ * host, observed 2026-11-09). Staging is what Autocore gives integrators; its `api-dev` Testing host
+ * is Autocore's own. Which host each value means is knowledge this provider keeps (`client.ts`).
+ */
+export const autocoreContext = z
+  .object({
+    hotelId: z.number().int().positive(),
+    environment: z.enum(['staging', 'production']),
+  })
+  .strict();
+
+export type AutocoreContext = z.infer<typeof autocoreContext>;
+
+export type AutocoreEnvironment = AutocoreContext['environment'];

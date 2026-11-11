@@ -133,7 +133,7 @@ at its gate, from the evidence E-1 – E-6 of the preflight.
 | S1  | The status tool                      | `tools.ts` (status), its fixtures and tests                                                                 | A4 + the preflight lifted | Authored at its gate.                                                                                                                                |
 
 - [x] C1
-- [ ] A1
+- [x] A1
 - [ ] A2
 - [ ] A3
 - [ ] A4
