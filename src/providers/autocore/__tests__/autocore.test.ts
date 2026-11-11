@@ -5,6 +5,8 @@ import { SecretString } from '../../../core/secret-string';
 import type { ProviderCallContext, ToolResult } from '../../../core/types';
 import { createAutocoreProvider } from '../provider';
 
+import createPaymentLink from '../__fixtures__/createPaymentLink.json';
+import missingFields from '../__fixtures__/errors/missingFields.json';
 import invalidCredentials from '../__fixtures__/errors/invalidCredentials.json';
 import listHotels from '../__fixtures__/listHotels.json';
 
@@ -192,6 +194,133 @@ describe('autocore provider — connection probe', () => {
       kind: 'error',
       code: ProviderErrorCode.PROVIDER_ERROR,
       message: 'Autocore check credentials returned an unexpected response',
+    });
+  });
+});
+
+describe('autocore provider — create payment link', () => {
+  const INPUT = {
+    amount: 150000,
+    currency: 'COP',
+    guestName: 'Jhon Doe',
+    email: 'guest@example.com',
+    description: 'xcale spike link 1',
+    externalRef: 'xcale-spike-001',
+    availableHours: 24,
+    notificationUrl: 'https://example.com/xcale-autocore-webhook',
+    sendLinkByEmail: false,
+    allowedPaymentOptions: ['credit_card'],
+  };
+
+  it('creates the link with the exact body Autocore takes and returns its code and URL', async () => {
+    const { fetchImpl, calls } = recordingFetch({ body: createPaymentLink });
+    const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
+      'mcp_autocore_create_payment_link',
+      INPUT,
+      STAGING,
+    );
+
+    expect(successData(result)).toEqual({
+      code: 'vlxcvpqhcjc8',
+      url: 'https://app-stg.autocore.pro/payment/xcale_hotel/vlxcvpqhcjc8',
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.method).toBe('POST');
+    expect(calls[0]!.url).toBe('https://api-stg.autocore.pro/v2/links/schedule/');
+    expect(calls[0]!.headers['Auth-Token']).toBe(TOKEN_AT_1700000000);
+    expect(JSON.parse(calls[0]!.body!)).toEqual({
+      hotel_id: 5,
+      amount: 150000,
+      currency: 'COP',
+      guest_name: 'Jhon Doe',
+      email: 'guest@example.com',
+      description: 'xcale spike link 1',
+      external_ref_id: 'xcale-spike-001',
+      available_hours: 24,
+      temp_webhook_url: 'https://example.com/xcale-autocore-webhook',
+      send_link_by_email: false,
+      allowed_payment_options: ['credit_card'],
+    });
+  });
+
+  it('leaves absent optionals out of the body instead of sending null', async () => {
+    const { fetchImpl, calls } = recordingFetch({ body: createPaymentLink });
+    const { email: _email, allowedPaymentOptions: _options, ...required } = INPUT;
+    await createAutocoreProvider({ fetchImpl, clock }).callTool(
+      'mcp_autocore_create_payment_link',
+      required,
+      STAGING,
+    );
+    const body = JSON.parse(calls[0]!.body!) as Record<string, unknown>;
+    expect('email' in body).toBe(false);
+    expect('allowed_payment_options' in body).toBe(false);
+  });
+
+  // Autocore accepts all of these (observed); the schema is what refuses them, before any call.
+  it.each([
+    ['a fractional amount', { amount: 150000.5 }],
+    ['a zero amount', { amount: 0 }],
+    ['a lowercase currency', { currency: 'cop' }],
+    ['no description', { description: undefined }],
+    ['no sendLinkByEmail', { sendLinkByEmail: undefined }],
+    ['a plain-http notification URL', { notificationUrl: 'http://example.com/hook' }],
+    ['an undeclared key', { tip: 1000 }],
+  ])('refuses %s without calling Autocore', async (_label, change) => {
+    const { fetchImpl, calls } = recordingFetch({ body: createPaymentLink });
+    const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
+      'mcp_autocore_create_payment_link',
+      { ...INPUT, ...change },
+      STAGING,
+    );
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+    expect(calls).toHaveLength(0);
+  });
+
+  // Autocore creates a second link for a repeated external_ref_id (observed): never retried.
+  it('sends the POST exactly once, even when no response comes back', async () => {
+    const calls: string[] = [];
+    const fetchImpl = (async (url: string | URL) => {
+      calls.push(String(url));
+      throw new TypeError('fetch failed');
+    }) as unknown as typeof globalThis.fetch;
+    const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
+      'mcp_autocore_create_payment_link',
+      INPUT,
+      STAGING,
+    );
+    expect(result).toMatchObject({
+      kind: 'error',
+      code: ProviderErrorCode.PROVIDER_UNAVAILABLE,
+      message: 'Autocore create payment link unreachable',
+    });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("reports Autocore's own rejection as invalid input, in its own words", async () => {
+    const { fetchImpl } = recordingFetch({ status: 422, body: missingFields });
+    const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
+      'mcp_autocore_create_payment_link',
+      INPUT,
+      STAGING,
+    );
+    expect(result).toMatchObject({
+      kind: 'error',
+      code: ProviderErrorCode.INVALID_INPUT,
+      message: 'Autocore create payment link failed (HTTP 422)',
+    });
+  });
+
+  it('does not vouch for a 2xx without a code and a URL', async () => {
+    const { fetchImpl } = recordingFetch({ body: { msg: 'ok' } });
+    const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
+      'mcp_autocore_create_payment_link',
+      INPUT,
+      STAGING,
+    );
+    expect(result).toMatchObject({
+      kind: 'error',
+      code: ProviderErrorCode.PROVIDER_ERROR,
+      message: 'Autocore create payment link returned an unexpected response',
     });
   });
 });

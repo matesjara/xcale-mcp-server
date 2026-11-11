@@ -135,7 +135,7 @@ at its gate, from the evidence E-1 – E-6 of the preflight.
 - [x] C1
 - [x] A1
 - [x] A2
-- [ ] A3
+- [x] A3
 - [ ] A4
 - [ ] S1 (gated on Autocore)
 

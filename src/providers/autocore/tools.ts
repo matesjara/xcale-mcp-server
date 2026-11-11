@@ -44,6 +44,50 @@ const HotelsPage = z.object({
 
 type Hotel = z.infer<typeof HotelsPage>['data'][number];
 
+/**
+ * Stricter than Autocore, which accepts a fractional amount, a missing currency or description and a
+ * currency the hotel does not hold (observed on Staging, 2026-11-09): the schema refuses those before
+ * any call, and the consumer checks the currency against the probe's.
+ */
+const CreatePaymentLinkInput = z
+  .object({
+    // Whole units of `currency`, as Autocore takes them (a 150000 link shows $150.000 COP). Never cents.
+    amount: z.number().int().positive(),
+    currency: z.string().regex(/^[A-Z]{3}$/),
+    // The payer's name, shown on the checkout. The only guest field Autocore requires.
+    guestName: z.string().min(1).max(200),
+    // Autocore emails the link here only when `sendLinkByEmail` is true.
+    email: z.string().email().max(254).optional(),
+    // The concept the checkout shows.
+    description: z.string().min(1).max(500),
+    // The caller's own reference. NOT unique at Autocore: a repeat creates a second link.
+    externalRef: z.string().min(1).max(100),
+    availableHours: z.number().int().min(1).max(8760),
+    // Where Autocore POSTs its payment notifications.
+    notificationUrl: z.string().url().startsWith('https://'),
+    // Required: Autocore emails the guest unless told not to, so no caller can do it by omission.
+    sendLinkByEmail: z.boolean(),
+    // Absent = the hotel's own setup. Autocore does not check it against the hotel's services.
+    allowedPaymentOptions: z
+      .array(
+        z.enum([
+          'nequi',
+          'daviplata',
+          'pse',
+          'credit_card',
+          'sinpe_movil',
+          'preloaded_balance',
+          'gift_cards',
+        ]),
+      )
+      .min(1)
+      .optional(),
+  })
+  .strict();
+
+/** `POST /v2/links/schedule/` answers `{ msg, url, code, reservation_id }`; the URL is returned, never built. */
+const CreatedLink = z.object({ code: z.string().min(1), url: z.string().url() });
+
 function toOutcome(result: Unwrapped & { ok: false }): ToolOutcome {
   return err(result.code, result.message);
 }
@@ -100,6 +144,43 @@ export function buildAutocoreTools(
           }
         }
         return err(ProviderErrorCode.PROVIDER_ERROR, 'Autocore hotel listing too large');
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_create_payment_link`,
+      description:
+        "Create an Autocore hosted payment link for an exact amount in whole units of the hotel's " +
+        'currency, for a named guest, with its validity in hours and the caller reference. Returns the ' +
+        'link code (its id for status and cancellation) and its checkout URL. Autocore does not ' +
+        'deduplicate by reference: a repeated call creates a second link.',
+      input: CreatePaymentLinkInput,
+      // Charging is the consumer's guarded flow (amount limits, approval), never an agent's call.
+      controlPlane: true,
+      handler: async (args, ctx) => {
+        // Sent once: Autocore has no idempotency key, so a retry could leave two payable links.
+        const result = unwrapAutocore(
+          await client.post('/v2/links/schedule/', ctx.request, ctx.metadata, {
+            hotel_id: ctx.metadata.hotelId,
+            amount: args.amount,
+            currency: args.currency,
+            guest_name: args.guestName,
+            ...(args.email !== undefined ? { email: args.email } : {}),
+            description: args.description,
+            external_ref_id: args.externalRef,
+            available_hours: args.availableHours,
+            temp_webhook_url: args.notificationUrl,
+            send_link_by_email: args.sendLinkByEmail,
+            ...(args.allowedPaymentOptions !== undefined
+              ? { allowed_payment_options: args.allowedPaymentOptions }
+              : {}),
+          }),
+          'create payment link',
+        );
+        if (!result.ok) return toOutcome(result);
+        const created = CreatedLink.safeParse(result.data);
+        if (!created.success) return toOutcome(unexpected('create payment link'));
+        return ok({ code: created.data.code, url: created.data.url });
       },
     }),
   ];
