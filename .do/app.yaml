@@ -1,7 +1,7 @@
 # xcale-mcp-server — DigitalOcean App Platform spec (source of truth, versioned).
 #
-# Secrets are NEVER committed: `${MCP_SERVER_SECRET}` is a placeholder rendered from Doppler
-# (project `xcale-mcp-server`, config `prd`) at apply time. See docs/deploy.md.
+# Secrets are NEVER committed: `${MCP_SERVER_SECRET}` and `${CREDENTIAL_RESOLVE_SECRET}` are placeholders
+# rendered from Doppler (project `xcale-mcp-server`, config `prd`) at apply time. See docs/deploy.md.
 
 name: xcale-mcp-server
 region: nyc
@@ -57,6 +57,16 @@ services:
         scope: RUN_TIME
         type: SECRET
         value: ${MCP_SERVER_SECRET}
+      # Reference credential delivery (avirato, erbon, siigo, wompi): where the server resolves a
+      # tenant's credential reference, and the secret it authenticates with — the same value
+      # xcale-backend holds. Unset, every tool of those providers fails (#200).
+      - key: CREDENTIAL_RESOLVE_URL
+        scope: RUN_TIME
+        value: https://api.xcale.app/internal/credentials/resolve
+      - key: CREDENTIAL_RESOLVE_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: ${CREDENTIAL_RESOLVE_SECRET}
 
 ingress:
   rules:
