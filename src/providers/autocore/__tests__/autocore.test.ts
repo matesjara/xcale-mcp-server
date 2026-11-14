@@ -9,6 +9,12 @@ import createPaymentLink from '../__fixtures__/createPaymentLink.json';
 import missingFields from '../__fixtures__/errors/missingFields.json';
 import deactivatePaymentLink from '../__fixtures__/deactivatePaymentLink.json';
 import hotelNotFound from '../__fixtures__/errors/hotelNotFound.json';
+import linkPaid from '../__fixtures__/linkPaid.json';
+import linkRejected from '../__fixtures__/linkRejected.json';
+import statusApplied from '../__fixtures__/statusApplied.json';
+import statusCancelled from '../__fixtures__/statusCancelled.json';
+import statusPending from '../__fixtures__/statusPending.json';
+import statusRejected from '../__fixtures__/statusRejected.json';
 import invalidCredentials from '../__fixtures__/errors/invalidCredentials.json';
 import listHotels from '../__fixtures__/listHotels.json';
 
@@ -388,6 +394,125 @@ describe('autocore provider — deactivate payment link', () => {
       fetchImpl: recordingFetch({ status: 404, body: hotelNotFound }).fetchImpl,
       clock,
     }).callTool('mcp_autocore_deactivate_payment_link', { code: 'abc123' }, STAGING);
+    expect(unknown).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
+  });
+});
+
+describe('autocore provider — transaction status', () => {
+  const STATUS_URL = (code: string) =>
+    `https://api-stg.autocore.pro/v2/common/transaction-status?hotel_id=5&ref_number=${code}&transaction_type=payment_link`;
+
+  // Observed on Staging (2026-11-13): the status read carries stable codes but no amount; the link
+  // read carries the amount paid but only Spanish labels. A paid link takes both.
+  it('reads an applied link and the amount and currency actually paid, with no guest data', async () => {
+    const { fetchImpl, calls } = recordingFetch({ body: statusApplied }, { body: linkPaid });
+    const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
+      'mcp_autocore_get_transaction_status',
+      { code: 'k4doiy1k9tex' },
+      STAGING,
+    );
+
+    expect(successData(result)).toEqual({
+      code: 'k4doiy1k9tex',
+      externalRef: 'xcale-s1-exitoso',
+      status: 'applied',
+      transactionId: '01a1d831-0895-7184-a158-b543f29a4f2b',
+      occurredAt: '2026-11-14T03:54:15.862Z',
+      amount: 150000,
+      currency: 'COP',
+    });
+    expect(calls.map((c) => [c.method, c.url])).toEqual([
+      ['GET', STATUS_URL('k4doiy1k9tex')],
+      ['GET', 'https://api-stg.autocore.pro/v2/links/schedule/k4doiy1k9tex'],
+    ]);
+    for (const call of calls) expect(call.headers['Auth-Token']).toBe(TOKEN_AT_1700000000);
+    expect(JSON.stringify(result)).not.toMatch(/Jhon|guest@|PLACEHOLDER|Valor/);
+  });
+
+  it('reads a declined attempt as rejected, with no transaction (Autocore sends "N/A") and one call', async () => {
+    const { fetchImpl, calls } = recordingFetch({ body: statusRejected });
+    const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
+      'mcp_autocore_get_transaction_status',
+      { code: '9oe7ql80awol' },
+      STAGING,
+    );
+    expect(successData(result)).toEqual({
+      code: '9oe7ql80awol',
+      externalRef: 'xcale-s1-declinado',
+      status: 'rejected',
+      transactionId: null,
+      occurredAt: null,
+      amount: null,
+      currency: null,
+    });
+    expect(calls).toHaveLength(1);
+    expect(JSON.stringify(result)).not.toContain('tarjeta');
+  });
+
+  it.each([
+    ['pending', statusPending, 'foibzazghzsz'],
+    ['cancelled', statusCancelled, 'gmoiew13h8zz'],
+  ])('reads a %s link with nulls and a single call', async (status, body, code) => {
+    const { fetchImpl, calls } = recordingFetch({ body });
+    const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
+      'mcp_autocore_get_transaction_status',
+      { code },
+      STAGING,
+    );
+    expect(successData(result)).toMatchObject({
+      code,
+      status,
+      transactionId: null,
+      occurredAt: null,
+      amount: null,
+      currency: null,
+    });
+    expect(calls).toHaveLength(1);
+  });
+
+  it('never reports a payment without its amount: an applied link whose payment is missing is an error', async () => {
+    const { fetchImpl } = recordingFetch({ body: statusApplied }, { body: linkRejected });
+    const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
+      'mcp_autocore_get_transaction_status',
+      { code: 'k4doiy1k9tex' },
+      STAGING,
+    );
+    expect(result).toMatchObject({
+      kind: 'error',
+      code: ProviderErrorCode.PROVIDER_ERROR,
+      message: 'Autocore get transaction status returned an unexpected response',
+    });
+  });
+
+  it('reports the link read failing on an applied link as that failure, not as paid', async () => {
+    const { fetchImpl } = recordingFetch({ body: statusApplied }, { status: 502, body: {} });
+    const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
+      'mcp_autocore_get_transaction_status',
+      { code: 'k4doiy1k9tex' },
+      STAGING,
+    );
+    expect(result).toMatchObject({
+      kind: 'error',
+      code: ProviderErrorCode.PROVIDER_UNAVAILABLE,
+      message: 'Autocore get transaction status failed (HTTP 502)',
+    });
+  });
+
+  it('refuses a code that is not one, without calling Autocore, and keeps the core classification', async () => {
+    const { fetchImpl, calls } = recordingFetch({ body: statusApplied });
+    const provider = createAutocoreProvider({ fetchImpl, clock });
+    const refused = await provider.callTool(
+      'mcp_autocore_get_transaction_status',
+      { code: '../x' },
+      STAGING,
+    );
+    expect(refused).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+    expect(calls).toHaveLength(0);
+
+    const unknown = await createAutocoreProvider({
+      fetchImpl: recordingFetch({ status: 404, body: hotelNotFound }).fetchImpl,
+      clock,
+    }).callTool('mcp_autocore_get_transaction_status', { code: 'abc123' }, STAGING);
     expect(unknown).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
   });
 });

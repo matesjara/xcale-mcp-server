@@ -1,0 +1,93 @@
+{
+  "id": 235,
+  "created_at": "2026-11-14T03:52:22.060119",
+  "guest_name": "Jhon Doe",
+  "email": "guest@example.com",
+  "booking_dates": "",
+  "country_code": "+57",
+  "phone": "PLACEHOLDER_PHONE",
+  "currency": "COP",
+  "currency_data": {
+    "symbol": "$",
+    "code": "COP",
+    "name": "Peso Colombiano"
+  },
+  "amount": 150000,
+  "tax_percent": 0,
+  "service_percent": 0,
+  "taxable_amount": 0,
+  "tax_amount": 0,
+  "service_amount": 0,
+  "description": "xcale S1 declinado",
+  "start_booking": null,
+  "end_booking": null,
+  "status": "Rechazado",
+  "link": "https://app-stg.autocore.pro/payment/xcale_hotel/9oe7ql80awol",
+  "code": "9oe7ql80awol",
+  "reservation_id": null,
+  "hotel": {
+    "id": 5,
+    "name": "STG XCALE HOTEL",
+    "logo_url": null,
+    "company": {
+      "id": 2,
+      "legal_personality": "PLACEHOLDER_COMPANY"
+    }
+  },
+  "installments": 1,
+  "available_hours": 48,
+  "payment_date": null,
+  "comments": "El número de la tarjeta es inválido., El código de seguridad de la tarjeta es inválido.",
+  "payments": [
+    {
+      "id": 122,
+      "created_at": "2026-11-14T03:56:58.680360",
+      "updated_at": "2026-11-14T03:56:58.680364",
+      "payment_date": "2026-11-13 22:56:58.422944",
+      "description": "Pago rechazado",
+      "amount": "150000.0",
+      "installments": "1",
+      "transaction_id": "N/A",
+      "authorization_code": null,
+      "status": "Rechazado",
+      "order_id": null,
+      "pay_platform_": {
+        "id": 4,
+        "updated_at": "2026-04-28T14:14:13.883226",
+        "code": "credit-card",
+        "description": "Realiza tus pagos por medio de tarjeta de crédito",
+        "is_archived": false,
+        "created_at": "2026-04-28T14:14:13.883225",
+        "name": "Tarjeta de crédito"
+      }
+    }
+  ],
+  "source": "xcale",
+  "external_ref_id": "xcale-s1-declinado",
+  "agency_id": null,
+  "trm": 1,
+  "allowed_payment_options": ["credit_card"],
+  "success_url": null,
+  "failure_url": null,
+  "main_status": "Declinado",
+  "transactions": [
+    {
+      "operation_type": "Link de pago",
+      "payment_date": "2026-11-13 22:56:58.422944",
+      "transaction_id": "N/A",
+      "reservation_id": "9oe7ql80awol",
+      "status": "Rechazado",
+      "status_detail": "Recaudo: Rechazado",
+      "amount": "150000.0",
+      "voucher_url": "/v1/bookings/122/vouchers?type=payment_link&transaction_id=316",
+      "hotel_id": 5,
+      "guest_name": "Jhon Doe",
+      "reference_id": "xcale-s1-declinado",
+      "source_id": 21,
+      "ota_code": null
+    }
+  ],
+  "latest_payment_date": "2026-11-13 22:56:58.422944",
+  "pms_payment_registered": false,
+  "notified": false
+}

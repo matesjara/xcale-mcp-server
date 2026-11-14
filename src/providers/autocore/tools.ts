@@ -93,7 +93,46 @@ const DeactivatePaymentLinkInput = z
   .object({ code: z.string().regex(/^[a-z0-9]{1,64}$/) })
   .strict();
 
-/** `POST /v2/links/schedule/` answers `{ msg, url, code, reservation_id }`; the URL is returned, never built. */
+const GetTransactionStatusInput = z.object({ code: z.string().regex(/^[a-z0-9]{1,64}$/) }).strict();
+
+/**
+ * `GET /v2/common/transaction-status` — stable status codes (`applied`, `rejected`, `pending`,
+ * `in_process`, `cancelled`, `error`), no amount. Without a transaction, `transaction_id` and
+ * `transaction_date` are `""`; a declined attempt carries `"N/A"` (observed on Staging, 2026-11-13).
+ */
+const LinkStatus = z.object({
+  details: z.object({
+    id: z.string(),
+    external_ref_id: z.string().nullable().optional(),
+    status_code: z.string().min(1),
+    transaction_id: z.string().nullable().optional(),
+  }),
+});
+
+/**
+ * `GET /v2/links/schedule/<code>` (without `validate_link_status`) — the link as Autocore keeps it,
+ * with its payments: the amount paid (a decimal string, major units) per transaction id. Only Spanish
+ * labels for status, so the status comes from `LinkStatus`. The record also carries the guest's name,
+ * email and phone and the hotel's setup; zod strips every key not named here.
+ */
+const LinkWithPayments = z.object({
+  currency: z.string().regex(/^[A-Z]{3}$/),
+  payments: z.array(
+    z.object({
+      transaction_id: z.string().nullable().optional(),
+      amount: z.union([z.string(), z.number()]),
+      // Naive ISO in UTC (observed: 03:54Z for a payment the status read dates 22:54 in Bogotá).
+      created_at: z.string(),
+    }),
+  ),
+});
+
+/** `""` and `"N/A"` both mean "no transaction". */
+function transactionIdOf(raw: string | null | undefined): string | null {
+  return raw && raw !== 'N/A' ? raw : null;
+}
+
+/** `/v2/links/schedule/` answers `{ msg, url, code, reservation_id }`; the URL is returned, never built. */
 const CreatedLink = z.object({ code: z.string().min(1), url: z.string().url() });
 
 function toOutcome(result: Unwrapped & { ok: false }): ToolOutcome {
@@ -211,6 +250,70 @@ export function buildAutocoreTools(
           'deactivate payment link',
         );
         return result.ok ? ok({ code: args.code, cancelled: true }) : toOutcome(result);
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_get_transaction_status`,
+      description:
+        "Read an Autocore payment link's status by its code: Autocore's status code as sent (applied, " +
+        'rejected, pending, in_process, cancelled, error) and, when applied, the transaction and the ' +
+        'amount and currency actually paid. A rejected attempt does not close the link: it can still be ' +
+        'paid. No guest or card data is returned.',
+      input: GetTransactionStatusInput,
+      // Settlement is the consumer's: an agent asks about a payment through the consumer's tools.
+      controlPlane: true,
+      handler: async (args, ctx) => {
+        const operation = 'get transaction status';
+        const status = unwrapAutocore(
+          await client.get('/v2/common/transaction-status', ctx.request, ctx.metadata, {
+            hotel_id: ctx.metadata.hotelId,
+            ref_number: args.code,
+            transaction_type: 'payment_link',
+          }),
+          operation,
+        );
+        if (!status.ok) return toOutcome(status);
+        const parsed = LinkStatus.safeParse(status.data);
+        if (!parsed.success) return toOutcome(unexpected(operation));
+        const { details } = parsed.data;
+        const read = {
+          code: args.code,
+          externalRef: details.external_ref_id || null,
+          status: details.status_code,
+          transactionId: transactionIdOf(details.transaction_id),
+        };
+        if (read.status !== 'applied') {
+          return ok({
+            ...read,
+            transactionId: null,
+            occurredAt: null,
+            amount: null,
+            currency: null,
+          });
+        }
+
+        // Paid: the amount comes from the link's own record of that transaction, never assumed from
+        // what was asked — the consumer compares the two.
+        const link = unwrapAutocore(
+          await client.get(`/v2/links/schedule/${args.code}`, ctx.request, ctx.metadata),
+          operation,
+        );
+        if (!link.ok) return toOutcome(link);
+        const record = LinkWithPayments.safeParse(link.data);
+        if (!record.success || read.transactionId === null) return toOutcome(unexpected(operation));
+        const payment = record.data.payments.find((p) => p.transaction_id === read.transactionId);
+        const amount = payment === undefined ? NaN : Number(payment.amount);
+        const occurredAt = payment === undefined ? NaN : Date.parse(`${payment.created_at}Z`);
+        if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(occurredAt)) {
+          return toOutcome(unexpected(operation));
+        }
+        return ok({
+          ...read,
+          occurredAt: new Date(occurredAt).toISOString(),
+          amount,
+          currency: record.data.currency,
+        });
       },
     }),
   ];
