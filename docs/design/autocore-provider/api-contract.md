@@ -45,6 +45,7 @@ All four are `controlPlane: true`: absent from `tools/list`, callable by name. N
 | Autocore call | `GET /v2/hotels?offset=<n>&limit=10`, `n` = 0, 10, 20… until `n >= paginate_info.total_items`, **at most 20 pages** |
 | Success       | the context's `hotelId` is in some page's `data[].id` → `ok(data)` below                                            |
 | Not found     | no page has it → `PROVIDER_INVALID_INPUT`, `Autocore hotel <hotelId> is not reachable with these keys`              |
+| Not active    | found, but `is_archived` or `!is_active` → `PROVIDER_INVALID_INPUT`, `Autocore hotel <hotelId> is not active`       |
 | Too many      | `total_items` > 200 and not found in 20 pages → `PROVIDER_ERROR`, `Autocore hotel listing too large`                |
 | Failure       | per §2                                                                                                              |
 
@@ -153,12 +154,12 @@ Observed Autocore validation (why the schema is stricter than Autocore):
 
 ### 1.3 `mcp_autocore_deactivate_payment_link`
 
-|               |                                                                                                                                                 |
-| :------------ | :---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Input         | `z.object({ code: z.string().regex(/^[a-z0-9]{1,64}$/) }).strict()` — the link's `code` (a path segment: anything else is refused, not encoded) |
-| Autocore call | `DELETE /v2/bookings/chatbot/<code>` (undocumented by Autocore; it is what its web app's "Cancelar cobro" calls)                                |
-| Success       | `200` `{ "msg": "Reserva cancelada correctamente" }` → `ok({ code, cancelled: true })`                                                          |
-| Failure       | per §2                                                                                                                                          |
+|                |                                                                                                                                                                                                                                                                                                                                                                                  |
+| :------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Input          | `z.object({ code: z.string().regex(/^[a-z0-9]{1,64}$/) }).strict()` — the link's `code` (a path segment: anything else is refused, not encoded)                                                                                                                                                                                                                                  |
+| Autocore calls | 1. `GET /v2/common/transaction-status?hotel_id=<hotelId>&ref_number=<code>&transaction_type=payment_link` — proves the link is the connection's hotel's (another hotel's link answers `404` "Link de pago no identificado", observed); 2. `DELETE /v2/bookings/chatbot/<code>` (undocumented by Autocore; it is what its web app's "Cancelar cobro" calls), which names no hotel |
+| Success        | any JSON `2xx` from the DELETE (observed: `200` `{ "msg": "Reserva cancelada correctamente" }`; the body is not read) → `ok({ code, cancelled: true })`                                                                                                                                                                                                                          |
+| Failure        | per §2                                                                                                                                                                                                                                                                                                                                                                           |
 
 Observed:
 
@@ -226,9 +227,10 @@ Autocore's error body is always `{ "code": 0, "message": "Error http: <n>", "det
 | `5xx`, timeout, network                                                                 | `PROVIDER_UNAVAILABLE`                                      | `Autocore <operation> failed (HTTP 5xx)` / `Autocore <operation> unreachable` |
 | `2xx` with an unexpected shape                                                          | `PROVIDER_ERROR`                                            | `Autocore <operation> returned an unexpected response`                        |
 | Probe: `hotelId` not in the listing                                                     | `PROVIDER_INVALID_INPUT`                                    | `Autocore hotel <hotelId> is not reachable with these keys`                   |
+| Probe: the hotel is archived or inactive                                                | `PROVIDER_INVALID_INPUT`                                    | `Autocore hotel <hotelId> is not active`                                      |
 | Probe: listing past 20 pages                                                            | `PROVIDER_ERROR`                                            | `Autocore hotel listing too large`                                            |
 | Context: `environment` or `source` missing or invalid, `hotelId` not a positive integer | `PROVIDER_INVALID_INPUT`                                    | the core's input validation message (no call)                                 |
-| Composed secret without `:` or with an empty part                                       | `PROVIDER_AUTH_EXPIRED` (the core, before any request; ADR) | `Stored credential is malformed — reconnect the account`                      |
+| Composed secret without `:`, with an empty part or with `;` in the key                  | `PROVIDER_AUTH_EXPIRED` (the core, before any request; ADR) | `Stored credential is malformed — reconnect the account`                      |
 
 `<operation>` is `check credentials`, `create payment link`, `deactivate payment link` or `get transaction status`.
 
