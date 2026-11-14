@@ -78,7 +78,9 @@ export function materialize(
       const sep = secret.indexOf(':');
       const key = sep > 0 ? secret.slice(0, sep) : '';
       const keySecret = sep > 0 ? secret.slice(sep + 1) : '';
-      if (key === '' || keySecret === '') {
+      // The key travels inside the token between `;` separators: one inside it would make the token
+      // unreadable to the provider, so it is a malformed credential, not an opaque 401.
+      if (key === '' || keySecret === '' || key.includes(';')) {
         throw new CredentialShapeError();
       }
       const ts = String(Math.floor(now() / 1000));

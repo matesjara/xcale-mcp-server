@@ -230,7 +230,7 @@ describe('AuthenticationMaterializer — timestamped_hash_token', () => {
     expect(digest).toBe(createHash('sha256').update('S:with:colons1700000000').digest('hex'));
   });
 
-  it.each(['nocolon', ':secretonly', 'keyonly:'])(
+  it.each(['nocolon', ':secretonly', 'keyonly:', 'AK;x:SK456'])(
     'fails closed on a malformed composed secret (%s), and the error carries none of it',
     (value) => {
       let caught: unknown;
