@@ -15,10 +15,16 @@ import { z } from 'zod';
  * `source` is the account's origin, which Autocore hands over with the keys (xcale's is `xcale`) and
  * requires on every link it creates: without it, a create answers 400 "Debe indicar el origen…"
  * (observed on Staging, 2026-11-13). It is routing data of the account, not a secret.
+ *
+ * `hotelId` is read from a number or a string of digits: a consumer may keep the metadata an owner
+ * typed as text (xcale-backend's connect form does). Never a coerced `true` or `'1e3'` (Avirato's rule).
  */
 export const autocoreContext = z
   .object({
-    hotelId: z.number().int().positive(),
+    hotelId: z.preprocess(
+      (v) => (typeof v === 'string' && /^\d+$/.test(v.trim()) ? Number(v.trim()) : v),
+      z.number().int().positive(),
+    ),
     environment: z.enum(['staging', 'production']),
     source: z.string().min(1).max(100),
   })

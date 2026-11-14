@@ -23,13 +23,29 @@ describe('autocoreContext', () => {
     }
   });
 
-  it('refuses a missing or unknown environment, a non-positive or fractional hotel id, and extra keys', () => {
+  it('reads a hotel id sent as a string of digits (a consumer may keep metadata as text)', () => {
+    for (const hotelId of ['5', ' 5\n']) {
+      const parsed = autocoreContext.safeParse({
+        hotelId,
+        environment: 'staging',
+        source: 'xcale',
+      });
+      expect(parsed.success && parsed.data.hotelId).toBe(5);
+    }
+  });
+
+  it('refuses a missing or unknown environment, a non-positive, fractional or non-numeric hotel id, and extra keys', () => {
     for (const bad of [
       { hotelId: 5 },
       { hotelId: 5, environment: 'testing' },
       { hotelId: 0, environment: 'staging' },
       { hotelId: 5.5, environment: 'staging' },
-      { hotelId: '5', environment: 'staging' },
+      ...['5.5', '1e3', 'abc', '', '0'].map((hotelId) => ({
+        hotelId,
+        environment: 'staging',
+        source: 'xcale',
+      })),
+      { hotelId: true, environment: 'staging', source: 'xcale' },
       { hotelId: 5, environment: 'staging', other: true },
       { hotelId: 5, environment: 'staging' },
       { hotelId: 5, environment: 'staging', source: '' },
