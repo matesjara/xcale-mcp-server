@@ -15,7 +15,7 @@ import listHotels from '../__fixtures__/listHotels.json';
 /** Visibly fake keys, composed as the consumer stores them. Never derived from real ones. */
 const STAGING: ProviderCallContext = {
   credential: { secret: new SecretString('AK123:SK456') },
-  metadata: { hotelId: 5, environment: 'staging' },
+  metadata: { hotelId: 5, environment: 'staging', source: 'xcale' },
 };
 /** The Auth-Token for AK123 / SK456 at 1700000000 (an independently computed vector, see core tests). */
 const TOKEN_AT_1700000000 =
@@ -106,7 +106,7 @@ describe('autocore provider — connection probe', () => {
     const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
       'mcp_autocore_check_credentials',
       {},
-      withMetadata({ hotelId: 6, environment: 'staging' }),
+      withMetadata({ hotelId: 6, environment: 'staging', source: 'xcale' }),
     );
     expect(result).toMatchObject({
       kind: 'error',
@@ -124,7 +124,7 @@ describe('autocore provider — connection probe', () => {
     const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
       'mcp_autocore_check_credentials',
       {},
-      withMetadata({ hotelId: 13, environment: 'staging' }),
+      withMetadata({ hotelId: 13, environment: 'staging', source: 'xcale' }),
     );
     expect(successData(result)).toMatchObject({ valid: true, hotel: { id: 13 } });
     expect(calls.map((c) => c.url)).toEqual([
@@ -172,14 +172,14 @@ describe('autocore provider — connection probe', () => {
     await provider.callTool(
       'mcp_autocore_check_credentials',
       {},
-      withMetadata({ hotelId: 5, environment: 'production' }),
+      withMetadata({ hotelId: 5, environment: 'production', source: 'xcale' }),
     );
     expect(calls[0]!.url.startsWith('https://api.autocore.pro/v2/hotels')).toBe(true);
 
     const refused = await provider.callTool(
       'mcp_autocore_check_credentials',
       {},
-      withMetadata({ hotelId: 5, environment: 'testing' }),
+      withMetadata({ hotelId: 5, environment: 'testing', source: 'xcale' }),
     );
     expect(refused).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
     expect(calls).toHaveLength(1);
@@ -231,6 +231,7 @@ describe('autocore provider — create payment link', () => {
     expect(calls[0]!.url).toBe('https://api-stg.autocore.pro/v2/links/schedule/');
     expect(calls[0]!.headers['Auth-Token']).toBe(TOKEN_AT_1700000000);
     expect(JSON.parse(calls[0]!.body!)).toEqual({
+      source: 'xcale',
       hotel_id: 5,
       amount: 150000,
       currency: 'COP',

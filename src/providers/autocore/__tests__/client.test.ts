@@ -17,7 +17,9 @@ const recorder = () => {
 describe('autocoreContext', () => {
   it('accepts a hotel and one of the two environments Autocore issues keys for', () => {
     for (const environment of ['staging', 'production']) {
-      expect(autocoreContext.safeParse({ hotelId: 5, environment }).success).toBe(true);
+      expect(autocoreContext.safeParse({ hotelId: 5, environment, source: 'xcale' }).success).toBe(
+        true,
+      );
     }
   });
 
@@ -29,6 +31,8 @@ describe('autocoreContext', () => {
       { hotelId: 5.5, environment: 'staging' },
       { hotelId: '5', environment: 'staging' },
       { hotelId: 5, environment: 'staging', other: true },
+      { hotelId: 5, environment: 'staging' },
+      { hotelId: 5, environment: 'staging', source: '' },
     ]) {
       expect(autocoreContext.safeParse(bad).success).toBe(false);
     }
@@ -42,10 +46,14 @@ describe('createAutocoreClient', () => {
     await client.get(
       '/v2/hotels',
       request,
-      { hotelId: 5, environment: 'staging' },
+      { hotelId: 5, environment: 'staging', source: 'xcale' },
       { offset: 0, limit: 10 },
     );
-    await client.get('/v2/hotels', request, { hotelId: 5, environment: 'production' });
+    await client.get('/v2/hotels', request, {
+      hotelId: 5,
+      environment: 'production',
+      source: 'xcale',
+    });
     expect(specs[0]?.url).toBe('https://api-stg.autocore.pro/v2/hotels?offset=0&limit=10');
     expect(specs[1]?.url).toBe('https://api.autocore.pro/v2/hotels');
   });
@@ -53,7 +61,7 @@ describe('createAutocoreClient', () => {
   it('sends a JSON body on POST and nothing on DELETE', async () => {
     const client = createAutocoreClient();
     const { specs, request } = recorder();
-    const ctx = { hotelId: 5, environment: 'staging' } as const;
+    const ctx = { hotelId: 5, environment: 'staging', source: 'xcale' } as const;
     await client.post('/v2/links/schedule/', request, ctx, { hotel_id: 5, amount: 100 });
     await client.delete('/v2/bookings/chatbot/abc', request, ctx);
     expect(specs[0]).toMatchObject({
@@ -74,7 +82,7 @@ describe('createAutocoreClient', () => {
     await client.get(
       '/v2/x',
       request,
-      { hotelId: 5, environment: 'staging' },
+      { hotelId: 5, environment: 'staging', source: 'xcale' },
       { a: 1, b: undefined },
     );
     expect(specs[0]?.url).toBe('https://api-stg.autocore.pro/v2/x?a=1');

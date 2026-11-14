@@ -169,6 +169,8 @@ export function buildAutocoreTools(
         // Sent once: Autocore has no idempotency key, so a retry could leave two payable links.
         const result = unwrapAutocore(
           await client.post('/v2/links/schedule/', ctx.request, ctx.metadata, {
+            // Required by Autocore since 2026-11-13: the account's origin, from the context.
+            source: ctx.metadata.source,
             hotel_id: ctx.metadata.hotelId,
             amount: args.amount,
             currency: args.currency,

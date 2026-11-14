@@ -11,11 +11,16 @@ import { z } from 'zod';
  * environment and carry no prefix that would tell them apart (Staging keys answer 401 on any other
  * host, observed 2026-11-09). Staging is what Autocore gives integrators; its `api-dev` Testing host
  * is Autocore's own. Which host each value means is knowledge this provider keeps (`client.ts`).
+ *
+ * `source` is the account's origin, which Autocore hands over with the keys (xcale's is `xcale`) and
+ * requires on every link it creates: without it, a create answers 400 "Debe indicar el origen…"
+ * (observed on Staging, 2026-11-13). It is routing data of the account, not a secret.
  */
 export const autocoreContext = z
   .object({
     hotelId: z.number().int().positive(),
     environment: z.enum(['staging', 'production']),
+    source: z.string().min(1).max(100),
   })
   .strict();
 

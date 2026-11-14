@@ -14,7 +14,7 @@ const TOOLS = [
 /** Visibly fake keys, composed as the consumer stores them. */
 const CTX = {
   credential: { secret: new SecretString('AK123:SK456') },
-  metadata: { hotelId: 5, environment: 'staging' },
+  metadata: { hotelId: 5, environment: 'staging', source: 'xcale' },
 };
 
 const rejecting = (async () =>
