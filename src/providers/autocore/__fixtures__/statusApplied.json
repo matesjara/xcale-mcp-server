@@ -1,0 +1,14 @@
+{
+  "voucher_url": "/v1/bookings/121/vouchers?type=payment_link",
+  "redirect_url": null,
+  "details": {
+    "type": "charge",
+    "id": "k4doiy1k9tex",
+    "external_ref_id": "xcale-s1-exitoso",
+    "status_code": "applied",
+    "status_detail": "Aplicado",
+    "comments": "Pago reserva ID: k4doiy1k9tex, Hotel: STG XCALE HOTEL, Valor: $150,000.00",
+    "transaction_id": "01a1d831-0895-7184-a158-b543f29a4f2b",
+    "transaction_date": "2026-11-13 22:54:13.893881"
+  }
+}

@@ -1,4 +1,5 @@
 import type { IProvider } from '../core/provider-port';
+import { autocoreProvider } from './autocore';
 import { aviratoProvider } from './avirato';
 import { cloudbedsProvider } from './cloudbeds';
 import { echoProvider } from './echo';
@@ -32,4 +33,5 @@ export const PROVIDERS: readonly IProvider[] = [
   siteminderProvider,
   wompiProvider,
   aviratoProvider,
+  autocoreProvider,
 ];

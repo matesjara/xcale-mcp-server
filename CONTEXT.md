@@ -207,9 +207,18 @@ bare secret as its permanent shape.
 a `ResolvedCredential`, **reveals** the secret, and produces a **fully materialized, plain `HttpRequest`**
 (the single `.reveal()` egress point). The HTTP transport that runs the request knows nothing of
 `SecretString`, `ResolvedCredential`, or any auth scheme (bearer/api_key/basic/cookie) — it just sends a
-built request. This is the swap point for a future imperative (signed-request) auth variant. _Avoid_:
-leaving a `SecretString` in the materializer's output (materialization must finish there, not straddle
-into transport); the transport knowing any auth scheme; `.reveal()` outside this step.
+built request. It is also where imperative auth runs: the [`timestamped_hash_token`](#) variant computes its
+token here, per request. _Avoid_: leaving a `SecretString` in the materializer's output (materialization must
+finish there, not straddle into transport); the transport knowing any auth scheme; `.reveal()` outside this step.
+
+**`timestamped_hash_token` (auth descriptor variant)** — the first imperative auth variant: for every HTTP
+request the materializer turns one composed `key:secret` credential into a header
+`base64(key;ts;sha256_hex(secret + ts))`, with `ts` the Unix time in whole seconds (Autocore's `Auth-Token`). The
+recipe is fixed by the variant; the descriptor declares only the header name and the two label-only `fields` the
+consumer composes. A malformed composed secret fails closed before any request, as a reconnectable
+`PROVIDER_AUTH_EXPIRED`. See ADR `timestamped-hash-token-auth-scheme`. _Avoid_: computing the token in provider
+code (a second reveal); minting it in Rail A (it expires in seconds and must be fresh per request); declaring the
+hash, encoding or separator as descriptor fields before a second provider needs another value.
 
 **Ephemeral reference** — a single-use, high-entropy, short-TTL (≤60s) **opaque nonce** that stands in
 for a provider credential on the wire under the `reference` delivery strategy. It resolves to a

@@ -1,0 +1,14 @@
+{
+  "voucher_url": null,
+  "redirect_url": null,
+  "details": {
+    "type": "charge",
+    "id": "gmoiew13h8zz",
+    "external_ref_id": "xcale-spike-e6",
+    "status_code": "cancelled",
+    "status_detail": "Cancelado",
+    "comments": "",
+    "transaction_id": "",
+    "transaction_date": ""
+  }
+}

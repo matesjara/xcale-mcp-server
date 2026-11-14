@@ -56,6 +56,12 @@ function assertAuthDescriptorShape(auth: ProviderAuthDescriptor, label: string):
       // them at the consumer and only encodes here. At least one field must be declared.
       expect(auth.fields.length, `${label}: basic fields`).toBeGreaterThan(0);
       break;
+    case 'timestamped_hash_token':
+      // The token is built from exactly two composed inputs (key:secret) and placed in one named
+      // header. ADR timestamped-hash-token-auth-scheme.
+      expect(auth.header.length, `${label}: timestamped_hash_token.header`).toBeGreaterThan(0);
+      expect(auth.fields.length, `${label}: timestamped_hash_token fields`).toBe(2);
+      break;
     case 'none':
       // Credential-less: nothing to collect, nothing to deliver. Only the serializability check below
       // applies. ADR credential-less-provider-auth.

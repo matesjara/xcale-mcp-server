@@ -1,0 +1,14 @@
+{
+  "voucher_url": null,
+  "redirect_url": null,
+  "details": {
+    "type": "charge",
+    "id": "9oe7ql80awol",
+    "external_ref_id": "xcale-s1-declinado",
+    "status_code": "rejected",
+    "status_detail": "Rechazado",
+    "comments": "El número de la tarjeta es inválido., El código de seguridad de la tarjeta es inválido.",
+    "transaction_id": "N/A",
+    "transaction_date": "2026-11-13 22:56:58.422944"
+  }
+}

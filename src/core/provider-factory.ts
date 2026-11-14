@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 
-import { materialize } from './auth/authentication-materializer';
+import { CredentialShapeError, materialize } from './auth/authentication-materializer';
 import { ProviderErrorCode } from './errors';
 import { type FetchLike, sendRequest } from './http';
 import { toJsonSchema } from './json-schema';
@@ -25,6 +25,11 @@ export interface ProviderSpec<M = unknown> {
   readonly tools: ReadonlyArray<ToolDefinition<any, M>>;
   /** Injectable HTTP transport for deterministic tests (default: global fetch via `sendRequest`). */
   readonly fetchImpl?: FetchLike;
+  /**
+   * Injectable clock (ms since the epoch) for deterministic tests, read only by time-dependent auth
+   * (`timestamped_hash_token`). Default: the system clock.
+   */
+  readonly clock?: () => number;
 }
 
 function formatZodError(error: z.ZodError): string {
@@ -120,18 +125,34 @@ export function createProvider<M = unknown>(spec: ProviderSpec<M>): IProvider {
         });
       }
 
-      const outcome = await tool.handler(parsedArgs.data, {
-        // The authenticated-request executor: the core materializes auth (reveals + applies the
-        // declared placement) and transports it, so the handler never touches the secret. The plain
-        // materialized request stays inside this core span — it never passes through provider code.
-        request: (reqSpec) =>
-          sendRequest(
-            // Multi-credential providers: the called tool's group picks which secret/field to inject.
-            materialize(spec.auth, ctx.credential, reqSpec, tool.credentialGroup),
-            spec.fetchImpl ? { fetchImpl: spec.fetchImpl } : {},
-          ),
-        metadata,
-      });
+      let outcome;
+      try {
+        outcome = await tool.handler(parsedArgs.data, {
+          // The authenticated-request executor: the core materializes auth (reveals + applies the
+          // declared placement) and transports it, so the handler never touches the secret. The plain
+          // materialized request stays inside this core span — it never passes through provider code.
+          request: (reqSpec) =>
+            sendRequest(
+              // Multi-credential providers: the called tool's group picks which secret/field to inject.
+              materialize(spec.auth, ctx.credential, reqSpec, tool.credentialGroup, spec.clock),
+              spec.fetchImpl ? { fetchImpl: spec.fetchImpl } : {},
+            ),
+          metadata,
+        });
+      } catch (e) {
+        // A stored credential that does not have its descriptor's shape: a typed, reconnectable answer
+        // (like the missing group secret above) rather than a JSON-RPC internal error. Its message is
+        // fixed and carries no credential material. Anything else still propagates.
+        if (e instanceof CredentialShapeError) {
+          return toolError({
+            code: ProviderErrorCode.AUTH_EXPIRED,
+            toolName,
+            providerSlug: slug,
+            message: e.message,
+          });
+        }
+        throw e;
+      }
       return outcome.ok
         ? toolSuccess({
             toolName,
