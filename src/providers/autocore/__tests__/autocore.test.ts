@@ -337,17 +337,25 @@ describe('autocore provider — create payment link', () => {
 describe('autocore provider — deactivate payment link', () => {
   // Undocumented by Autocore: what its web app's "Cancelar cobro" calls (observed on Staging).
   it('cancels the link by its code and confirms it, without passing Autocore message on', async () => {
-    const { fetchImpl, calls } = recordingFetch({ body: deactivatePaymentLink });
+    const { fetchImpl, calls } = recordingFetch(
+      { body: statusCancelled },
+      { body: deactivatePaymentLink },
+    );
     const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
       'mcp_autocore_deactivate_payment_link',
       { code: 'gmoiew13h8zz' },
       STAGING,
     );
     expect(successData(result)).toEqual({ code: 'gmoiew13h8zz', cancelled: true });
-    expect(calls).toHaveLength(1);
-    expect(calls[0]!.method).toBe('DELETE');
-    expect(calls[0]!.url).toBe('https://api-stg.autocore.pro/v2/bookings/chatbot/gmoiew13h8zz');
-    expect(calls[0]!.headers['Auth-Token']).toBe(TOKEN_AT_1700000000);
+    // First the link is proven to be this hotel's (the status read is scoped by hotel_id), then cancelled.
+    expect(calls.map((c) => [c.method, c.url])).toEqual([
+      [
+        'GET',
+        'https://api-stg.autocore.pro/v2/common/transaction-status?hotel_id=5&ref_number=gmoiew13h8zz&transaction_type=payment_link',
+      ],
+      ['DELETE', 'https://api-stg.autocore.pro/v2/bookings/chatbot/gmoiew13h8zz'],
+    ]);
+    for (const call of calls) expect(call.headers['Auth-Token']).toBe(TOKEN_AT_1700000000);
     expect(JSON.stringify(result)).not.toContain('Reserva');
   });
 
@@ -514,5 +522,68 @@ describe('autocore provider — transaction status', () => {
       clock,
     }).callTool('mcp_autocore_get_transaction_status', { code: 'abc123' }, STAGING);
     expect(unknown).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
+  });
+});
+
+describe('autocore provider — review fixes', () => {
+  // Observed: the status read answers 404 "Link de pago no identificado" for a hotel_id the link is not
+  // from, so it proves a link is the connection's hotel's before anything is cancelled.
+  it("never cancels a link that is not the connection's hotel's", async () => {
+    const { fetchImpl, calls } = recordingFetch({ status: 404, body: hotelNotFound });
+    const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
+      'mcp_autocore_deactivate_payment_link',
+      { code: 'otherhotel01' },
+      STAGING,
+    );
+    expect(result).toMatchObject({ kind: 'error', code: ProviderErrorCode.PROVIDER_ERROR });
+    expect(calls.map((c) => c.method)).toEqual(['GET']);
+  });
+
+  // The core transport parses every 2xx as JSON, so a 204 or a non-JSON body never reaches a provider
+  // (it reads as unreachable for all of them); what the provider controls is not requiring an object.
+  it('takes any JSON 2xx from the cancel as done, without reading its shape', async () => {
+    const { fetchImpl, calls } = recordingFetch({ body: statusPending }, { body: null });
+    const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
+      'mcp_autocore_deactivate_payment_link',
+      { code: 'foibzazghzsz' },
+      STAGING,
+    );
+    expect(result).toMatchObject({ kind: 'success', data: { cancelled: true } });
+    expect(calls.map((c) => c.method)).toEqual(['GET', 'DELETE']);
+  });
+
+  it.each([
+    ['archived', { is_archived: true, is_active: true }],
+    ['inactive', { is_archived: false, is_active: false }],
+  ])('refuses at connect a hotel Autocore lists as %s', async (_label, flags) => {
+    const page = structuredClone(listHotels) as { data: Array<Record<string, unknown>> };
+    Object.assign(page.data[0]!, flags);
+    const { fetchImpl } = recordingFetch({ body: page });
+    const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
+      'mcp_autocore_check_credentials',
+      {},
+      STAGING,
+    );
+    expect(result).toMatchObject({
+      kind: 'error',
+      code: ProviderErrorCode.INVALID_INPUT,
+      message: 'Autocore hotel 5 is not active',
+    });
+  });
+
+  it.each([
+    ['naive (as observed)', '2026-11-14T03:54:15.862324', '2026-11-14T03:54:15.862Z'],
+    ['with a Z', '2026-11-14T03:54:15Z', '2026-11-14T03:54:15.000Z'],
+    ['with an offset', '2026-11-13T22:54:15-05:00', '2026-11-14T03:54:15.000Z'],
+  ])('reads a payment time %s as UTC', async (_label, createdAt, expected) => {
+    const link = structuredClone(linkPaid) as { payments: Array<{ created_at: string }> };
+    link.payments[0]!.created_at = createdAt;
+    const { fetchImpl } = recordingFetch({ body: statusApplied }, { body: link });
+    const result = await createAutocoreProvider({ fetchImpl, clock }).callTool(
+      'mcp_autocore_get_transaction_status',
+      { code: 'k4doiy1k9tex' },
+      STAGING,
+    );
+    expect(successData(result)).toMatchObject({ status: 'applied', occurredAt: expected });
   });
 });

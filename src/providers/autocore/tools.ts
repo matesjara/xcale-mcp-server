@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { ProviderErrorCode } from '../../core/errors';
 import { err, ok, type ToolDefinition, type ToolOutcome, toolFactory } from '../../core/tool';
-import type { AutocoreClient } from './client';
+import type { AuthedRequest, AutocoreClient } from './client';
 import type { AutocoreContext } from './context';
 import { unexpected, unwrapAutocore, type Unwrapped } from './errors';
 import { SLUG } from './manifest';
@@ -102,7 +102,6 @@ const GetTransactionStatusInput = z.object({ code: z.string().regex(/^[a-z0-9]{1
  */
 const LinkStatus = z.object({
   details: z.object({
-    id: z.string(),
     external_ref_id: z.string().nullable().optional(),
     status_code: z.string().min(1),
     transaction_id: z.string().nullable().optional(),
@@ -130,6 +129,27 @@ const LinkWithPayments = z.object({
 /** `""` and `"N/A"` both mean "no transaction". */
 function transactionIdOf(raw: string | null | undefined): string | null {
   return raw && raw !== 'N/A' ? raw : null;
+}
+
+/**
+ * Milliseconds since the epoch of an Autocore timestamp. Observed naive (no zone) and in UTC; a zone,
+ * if Autocore ever sends one, is honoured instead of doubled.
+ */
+function utcTime(raw: string): number {
+  return Date.parse(/(Z|[+-]\d{2}:?\d{2})$/.test(raw) ? raw : `${raw}Z`);
+}
+
+/** The link's status, scoped to the connection's hotel: another hotel's link answers 404 (observed). */
+function readStatus(
+  client: AutocoreClient,
+  code: string,
+  ctx: { request: AuthedRequest; metadata: AutocoreContext },
+) {
+  return client.get('/v2/common/transaction-status', ctx.request, ctx.metadata, {
+    hotel_id: ctx.metadata.hotelId,
+    ref_number: code,
+    transaction_type: 'payment_link',
+  });
 }
 
 /** `/v2/links/schedule/` answers `{ msg, url, code, reservation_id }`; the URL is returned, never built. */
@@ -180,7 +200,18 @@ export function buildAutocoreTools(
           if (!parsed.success) return toOutcome(unexpected('check credentials'));
 
           const hotel = parsed.data.data.find((h) => h.id === ctx.metadata.hotelId);
-          if (hotel) return ok({ valid: true, hotel: describeHotel(hotel) });
+          if (hotel) {
+            const described = describeHotel(hotel);
+            // A hotel Autocore lists as archived or inactive cannot take payments: refused at connect,
+            // never discovered at the first guest's charge.
+            if (!described.active) {
+              return err(
+                ProviderErrorCode.INVALID_INPUT,
+                `Autocore hotel ${ctx.metadata.hotelId} is not active`,
+              );
+            }
+            return ok({ valid: true, hotel: described });
+          }
 
           const total = parsed.data.paginate_info.total_items;
           if (offset + HOTELS_PAGE_SIZE >= total || parsed.data.data.length === 0) {
@@ -242,14 +273,27 @@ export function buildAutocoreTools(
       // Part of the consumer's charge lifecycle (a cancelled request, a disconnected gateway).
       controlPlane: true,
       handler: async (args, ctx) => {
+        const operation = 'deactivate payment link';
+        // The DELETE names no hotel, and one set of keys can reach several. The status read is scoped
+        // by hotel_id (404 "Link de pago no identificado" for another hotel's link, observed), so it
+        // proves the link is the connection's hotel's before anything is cancelled.
+        const owned = await readStatus(client, args.code, ctx);
+        if (!owned.ok)
+          return toOutcome(unwrapAutocore(owned, operation) as Unwrapped & { ok: false });
+
         // Undocumented by Autocore: the call its web app's "Cancelar cobro" makes. It answers 200
         // `{ msg }` also for a link already cancelled, after which the link reads `cancelled` and its
-        // checkout refuses it (observed on Staging, 2026-11-09).
-        const result = unwrapAutocore(
-          await client.delete(`/v2/bookings/chatbot/${args.code}`, ctx.request, ctx.metadata),
-          'deactivate payment link',
+        // checkout refuses it; a paid link answers 404 and stays paid (observed on Staging). Any 2xx is
+        // a cancel: the body is not read.
+        const cancelled = await client.delete(
+          `/v2/bookings/chatbot/${args.code}`,
+          ctx.request,
+          ctx.metadata,
         );
-        return result.ok ? ok({ code: args.code, cancelled: true }) : toOutcome(result);
+        if (!cancelled.ok) {
+          return toOutcome(unwrapAutocore(cancelled, operation) as Unwrapped & { ok: false });
+        }
+        return ok({ code: args.code, cancelled: true });
       },
     }),
 
@@ -265,14 +309,7 @@ export function buildAutocoreTools(
       controlPlane: true,
       handler: async (args, ctx) => {
         const operation = 'get transaction status';
-        const status = unwrapAutocore(
-          await client.get('/v2/common/transaction-status', ctx.request, ctx.metadata, {
-            hotel_id: ctx.metadata.hotelId,
-            ref_number: args.code,
-            transaction_type: 'payment_link',
-          }),
-          operation,
-        );
+        const status = unwrapAutocore(await readStatus(client, args.code, ctx), operation);
         if (!status.ok) return toOutcome(status);
         const parsed = LinkStatus.safeParse(status.data);
         if (!parsed.success) return toOutcome(unexpected(operation));
@@ -281,7 +318,6 @@ export function buildAutocoreTools(
           code: args.code,
           externalRef: details.external_ref_id || null,
           status: details.status_code,
-          transactionId: transactionIdOf(details.transaction_id),
         };
         if (read.status !== 'applied') {
           return ok({
@@ -292,6 +328,7 @@ export function buildAutocoreTools(
             currency: null,
           });
         }
+        const transactionId = transactionIdOf(details.transaction_id);
 
         // Paid: the amount comes from the link's own record of that transaction, never assumed from
         // what was asked — the consumer compares the two.
@@ -301,15 +338,16 @@ export function buildAutocoreTools(
         );
         if (!link.ok) return toOutcome(link);
         const record = LinkWithPayments.safeParse(link.data);
-        if (!record.success || read.transactionId === null) return toOutcome(unexpected(operation));
-        const payment = record.data.payments.find((p) => p.transaction_id === read.transactionId);
+        if (!record.success || transactionId === null) return toOutcome(unexpected(operation));
+        const payment = record.data.payments.find((p) => p.transaction_id === transactionId);
         const amount = payment === undefined ? NaN : Number(payment.amount);
-        const occurredAt = payment === undefined ? NaN : Date.parse(`${payment.created_at}Z`);
+        const occurredAt = payment === undefined ? NaN : utcTime(payment.created_at);
         if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(occurredAt)) {
           return toOutcome(unexpected(operation));
         }
         return ok({
           ...read,
+          transactionId,
           occurredAt: new Date(occurredAt).toISOString(),
           amount,
           currency: record.data.currency,
