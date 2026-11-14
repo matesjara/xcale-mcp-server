@@ -3,7 +3,8 @@
 > Diario de verificación (permitido en español: journal de trabajo fechado).
 > Objetivo: que el `api-contract.md` solo contenga lo observado contra el API real de Autocore.
 
-- **Fecha:** 2026-11-09.
+- **Fechas:** 2026-11-09 (sin pagos: el checkout de Staging fallaba) y 2026-11-13 (pagos completos, ver la última
+  sección).
 - **Entorno:** Staging, `https://api-stg.autocore.pro`. Autocore entregó a xcale llaves de **Staging** (no de
   Testing, `api-dev`): son las que da a los integradores.
 - **Llaves:** `access_key` + `secret_key` de tipo _Session Token_, entregadas por Autocore por correo para
@@ -256,7 +257,7 @@ identificado"`. Resuelve **P-3**.
 - El checkout pide los datos del comprador (tipo de persona, tipo y número de documento, contacto, si el comprador es
   quien recibe el servicio) antes de la tarjeta: Autocore los recoge, no el integrador.
 
-## Pagos — bloqueado por el checkout de Staging
+## Pagos — 2026-11-09: bloqueado por el checkout de Staging
 
 Sara intentó pagar (2026-11-09) con las tarjetas de prueba de Autocore:
 
@@ -292,3 +293,63 @@ de links. Reportado.
 **Sigue pendiente, hasta que Autocore lo arregle:** un pago `applied` y su voucher (monto y moneda pagados, **P-7**);
 pagar dos veces el mismo link y anular uno pagado (**P-1**); los estados intermedios con las tarjetas pendientes (`1ig48efsia90`,
 `5armyx2wbps0`); el webhook.
+
+---
+
+## 2026-11-13 — Autocore cambia la configuración y el pago funciona
+
+### Lo que cambió en Staging
+
+- El procesador del hotel 5 pasó de `redeban` a **`onepay`** en sus tres servicios (`GET /v2/hotels`).
+- **`source` ahora es obligatorio al crear un link.** Sin él: `400` `"Campo inválido [source]: Debe indicar el origen
+desde el cual está realizando la petición."`. Con `"source": "xcale"` (el origen que Autocore asignó con las llaves)
+  se crea. Es el "origen" del error de la Terminal virtual del 9 de noviembre.
+- Los links del 9 de noviembre vencieron (`available_hours: 24`): su lectura responde `400` `"El enlace de pago ya no
+está disponible…"`.
+
+### Pagos (Sara, a mano, con las tarjetas de prueba de Autocore; links de $150.000 COP con `source: "xcale"`)
+
+| Link           | Tarjeta de prueba               | Página                                                  | `transaction-status`                                                              | Lectura del link (`status` / `main_status`) |
+| :------------- | :------------------------------ | :------------------------------------------------------ | :-------------------------------------------------------------------------------- | :------------------------------------------ |
+| `k4doiy1k9tex` | Cobro exitoso                   | "Pago exitoso"                                          | `applied`, `transaction_id` UUID, `transaction_date` `2026-11-13 22:54:13.893881` | `Aplicado` / `Aprobado`                     |
+| `9oe7ql80awol` | Cobro declinado                 | "Rechazado", con "Reintentar Pago"                      | `rejected`, `transaction_id: "N/A"`, el motivo en `comments`                      | `Rechazado` / `Declinado`                   |
+| `cw77g8sgxxk9` | Pendiente que termina exitoso   | "Estamos confirmando tu pago" (~1 min) → "Pago exitoso" | `applied`                                                                         | `Aplicado` / `Aprobado`                     |
+| `foibzazghzsz` | Pendiente que termina rechazado | Tarda y termina en fallido                              | **`pending`**, sin transacción                                                    | `Pendiente` / `Sin procesar`, sin pagos     |
+
+- **Un link pagado no se paga dos veces** (resuelve **P-1**): al volver a abrirlo muestra "Pago exitoso", y su lectura
+  con `validate_link_status=true` responde `400` `"Ya se ha realizado un pago con los datos proporcionados"`.
+- **Un intento rechazado no cierra el link:** la página ofrece "Reintentar Pago".
+- El caso "pendiente que termina rechazado" no dejó ningún pago en Autocore: sigue `pending`.
+- No se consultó la API durante el "confirmando" de la tarjeta pendiente, así que `in_process` no se observó.
+- `transaction_date` es hora local sin zona (22:54 en Bogotá); el `created_at` del pago es UTC sin zona (`03:54`).
+
+### El monto pagado
+
+- `transaction-status` no trae monto. El voucher no sirve: `voucher_url` (`/v1/bookings/<id>/vouchers?type=payment_link`)
+  es un **PDF**, y `GET /v2/transactions/vouchers/detail` responde `400` `"No se pudo determinar el ambiente."` con
+  `transaction_id`, con `internal_id` + `operation_type` y agregando `hotel_id`.
+- El listado por hotel (`/v2/transactions/vouchers/hotel/5?id_type=internal`, consultado una vez) volvió **vacío**:
+  los pagos de links no aparecen ahí.
+- **`GET /v2/links/schedule/<code>` sin `validate_link_status`** (con el `Auth-Token`) devuelve el registro del link
+  con `currency`, `payments[]` y `transactions[]`. Cada pago trae `transaction_id`, `amount` (texto decimal en
+  unidades mayores: `"150000.0"`), `status` (en español) y `created_at`. Es de donde S1 lee el monto, buscando el pago
+  por el `transaction_id` del estado. El registro también trae el nombre, el email y el teléfono del huésped, y la
+  configuración del hotel.
+
+### Cancelar
+
+- Un link pagado: `DELETE /v2/bookings/chatbot/k4doiy1k9tex` → `404` `"El estado de pago actual no permite la
+cancelación del link de pago."`. El pago queda intacto (`applied`, `Aplicado` / `Aprobado`). Resuelve **E-5**.
+- Un link de un cobro cancelado, leído: `status: "Cancelado"`, `main_status: "Cancelado"`, sin pagos.
+
+### El provider construido contra Staging
+
+Con el provider de la rama (el `Auth-Token` construido por el core, las llaves de Doppler):
+
+- probe del hotel 5 → válido, COP y USD; probe del hotel 6 → `PROVIDER_INVALID_INPUT`;
+- crear (con `source`) → `1078119wtpu1`; cancelarlo → `cancelled: true`;
+- estado: `k4doiy1k9tex` y `cw77g8sgxxk9` → `applied`, `150000` `COP`; `9oe7ql80awol` → `rejected`, sin transacción;
+  `foibzazghzsz` → `pending`.
+
+**Sigue sin observarse:** el webhook (los links apuntaban a `example.com`). No es del MCP: lo recibe el consumidor, que
+lo trata como un aviso y confirma con la lectura de estado.

@@ -1,8 +1,8 @@
 # Autocore Hotels Provider — Implementation Plan
 
-> **Inputs**: [`feature-design.md`](./feature-design.md) · [`api-contract.md`](./api-contract.md) · [`api-contract-preflight.md`](./api-contract-preflight.md) · [`grill-notes.md`](./grill-notes.md) · [`sandbox-evidence.md`](./sandbox-evidence.md) · ADR [`timestamped-hash-token-auth-scheme`](../../adr/timestamped-hash-token-auth-scheme.md)
+> **Inputs**: [`feature-design.md`](./feature-design.md) · [`api-contract.md`](./api-contract.md) · [`grill-notes.md`](./grill-notes.md) · [`sandbox-evidence.md`](./sandbox-evidence.md) · ADR [`timestamped-hash-token-auth-scheme`](../../adr/timestamped-hash-token-auth-scheme.md)
 > **Issue**: matesjara/xcale-mcp-server#188 · **Branch**: `feat/188-autocore-provider` (docs and code, one PR to `dev`)
-> **Status**: Draft · **Last updated**: 2026-11-09
+> **Status**: Draft · **Last updated**: 2026-11-13
 >
 > Symbols and intent, **no bodies**. Every change to an existing file is anchored to a real `file:line` on the
 > branch's base, `dev` @ `154b65f`.
@@ -23,9 +23,8 @@ A new auth variant in the core, then a new provider, `autocore`, following the c
 - **Phase 2 — the provider, for the contracted surface.** `mcp_autocore_check_credentials`,
   `mcp_autocore_create_payment_link` and `mcp_autocore_deactivate_payment_link`, all `controlPlane`, the base URL
   chosen from `environment`.
-- **Phase 3 — `mcp_autocore_get_transaction_status`, deferred.** Its contract waits in the preflight (the paid path is
-  unobserved). It is planned at slice level only; its per-file detail is authored at its gate, against the as-built
-  Phase 2 and the evidence that lifts the preflight.
+- **Phase 3 — `mcp_autocore_get_transaction_status` and the account's `source`** (slices S1 and A5), built once Autocore
+  fixed its Staging checkout and real test payments were observed (2026-11-13).
 
 **"Done" for Phases 1–2 means:** the variant passes the ADR's six binding tests; the two tools are callable and
 absent from `tools/list`; each Staging response is covered by a fixture test; no Autocore body, token, key or link
@@ -115,29 +114,34 @@ assets/autocore.svg                                 # NEW — logo (.svg or .web
 | `src/providers/index.ts`                                                          | MOD  | `PROVIDERS` (`:20`)                                                                                                                                                                   | One import + one entry.                                                                                                                                                                                                                                                                                                                                                                           |
 | `assets/autocore.svg`                                                             | NEW  | —                                                                                                                                                                                     | Logo from Autocore's public brand (or `.webp`); the PR template allows only these.                                                                                                                                                                                                                                                                                                                |
 
-### Phase 3 — status tool (slice level)
+### Phase 3 — status tool and `source`
 
-`mcp_autocore_get_transaction_status` in `autocore/tools.ts`: `GET /v2/common/transaction-status` by `code`; when
-`applied`, the voucher read; empty strings → `null`; payer data dropped. Its per-file detail and fixtures are written
-at its gate, from the evidence E-1 – E-6 of the preflight.
+| File / symbol                                | Kind | Signature                                 | Intent                                                                                                                                                                                                                                                                                                                                                                           |
+| :------------------------------------------- | :--- | :---------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `autocore/context.ts` `autocoreContext`      | MOD  | adds `source: z.string().min(1).max(100)` | The account's origin, required by Autocore on every create since 2026-11-13 (A5).                                                                                                                                                                                                                                                                                                |
+| `autocore/tools.ts` `create_payment_link`    | MOD  | body gains `source: ctx.metadata.source`  | A5.                                                                                                                                                                                                                                                                                                                                                                              |
+| `autocore/tools.ts` `get_transaction_status` | NEW  | input `{ code }`                          | `GET /v2/common/transaction-status` (codes); only when `applied`, `GET /v2/links/schedule/<code>` and the payment whose `transaction_id` is the status's → `amount` (decimal string → number), the link's `currency`, `occurredAt` from the payment's naive-UTC `created_at`; `""` / `"N/A"` → no transaction; an `applied` without a readable payment is `PROVIDER_ERROR` (S1). |
+| `__fixtures__/status*.json`, `link*.json`    | NEW  | —                                         | Real Staging reads of 2026-11-13 (applied, rejected, pending, cancelled; the paid and the declined link), guest and company data replaced.                                                                                                                                                                                                                                       |
 
 ## Slices
 
-| #   | Slice                                | Owns                                                                                                        | Depends on                | DoD                                                                                                                                                  |
-| :-- | :----------------------------------- | :---------------------------------------------------------------------------------------------------------- | :------------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
-| C1  | The `timestamped_hash_token` variant | `provider-port.ts`, `authentication-materializer.ts`, `provider-factory.ts`, their tests, `CONTEXT.md`      | —                         | The ADR's six binding tests green; parity test and every existing provider test green; one commit `feat(core): timestamped_hash_token auth variant`. |
-| A1  | Provider foundation                  | `auth.ts`, `context.ts`, `client.ts`, `errors.ts`, `__tests__/errors.test.ts`, error fixtures               | C1                        | Mapping per status; redaction; base URL per environment; unknown environment refused with no fetch.                                                  |
-| A2  | The probe                            | `tools.ts` (check), `manifest.ts`, `provider.ts`, `index.ts`, `listHotels.json`, part of `autocore.test.ts` | A1                        | Found / not found / 401 / cap; projection drops the hotel's other fields; `Auth-Token` present on each page.                                         |
-| A3  | Link creation + registration         | `tools.ts` (create), `createPaymentLink.json`, `src/providers/index.ts`, logo, rest of `autocore.test.ts`   | A2                        | Body mapping; optionals omitted; one `POST` even on a network failure; conformance round trip.                                                       |
-| A4  | Link cancellation                    | `tools.ts` (deactivate), `deactivatePaymentLink.json`, its cases in `autocore.test.ts`                      | A3                        | `DELETE` path from the code; idempotent `200` → `ok`; an invalid code refused with no call; 401 → `AUTH_EXPIRED`; conformance includes it.           |
-| S1  | The status tool                      | `tools.ts` (status), its fixtures and tests                                                                 | A4 + the preflight lifted | Authored at its gate.                                                                                                                                |
+| #   | Slice                                | Owns                                                                                                        | Depends on                  | DoD                                                                                                                                                                                                                      |
+| :-- | :----------------------------------- | :---------------------------------------------------------------------------------------------------------- | :-------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C1  | The `timestamped_hash_token` variant | `provider-port.ts`, `authentication-materializer.ts`, `provider-factory.ts`, their tests, `CONTEXT.md`      | —                           | The ADR's six binding tests green; parity test and every existing provider test green; one commit `feat(core): timestamped_hash_token auth variant`.                                                                     |
+| A1  | Provider foundation                  | `auth.ts`, `context.ts`, `client.ts`, `errors.ts`, `__tests__/errors.test.ts`, error fixtures               | C1                          | Mapping per status; redaction; base URL per environment; unknown environment refused with no fetch.                                                                                                                      |
+| A2  | The probe                            | `tools.ts` (check), `manifest.ts`, `provider.ts`, `index.ts`, `listHotels.json`, part of `autocore.test.ts` | A1                          | Found / not found / 401 / cap; projection drops the hotel's other fields; `Auth-Token` present on each page.                                                                                                             |
+| A3  | Link creation + registration         | `tools.ts` (create), `createPaymentLink.json`, `src/providers/index.ts`, logo, rest of `autocore.test.ts`   | A2                          | Body mapping; optionals omitted; one `POST` even on a network failure; conformance round trip.                                                                                                                           |
+| A4  | Link cancellation                    | `tools.ts` (deactivate), `deactivatePaymentLink.json`, its cases in `autocore.test.ts`                      | A3                          | `DELETE` path from the code; idempotent `200` → `ok`; an invalid code refused with no call; 401 → `AUTH_EXPIRED`; conformance includes it.                                                                               |
+| A5  | The account's `source`               | `context.ts`, `tools.ts` (create), the contexts in the tests                                                | A4                          | The context requires a non-empty `source`; the create body carries it.                                                                                                                                                   |
+| S1  | The status tool                      | `tools.ts` (status), `status*.json`, `link*.json`, its cases in `autocore.test.ts`, conformance             | A4 + the paid path observed | Applied with amount and currency (two calls); rejected/pending/cancelled with nulls (one call); an applied without its payment is an error; the link read failing is that failure; an invalid code refused with no call. |
 
 - [x] C1
 - [x] A1
 - [x] A2
 - [x] A3
 - [x] A4
-- [ ] S1 (gated on Autocore)
+- [x] A5
+- [x] S1
 
 ### Test order (one red → green at a time)
 
@@ -244,11 +248,11 @@ cannot settle a payment without S1.
 
 ## Definition of done (Phases 1–2)
 
-- [ ] C1, A1, A2, A3, A4 ticked.
-- [ ] `npm run typecheck` · `npm run format:check` · `npm test` green.
-- [ ] The ADR's binding tests, the redaction test and the conformance round trip green.
-- [ ] Logo in `assets/`.
-- [ ] Consumer issue filed in xcale-backend.
+- [x] C1, A1, A2, A3, A4, A5, S1 ticked.
+- [x] `npm run typecheck` · `npm run format:check` green; `npm test` green but for the three HTTP integration files that time out on the dev machine with or without this branch (CI runs them).
+- [x] The ADR's binding tests, the redaction test and the conformance round trip green.
+- [x] Logo in `assets/`.
+- [x] Consumer issue filed in xcale-backend (matesjara/xcale-backend#2915).
 
 ## Risks
 

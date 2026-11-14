@@ -1,16 +1,11 @@
 # Autocore Hotels Provider — Tool Contract
 
 > **Feature design**: [`feature-design.md`](./feature-design.md) · **Grill**: [`grill-notes.md`](./grill-notes.md) · **Evidence**: [`sandbox-evidence.md`](./sandbox-evidence.md) · **ADR**: [`timestamped-hash-token-auth-scheme`](../../adr/timestamped-hash-token-auth-scheme.md)
-> **Last updated**: 2026-11-09
+> **Last updated**: 2026-11-13
 >
 > Each `input` is the zod source of truth; the JSON Schema in `tools/list` is generated from it. All schemas are
 > `.strict()`: an undeclared key → `PROVIDER_INVALID_INPUT`. Every Autocore value below was observed against Staging
-> (`https://api-stg.autocore.pro`, hotel 5) on 2026-11-09.
->
-> **Scope of this version.** The provider, its connection probe, link creation and link cancellation. The fourth tool,
-> `mcp_autocore_get_transaction_status`, is not in this contract: its paid half (`applied`, the voucher) is not
-> observed because Autocore's Staging checkout fails before sending a payment. Its verified and pending facts are in
-> [`api-contract-preflight.md`](./api-contract-preflight.md); it enters here, additively, once observed.
+> (`https://api-stg.autocore.pro`, hotel 5) on 2026-11-09 and 2026-11-13, payments included.
 
 ---
 
@@ -21,23 +16,26 @@
 | Slug                                         | `autocore`                                                                                                                                                                                                      |
 | Display name                                 | `Autocore Hotels`                                                                                                                                                                                               |
 | Category                                     | `payment-gateway`                                                                                                                                                                                               |
+| Logo                                         | `/assets/autocore.svg`                                                                                                                                                                                          |
 | Auth                                         | `{ type: 'timestamped_hash_token', header: 'Auth-Token', credentialDelivery: 'reference', fields: [{ key: 'access_key', label: 'Autocore access key' }, { key: 'secret_key', label: 'Autocore secret key' }] }` |
 | Credential the consumer stores               | One composed secret `access_key:secret_key` (`fields[0]:fields[1]`), delivered by reference                                                                                                                     |
 | Header on every request                      | `Auth-Token: base64(utf8(access_key + ";" + ts + ";" + sha256_hex(utf8(secret_key + ts))))`, `ts` = Unix seconds, built by the core per HTTP request (ADR)                                                      |
-| Context (`metadataSchema` / `contextSchema`) | `z.object({ hotelId: z.number().int().positive(), environment: z.enum(['staging', 'production']) }).strict()`                                                                                                   |
+| Context (`metadataSchema` / `contextSchema`) | `z.object({ hotelId: z.number().int().positive(), environment: z.enum(['staging', 'production']), source: z.string().min(1).max(100) }).strict()`                                                               |
 | `accountContextKeys`                         | `['hotelId', 'environment']`                                                                                                                                                                                    |
 | `connectionProbe`                            | `{ tool: 'mcp_autocore_check_credentials' }`                                                                                                                                                                    |
 | Base URL                                     | `environment: 'staging'` → `https://api-stg.autocore.pro` · `'production'` → `https://api.autocore.pro` (documented)                                                                                            |
 | Deployment override                          | `createAutocoreProvider({ baseUrls?, clock? })` for tests only                                                                                                                                                  |
 
-The keys are per environment: Staging keys answer `401` on any other host (observed). The consumer sends the
-environment the tenant picked; the provider alone knows the hosts.
+- The keys are per environment: Staging keys answer `401` on any other host (observed). The consumer sends the
+  environment the tenant picked; the provider alone knows the hosts.
+- `source` is the account's origin, which Autocore hands over with the keys (xcale's is `xcale`). Autocore requires it
+  on every link since 2026-11-13 (`400` "Debe indicar el origen…" without it). Routing data, not a secret.
 
 ---
 
 ## 1. Tools
 
-All are `controlPlane: true`: absent from `tools/list`, callable by name. None declares an `identityPolicy`.
+All four are `controlPlane: true`: absent from `tools/list`, callable by name. None declares an `identityPolicy`.
 
 ### 1.1 `mcp_autocore_check_credentials` (connection probe)
 
@@ -107,6 +105,7 @@ Autocore call: `POST /v2/links/schedule/`
 
 ```json
 {
+  "source": "xcale",
   "hotel_id": 5,
   "amount": 150000,
   "currency": "COP",
@@ -121,15 +120,15 @@ Autocore call: `POST /v2/links/schedule/`
 }
 ```
 
-`hotel_id` comes from the context. `email` and `allowed_payment_options` are omitted when absent (never sent as
-`null`).
+`source` and `hotel_id` come from the context. `email` and `allowed_payment_options` are omitted when absent (never
+sent as `null`).
 
 Success (`200`) → `ok(data)`:
 
 ```ts
 {
-  code: string; // body.code, e.g. "vlxcvpqhcjc8" — the link's id at Autocore, used to read its status
-  url: string; // body.url, e.g. "https://app-stg.autocore.pro/payment/xcale_hotel/vlxcvpqhcjc8" — returned, never built
+  code: string; // body.code, e.g. "k4doiy1k9tex" — the link's id at Autocore, used to read and cancel it
+  url: string; // body.url, e.g. "https://app-stg.autocore.pro/payment/xcale_hotel/k4doiy1k9tex" — returned, never built
 }
 ```
 
@@ -141,17 +140,16 @@ link may exist.
 
 Observed Autocore validation (why the schema is stricter than Autocore):
 
-| Sent                                                       | Autocore                                | This tool                                                     |
-| :--------------------------------------------------------- | :-------------------------------------- | :------------------------------------------------------------ |
-| No `amount` / no `guest_name`                              | `422` `"El campo '<f>' es requerido\n"` | Refused by the schema, no call                                |
-| `amount: 150000.5`                                         | `200`, link created                     | Refused by the schema (integer)                               |
-| No `currency` / no `description`                           | `200`                                   | Refused by the schema (required)                              |
-| `currency: "CRC"` for a COP/USD hotel                      | `200`                                   | Sent; the consumer checks it against the probe's `currencies` |
-| `allowed_payment_options: ["nequi"]` for a card-only hotel | `200`                                   | Sent: the hotel's choice                                      |
-| No `email`                                                 | `200`                                   | Allowed (optional)                                            |
-| `hotel_id` not reached by the keys                         | `404` `"Hotel no encontrado"`           | `PROVIDER_ERROR`                                              |
-
----
+| Sent                                                       | Autocore                                       | This tool                                                     |
+| :--------------------------------------------------------- | :--------------------------------------------- | :------------------------------------------------------------ |
+| No `source` (since 2026-11-13)                             | `400` "Campo inválido [source]: Debe indicar…" | Always sent, from the context                                 |
+| No `amount` / no `guest_name`                              | `422` `"El campo '<f>' es requerido\n"`        | Refused by the schema, no call                                |
+| `amount: 150000.5`                                         | `200`, link created (shows `$150.000,50`)      | Refused by the schema (integer)                               |
+| No `currency` / no `description`                           | `200`                                          | Refused by the schema (required)                              |
+| `currency: "CRC"` for a COP/USD hotel                      | `200`                                          | Sent; the consumer checks it against the probe's `currencies` |
+| `allowed_payment_options: ["nequi"]` for a card-only hotel | `200`                                          | Sent: the hotel's choice                                      |
+| No `email`                                                 | `200`                                          | Allowed (optional)                                            |
+| `hotel_id` not reached by the keys                         | `404` `"Hotel no encontrado"`                  | `PROVIDER_ERROR`                                              |
 
 ### 1.3 `mcp_autocore_deactivate_payment_link`
 
@@ -162,15 +160,54 @@ Observed Autocore validation (why the schema is stricter than Autocore):
 | Success       | `200` `{ "msg": "Reserva cancelada correctamente" }` → `ok({ code, cancelled: true })`                                                          |
 | Failure       | per §2                                                                                                                                          |
 
-Observed (link `gmoiew13h8zz`):
+Observed:
 
 - Idempotent: the same call on a link already cancelled answers the same `200`.
-- Afterwards the link's status reads `cancelled` (`"Cancelado"`), and its checkout refuses it with `400`
-  `"El link de pago no puede ser procesado. Estado: Cancelado"`.
-- The response does not echo the link; `msg` is not returned.
+- Afterwards the link's status reads `cancelled`, and its checkout refuses it (`400` "…Estado: Cancelado").
+- **A paid link cannot be cancelled:** `404` "El estado de pago actual no permite la cancelación del link de pago",
+  and the payment stays `applied` — no refund, no effect. The tool answers `PROVIDER_ERROR` (the 404); the consumer
+  re-reads the status and the payment wins.
 
-Cancelling a link that has already been paid is not observed (the Staging checkout cannot pay;
-`api-contract-preflight.md` E-5).
+### 1.4 `mcp_autocore_get_transaction_status`
+
+|                                   |                                                                                                        |
+| :-------------------------------- | :----------------------------------------------------------------------------------------------------- |
+| Input                             | `z.object({ code: z.string().regex(/^[a-z0-9]{1,64}$/) }).strict()`                                    |
+| First call (always)               | `GET /v2/common/transaction-status?hotel_id=<hotelId>&ref_number=<code>&transaction_type=payment_link` |
+| Second call (only when `applied`) | `GET /v2/links/schedule/<code>` — the link's own record, without `validate_link_status`                |
+| Failure                           | per §2; on the second call too (a paid link never reads as paid without its amount)                    |
+
+The status read carries stable codes but no amount; the link record carries the amount paid but only Spanish labels.
+So the status comes from the first, and the amount and currency from the payment in the second whose
+`transaction_id` equals the status's. The voucher the docs describe is not used: `voucher_url` is a PDF and
+`/v2/transactions/vouchers/detail` answers `400` "No se pudo determinar el ambiente" (observed).
+
+Success → `ok(data)`:
+
+```ts
+{
+  code: string; // the link's code
+  externalRef: string | null; // details.external_ref_id — the caller's reference
+  status: string; // details.status_code as sent. Observed: applied, rejected, pending, cancelled. Documented: in_process, error
+  transactionId: string | null; // details.transaction_id when applied; "" and "N/A" (a declined attempt) → null; null unless applied
+  occurredAt: string | null; // ISO 8601 UTC, the payment's created_at (naive UTC at Autocore); null unless applied
+  amount: number | null; // the payment's amount (a decimal string at Autocore, "150000.0"), whole units; null unless applied
+  currency: string | null; // the link's currency; null unless applied
+}
+```
+
+- `status` is a plain string, not a closed union: a state Autocore adds later must not make the read fail.
+- **A `rejected` link is not closed:** its checkout offers "Reintentar Pago", so a later read may answer `applied`.
+- **A paid link cannot be paid twice** (observed): its checkout shows "Pago exitoso" again.
+- An `applied` status whose link record has no payment with that `transaction_id`, or no readable amount, is
+  `PROVIDER_ERROR` ("returned an unexpected response") — never a success without an amount.
+- Guest and card data in either response (`guest_name`, `email`, `phone`, `comments`, `card_holder`) are dropped.
+
+Observed reads (2026-11-13): a paid link → `applied`, `150000`, `COP`; a pending card that ended approved →
+`applied`; a declined card → `rejected`, `transactionId: null`; a pending card that ended declined → `pending`; a
+cancelled link → `cancelled`.
+
+---
 
 ## 2. Errors
 
@@ -178,26 +215,26 @@ Codes are the core's `ProviderErrorCode` (`src/core/errors.ts:6-15`), assigned b
 (`mapHttpStatusToErrorCode`, `src/core/http.ts`) — the same for every provider. No new codes.
 
 Autocore's error body is always `{ "code": 0, "message": "Error http: <n>", "detail": "<free Spanish text>" }`
-(observed for 401, 404, 422): no stable code, and `detail` is never propagated.
+(observed for 400, 401, 404, 422): no stable code, and `detail` is never propagated.
 
-| Autocore                                                                    | Code                                              | Message (own, fixed)                                                          |
-| :-------------------------------------------------------------------------- | :------------------------------------------------ | :---------------------------------------------------------------------------- |
-| `401` `"Credenciales inválidas"` (observed) / `403`                         | `PROVIDER_AUTH_EXPIRED`                           | `Autocore <operation> failed (HTTP 401)`                                      |
-| `422` / `400`                                                               | `PROVIDER_INVALID_INPUT`                          | `Autocore <operation> failed (HTTP 422)`                                      |
-| `404` (`"Hotel no encontrado"`, observed) and any other status              | `PROVIDER_ERROR`                                  | `Autocore <operation> failed (HTTP 404)`                                      |
-| `429`                                                                       | `PROVIDER_RATE_LIMITED`                           | `Autocore <operation> failed (HTTP 429)`                                      |
-| `5xx`, timeout, network                                                     | `PROVIDER_UNAVAILABLE`                            | `Autocore <operation> failed (HTTP 5xx)` / `Autocore <operation> unreachable` |
-| `2xx` with an unexpected shape                                              | `PROVIDER_ERROR`                                  | `Autocore <operation> returned an unexpected response`                        |
-| Probe: `hotelId` not in the listing                                         | `PROVIDER_INVALID_INPUT`                          | `Autocore hotel <hotelId> is not reachable with these keys`                   |
-| Probe: listing past 20 pages                                                | `PROVIDER_ERROR`                                  | `Autocore hotel listing too large`                                            |
-| Context: `environment` missing or unknown, `hotelId` not a positive integer | `PROVIDER_INVALID_INPUT`                          | the core's input validation message (no call)                                 |
-| Composed secret without `:` or with an empty part                           | — (the core fails closed before any request, ADR) | fixed core message, no credential material                                    |
+| Autocore                                                                                | Code                                                        | Message (own, fixed)                                                          |
+| :-------------------------------------------------------------------------------------- | :---------------------------------------------------------- | :---------------------------------------------------------------------------- |
+| `401` `"Credenciales inválidas"` (observed) / `403`                                     | `PROVIDER_AUTH_EXPIRED`                                     | `Autocore <operation> failed (HTTP 401)`                                      |
+| `422` / `400`                                                                           | `PROVIDER_INVALID_INPUT`                                    | `Autocore <operation> failed (HTTP 422)`                                      |
+| `404` (`"Hotel no encontrado"`, a paid link's cancel; observed) and any other status    | `PROVIDER_ERROR`                                            | `Autocore <operation> failed (HTTP 404)`                                      |
+| `429`                                                                                   | `PROVIDER_RATE_LIMITED`                                     | `Autocore <operation> failed (HTTP 429)`                                      |
+| `5xx`, timeout, network                                                                 | `PROVIDER_UNAVAILABLE`                                      | `Autocore <operation> failed (HTTP 5xx)` / `Autocore <operation> unreachable` |
+| `2xx` with an unexpected shape                                                          | `PROVIDER_ERROR`                                            | `Autocore <operation> returned an unexpected response`                        |
+| Probe: `hotelId` not in the listing                                                     | `PROVIDER_INVALID_INPUT`                                    | `Autocore hotel <hotelId> is not reachable with these keys`                   |
+| Probe: listing past 20 pages                                                            | `PROVIDER_ERROR`                                            | `Autocore hotel listing too large`                                            |
+| Context: `environment` or `source` missing or invalid, `hotelId` not a positive integer | `PROVIDER_INVALID_INPUT`                                    | the core's input validation message (no call)                                 |
+| Composed secret without `:` or with an empty part                                       | `PROVIDER_AUTH_EXPIRED` (the core, before any request; ADR) | `Stored credential is malformed — reconnect the account`                      |
 
-`<operation>` is `check credentials`, `create payment link` or `deactivate payment link`.
+`<operation>` is `check credentials`, `create payment link`, `deactivate payment link` or `get transaction status`.
 
-**Redaction rule (binding).** No Autocore response body, `detail` or `message`, no `Auth-Token`, and no link URL or
-code beyond what an outcome returns, reaches a tool outcome, an error message or a log line. A test asserts it with
-an error body that carries a fake key.
+**Redaction rule (binding).** No Autocore response body, `detail`, `message` or `comments`, no `Auth-Token`, and no
+link URL or code beyond what an outcome returns, reaches a tool outcome, an error message or a log line. A test
+asserts it with an error body that carries a fake key.
 
 ---
 
@@ -243,8 +280,8 @@ an error body that carries a fake key.
 {
   "ok": true,
   "data": {
-    "code": "vlxcvpqhcjc8",
-    "url": "https://app-stg.autocore.pro/payment/xcale_hotel/vlxcvpqhcjc8"
+    "code": "k4doiy1k9tex",
+    "url": "https://app-stg.autocore.pro/payment/xcale_hotel/k4doiy1k9tex"
   }
 }
 ```
@@ -265,8 +302,6 @@ an error body that carries a fake key.
 }
 ```
 
----
-
 ### `mcp_autocore_deactivate_payment_link`
 
 ```json
@@ -276,8 +311,8 @@ an error body that carries a fake key.
 ```json
 {
   "ok": false,
-  "code": "PROVIDER_INVALID_INPUT",
-  "message": "code: Invalid string: must match pattern /^[a-z0-9]{1,64}$/"
+  "code": "PROVIDER_ERROR",
+  "message": "Autocore deactivate payment link failed (HTTP 404)"
 }
 ```
 
@@ -289,15 +324,63 @@ an error body that carries a fake key.
 }
 ```
 
+### `mcp_autocore_get_transaction_status`
+
+```json
+{
+  "ok": true,
+  "data": {
+    "code": "k4doiy1k9tex",
+    "externalRef": "xcale-s1-exitoso",
+    "status": "applied",
+    "transactionId": "01a1d831-0895-7184-a158-b543f29a4f2b",
+    "occurredAt": "2026-11-14T03:54:15.862Z",
+    "amount": 150000,
+    "currency": "COP"
+  }
+}
+```
+
+```json
+{
+  "ok": true,
+  "data": {
+    "code": "9oe7ql80awol",
+    "externalRef": "xcale-s1-declinado",
+    "status": "rejected",
+    "transactionId": null,
+    "occurredAt": null,
+    "amount": null,
+    "currency": null
+  }
+}
+```
+
+```json
+{
+  "ok": false,
+  "code": "PROVIDER_ERROR",
+  "message": "Autocore get transaction status returned an unexpected response"
+}
+```
+
+---
+
 ## 4. Fixtures
 
-From the Staging spike, with no key and placeholders for any personal or company data:
+From the Staging spike and payments, with no key and placeholders for any personal or company data:
 
 | Fixture                          | Source                                                                                                                       |
 | :------------------------------- | :--------------------------------------------------------------------------------------------------------------------------- |
 | `listHotels.json`                | `GET /v2/hotels` → 200, one hotel (id 5), phone/address/company/commissions replaced by placeholders                         |
 | `createPaymentLink.json`         | `POST /v2/links/schedule/` → 200 `{ msg, url, code, reservation_id: null }`                                                  |
 | `deactivatePaymentLink.json`     | `DELETE /v2/bookings/chatbot/<code>` → 200 `{ "msg": "Reserva cancelada correctamente" }`                                    |
+| `statusApplied.json`             | `GET /v2/common/transaction-status` → 200, `applied` (a paid link)                                                           |
+| `statusRejected.json`            | the same → 200, `rejected`, `transaction_id: "N/A"`                                                                          |
+| `statusPending.json`             | the same → 200, `pending`, empty `transaction_id` and `transaction_date`                                                     |
+| `statusCancelled.json`           | the same → 200, `cancelled`                                                                                                  |
+| `linkPaid.json`                  | `GET /v2/links/schedule/<code>` → 200 for the paid link, guest and hotel data replaced                                       |
+| `linkRejected.json`              | the same for the declined link (its payment carries `transaction_id: "N/A"`)                                                 |
 | `errors/invalidCredentials.json` | 401 `{"code":0,"message":"Error http: 401","detail":"Credenciales inválidas"}`                                               |
 | `errors/missingFields.json`      | 422 `{"code":0,"message":"Error http: 422","detail":"El campo 'guest_name' es requerido\nEl campo 'amount' es requerido\n"}` |
 | `errors/hotelNotFound.json`      | 404 `{"code":0,"message":"Error http: 404","detail":"Hotel no encontrado"}`                                                  |
@@ -307,24 +390,27 @@ From the Staging spike, with no key and placeholders for any personal or company
 
 ## 5. Consumer notes (xcale-backend)
 
+Its design: matesjara/xcale-backend#2915, `xcale-backend/docs/design/autocore-gateway/`.
+
 - **Connect:** collect both `fields`, store them composed `access_key:secret_key`, deliver by `reference`; ask
-  `hotelId` and `environment` (no default) and call the probe before storing. Show `hotel.name`; keep
-  `hotel.currencies` to check a link's currency before creating it.
+  `hotelId`, `environment` (no default) and `source` (Autocore hands it over with the keys), and call the probe before
+  storing. Show `hotel.name`; check the charge currency against `hotel.currencies`.
 - **Create:** `amountMinor` → whole units, refusing a fraction; `expiresAt` → `availableHours` rounded down;
-  `sendLinkByEmail` from the tenant's setting; `notificationUrl` is the consumer's webhook, which receives Autocore's
-  unsigned notifications and must confirm each with the status read before settling. **Never retry a create
-  blindly** — a lost response can leave a payable link; its payment still reaches the webhook with `externalRef`.
-- **Store `code`**, not just the URL: it is the link's id for reading its status.
+  `notificationUrl` is the consumer's webhook, which receives Autocore's unsigned notifications and must confirm each
+  with `mcp_autocore_get_transaction_status` before settling. **Never retry a create blindly** — a lost response can
+  leave a payable link; its payment still reaches the webhook with `externalRef`.
+- **Store `code`**, not just the URL: it is the link's id for reading and cancelling it.
+- **Settle from the status read:** `applied` with `amount` and `currency`; `rejected` leaves the request pending (the
+  guest may retry on the same link); `pending` / `in_process` → pending; `cancelled` → voided. A paid link cannot be
+  paid again, so there is nothing to deactivate after settling.
+- **Cancel with `mcp_autocore_deactivate_payment_link`** when a request is cancelled or the gateway disconnected; it is
+  idempotent. A paid link answers `PROVIDER_ERROR` (404): re-read the status — the payment wins.
 - **Two Autocore reads are public** (observed): a link's status and `GET /v2/links/schedule/<code>`, which returns
   the guest's name, email and phone to anyone with the code. Send Autocore only the guest data a payment needs.
-- **Cancel with `mcp_autocore_deactivate_payment_link`** when a request is cancelled or the gateway disconnected; it is
-  idempotent, so a retry is safe. Its endpoint is undocumented by Autocore: treat any failure as "not cancelled".
 
 ## 6. Roadmap (additive)
 
-| Next                                          | Lifts it                                                                                           |
-| :-------------------------------------------- | :------------------------------------------------------------------------------------------------- |
-| `mcp_autocore_get_transaction_status`         | A paid link in Staging: `applied`, its `transaction_id`, the voucher (`api-contract-preflight.md`) |
-| `phone`, `countryCode`, `installments` inputs | One observed link with each (the docs disagree on `country_code`'s format)                         |
-| Refunds, the open link                        | A consumer asking                                                                                  |
-| Cancelling a paid link (its outcome)          | A paid link in Staging (`api-contract-preflight.md` E-5)                                           |
+| Next                                          | Lifts it                                                                   |
+| :-------------------------------------------- | :------------------------------------------------------------------------- |
+| `phone`, `countryCode`, `installments` inputs | One observed link with each (the docs disagree on `country_code`'s format) |
+| Refunds, the open link                        | A consumer asking                                                          |
