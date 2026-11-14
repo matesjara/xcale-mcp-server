@@ -1,5 +1,6 @@
 import type { IProvider } from '../core/provider-port';
 import { autocoreProvider } from './autocore';
+import { aviratoProvider } from './avirato';
 import { cloudbedsProvider } from './cloudbeds';
 import { echoProvider } from './echo';
 import { erbonProvider } from './erbon';
@@ -7,6 +8,7 @@ import { himedProvider } from './himed';
 import { profitroomProvider } from './profitroom';
 import { siigoProvider } from './siigo';
 import { lobbypmsProvider } from './lobbypms';
+import { siteminderProvider } from './siteminder';
 import { toteatProvider } from './toteat';
 import { wompiProvider } from './wompi';
 import { woocommerceProvider } from './woocommerce';
@@ -28,6 +30,8 @@ export const PROVIDERS: readonly IProvider[] = [
   woocommerceProvider,
   himedProvider,
   profitroomProvider,
+  siteminderProvider,
   wompiProvider,
+  aviratoProvider,
   autocoreProvider,
 ];

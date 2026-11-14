@@ -14,7 +14,10 @@ export const himedManifest: ProviderManifest = {
   displayName: 'HiMed',
   category: 'health',
   logoUrl: '/assets/himed.svg',
-  // Bumped (2026-10-25): `list_patient_appointments` and `cancel_appointment` name the id space of
+  // Bumped (2026-11-06): the credential groups are now four — `doctores` is new and `list_doctors` moved
+  // to it (HiMed issues one key per API, so the Sedes key never worked on Doctores). A consumer caching
+  // the 2026-10-25 descriptor would build a three-field connect form and never ask for the Doctores key.
+  // (2026-10-25: `list_patient_appointments` and `cancel_appointment` name the id space of
   // `idCita` (`recordOwnershipKind: 'himed:cita'`, ADR 0023), so a consumer no longer has to know it
   // per provider. (2026-10-18: `list_patient_appointments` carries `ownedResultField: 'idCita'`, so a
   // consumer can answer "¿qué citas tengo?" with the citas the patient booked here. A consumer caching
@@ -25,7 +28,7 @@ export const himedManifest: ProviderManifest = {
   // would keep the old policies (no `alwaysEnforce` ⇒ unenforced under a tenant's `off`), so the
   // bump is what makes the protection reach it; 2026-10-14: patient tools became `subject-bound` on
   // `idPaciente`; create_appointment requires `parentescoPideCita`.)
-  schemaVersion: '2026-10-25',
+  schemaVersion: '2026-11-06',
   providerVersion: '0.7.0',
   connectionProbe: { tool: `mcp_${SLUG}_list_locations` },
   accountContextKeys: ['codigo_servicio'],

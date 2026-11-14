@@ -1,0 +1,21 @@
+{
+  "status": "success",
+  "data": {
+    "space_subtypes": [
+      {
+        "space_subtype_id": 2,
+        "days": [
+          { "day": "2027-02-16", "available_rooms": 1, "is_available": true },
+          { "day": "2027-02-17", "available_rooms": 0, "is_available": false }
+        ]
+      },
+      {
+        "space_subtype_id": 5,
+        "days": [
+          { "day": "2027-02-16", "available_rooms": 0, "is_available": false },
+          { "day": "2027-02-17", "available_rooms": 1, "is_available": true }
+        ]
+      }
+    ]
+  }
+}

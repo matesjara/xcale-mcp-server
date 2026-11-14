@@ -149,6 +149,40 @@ function sourceListOf(data: unknown): unknown {
   return Array.isArray(data) && data.length === 1 && Array.isArray(data[0]) ? data[0] : data;
 }
 
+/** At most this many reservations per guest lookup — one `getReservation` call each. */
+const FIND_GUEST_RESERVATIONS_MAX = 10;
+
+/**
+ * One row of `find_guest_reservations`: the stay of a `getReservation` answer and the contact fields of
+ * the guest the search matched (`guestList[guestID]`). `null` when that guest is not on it.
+ */
+function guestReservationOf(data: unknown, guestID: string): Record<string, unknown> | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const r = data as Record<string, unknown>;
+  const guests = (r.guestList ?? {}) as Record<string, Record<string, unknown> | undefined>;
+  const guest = guests[guestID];
+  if (!guest) return null;
+  const rooms = [
+    ...(Array.isArray(r.assigned) ? r.assigned : []),
+    ...(Array.isArray(r.unassigned) ? r.unassigned : []),
+  ] as Array<Record<string, unknown>>;
+  const sum = (field: string) => rooms.reduce((n, room) => n + (Number(room[field]) || 0), 0);
+  const roomTypes = [...new Set(rooms.map((room) => room.roomTypeName).filter(Boolean))];
+  return {
+    reservationID: r.reservationID,
+    propertyID: r.propertyID,
+    status: r.status,
+    startDate: r.startDate,
+    endDate: r.endDate,
+    roomTypeName: roomTypes.join(', ') || guest.roomTypeName,
+    adults: sum('adults'),
+    children: sum('children'),
+    guestPhone: guest.guestPhone ?? '',
+    guestCellPhone: guest.guestCellPhone ?? '',
+    guestEmail: guest.guestEmail ?? '',
+  };
+}
+
 function unwrap(res: RequestResult, method: string): Unwrapped {
   if (!res.ok) {
     const { code, detail } = classifyTransportFailure(res);
@@ -174,6 +208,26 @@ function unwrap(res: RequestResult, method: string): Unwrapped {
   }
   const data = body && 'data' in body ? body.data : res.data;
   return body?.total !== undefined ? { ok: true, data, total: body.total } : { ok: true, data };
+}
+
+/**
+ * The rows of a list read, or the error that says they could not be read (xcale-mcp-server#193). A
+ * success envelope whose `data` is not a list used to be coerced to `[]` — "there are none" — which a
+ * consumer reads as no reservation, no guest, no group. Only the method name goes into the message:
+ * never the body, which can echo the request.
+ */
+function listOf(
+  u: Extract<Unwrapped, { ok: true }>,
+  method: string,
+): unknown[] | Extract<Unwrapped, { ok: false }> {
+  if (Array.isArray(u.data)) return u.data;
+  return {
+    ok: false,
+    code: ProviderErrorCode.PROVIDER_ERROR,
+    message:
+      `Cloudbeds answered ${method} with an unexpected shape, so the list could not be read. ` +
+      'This is not an empty result: try again, or report it if it persists.',
+  };
 }
 
 /**
@@ -321,17 +375,28 @@ export function buildCloudbedsTools(
         // Reuse the shared envelope unwrap — same `success/data/total` contract as every other tool.
         const u = unwrap(res, 'getReservations');
         if (!u.ok) return { ok: false, code: u.code, message: u.message };
-        return {
-          ok: true,
-          items: Array.isArray(u.data) ? u.data : [],
-          totalResults: u.total,
-        };
+        const items = listOf(u, 'getReservations');
+        if (!Array.isArray(items)) return items;
+        return { ok: true, items, totalResults: u.total };
       },
     }),
 
+    // The tools below reach ONE person's record by its id — a reservation or a guest — and name nobody
+    // in their arguments, so `identityFields` is empty and the record field carries the binding
+    // (xcale-backend#1859, slice 25; the WooCommerce precedent). A consumer that knows which records
+    // its subject holds can serve those and refuse a guessed id; one that ignores the policy sees the
+    // menu it saw before. `cloudbeds:reservation` and `cloudbeds:guest` are the two id spaces: a
+    // reservation `42` is not guest `42`.
     tool({
       name: `mcp_${SLUG}_get_reservation`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'reservationID',
+        recordOwnershipKind: `${SLUG}:reservation`,
+        recordAction: 'read',
+      },
       requiredScopes: ['read:reservation'], // spec: getReservation
       description:
         'Get one reservation in full by its reservationID: status, stay dates, rooms, guests and ' +
@@ -356,6 +421,13 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_get_reservation_rate_details`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'reservationID',
+        recordOwnershipKind: `${SLUG}:reservation`,
+        recordAction: 'read',
+      },
       requiredScopes: ['read:reservation'], // spec: getReservationsWithRateDetails
       description:
         'Get the booked rate of every room of one reservation by its reservationID: per room its ' +
@@ -377,6 +449,13 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_get_guest`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'guestID',
+        recordOwnershipKind: `${SLUG}:guest`,
+        recordAction: 'read',
+      },
       requiredScopes: ['read:guest'], // spec: getGuest
       description:
         'Get one guest by their guestID: name, contact details and profile. Use it when you already ' +
@@ -672,6 +751,15 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_modify_reservation`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'reservationID',
+        recordOwnershipKind: `${SLUG}:reservation`,
+        // No `recordAction`: this tool also cancels (status "canceled"), and a consent given for a
+        // change must never carry a cancellation. Cancellations go through the consumer's own booking
+        // tool (xcale-backend#1859, CTO 2026-11-03).
+      },
       requiredScopes: ['write:reservation'], // spec: putReservation
       description:
         'Modify an existing reservation: cancel it (status: "canceled"), extend or shorten the stay ' +
@@ -888,13 +976,117 @@ export function buildCloudbedsTools(
         });
         const u = unwrap(res, 'getGuestList');
         if (!u.ok) return { ok: false, code: u.code, message: u.message };
-        return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+        const items = listOf(u, 'getGuestList');
+        if (!Array.isArray(items)) return items;
+        return { ok: true, items, totalResults: u.total };
+      },
+    }),
+
+    // A person's reservations by the phone or email they hold — the record lookup of ADR 0023
+    // (xcale-backend#1852). `getGuestList` filters by phone or email exactly on the stored string
+    // (sandbox 320754, 2026-10-22), but its rows carry neither the phone nor the stay, so each match is
+    // read with `getReservation`, whose `guestList` holds the guest's own phone, cell phone and email.
+    // Every returned row then names its person, whatever the filter matched. Bounded: at most
+    // FIND_GUEST_RESERVATIONS_MAX reservations, one getReservation each, in parallel. When Cloudbeds
+    // holds more than was read, the answer says so (`hasMore`, `totalResults`) instead of reading as
+    // the guest's whole history: the consumer shows what was found and that there may be more.
+    tool({
+      name: `mcp_${SLUG}_find_guest_reservations`,
+      audience: 'operator',
+      requiredScopes: ['read:guest', 'read:reservation'], // spec: getGuestList + getReservation
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: ['guestPhone', 'guestCellPhone', 'guestEmail'],
+        identityFieldKinds: { guestPhone: 'phone', guestCellPhone: 'phone', guestEmail: 'email' },
+        recordLookup: true,
+        recordKind: 'reservation',
+        resultItemsPath: 'items',
+        resultIdentityFields: { guestPhone: 'phone', guestCellPhone: 'phone', guestEmail: 'email' },
+        resultRecordIdField: 'reservationID',
+        recordOwnershipKind: `${SLUG}:reservation`,
+        projection: ['roomTypeName', 'startDate', 'endDate', 'status', 'adults', 'children'],
+        resultDateField: 'endDate',
+      },
+      description:
+        'Find the reservations of one guest by the exact phone, cell phone or email stored on their ' +
+        'profile. Each result carries the stay (room type, dates, status, party) and the guest’s own ' +
+        'contact fields. `hasMore: true` means the property holds more than the ones returned.',
+      input: z
+        .object({
+          // Trimmed, then required to hold something: Cloudbeds reads a blank filter as no filter and
+          // answers with the property's whole guest list (observed 2026-10-22).
+          guestPhone: z.string().trim().min(1).optional(),
+          guestCellPhone: z.string().trim().min(1).optional(),
+          guestEmail: z.string().trim().min(1).optional(),
+        })
+        .strict(),
+      handler: async (args, ctx) => {
+        // No filter at all would return the property's whole guest list.
+        if (!args.guestPhone && !args.guestCellPhone && !args.guestEmail) {
+          return err(
+            ProviderErrorCode.INVALID_INPUT,
+            'guestPhone, guestCellPhone or guestEmail is required',
+          );
+        }
+        const list = await client.get('getGuestList', ctx.request, {
+          propertyIDs: ctx.metadata.propertyID,
+          pageNumber: 1,
+          pageSize: FIND_GUEST_RESERVATIONS_MAX,
+          guestPhone: args.guestPhone,
+          guestCellPhone: args.guestCellPhone,
+          guestEmail: args.guestEmail,
+        });
+        const u = unwrap(list, 'getGuestList');
+        if (!u.ok) return err(u.code, u.message);
+        const rows = listOf(u, 'getGuestList');
+        if (!Array.isArray(rows)) return rows;
+        const matches = new Map<string, string>();
+        for (const row of rows) {
+          const r = row as { reservationID?: unknown; guestID?: unknown };
+          if (typeof r.reservationID === 'string' && typeof r.guestID === 'string') {
+            if (!matches.has(r.reservationID)) matches.set(r.reservationID, r.guestID);
+          }
+        }
+        const items = [];
+        const reads = await Promise.all(
+          [...matches.entries()]
+            .slice(0, FIND_GUEST_RESERVATIONS_MAX)
+            .map(async ([id, guestID]) => {
+              const res = await client.get('getReservation', ctx.request, {
+                propertyID: ctx.metadata.propertyID,
+                reservationID: id,
+              });
+              return { guestID, r: unwrap(res, 'getReservation') };
+            }),
+        );
+        for (const { guestID, r } of reads) {
+          // One reservation that cannot be read fails the whole lookup: a list silently missing one
+          // would read as "these are all your reservations".
+          if (!r.ok) return err(r.code, r.message);
+          const item = guestReservationOf(r.data, guestID);
+          if (item) items.push(item);
+        }
+        // Read fewer than Cloudbeds holds: more rows than this page (by its `total`, or a full page when
+        // it gives none), or more reservations than the ceiling. Said, never a cut list that looks whole.
+        const hasMore =
+          (u.total !== undefined
+            ? u.total > rows.length
+            : rows.length >= FIND_GUEST_RESERVATIONS_MAX) ||
+          matches.size > FIND_GUEST_RESERVATIONS_MAX;
+        return ok({ items, ...(u.total !== undefined ? { totalResults: u.total } : {}), hasMore });
       },
     }),
 
     tool({
       name: `mcp_${SLUG}_update_guest`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'guestID',
+        recordOwnershipKind: `${SLUG}:guest`,
+        recordAction: 'change',
+      },
       requiredScopes: ['write:guest'], // spec: putGuest
       description:
         'Update an existing guest’s details (name, email, phone, address). Only the fields you send ' +
@@ -925,6 +1117,13 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_list_guest_notes`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'guestID',
+        recordOwnershipKind: `${SLUG}:guest`,
+        recordAction: 'read',
+      },
       requiredScopes: ['read:guest'], // spec: getGuestNotes
       description:
         'List the notes on a guest’s profile. Use it to recall preferences or past issues.',
@@ -942,6 +1141,13 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_add_guest_note`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'guestID',
+        recordOwnershipKind: `${SLUG}:guest`,
+        recordAction: 'change',
+      },
       requiredScopes: ['write:guest'], // spec: postGuestNote
       description:
         'Add a note to a guest’s profile — a preference, allergy, or anything staff should know next time.',
@@ -963,6 +1169,13 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_list_reservation_notes`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'reservationID',
+        recordOwnershipKind: `${SLUG}:reservation`,
+        recordAction: 'read',
+      },
       requiredScopes: ['read:reservation'], // spec: getReservationNotes
       description: 'List the notes on a reservation. Use it to see what was agreed or flagged.',
       input: z.object({ reservationID: z.string().min(1) }).strict(),
@@ -979,6 +1192,13 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_add_reservation_note`,
       audience: 'operator',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'reservationID',
+        recordOwnershipKind: `${SLUG}:reservation`,
+        recordAction: 'change',
+      },
       requiredScopes: ['write:reservation'], // spec: postReservationNote
       description:
         'Add a note to a reservation — a special request or an agreement made with the guest.',
@@ -999,6 +1219,10 @@ export function buildCloudbedsTools(
     tool({
       name: `mcp_${SLUG}_assign_guest_to_room`,
       audience: 'operator',
+      // Not bound by its reservation: owning the reservation says nothing about the `guestIDs` put
+      // into it, and attaching a stranger's guest profile makes it readable through get_reservation.
+      // The policy names one record field, so this stays a staff move, refused to whoever is writing.
+      identityPolicy: { mode: 'subject-scoped' },
       requiredScopes: ['write:guest'], // spec: postGuestsToRoom
       description:
         'Assign guests to a room already on a reservation, optionally promoting one to main guest. ' +
@@ -1446,7 +1670,9 @@ export function buildCloudbedsTools(
         });
         const u = unwrap(res, 'getGroups');
         if (!u.ok) return { ok: false, code: u.code, message: u.message };
-        return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+        const items = listOf(u, 'getGroups');
+        if (!Array.isArray(items)) return items;
+        return { ok: true, items, totalResults: u.total };
       },
     }),
 
@@ -1467,7 +1693,9 @@ export function buildCloudbedsTools(
         });
         const u = unwrap(res, 'getGroupNotes');
         if (!u.ok) return { ok: false, code: u.code, message: u.message };
-        return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+        const items = listOf(u, 'getGroupNotes');
+        if (!Array.isArray(items)) return items;
+        return { ok: true, items, totalResults: u.total };
       },
     }),
 
@@ -1570,7 +1798,9 @@ export function buildCloudbedsTools(
         });
         const u = unwrap(res, 'getRoomBlocks');
         if (!u.ok) return { ok: false, code: u.code, message: u.message };
-        return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+        const items = listOf(u, 'getRoomBlocks');
+        if (!Array.isArray(items)) return items;
+        return { ok: true, items, totalResults: u.total };
       },
     }),
 
@@ -1667,7 +1897,9 @@ export function buildCloudbedsTools(
         });
         const u = unwrap(res, 'getAllotmentBlocks');
         if (!u.ok) return { ok: false, code: u.code, message: u.message };
-        return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+        const items = listOf(u, 'getAllotmentBlocks');
+        if (!Array.isArray(items)) return items;
+        return { ok: true, items, totalResults: u.total };
       },
     }),
 
@@ -1744,7 +1976,9 @@ export function buildCloudbedsTools(
         });
         const u = unwrap(res, 'listAllotmentBlockNotes');
         if (!u.ok) return { ok: false, code: u.code, message: u.message };
-        return { ok: true, items: Array.isArray(u.data) ? u.data : [], totalResults: u.total };
+        const items = listOf(u, 'listAllotmentBlockNotes');
+        if (!Array.isArray(items)) return items;
+        return { ok: true, items, totalResults: u.total };
       },
     }),
 

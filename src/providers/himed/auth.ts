@@ -1,13 +1,14 @@
 import type { ProviderAuthDescriptor } from '../../core/provider-port';
 
 /**
- * HiMed is one clinical system exposed as three APIs, each with its OWN token (ADR:
- * himed-multi-credential-provider): Demográficos (patient writes), the directory (Doctores + Sedes), and
+ * HiMed is one clinical system exposed as four APIs, each with its OWN key (ADR:
+ * himed-multi-credential-provider, amended 2026-11-06): Demográficos (patient writes), Sedes, Doctores, and
  * Autoagendamiento (scheduling). Each is a separate `CredentialGroup`; a tool selects its group via
  * `ToolDefinition.credentialGroup`, and the materializer injects that group's secret into the JSON body.
+ * The Sedes group keeps its original key, `directorio`, so a stored bundle stays valid.
  *
- * `fields` lists only the DISTINCT wire field names the groups inject (`api_key` for Demográficos +
- * directory, `token` for Autoagendamiento) — there are just two, so no collision. The connect FORM is
+ * `fields` lists only the DISTINCT wire field names the groups inject (`api_key` for Demográficos, Sedes
+ * and Doctores, `token` for Autoagendamiento) — there are just two, so no collision. The connect FORM is
  * derived from `groups` (one secret per group, keyed by `group.key`), not from `fields`.
  */
 export const himedAuth: ProviderAuthDescriptor = {
@@ -28,9 +29,15 @@ export const himedAuth: ProviderAuthDescriptor = {
     },
     {
       key: 'directorio',
-      label: 'Service token (directory)',
+      label: 'Sedes token',
       field: { key: 'api_key', label: 'API key', placement: 'body' },
       probe: 'mcp_himed_list_locations',
+    },
+    {
+      key: 'doctores',
+      label: 'Doctores token',
+      field: { key: 'api_key', label: 'API key', placement: 'body' },
+      probe: 'mcp_himed_list_doctors',
     },
     {
       key: 'autoagendamiento',

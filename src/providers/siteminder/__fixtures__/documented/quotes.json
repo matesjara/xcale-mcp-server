@@ -1,0 +1,14 @@
+[
+  {
+    "propertyUuid": "f63ce398-da03-4573-856d-ed8d71e57e3d",
+    "roomTypeUuid": "403950b4-0919-4396-afa1-3957a38a83f8",
+    "roomRateUuid": "9b1f3c2e-5a47-4d0e-8c11-2f6b7d9e0a01",
+    "checkInDate": "2024-08-01",
+    "checkOutDate": "2024-08-03",
+    "lengthOfStay": 2,
+    "availability": 10,
+    "occupancy": { "adults": 1, "children": 0, "infants": 0 },
+    "price": { "gross": 267.51, "net": 255, "tax": 12.51, "serviceCharge": 0 },
+    "breakdown": []
+  }
+]

@@ -312,3 +312,68 @@ tres tokens + `codigo_servicio` (ventana sandbox hasta 2026-10-09).
   producción, `m.medsas.co` y `notificaciones.medsas.co`, en el ship-log `himed-connect` del backend) antes de
   conectar la primera clínica.
 - ⬜ Verificación en vivo con la primera clínica conectada en producción.
+
+## 2026-10-28 — Op post-deploy: hosts de HiMed en producción (prd)
+
+Registrada aquí como op post-deploy del release (cada cosa lleva su ship-log, Mateo 2026-10-28). El PR
+`#182` (`chore(deploy): set HiMed's production hosts in the app spec`) agrega los dos hosts al
+`.do/app.yaml`. **Mergear a `main` redespliega el código pero NO cambia las env vars**: hay que
+re-aplicar el spec.
+
+**Quién:** Mateo (sesión de `doctl`; Sara no tiene acceso a DigitalOcean). **Cuándo:** tras el release
+a `main`, desde un checkout en `main` con el `.do/app.yaml` del #182.
+
+```bash
+APP_ID=$(doctl apps list --format ID,Spec.Name --no-header | awk '$2=="xcale-mcp-server"{print $1}')
+doppler run --project xcale-mcp-server --config prd -- \
+  sh -c "envsubst '\${MCP_SERVER_SECRET}' < .do/app.yaml" \
+  | doctl apps update "$APP_ID" --spec -
+```
+
+| Variable | Valor (producción) | Apunta a |
+| :--- | :--- | :--- |
+| `HIMED_BASE_URL` | `https://m.medsas.co/interoperabilidad/Api/Controllers` | Demográficos + Directorio |
+| `HIMED_SCHEDULING_BASE_URL` | `https://notificaciones.medsas.co/notificaciones/envioConsumoAutoagendamiento` | Autoagendamiento |
+
+Son URLs de config, **no credenciales**: los tokens de la clínica los ingresa la clínica en el connect
+form, nunca en Doppler ni en el spec. **Verificar** tras aplicar: `mcp_himed_list_locations` deja de
+devolver `PROVIDER_UNAVAILABLE`.
+
+## 2026-11-06 — Re-corrida del E2E con las llaves del portal: 7/7 en verde
+
+Gate de release: el E2E en vivo contra el sandbox, antes de conectar la primera clínica en producción.
+Las llaves que HiMed envió por correo el 2026-11-04 daban 401/403 (HiMed rechazaba sus propios tokens).
+Las llaves nuevas salen del portal de HiMed (`demo.medsas.co`, Cliente › Administración de APIs): cada API
+tiene su propio modal con «Llave pruebas» y «Llave producción».
+
+**Cómo se corrió:** `npx tsx scripts/himed-unified-sandbox-e2e.ts`, con los tres tokens como variables de
+entorno del proceso (ganan al `.env.himed.sandbox`, que no se tocó) y `HIMED_E2E_FECHA=10-11-2026`. El
+default del script (`08-10-2026`) ya quedó en el pasado y HiMed responde «La fecha y hora de la cita no
+puede ser inferior a la fecha y hora actual»: el primer intento falló por eso, no por las llaves.
+
+| Paso | Resultado |
+|:--|:--|
+| `list_locations` (directorio) | ✅ 3 sedes |
+| `create_patient` (Demográficos) | ✅ `estado: exists` (paciente de prueba ya registrado) |
+| `create_appointment` (Autoagendamiento) | ✅ `idCita 1060`, 2026-11-10 09:00 |
+| verifier `list_patient_appointments` | ✅ la cita aparece |
+| `cancel_appointment` | ✅ «La cita ha sido cancelada correctamente» |
+| verifier tras cancelar | ✅ la lista queda vacía |
+
+**Hallazgos (el E2E no los ve; salieron de probar cada llave contra cada endpoint con `curl`):**
+
+- **Sedes y Doctores tienen llaves distintas, y cada una solo sirve a su API.** `Sedes/consultarSedes.php`:
+  200 con la llave de Sedes, 401 con la de Doctores. `Usuarios/consultarUsuarios.php`: 200 con la de
+  Doctores, 401 con la de Sedes. El provider tiene un solo grupo `directorio` para las dos tools
+  (`list_locations` y `list_doctors`), así que `list_doctors` solo está verificado con `curl`, no por el
+  provider. Seguimiento: separar el grupo (cambio aditivo; no hay clínica conectada en producción todavía).
+- **Demográficos tiene dos llaves.** Sirve la de «desde software externo hacia HiMed» (el endpoint que usa
+  el provider: 400 de validación, o sea token aceptado). La de «desde HiMed hacia software externo» es la
+  del envío de HiMed hacia nuestro software (su URL de envío está vacía) y da 401 contra `crearPaciente`.
+- **Autoagendamiento:** el texto del portal manda al host `test-notificaciones.medsas.co`, que desde esta
+  máquina no conecta (timeout). La llave sí la acepta `demo-notificaciones.medsas.co`, el host del
+  sandbox de este ship-log (con token falso responde 403). El sandbox atiende lunes a viernes de
+  7:00 a. m. a 5:00 p. m.
+- **Por confirmar antes de configurar `prd`:** el portal enmascara «Llave producción» y «Llave pruebas»
+  con los mismos últimos cuatro caracteres. No está verificado si son la misma llave. No se probó nada
+  contra los hosts de producción de HiMed.

@@ -20,8 +20,10 @@ export const woocommerceManifest: ProviderManifest = {
   // that name one record say which id space it lives in (`recordOwnershipKind`). No tool was added or
   // removed and no input schema moved; a consumer that reads the field can now tell an order or
   // customer read from a catalog read.
-  schemaVersion: '2026-10-24',
-  providerVersion: '0.4.0',
+  // Bumped 2026-10-27 (xcale-backend#1859): `find_customer_orders` is a new published tool, a record
+  // lookup in the vocabulary of ADR 0023 (Own Records).
+  schemaVersion: '2026-10-27',
+  providerVersion: '0.5.0',
   connectionProbe: { tool: `mcp_${SLUG}_list_products` },
   accountContextKeys: ['storeUrl'],
 };
