@@ -26,20 +26,20 @@ separate action.
 
 ## Applying the spec
 
-The committed spec keeps `MCP_SERVER_SECRET` as a `${MCP_SERVER_SECRET}` placeholder. It is
-rendered from Doppler and **streamed to `doctl` over stdin — never written to disk.**
+The committed spec keeps its two secrets, `MCP_SERVER_SECRET` and `CREDENTIAL_RESOLVE_SECRET`, as
+`${…}` placeholders. They are rendered from Doppler and **streamed to `doctl` over stdin — never written to disk.**
 
 ```bash
 # Create the app (first time only).
 doppler run --project xcale-mcp-server --config prd -- \
-  sh -c "envsubst '\${MCP_SERVER_SECRET}' < .do/app.yaml" \
+  sh -c "envsubst '\${MCP_SERVER_SECRET} \${CREDENTIAL_RESOLVE_SECRET}' < .do/app.yaml" \
   | doctl apps create --spec - --project-id 875c7db9-d9be-4cfa-87fd-bfc8062ae9a3 --wait
 ```
 
 ```bash
 # Apply a spec change (sizing, env vars, health check, …) to the existing app.
 doppler run --project xcale-mcp-server --config prd -- \
-  sh -c "envsubst '\${MCP_SERVER_SECRET}' < .do/app.yaml" \
+  sh -c "envsubst '\${MCP_SERVER_SECRET} \${CREDENTIAL_RESOLVE_SECRET}' < .do/app.yaml" \
   | doctl apps update "$APP_ID" --spec -
 ```
 
@@ -52,6 +52,14 @@ Editing the spec in the DO dashboard makes the repo lie — the next apply silen
 2. Re-apply the spec (command above) — this redeploys with the new value.
 3. Update the consumer (`xcale-backend`) with the same value; until both sides match, calls get
    `401 unauthorized`. Coordinate the two, or accept a short window of rejected calls.
+
+## Reference credential delivery
+
+Providers with `credentialDelivery: 'reference'` (avirato, erbon, siigo, wompi) resolve each tenant's
+credential at call time from xcale-backend: `CREDENTIAL_RESOLVE_URL` is the backend's
+`/internal/credentials/resolve`, and `CREDENTIAL_RESOLVE_SECRET` must equal the backend's secret of the
+same name (Doppler `xcale` / `prd`). Without them every tool of those providers fails with
+`reference credential delivery is not configured on this server`.
 
 ## Verifying a deploy
 

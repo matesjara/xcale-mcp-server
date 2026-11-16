@@ -22,7 +22,9 @@ export const siigoManifest: ProviderManifest = {
   displayName: 'Siigo',
   category: 'accounting',
   logoUrl: '/assets/siigo.svg',
-  schemaVersion: '2026-08-18',
-  providerVersion: '0.4.0',
+  // Bumped 2026-11-11 (xcale-mcp-server#136): the tools that return a third party's records now carry an
+  // `identityPolicy` in `tools/list`. No tool was added or removed and no input schema moved.
+  schemaVersion: '2026-11-11',
+  providerVersion: '0.5.0',
   capabilities: { pagination: true },
 };
