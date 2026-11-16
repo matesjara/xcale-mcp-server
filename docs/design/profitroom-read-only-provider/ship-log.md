@@ -58,7 +58,9 @@ in one release).
 
 - [x] release deployed: `6b93f344` ACTIVE, `/health` ok, `/discover` 401 without auth and lists the providers with the
   `prd` secret — ✅ done (2026-10-28)
-- [ ] prod gateway lists `profitroom` with `connectionProbe` and `contextDiscovery` — ⬜ pending
+- [x] prod gateway lists `profitroom` with `connectionProbe` and `contextDiscovery` — ✅ done — verified 2026-11-16:
+  `/discover` on prod lists it with a `connectionProbe` and `contextDiscovery` (`hotelKey` via `mcp_profitroom_get_hotel`);
+  the first real connection (2026-10-30) stored its hotel key with no error
 
 ## Reviews
 
