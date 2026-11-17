@@ -1,4 +1,4 @@
-# ADR: Dated, single-advisory exceptions for dev-only audit findings with no upstream fix
+# ADR 0028: Dated, single-advisory exceptions for dev-only audit findings with no upstream fix
 
 - **Status:** Accepted — amends [0014](0014-supply-chain-audit-gate.md)
 - **Date:** 2026-11-17

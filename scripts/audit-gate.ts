@@ -10,7 +10,7 @@
  * through this file.
  *
  * Policy: docs/adr/0014-supply-chain-audit-gate.md and
- * docs/adr/audit-gate-dated-advisory-exceptions.md. No dependency beyond node and tsx.
+ * docs/adr/0028-audit-gate-dated-advisory-exceptions.md. No dependency beyond node and tsx.
  */
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';

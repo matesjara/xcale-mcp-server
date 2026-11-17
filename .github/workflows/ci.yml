@@ -51,7 +51,7 @@ jobs:
       # Its only allowance is a dated, single-advisory exception for a dev-only finding with no
       # upstream fix, listed in audit-exceptions.json and applied by scripts/audit-gate.ts. See
       # docs/adr/0014-supply-chain-audit-gate.md and
-      # docs/adr/audit-gate-dated-advisory-exceptions.md (do NOT narrow this to --omit=dev).
+      # docs/adr/0028-audit-gate-dated-advisory-exceptions.md (do NOT narrow this to --omit=dev).
       - name: Audit — production deps (high+ severity)
         run: npm audit --omit=dev --audit-level=high
       - name: Audit — full tree incl. toolchain (high+ severity, dated exceptions)
