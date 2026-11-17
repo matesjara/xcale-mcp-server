@@ -1,6 +1,6 @@
 # ADR 0014: Supply-chain audit gate covers the full dependency tree, not just production
 
-- **Status:** Accepted
+- **Status:** Accepted — amended by [0028-audit-gate-dated-advisory-exceptions](0028-audit-gate-dated-advisory-exceptions.md)
 - **Date:** 2026-08-12
 - **Decision makers:** Mateo (release owner), xcale team
 - **Tags:** ci, security, supply-chain, tooling, dependencies
