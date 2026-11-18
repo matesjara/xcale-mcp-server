@@ -291,6 +291,24 @@ describe('HiMed unified provider — credential groups', () => {
     expect(body.idSede).toBe('1');
   });
 
+  it('list_professionals sends idEspecialidad as a number — HiMed errors on a string one', async () => {
+    // Live 2026-11-18 (a clinic's production): listarUsuarios with `"idEspecialidad": "4"` answers
+    // `{"success": false, "error": "not enough arguments for format string"}`; with `4` it returns the
+    // professionals. list_specialties hands the agent a number, which the input must also accept.
+    for (const idEspecialidad of ['4', 4]) {
+      const sink: Captured[] = [];
+      const provider = createHimedProvider({ ...HOSTS, fetchImpl: fakeFetch(200, [], sink) });
+      const res = await provider.callTool(
+        'mcp_himed_list_professionals',
+        { idSede: 1, idEspecialidad },
+        ctx(),
+      );
+      expect(res.kind).toBe('success');
+      const body = JSON.parse(sink[0]!.body ?? '{}') as Record<string, unknown>;
+      expect(body.idEspecialidad).toBe(4);
+    }
+  });
+
   it('get_availability returns each slot once — HiMed repeats rows', async () => {
     const slot = {
       disponibilidad: 'Martes, 06 de Octubre - 11:00 AM',

@@ -349,12 +349,18 @@ export function buildHimedTools(
     input: z
       .object({
         idSede: z.union([z.string(), z.number()]),
-        idEspecialidad: z.string().min(1),
+        // list_specialties hands the agent a number; accept either and send a number — HiMed's
+        // listarUsuarios fails on a string one ("not enough arguments for format string", live
+        // 2026-11-18) and returns the professionals for the same id as a number.
+        idEspecialidad: z.union([z.string().regex(/^\d+$/), z.number().int().nonnegative()]),
       })
       .strict(),
     handler: async (args, ctx) => {
       const out = unwrapHimedScheduling(
-        await call(ctx, 'listarUsuarios', args),
+        await call(ctx, 'listarUsuarios', {
+          idSede: args.idSede,
+          idEspecialidad: Number(args.idEspecialidad),
+        }),
         'list_professionals',
       );
       if (!out.ok) return err(out.code, out.message);
