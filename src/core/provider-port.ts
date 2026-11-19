@@ -88,6 +88,26 @@ export type ProviderAuthDescriptor =
       }>;
     }
   | {
+      /**
+       * Timestamped hash token (Autocore-class): the first IMPERATIVE auth variant. The materializer —
+       * still the only reveal — computes, for every HTTP request, `header: base64(key;ts;digest)` with
+       * `ts` the Unix time in whole seconds and `digest` the lowercase sha256 hex of `secret + ts`. The
+       * recipe is fixed by the variant, not declared; only the header name and the inputs are data.
+       *
+       * `fields` are label-only inputs, as for `basic`: the consumer (Rail A) composes them into one
+       * credential `fields[0]:fields[1]` (key:secret) and this server splits it at the first `:` after
+       * the reveal. ADR timestamped-hash-token-auth-scheme.
+       */
+      readonly type: 'timestamped_hash_token';
+      readonly credentialDelivery?: CredentialDelivery;
+      /** The request header that carries the token (e.g. `Auth-Token`). */
+      readonly header: string;
+      readonly fields: ReadonlyArray<{
+        readonly key: string;
+        readonly label: string;
+      }>;
+    }
+  | {
       readonly type: 'oauth2';
       readonly credentialDelivery?: CredentialDelivery;
       readonly authorizationUrl: string;
