@@ -43,8 +43,8 @@ xcale-backend (MCP client)  ──/discover · tools/list · tools/call──▶
 
 - **Transport.** Fastify 5 in front of the MCP **Streamable HTTP** transport in stateless mode:
   a fresh server + transport per request, no sessions (`src/protocol/`). Routes: `GET /health`,
-  `GET /assets/:filename` (provider logos), `GET /discover`, `POST /mcp`.
-- **Caller auth (Hop B).** One shared-secret bearer token guards `/discover` and `/mcp`; the
+  `GET /assets/:filename` (provider logos), `GET /discover`, `POST /mcp`, `POST /credential-exchange/relay`.
+- **Caller auth (Hop B).** One shared-secret bearer token guards `/discover`, `/mcp` and `/credential-exchange/relay`; the
   process refuses to boot without `MCP_SERVER_SECRET`. Per-tenant identity is **not** carried by
   Hop B — it arrives per call.
 - **Credentials never live here.** Two delivery strategies (ADR 0010): `forwarded` — the

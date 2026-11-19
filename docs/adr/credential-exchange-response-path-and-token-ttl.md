@@ -2,6 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-10-30
+- **Last modified:** 2026-11-19
 - **Decision makers:** CTO (the `architect` agent, ADR 0005 of the xcale layer), Sara Estrada
 - **Tags:** auth, contract, catalog, integrations, mcp
 - **Amends:** [credential-delivery-strategies](0010-credential-delivery-strategies.md), the `credential_exchange` variant only
@@ -33,6 +34,15 @@ The `credential_exchange` variant gains two **additive, declarative** capabiliti
 - mint at most one token at a time per connection (single-flight). A provider whose second login revokes the first is otherwise unusable under concurrency, and minting one at a time costs any other provider nothing.
 
 The descriptor states the facts; the consumer owns the cache and the mint, as ADR 0010 already says.
+
+### The mint goes out through this server when the token is bound to the login IP
+
+Avirato binds every token to the IP that logged in (observed 2026-11-19, xcale-backend#3570). The consumer's login and this server's data calls leave from different IPs, so every call is refused. This server's production app has dedicated egress IPs (`.do/app.yaml`), so the login is made from here.
+
+- **An explicit opt-in on the descriptor:** `relayMint: true` (additive, published with the rest of the descriptor), set only for Avirato. Siigo and Erbon do not bind their tokens to an IP and mint directly, as before.
+- **`POST /credential-exchange/relay`**, behind the Hop-B guard. Request `{ provider, body }`. The server POSTs `body` as JSON to the provider's own declared `tokenEndpoint`, never a URL from the caller, and answers `200 { status, body }` with whatever the provider answered (a 401 is data, relayed as `200 { status: 401 }`; `body` is `null` when it was not JSON). `400 invalid_request` for a malformed request, `404 relay_not_allowed` for an unknown provider or one that did not opt in, `502 provider_unreachable` for a network error or no answer in 15 seconds. Avirato's endpoint follows `AVIRATO_BASE_URL`, like its data calls.
+- **Custody does not move.** The consumer keeps the durable credential, the cache, the TTL and single-flight; it only sends the login request through the relay. The durable credential transits this server once per token mint and is never stored or logged (nothing of the request or the response is logged, at most the provider slug and the status).
+- **ADR 0010's gate is not crossed.** Its hard gate, that the server never holds a reusable credential, is scoped to financial providers; Avirato is not one. Siigo, the first financial provider, keeps minting in Rail A and never uses the relay.
 
 ## Alternatives Considered
 
@@ -80,6 +90,7 @@ The descriptor states the facts; the consumer owns the cache and the mint, as AD
 ## References
 
 - Amends: [credential-delivery-strategies](0010-credential-delivery-strategies.md)
+- Mint relay: matesjara/xcale-backend#3570; `src/core/credential/mint-relay.ts`
 - Related feature design: `docs/design/avirato-provider/feature-design.md` (AD-2, R-1, R-6)
 - CTO records: matesjara/xcale-mcp-server#189, comments of 2026-10-30
 - Code anchors: `src/core/provider-port.ts` (the variant), `src/core/testing/provider-conformance.ts` (its checks); xcale-backend `src/modules/connections/credential-exchange.ts:99` and `src/modules/connections/credential-resolve.service.ts:79-81`
