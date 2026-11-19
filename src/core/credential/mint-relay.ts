@@ -52,6 +52,8 @@ export function createMintRelay(deps: MintRelayDeps): (payload: unknown) => Prom
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
         body: JSON.stringify(body),
+        // Never follow a redirect: the body carries the durable credential.
+        redirect: 'error',
         signal: controller.signal,
       });
       const text = await response.text();
