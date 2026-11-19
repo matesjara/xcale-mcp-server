@@ -1,14 +1,22 @@
 import { z } from 'zod';
 
 import { defineTool, ok, type ToolDefinition } from '../../core/tool';
+import type { ToolIdentityPolicy } from '../../core/types';
 import type { RestofyClient } from './client';
 import { refusedWith, toOutcome } from './errors';
 import { idempotencyKey, quoteReference } from './idempotency';
 import { SLUG } from './manifest';
 import { orderDraft, toCreateOrderBody } from './order-body';
-import { uuid } from './schemas';
+import { e164, uuid } from './schemas';
 
 const NO_ARGS = z.object({}).strict();
+
+/** The tool acts on the person its `phone` names (ADR 0019, 0023). */
+const PHONE_BOUND: ToolIdentityPolicy = {
+  mode: 'subject-bound',
+  identityFields: ['phone'],
+  identityFieldKinds: { phone: 'phone' },
+};
 
 /** Restofy's sentence for an order it cannot find (observed): "No encontramos ese pedido. …". */
 const ORDER_NOT_FOUND = 'No encontramos ese pedido';
@@ -155,5 +163,77 @@ export function buildRestofyTools(client: RestofyClient): ToolDefinition[] {
         );
       },
     }),
+
+    defineTool({
+      name: `mcp_${SLUG}_find_contact_by_phone`,
+      description:
+        'Find the restaurant’s contact (a diner) with EXACTLY this phone, in E.164 (`+573001112233`): ' +
+        'Restofy matches the phone as written, so `3001112233` does not find `+573001112233`. Returns ' +
+        '`{ found: false }` or `{ found: true, contact: { id, phone, name, notes } }`; `contact.id` is ' +
+        'the `partyId` a reservation needs.',
+      input: z.object({ phone: e164 }).strict(),
+      readOnly: true,
+      audience: 'customer',
+      identityPolicy: PHONE_BOUND,
+      handler: async (args, ctx) => {
+        const outcome = toOutcome(
+          await client.call('parties/get-party-by-phone', ctx.request, { ...args }),
+        );
+        return outcome.ok ? ok(asLookup(outcome.data)) : outcome;
+      },
+    }),
+
+    defineTool({
+      name: `mcp_${SLUG}_create_contact`,
+      description:
+        'Make sure the restaurant has this diner as a contact. If a contact with exactly this phone ' +
+        '(E.164) already exists, it is returned UNCHANGED (`created: false`) — its name stays as the ' +
+        'restaurant has it, whatever name is given here; this tool never renames or edits a contact. ' +
+        'Otherwise it is created with the name and phone (`created: true`). `contact.id` is the ' +
+        '`partyId` a reservation needs.',
+      input: z.object({ phone: e164, name: z.string().trim().min(1).max(150) }).strict(),
+      audience: 'customer',
+      identityPolicy: PHONE_BOUND,
+      handler: async ({ phone, name }, ctx) => {
+        // Look first: Restofy's set-party on a phone it already has RENAMES that contact (observed
+        // 2026-11-18). A diner typing another name must never rename the restaurant's customer
+        // [CTO 2026-11-18, AD-7].
+        const lookup = toOutcome(
+          await client.call('parties/get-party-by-phone', ctx.request, { phone }),
+        );
+        if (!lookup.ok) return lookup;
+        const existing = asLookup(lookup.data);
+        if (existing.found) return ok({ created: false, contact: existing.contact });
+
+        const created = toOutcome(
+          await client.call('parties/set-party', ctx.request, { name, phone }),
+        );
+        return created.ok
+          ? ok({ created: true, contact: contactOf((created.data as PartyData).party) })
+          : created;
+      },
+    }),
   ];
+}
+
+/** A Restofy party (contact), as get-party-by-phone and set-party answer it (contract §A.10). */
+interface Party {
+  readonly id: number;
+  readonly phone: string | null;
+  readonly name: string | null;
+  readonly notes: string | null;
+}
+interface PartyData {
+  readonly party?: Party | null;
+}
+
+/** Who the contact is — the sub-lists (addresses, invoice recipients, suppliers…) are left out. */
+function contactOf(party: Party | null | undefined): Party | null {
+  if (!party) return null;
+  return { id: party.id, phone: party.phone, name: party.name, notes: party.notes };
+}
+
+function asLookup(data: unknown): { found: false } | { found: true; contact: Party } {
+  const contact = contactOf((data as PartyData | null)?.party);
+  return contact ? { found: true, contact } : { found: false };
 }

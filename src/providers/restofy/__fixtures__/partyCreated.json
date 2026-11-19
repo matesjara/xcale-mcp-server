@@ -1,0 +1,20 @@
+{
+  "success": true,
+  "message": "Operación realizada correctamente",
+  "data": {
+    "party": {
+      "id": 2,
+      "phone": "+573005556677",
+      "name": "Nuevo Comensal",
+      "notes": null,
+      "creditType": "none",
+      "creditLimitCents": null,
+      "accountId": null,
+      "addresses": [],
+      "vehicles": [],
+      "couriers": [],
+      "invoiceRecipients": [],
+      "suppliers": []
+    }
+  }
+}
