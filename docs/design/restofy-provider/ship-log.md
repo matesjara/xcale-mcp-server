@@ -26,6 +26,7 @@
 - 2026-11-19 all 16 tools live through the provider (test restaurant); adjustment: none.
 - 2026-11-19 writes live through the provider: order `xcale-qa-2026-11-19` sent 3 times (same, same, changed body) → one order `93N-U92`; reservation 3 created, found by phone, cancelled; adjustment: none.
 - 2026-11-19 `mcp-contract-qa`: BLOCKED — an offset `reservedAt` refused by Restofy; `audit-exceptions.json` outside the footprint. Adjustments: UTC conversion + `unknown_area` + a description fix (`a357712`); audit fix moved to #225. Reservation 5 created with `-05:00` and stored as the same UTC instant, then cancelled.
+- 2026-11-19 `create_reservation` declares `createdRecordIdField: reservationId` (`restofy:reservation`) so the diner owns what they book [CTO 2026-11-19, xcale-backend#2935]; `schemaVersion` 2026-11-19.
 - 2026-11-19 `mcp-contract-qa` re-run on `a357712`: PASS — footprint clean; reservation 6 booked with `-05:00`, stored as the same UTC instant, cancelled; `unknown_area` live; suite 1187 tests, typecheck and format clean. ✅
 
 ### Feature flags / config

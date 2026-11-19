@@ -19,6 +19,6 @@ export const restofyManifest: ProviderManifest = {
   displayName: 'Restofy',
   category: 'restaurant-pos',
   logoUrl: `/assets/${SLUG}.svg`,
-  schemaVersion: '2026-11-18',
+  schemaVersion: '2026-11-19',
   providerVersion: '0.1.0',
 };

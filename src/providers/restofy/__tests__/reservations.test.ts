@@ -388,3 +388,14 @@ describe('restofy reservations — an unknown area says so (contract QA note)', 
     expect(r).toMatchObject({ kind: 'success', data: { slots: [], reason: 'unknown_area' } });
   });
 });
+
+describe('restofy reservations — the diner owns what they book (CTO 2026-11-19, #2935)', () => {
+  it('create_reservation publishes the kind and the id of the record it creates', () => {
+    expect(toolNamed('mcp_restofy_create_reservation')?.identityPolicy).toEqual({
+      mode: 'subject-bound',
+      identityFields: [],
+      recordOwnershipKind: 'restofy:reservation',
+      createdRecordIdField: 'reservationId',
+    });
+  });
+});

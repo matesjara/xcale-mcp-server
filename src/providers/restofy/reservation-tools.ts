@@ -181,6 +181,15 @@ export function buildReservationTools(client: RestofyClient): ToolDefinition[] {
         })
         .strict(),
       audience: 'customer',
+      // The diner owns what they book [CTO 2026-11-19, xcale-backend#2935]: it reads nobody, and the
+      // consumer records the created `reservationId` as the writer's own `restofy:reservation`, which is
+      // what lets get_reservation and cancel_reservation serve them later (ADR 0023).
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipKind: `${SLUG}:reservation`,
+        createdRecordIdField: 'reservationId',
+      },
       handler: async (args, ctx) =>
         toOutcome(
           await client.call('reservations/create-reservation', ctx.request, {
