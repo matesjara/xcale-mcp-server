@@ -7,6 +7,7 @@ import type { AuthedRequest, QueryParams, WoocommerceClient } from './client';
 import type { WoocommerceContext } from './context';
 import { wooError } from './errors';
 import { SLUG } from './manifest';
+import { priceCart } from './price-cart';
 import { quoteShipping } from './shipping-quote';
 
 const tool = toolFactory<WoocommerceContext>();
@@ -549,6 +550,16 @@ const quoteShippingInput = z
         postcode: z.string().optional(),
       })
       .strict(),
+  })
+  .strict();
+const priceCartInput = z
+  .object({
+    items: quoteShippingInput.shape.items.refine(
+      // The cart merges a repeated id into one line, so each line could no longer be answered alone.
+      (items) => new Set(items.map((i) => i.productId)).size === items.length,
+      { message: 'each productId may appear once — merge the quantities' },
+    ),
+    destination: quoteShippingInput.shape.destination.optional(),
   })
   .strict();
 const listOrdersInput = z
@@ -1493,6 +1504,37 @@ export function buildWoocommerceTools(
         );
         if (!result.ok) return err(result.code, result.message);
         return ok({ options: result.options });
+      },
+    }),
+
+    tool({
+      name: `mcp_${SLUG}_price_cart`,
+      description:
+        "Price items the way the store's own cart charges an anonymous guest today — including what " +
+        'the store applies in the cart on its own (a discount-rules plugin, quantity pricing, ' +
+        'exclusions), which the product reads do not show. No coupon code the customer mentions is ' +
+        'checked or applied, and prices tied to who the buyer is (wholesale, first order, per email) are ' +
+        'not included. A pay link built from this price charges this price. Per line: `unitPrice` and ' +
+        '`regularUnitPrice` as the store displays them, `discounted`, and the tax-exclusive ' +
+        '`lineSubtotal`/`lineTotal` (`lineTotal` is what create_order takes as a line `total`); a line ' +
+        "the store refuses, or whose line total cannot be read, comes back `status: 'rejected'` with a " +
+        'code and message, and the `totals` cover only the priced lines. Items are product ids, or a ' +
+        "variation's OWN id for a variable product. Without a `destination` the tax is the store's " +
+        "default location's and there is no freight. With one it also returns `shippingOptions`, and " +
+        '`totals.total` includes the rate the store selected for each package; `needsShipping: true` ' +
+        'with no `shippingOptions` means the store does not ship to that address, and then `shipping` ' +
+        'and `total` are null — never free shipping. Read-only: a throwaway Store API cart, emptied ' +
+        'before and after — no order is placed.',
+      input: priceCartInput,
+      handler: async (args, ctx) => {
+        const result = await priceCart(
+          fetchImpl,
+          ctx.metadata.storeUrl,
+          args.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          args.destination,
+        );
+        if (!result.ok) return err(result.code, result.message);
+        return ok(result.pricing);
       },
     }),
 
