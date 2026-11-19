@@ -55,6 +55,70 @@ function nextDay(fecha: string): string | null {
   return `${pad(next.getUTCDate())}-${pad(next.getUTCMonth() + 1)}-${next.getUTCFullYear()}`;
 }
 
+const WEEKDAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const MONTHS = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+];
+
+/**
+ * consultarDisponibilidad rows as slots `{ disponibilidad, fecha, hora, duracion }`.
+ *
+ * We ask HiMed for `forma: 'json'`: one row per working day, `fecha` YYYY-MM-DD and the free hours in
+ * `horas`. Its `texto` form is wrong — live 2026-11-18, a clinic's production: for a 30-day range it
+ * gave every day one slot at the jornada's END (18:00, a time nobody can book) and repeated it, while
+ * `json` for the same professional and dates listed 13:00, 14:00, 15:00, 17:00. A row already in the
+ * slot shape (`hora` present) is passed through, so an older answer still reads.
+ */
+function availabilitySlots(data: unknown): Array<Record<string, unknown>> {
+  const out: Array<Record<string, unknown>> = [];
+  for (const r of rows(data)) {
+    if (!Array.isArray(r.horas)) {
+      out.push({
+        disponibilidad: r.disponibilidad,
+        fecha: r.fecha,
+        hora: r.hora,
+        duracion: r.duracion ?? r.duraccion,
+      });
+      continue;
+    }
+    const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(r.fecha));
+    for (const h of r.horas) {
+      const hora = String(h);
+      const t = /^(\d{2}):(\d{2})/.exec(hora);
+      if (!iso || !t) {
+        out.push({
+          disponibilidad: `${String(r.fecha)} ${hora}`,
+          fecha: r.fecha,
+          hora,
+          duracion: r.tiempoIntervalos,
+        });
+        continue;
+      }
+      const day = new Date(Date.UTC(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])));
+      const hh = Number(t[1]);
+      const h12 = String(((hh + 11) % 12) + 1).padStart(2, '0');
+      out.push({
+        disponibilidad: `${WEEKDAYS[day.getUTCDay()]}, ${iso[3]} de ${MONTHS[day.getUTCMonth()]} - ${h12}:${t[2]} ${hh < 12 ? 'AM' : 'PM'}`,
+        fecha: `${iso[3]}-${iso[2]}-${iso[1]}`,
+        hora,
+        duracion: r.tiempoIntervalos,
+      });
+    }
+  }
+  return out;
+}
+
 export function buildHimedTools(
   client: HimedClient,
   now: () => Date = () => new Date(),
@@ -424,6 +488,7 @@ export function buildHimedTools(
         idSede: z.union([z.string(), z.number()]),
         fechaInicial: z.string().min(1).describe('DD-MM-YYYY'),
         fechaFinal: z.string().optional().describe('DD-MM-YYYY or "none"'),
+        // Kept so existing callers still validate; the wire always asks for `json` (availabilitySlots).
         forma: z.enum(['texto']).default('texto'),
       })
       .strict(),
@@ -445,7 +510,7 @@ export function buildHimedTools(
           idSede: String(args.idSede),
           fechaInicial: args.fechaInicial,
           fechaFinal: wireFechaFinal,
-          forma: args.forma,
+          forma: 'json',
         }),
         'get_availability',
       );
@@ -456,22 +521,15 @@ export function buildHimedTools(
       const seen = new Set<string>();
       const cutoff = now().getTime();
       return ok(
-        rows(out.data)
-          .filter((r) => {
-            if (singleDay && String(r.fecha) !== args.fechaInicial) return false;
-            const at = slotInstant(r.fecha, r.hora);
-            if (at && at.getTime() <= cutoff) return false;
-            const key = `${String(r.fecha)} ${String(r.hora)}`;
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          })
-          .map((r) => ({
-            disponibilidad: r.disponibilidad,
-            fecha: r.fecha,
-            hora: r.hora,
-            duracion: r.duracion,
-          })),
+        availabilitySlots(out.data).filter((r) => {
+          if (singleDay && String(r.fecha) !== args.fechaInicial) return false;
+          const at = slotInstant(r.fecha, r.hora);
+          if (at && at.getTime() <= cutoff) return false;
+          const key = `${String(r.fecha)} ${String(r.hora)}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        }),
       );
     },
   });

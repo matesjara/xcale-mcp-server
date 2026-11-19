@@ -309,6 +309,67 @@ describe('HiMed unified provider — credential groups', () => {
     }
   });
 
+  it('get_availability asks HiMed for json and returns every free hour — its texto form is wrong', async () => {
+    // Live 2026-11-18 (a clinic's production): `texto` gave each day one slot at 18:00, the jornada's
+    // end; `json` for the same dates listed the real free hours.
+    const sink: Captured[] = [];
+    const provider = createHimedProvider({
+      ...HOSTS,
+      now: () => new Date('2026-11-18T12:00:00Z'),
+      fetchImpl: fakeFetch(
+        200,
+        [
+          {
+            idSede: 1,
+            fecha: '2026-11-23',
+            horaInicioJornada: '13:00:00',
+            horaFinJornada: '18:00:00',
+            tiempoIntervalos: '01:00:00',
+            horas: ['16:00:00'],
+          },
+          {
+            idSede: 1,
+            fecha: '2026-11-25',
+            tiempoIntervalos: '01:00:00',
+            horas: ['09:00:00', '13:00:00'],
+          },
+          { idSede: 1, fecha: '2026-11-26', tiempoIntervalos: '01:00:00', horas: [] },
+        ],
+        sink,
+      ),
+    });
+    const res = await provider.callTool(
+      'mcp_himed_get_availability',
+      { idUsuario: '42', idSede: 1, fechaInicial: '19-11-2026', fechaFinal: '18-12-2026' },
+      ctx(),
+    );
+    const body = JSON.parse(sink[0]!.body ?? '{}') as Record<string, unknown>;
+    expect(body.forma).toBe('json');
+    expect(res.kind).toBe('success');
+    if (res.kind === 'success') {
+      expect(res.data).toEqual([
+        {
+          disponibilidad: 'Lunes, 23 de Noviembre - 04:00 PM',
+          fecha: '23-11-2026',
+          hora: '16:00:00',
+          duracion: '01:00:00',
+        },
+        {
+          disponibilidad: 'Miércoles, 25 de Noviembre - 09:00 AM',
+          fecha: '25-11-2026',
+          hora: '09:00:00',
+          duracion: '01:00:00',
+        },
+        {
+          disponibilidad: 'Miércoles, 25 de Noviembre - 01:00 PM',
+          fecha: '25-11-2026',
+          hora: '13:00:00',
+          duracion: '01:00:00',
+        },
+      ]);
+    }
+  });
+
   it('get_availability returns each slot once — HiMed repeats rows', async () => {
     const slot = {
       disponibilidad: 'Martes, 06 de Octubre - 11:00 AM',
