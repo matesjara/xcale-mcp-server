@@ -8,6 +8,13 @@ import { e164, id, uuid } from './schemas';
 
 /** A calendar date, `YYYY-MM-DD`. */
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'a date as YYYY-MM-DD');
+/** An ISO 8601 date-time WITH its offset (or Z): the hour is never guessed in another timezone. */
+const isoDateTime = z
+  .string()
+  .regex(
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/,
+    'an ISO 8601 date-time with its offset',
+  );
 const scope = z.enum(['today', 'upcoming', 'history']);
 
 /** At most this many areas are read in detail; a restaurant has a handful. */
@@ -149,6 +156,51 @@ export function buildReservationTools(client: RestofyClient): ToolDefinition[] {
           .map((r) => pick(r, RESERVATION_PROJECTION));
         return ok({ items });
       },
+    }),
+
+    defineTool({
+      name: `mcp_${SLUG}_create_reservation`,
+      description:
+        'Book a table for a contact (`partyId` from find_contact_by_phone or create_contact) in an area, ' +
+        'at `reservedAt` (ISO 8601 with its offset, e.g. 2026-11-21T20:00:00-05:00), for `guestCount` ' +
+        'people, 90 minutes by default. Restofy CONFIRMS it at once and does NOT check the area’s ' +
+        'capacity, its party size limits, its notice or the slot on this path: read list_reservation_areas ' +
+        'and list_reservation_slots first. Restofy itself reminds the diner by WhatsApp before the time ' +
+        'when the contact has a phone. No deposit is taken.',
+      input: z
+        .object({
+          partyId: id,
+          reservationAreaId: id,
+          guestCount: z.number().int().min(1).max(255),
+          reservedAt: isoDateTime,
+          durationMinutes: z.number().int().min(15).max(600).optional(),
+          guestOccasionId: id.optional(),
+          notes: z.string().max(2000).optional(),
+        })
+        .strict(),
+      audience: 'customer',
+      handler: async (args, ctx) =>
+        toOutcome(await client.call('reservations/create-reservation', ctx.request, { ...args })),
+    }),
+
+    defineTool({
+      name: `mcp_${SLUG}_cancel_reservation`,
+      description:
+        'Cancel a reservation by its `reservationId`, with the reason. Restofy cancels a pending, ' +
+        'confirmed or seated reservation, and refuses one already cancelled, finished or marked no-show.',
+      input: z
+        .object({ reservationId: id, cancellationReason: z.string().trim().min(2).max(300) })
+        .strict(),
+      audience: 'customer',
+      identityPolicy: {
+        mode: 'subject-bound',
+        identityFields: [],
+        recordOwnershipField: 'reservationId',
+        recordOwnershipKind: `${SLUG}:reservation`,
+        recordAction: 'cancel',
+      },
+      handler: async (args, ctx) =>
+        toOutcome(await client.call('reservations/cancel-reservation', ctx.request, { ...args })),
     }),
 
     defineTool({

@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "message": "Reserva creada",
+  "data": {
+    "reservationId": 1
+  }
+}

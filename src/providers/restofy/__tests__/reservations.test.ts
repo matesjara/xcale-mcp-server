@@ -5,6 +5,10 @@ import { createRestofyProvider } from '../provider';
 import area from '../__fixtures__/area.json';
 import areas from '../__fixtures__/areas.json';
 import areasNotOnline from '../__fixtures__/areasNotOnline.json';
+import cancelNotAllowed from '../__fixtures__/errors/cancelNotAllowed.json';
+import reservationInPast from '../__fixtures__/errors/reservationInPast.json';
+import reservationCancelled from '../__fixtures__/reservationCancelled.json';
+import reservationCreated from '../__fixtures__/reservationCreated.json';
 import reservationDetail from '../__fixtures__/reservationDetail.json';
 import reservationsUpcoming from '../__fixtures__/reservationsUpcoming.json';
 import slots from '../__fixtures__/slots.json';
@@ -210,5 +214,120 @@ describe('restofy reservations — S6 list_reservations (control plane)', () => 
     expect(r).toMatchObject({ kind: 'success', data: reservationsUpcoming.data });
     expect(toolNamed('mcp_restofy_list_reservations')).toBeUndefined();
     expect(provider.routableToolNames()).toContain('mcp_restofy_list_reservations');
+  });
+});
+
+describe('restofy reservations — S7 create_reservation', () => {
+  const booking = {
+    partyId: 1,
+    reservationAreaId: 1,
+    guestCount: 2,
+    reservedAt: '2026-11-20T01:00:00.000Z',
+    notes: 'Mesa cerca de la ventana',
+  };
+
+  it('books the table for the contact as given and returns its id', async () => {
+    const capture: Captured[] = [];
+    const provider = createRestofyProvider({
+      fetchImpl: fakeRestofy(
+        { 'reservations/create-reservation': { body: reservationCreated } },
+        capture,
+      ),
+    });
+
+    const r = await provider.callTool('mcp_restofy_create_reservation', booking, ctx);
+
+    expect(r).toMatchObject({ kind: 'success', data: { reservationId: 1 } });
+    expect(sentBody(capture[0])).toEqual(booking);
+  });
+
+  it("a time in the past comes back as Restofy's own sentence", async () => {
+    const provider = createRestofyProvider({
+      fetchImpl: fakeRestofy({
+        'reservations/create-reservation': { status: 400, body: reservationInPast },
+      }),
+    });
+
+    const r = await provider.callTool('mcp_restofy_create_reservation', booking, ctx);
+
+    expect(r).toMatchObject({
+      kind: 'error',
+      code: ProviderErrorCode.INVALID_INPUT,
+      message: 'La fecha de la reserva debe ser futura',
+    });
+  });
+
+  it('tells the agent Restofy does not check capacity or party size on this path', () => {
+    const description = toolNamed('mcp_restofy_create_reservation')?.description ?? '';
+    expect(description).toMatch(/capacity/i);
+    expect(description).toMatch(/party size/i);
+  });
+
+  it('refuses a time without an offset, so the hour is never guessed', async () => {
+    const capture: Captured[] = [];
+    const provider = createRestofyProvider({ fetchImpl: fakeRestofy({}, capture) });
+
+    const r = await provider.callTool(
+      'mcp_restofy_create_reservation',
+      { ...booking, reservedAt: '2026-11-20 20:00' },
+      ctx,
+    );
+
+    expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+    expect(capture).toHaveLength(0);
+  });
+});
+
+describe('restofy reservations — S7 cancel_reservation', () => {
+  it('cancels the reservation with its reason', async () => {
+    const capture: Captured[] = [];
+    const provider = createRestofyProvider({
+      fetchImpl: fakeRestofy(
+        { 'reservations/cancel-reservation': { body: reservationCancelled } },
+        capture,
+      ),
+    });
+
+    const r = await provider.callTool(
+      'mcp_restofy_cancel_reservation',
+      { reservationId: 1, cancellationReason: 'El comensal no puede asistir' },
+      ctx,
+    );
+
+    expect(r).toMatchObject({ kind: 'success', data: { reservationId: 1 } });
+    expect(sentBody(capture[0])).toEqual({
+      reservationId: 1,
+      cancellationReason: 'El comensal no puede asistir',
+    });
+  });
+
+  it('a reservation already cancelled is refused with Restofy’s sentence', async () => {
+    const provider = createRestofyProvider({
+      fetchImpl: fakeRestofy({
+        'reservations/cancel-reservation': { status: 400, body: cancelNotAllowed },
+      }),
+    });
+
+    const r = await provider.callTool(
+      'mcp_restofy_cancel_reservation',
+      { reservationId: 1, cancellationReason: 'Otra vez' },
+      ctx,
+    );
+
+    expect(r).toMatchObject({
+      kind: 'error',
+      code: ProviderErrorCode.INVALID_INPUT,
+      message: 'La reserva no se puede cancelar en su estado actual',
+    });
+  });
+
+  it('publishes that it cancels a record its owner holds', () => {
+    expect(toolNamed('mcp_restofy_cancel_reservation')?.identityPolicy).toEqual({
+      mode: 'subject-bound',
+      identityFields: [],
+      recordOwnershipField: 'reservationId',
+      recordOwnershipKind: 'restofy:reservation',
+      recordAction: 'cancel',
+    });
   });
 });

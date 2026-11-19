@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "message": "Reserva cancelada",
+  "data": {
+    "reservationId": 1
+  }
+}
