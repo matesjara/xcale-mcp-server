@@ -1,7 +1,7 @@
 # Restofy Provider — Implementation Plan
 
 > **Implements**: [feature-design.md](feature-design.md) · [api-contract.md](api-contract.md)
-> **Issues**: epic matesjara/xcale-backend#2933 · adapter #2935 · the provider's own issue in this repo (to open with the PR) · **Branch**: `feat/restofy-provider` (one branch, one PR to `dev`)
+> **Issues**: epic matesjara/xcale-backend#2933 · adapter #2935 · the provider's own issue in this repo (to open with the PR) · **Branch**: `docs/restofy-provider-design` — the design and the implementation in one PR to `dev` (matesjara/xcale-mcp-server#224)
 > **Last updated**: 2026-11-18
 
 ## Meta-description
@@ -150,7 +150,7 @@ Descriptions carry the facts of contract §C.2 (kitchen stages invisible; capaci
 
 ### `assets/restofy.svg` — NEW
 
-The house tile (black, rx 6, the mark in white), traced from Restofy's app icon. If the mark is only a raster, defer the tile to its own change, as Avirato did.
+The house tile (black, rx 6, the mark in white), traced from Restofy's app icon. Restofy publishes no vector mark, so the tile carries a plain fork-and-knife glyph (Restofy's own icon is utensils on orange); a traced mark can replace it later.
 
 ## Vertical slices
 
@@ -174,14 +174,14 @@ One folder and one shared `tools.ts`, about 12 files: under the threshold. **The
 
 ## Definition of Done
 
-- [ ] S1 skeleton and `get_business_profile`, conformance green
-- [ ] S2 error mapping and the redaction rule
-- [ ] S3 channels and menu
-- [ ] S4 quote, order (control plane), order reads; the derived idempotency key
-- [ ] S5 contacts, with no rename possible
-- [ ] S6 reservation reads with identity policies
-- [ ] S7 reservation create and cancel
-- [ ] S8 `npm run typecheck && npm run format:check && npm test` clean
+- [x] S1 skeleton and `get_business_profile`, conformance green
+- [x] S2 error mapping and the redaction rule
+- [x] S3 channels and menu
+- [x] S4 quote, order (control plane), order reads; the derived idempotency key
+- [x] S5 contacts, with no rename possible
+- [x] S6 reservation reads with identity policies
+- [x] S7 reservation create and cancel
+- [x] S8 `npm run typecheck && npm run format:check && npm test` clean
 - [ ] S9 `mcp-contract-qa` against the test restaurant
 - [ ] The test key in Doppler `xcale-mcp-server` `dev` (`RESTOFY_API_KEY`, `RESTOFY_TENANT_KEY`), so CI-adjacent QA never reads a local file
 - [ ] PR to `dev` linked to xcale-backend#2935; the backend's consumer issue opened and linked (provider before consumer)

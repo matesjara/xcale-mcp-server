@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 35 35" fill="none">
+  <rect width="35" height="35" rx="6" fill="#000000"/>
+  <!-- Fork: three tines, a neck and a handle. -->
+  <path d="M11 8V14.2C11 15.6 11.9 16.8 13.2 17.2V27H15.6V17.2C16.9 16.8 17.8 15.6 17.8 14.2V8H16.4V13.6H15.1V8H13.7V13.6H12.4V8Z" fill="#FFFFFF"/>
+  <!-- Knife: a blade rounded on its back, and a handle. -->
+  <path d="M21.4 27H23.8V8C21.6 8.9 20.2 11.4 20.2 14.6V18.6H21.4Z" fill="#FFFFFF"/>
+</svg>

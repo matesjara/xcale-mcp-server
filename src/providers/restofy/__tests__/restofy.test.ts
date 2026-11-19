@@ -62,3 +62,53 @@ describe('restofy provider — S1 get_business_profile', () => {
     expect(sentBody(capture[0])).toEqual({});
   });
 });
+
+// ---------------------------------------------------------------------------
+// S8 — the published surface as a whole
+// ---------------------------------------------------------------------------
+
+describe('restofy provider — S8 surface', () => {
+  const MENU = [
+    'get_business_profile',
+    'list_fulfillments',
+    'list_catalog',
+    'quote_order',
+    'get_order',
+    'find_contact_by_phone',
+    'create_contact',
+    'list_reservation_areas',
+    'list_reservation_slots',
+    'create_reservation',
+    'find_reservations_by_phone',
+    'get_reservation',
+    'cancel_reservation',
+  ].map((v) => `mcp_restofy_${v}`);
+  const CONTROL = ['create_order', 'find_order_by_reference', 'list_reservations'].map(
+    (v) => `mcp_restofy_${v}`,
+  );
+
+  it("publishes the 13 menu tools, every one for a diner, and nothing else on the agent's menu", () => {
+    const published = restofyProvider.listTools();
+    expect(published.map((t) => t.name).sort()).toEqual([...MENU].sort());
+    expect(published.every((t) => t.audience === 'customer')).toBe(true);
+  });
+
+  it('routes the 3 control-plane tools by name', () => {
+    expect([...restofyProvider.routableToolNames()].sort()).toEqual([...MENU, ...CONTROL].sort());
+  });
+
+  it('never puts the token in an error message', async () => {
+    const provider = createRestofyProvider({
+      fetchImpl: fakeRestofy({
+        'business-profile/get-business-profile': {
+          status: 400,
+          body: { success: false, message: 'Bearer minted-jwt rechazado', data: [] },
+        },
+      }),
+    });
+
+    const r = await provider.callTool('mcp_restofy_get_business_profile', {}, ctx);
+
+    expect(JSON.stringify(r)).not.toContain('minted-jwt');
+  });
+});
