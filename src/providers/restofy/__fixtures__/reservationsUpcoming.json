@@ -1,0 +1,62 @@
+{
+  "success": true,
+  "message": "Operación realizada correctamente",
+  "data": {
+    "reservations": [
+      {
+        "reservationId": 1,
+        "reservationUuid": "bee66ce3-e3b6-11f1-a14a-0e75ecd64603",
+        "partyId": 1,
+        "partyName": "Comensal Prueba xcale",
+        "partyPhone": "+573001112233",
+        "reservationAreaId": 1,
+        "assignedTableId": null,
+        "guestCount": 2,
+        "guestOccasionId": null,
+        "occasionName": null,
+        "occasionIcon": null,
+        "reservedAt": "2026-11-20T01:00:00.000Z",
+        "durationMinutes": 90,
+        "status": "confirmed",
+        "notes": "Prueba xcale",
+        "prepaidAccountId": null,
+        "advanceAmountCents": null,
+        "advanceRequiredCents": null,
+        "advanceMode": null,
+        "advanceDueAt": null,
+        "isAvailable": 1
+      },
+      {
+        "reservationId": 7,
+        "reservationUuid": "bf408e99-e3b6-11f1-a14a-0e75ecd64603",
+        "partyId": 9,
+        "partyName": "Otra Persona",
+        "partyPhone": "+573001112299",
+        "reservationAreaId": 1,
+        "assignedTableId": null,
+        "guestCount": 2,
+        "guestOccasionId": null,
+        "occasionName": null,
+        "occasionIcon": null,
+        "reservedAt": "2026-11-20T01:00:00.000Z",
+        "durationMinutes": 90,
+        "status": "confirmed",
+        "notes": "llamar a +573001112233 si se demora",
+        "prepaidAccountId": null,
+        "advanceAmountCents": null,
+        "advanceRequiredCents": null,
+        "advanceMode": null,
+        "advanceDueAt": null,
+        "isAvailable": 1
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 50,
+      "total": 2,
+      "totalPages": 1,
+      "hasNext": false,
+      "hasPrev": false
+    }
+  }
+}

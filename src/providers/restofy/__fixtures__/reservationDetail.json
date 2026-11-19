@@ -1,0 +1,36 @@
+{
+  "success": true,
+  "message": "Operación realizada correctamente",
+  "data": {
+    "reservation": {
+      "reservationId": 1,
+      "reservationUuid": "bee66ce3-e3b6-11f1-a14a-0e75ecd64603",
+      "partyId": 1,
+      "partyName": "Comensal Prueba xcale",
+      "partyPhone": "+573001112233",
+      "reservationAreaId": 1,
+      "areaName": "Salón Principal",
+      "assignedTableId": null,
+      "tableName": null,
+      "orderId": null,
+      "guestCount": 2,
+      "guestOccasionId": null,
+      "occasionName": null,
+      "occasionIcon": null,
+      "reservedAt": "2026-11-20T01:00:00.000Z",
+      "durationMinutes": 90,
+      "status": "confirmed",
+      "notes": "Prueba xcale",
+      "prepaidAccountId": null,
+      "advanceAmountCents": null,
+      "advanceRequiredCents": null,
+      "advanceMode": null,
+      "advanceDueAt": null,
+      "confirmedAt": "2026-11-19T01:15:45.000Z",
+      "cancelledAt": null,
+      "cancellationReason": null,
+      "isAvailable": 1,
+      "createdAt": "2026-11-19T01:15:45.000Z"
+    }
+  }
+}

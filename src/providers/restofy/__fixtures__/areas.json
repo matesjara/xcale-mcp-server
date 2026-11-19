@@ -1,0 +1,31 @@
+{
+  "success": true,
+  "message": "Operación realizada correctamente",
+  "data": {
+    "reservationAreas": [
+      {
+        "reservationAreaId": 1,
+        "reservationAreaUuid": "c3778dbb-e3b0-11f1-a14a-0e75ecd64603",
+        "name": "Salón Principal",
+        "description": "Área central climatizada con mesas formales",
+        "capacityMax": 50,
+        "isOnlineBookable": 1,
+        "requiresAdvance": 0,
+        "advanceMode": "customer_advance",
+        "advanceChargeType": "fixed",
+        "advanceAmountCents": 0,
+        "sortOrder": 1,
+        "isActive": 1,
+        "isAvailable": 1
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 100,
+      "total": 1,
+      "totalPages": 1,
+      "hasNext": false,
+      "hasPrev": false
+    }
+  }
+}

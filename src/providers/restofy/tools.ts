@@ -7,6 +7,7 @@ import { refusedWith, toOutcome } from './errors';
 import { idempotencyKey, quoteReference } from './idempotency';
 import { SLUG } from './manifest';
 import { orderDraft, toCreateOrderBody } from './order-body';
+import { buildReservationTools } from './reservation-tools';
 import { e164, uuid } from './schemas';
 
 const NO_ARGS = z.object({}).strict();
@@ -213,6 +214,7 @@ export function buildRestofyTools(client: RestofyClient): ToolDefinition[] {
           : created;
       },
     }),
+    ...buildReservationTools(client),
   ];
 }
 

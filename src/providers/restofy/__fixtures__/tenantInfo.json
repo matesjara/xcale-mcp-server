@@ -1,0 +1,18 @@
+{
+  "success": true,
+  "message": "Operación realizada correctamente",
+  "data": {
+    "slug": "xcale-test-resto",
+    "name": "xcale Test Restaurante",
+    "legalName": "xcale Test Restaurante",
+    "address": null,
+    "city": "Medellín",
+    "country": "CO",
+    "phone": null,
+    "taxId": null,
+    "ownerName": "Responsable Prueba",
+    "timezone": "America/Bogota",
+    "currency": "COP",
+    "locale": "es-CO"
+  }
+}
