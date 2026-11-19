@@ -1,0 +1,93 @@
+{
+  "id": 234,
+  "created_at": "2026-11-14T03:52:20.953064",
+  "guest_name": "Jhon Doe",
+  "email": "guest@example.com",
+  "booking_dates": "",
+  "country_code": "+57",
+  "phone": "PLACEHOLDER_PHONE",
+  "currency": "COP",
+  "currency_data": {
+    "symbol": "$",
+    "code": "COP",
+    "name": "Peso Colombiano"
+  },
+  "amount": 150000,
+  "tax_percent": 0,
+  "service_percent": 0,
+  "taxable_amount": 0,
+  "tax_amount": 0,
+  "service_amount": 0,
+  "description": "xcale S1 exitoso",
+  "start_booking": null,
+  "end_booking": null,
+  "status": "Aplicado",
+  "link": "https://app-stg.autocore.pro/payment/xcale_hotel/k4doiy1k9tex",
+  "code": "k4doiy1k9tex",
+  "reservation_id": null,
+  "hotel": {
+    "id": 5,
+    "name": "STG XCALE HOTEL",
+    "logo_url": null,
+    "company": {
+      "id": 2,
+      "legal_personality": "PLACEHOLDER_COMPANY"
+    }
+  },
+  "installments": 1,
+  "available_hours": 48,
+  "payment_date": "2026-11-13 22:54:13.893881",
+  "comments": "Pago reserva ID: k4doiy1k9tex, Hotel: STG XCALE HOTEL, Valor: $150,000.00",
+  "payments": [
+    {
+      "id": 121,
+      "created_at": "2026-11-14T03:54:15.862324",
+      "updated_at": "2026-11-14T03:54:15.862328",
+      "payment_date": "2026-11-13 22:54:13.893881",
+      "description": "Pago reserva ID: k4doiy1k9tex, Hotel: STG XCALE HOTEL, Valor: $150,000.00",
+      "amount": "150000.0",
+      "installments": "1",
+      "transaction_id": "01a1d831-0895-7184-a158-b543f29a4f2b",
+      "authorization_code": "01a1d831-0895-7184-a158-b543f29a4f2b",
+      "status": "Aplicado",
+      "order_id": null,
+      "pay_platform_": {
+        "id": 4,
+        "updated_at": "2026-04-28T14:14:13.883226",
+        "code": "credit-card",
+        "description": "Realiza tus pagos por medio de tarjeta de crédito",
+        "is_archived": false,
+        "created_at": "2026-04-28T14:14:13.883225",
+        "name": "Tarjeta de crédito"
+      }
+    }
+  ],
+  "source": "xcale",
+  "external_ref_id": "xcale-s1-exitoso",
+  "agency_id": null,
+  "trm": 1,
+  "allowed_payment_options": ["credit_card"],
+  "success_url": null,
+  "failure_url": null,
+  "main_status": "Aprobado",
+  "transactions": [
+    {
+      "operation_type": "Link de pago",
+      "payment_date": "2026-11-13 22:54:13.893881",
+      "transaction_id": "01a1d831-0895-7184-a158-b543f29a4f2b",
+      "reservation_id": "k4doiy1k9tex",
+      "status": "Aplicado",
+      "status_detail": "Recaudo: Aprobado",
+      "amount": "150000.0",
+      "voucher_url": "/v1/bookings/121/vouchers?type=payment_link&transaction_id=315",
+      "hotel_id": 5,
+      "guest_name": "Jhon Doe",
+      "reference_id": "xcale-s1-exitoso",
+      "source_id": 21,
+      "ota_code": null
+    }
+  ],
+  "latest_payment_date": "2026-11-13 22:54:13.893881",
+  "pms_payment_registered": false,
+  "notified": false
+}

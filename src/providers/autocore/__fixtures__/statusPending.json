@@ -1,0 +1,14 @@
+{
+  "voucher_url": null,
+  "redirect_url": null,
+  "details": {
+    "type": "charge",
+    "id": "foibzazghzsz",
+    "external_ref_id": "xcale-s1-pend-rechazado",
+    "status_code": "pending",
+    "status_detail": "Pendiente",
+    "comments": "",
+    "transaction_id": "",
+    "transaction_date": ""
+  }
+}
