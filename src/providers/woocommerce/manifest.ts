@@ -22,8 +22,10 @@ export const woocommerceManifest: ProviderManifest = {
   // customer read from a catalog read.
   // Bumped 2026-10-27 (xcale-backend#1859): `find_customer_orders` is a new published tool, a record
   // lookup in the vocabulary of ADR 0023 (Own Records).
-  schemaVersion: '2026-10-27',
-  providerVersion: '0.5.0',
+  // Bumped 2026-11-05 (#140): `price_cart` is a new published tool, read-only. Additive: no tool removed,
+  // no existing input or result field changed.
+  schemaVersion: '2026-11-05',
+  providerVersion: '0.6.0',
   connectionProbe: { tool: `mcp_${SLUG}_list_products` },
   accountContextKeys: ['storeUrl'],
 };
