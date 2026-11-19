@@ -10,9 +10,14 @@ Seeded from `docs/foundation.md` §17 and sharpened during the first `/grill` se
 **MCP** — Model Context Protocol; open standard (JSON-RPC 2.0) for exposing tools to LLM
 clients. https://modelcontextprotocol.io
 
-**MCP server** — this repo (`xcale-mcp-server`); exposes provider tools over MCP.
+**MCP server** — this repo (`xcale-mcp-server`); exposes provider tools over MCP. It is how a
+new app connects to xcale: xcale-backend is its client.
 _Avoid_: "the gateway" as a synonym for the whole system — the gateway is the _shape_, the
-server is the artifact.
+server is the artifact; "xcale MCP" (taken, below); "the MCP" alone.
+
+**xcale MCP** — not this repo (Mateo, 2026-11-17): xcale's own MCP, served by xcale-backend at
+`https://api.xcale.app/mcp`, through which a customer uses xcale from their AI app (Claude,
+ChatGPT, Grok). The opposite direction: there xcale is the server. Nothing here serves it.
 
 **MCP client** — xcale-backend; consumes the server's tools. The only consumer in v1.
 
