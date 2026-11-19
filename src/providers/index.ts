@@ -5,6 +5,7 @@ import { echoProvider } from './echo';
 import { erbonProvider } from './erbon';
 import { himedProvider } from './himed';
 import { profitroomProvider } from './profitroom';
+import { restofyProvider } from './restofy';
 import { siigoProvider } from './siigo';
 import { lobbypmsProvider } from './lobbypms';
 import { siteminderProvider } from './siteminder';
@@ -32,4 +33,5 @@ export const PROVIDERS: readonly IProvider[] = [
   siteminderProvider,
   wompiProvider,
   aviratoProvider,
+  restofyProvider,
 ];

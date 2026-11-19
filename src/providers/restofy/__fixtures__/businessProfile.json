@@ -1,0 +1,49 @@
+{
+  "success": true,
+  "message": "Operación realizada correctamente",
+  "data": {
+    "profile": {
+      "profileId": 1,
+      "tradeName": "xcale Test Restaurante",
+      "managerName": "Responsable Prueba",
+      "phone": "",
+      "email": "",
+      "website": null,
+      "scheduleId": 8,
+      "slug": "xcale-test-resto",
+      "addressLine1": null,
+      "addressLine2": null,
+      "countryCode": "CO",
+      "municipalityCode": "05001",
+      "city": "Medellín",
+      "stateRegion": "Antioquia",
+      "latitude": null,
+      "longitude": null,
+      "brandColor": null,
+      "menuTheme": "light",
+      "welcomeTitle": null,
+      "welcomeMessage": null,
+      "logoUrl": null,
+      "coverUrl": null,
+      "description": null,
+      "cuisineCode": null,
+      "whatsapp": null
+    },
+    "schedule": {
+      "dateStart": null,
+      "dateEnd": null,
+      "periods": [
+        { "scheduleId": 8, "dayOfWeek": 1, "isAllDay": 1, "timeStart": null, "timeEnd": null },
+        { "scheduleId": 8, "dayOfWeek": 2, "isAllDay": 1, "timeStart": null, "timeEnd": null },
+        { "scheduleId": 8, "dayOfWeek": 3, "isAllDay": 1, "timeStart": null, "timeEnd": null },
+        { "scheduleId": 8, "dayOfWeek": 4, "isAllDay": 1, "timeStart": null, "timeEnd": null },
+        { "scheduleId": 8, "dayOfWeek": 5, "isAllDay": 1, "timeStart": null, "timeEnd": null },
+        { "scheduleId": 8, "dayOfWeek": 6, "isAllDay": 1, "timeStart": null, "timeEnd": null },
+        { "scheduleId": 8, "dayOfWeek": 7, "isAllDay": 1, "timeStart": null, "timeEnd": null }
+      ],
+      "exceptions": []
+    },
+    "timezone": "America/Bogota",
+    "isOpenNow": true
+  }
+}
