@@ -2,12 +2,31 @@ import { z } from 'zod';
 
 import { definePaginatedList, type PaginatedHandlerResult } from '../../core/pagination';
 import { defineTool, ok, type ToolDefinition, type ToolOutcome } from '../../core/tool';
+import type { ToolIdentityPolicy } from '../../core/types';
 import type { SiigoClient } from './client';
 import { unwrapSiigo } from './errors';
 import { SLUG } from './manifest';
 
 /** Get-by-id input. Siigo resource ids are UUIDs. */
 const getInput = z.object({ id: z.string().min(1) }).strict();
+
+/**
+ * A list that returns a third party's records (customers, invoices, suppliers' bills, users) without
+ * naming anyone: legitimate for the company's accountant, not something to read out to whoever is in
+ * a conversation. Declared on every such read (ADR 0019).
+ */
+const SUBJECT_SCOPED: ToolIdentityPolicy = { mode: 'subject-scoped' };
+
+/** A by-id read of one person's record, bound to the person who owns it (ADR 0019, ADR 0023). */
+function readOneRecord(kind: string): ToolIdentityPolicy {
+  return {
+    mode: 'subject-bound',
+    identityFields: [],
+    recordOwnershipField: 'id',
+    recordOwnershipKind: kind,
+    recordAction: 'read',
+  };
+}
 
 /** No-argument input, for the reference-data reads that take no filter. */
 const noArgs = z.object({}).strict();
@@ -77,6 +96,7 @@ function listResourceTool(
 ): ToolDefinition<any> {
   return definePaginatedList({
     name: `mcp_${SLUG}_${verb}`,
+    identityPolicy: SUBJECT_SCOPED,
     description,
     input: z.object({}),
     handler: async (args, ctx) =>
@@ -102,6 +122,8 @@ function resourceTools(resource: {
   readonly path: string; // e.g. 'customers'
   readonly listDescription: string;
   readonly getDescription: string;
+  /** Present when the resource is a person's record; absent for the catalog. */
+  readonly identity?: { readonly kind: string };
   readonly client: SiigoClient;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- erased input type (heterogeneous tool collection)
 }): ReadonlyArray<ToolDefinition<any>> {
@@ -109,6 +131,7 @@ function resourceTools(resource: {
   return [
     definePaginatedList({
       name: `mcp_${SLUG}_${resource.listVerb}`,
+      ...(resource.identity ? { identityPolicy: SUBJECT_SCOPED } : {}),
       description: resource.listDescription,
       input: z.object({}),
       handler: async (args, ctx) => {
@@ -121,6 +144,7 @@ function resourceTools(resource: {
     }),
     defineTool({
       name: `mcp_${SLUG}_${resource.getVerb}`,
+      ...(resource.identity ? { identityPolicy: readOneRecord(resource.identity.kind) } : {}),
       description: resource.getDescription,
       input: getInput,
       handler: async (args, ctx) => {
@@ -147,6 +171,7 @@ export function buildSiigoTools(
     ...resourceTools({
       client,
       path: 'customers',
+      identity: { kind: `${SLUG}:customer` },
       listVerb: 'list_customers',
       getVerb: 'get_customer',
       listDescription:
@@ -161,6 +186,7 @@ export function buildSiigoTools(
     ...resourceTools({
       client,
       path: 'invoices',
+      identity: { kind: `${SLUG}:invoice` },
       listVerb: 'list_invoices',
       getVerb: 'get_invoice',
       listDescription:
@@ -231,6 +257,8 @@ export function buildSiigoTools(
     ),
     definePaginatedList({
       name: `mcp_${SLUG}_list_users`,
+      // Names, emails and identification numbers of the company's staff (Cloudbeds `list_users` precedent).
+      identityPolicy: SUBJECT_SCOPED,
       description:
         'List the users (vendedores/usuarios) on the connected Siigo company, paginated — the one ' +
         'reference-data read that is paginated upstream. Returns the uniform paginated envelope ' +
