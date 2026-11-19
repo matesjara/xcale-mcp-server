@@ -1,0 +1,32 @@
+{
+  "success": true,
+  "message": "Operación realizada correctamente",
+  "data": {
+    "channelCode": "channel.staff.pos",
+    "fulfillments": [
+      {
+        "fulfillmentUuid": "d859037e-2d9e-4ef3-a943-5bb9fcf28d97",
+        "fulfillmentName": "Domicilio propio",
+        "fulfillmentTypeCode": "fulfillment.delivery",
+        "fulfillmentTypeName": "A domicilio",
+        "deliveryFeeMode": "disabled",
+        "deliveryFixedFeeCents": null,
+        "deliveryMinFeeCents": null,
+        "deliveryMaxFeeCents": null,
+        "deliveryFreeAboveCents": null
+      },
+      {
+        "fulfillmentUuid": "e921fb7a-eee7-4836-b61c-c966ec6d0105",
+        "fulfillmentName": "Para llevar",
+        "fulfillmentTypeCode": "fulfillment.takeout",
+        "fulfillmentTypeName": "Para llevar",
+        "deliveryFeeMode": "disabled",
+        "deliveryFixedFeeCents": null,
+        "deliveryMinFeeCents": null,
+        "deliveryMaxFeeCents": null,
+        "deliveryFreeAboveCents": null
+      }
+    ],
+    "deliveryZones": []
+  }
+}

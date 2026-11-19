@@ -1,0 +1,154 @@
+{
+  "success": true,
+  "message": "Operación realizada correctamente",
+  "data": {
+    "menus": [
+      {
+        "menuId": 1,
+        "name": "Menú principal",
+        "description": null
+      }
+    ],
+    "categories": [
+      {
+        "categoryId": 2,
+        "name": "Platos fuertes",
+        "productCount": 2
+      },
+      {
+        "categoryId": 3,
+        "name": "Bebidas",
+        "productCount": 2
+      }
+    ],
+    "products": [
+      {
+        "productId": 3,
+        "productUuid": "eca6459a-e116-481d-bd74-34efbedbc013",
+        "sku": "PLA-002",
+        "menuId": 1,
+        "categoryId": 2,
+        "name": "Bandeja paisa",
+        "description": "Frijoles, arroz, carne molida, chicharrón, chorizo, huevo, maduro y aguacate.",
+        "basePriceCents": 3800000,
+        "requiresConfig": false,
+        "imageUrls": [],
+        "allergens": []
+      },
+      {
+        "productId": 5,
+        "productUuid": "834554c6-8f01-4c37-8796-5381cc819429",
+        "sku": "BEB-002",
+        "menuId": 1,
+        "categoryId": 3,
+        "name": "Coca-Cola 400 ml",
+        "description": null,
+        "basePriceCents": 600000,
+        "requiresConfig": false,
+        "imageUrls": [],
+        "allergens": []
+      },
+      {
+        "productId": 2,
+        "productUuid": "ffa8bb1d-2611-4339-8906-a1e41c7f9aab",
+        "sku": "PLA-001",
+        "menuId": 1,
+        "categoryId": 2,
+        "name": "Hamburguesa de la casa",
+        "description": "Carne de res 180 g, queso cheddar, tocineta y papas a la francesa.",
+        "basePriceCents": 3200000,
+        "requiresConfig": true,
+        "imageUrls": [],
+        "allergens": []
+      },
+      {
+        "productId": 4,
+        "productUuid": "47b3356a-cb64-4c30-8294-568e73b8dcf7",
+        "sku": "BEB-001",
+        "menuId": 1,
+        "categoryId": 3,
+        "name": "Limonada de coco",
+        "description": "Limonada frappé con crema de coco, 16 oz.",
+        "basePriceCents": 1200000,
+        "requiresConfig": false,
+        "imageUrls": [],
+        "allergens": []
+      }
+    ],
+    "prices": [],
+    "priceOptions": [],
+    "productModifierGroups": [
+      {
+        "productId": 2,
+        "modifierGroupId": 1,
+        "name": "Término de la carne",
+        "description": "Elige el término",
+        "minSelections": 1,
+        "maxSelections": 1
+      },
+      {
+        "productId": 2,
+        "modifierGroupId": 2,
+        "name": "Adiciones",
+        "description": null,
+        "minSelections": 0,
+        "maxSelections": 3
+      }
+    ],
+    "modifiers": [
+      {
+        "modifierId": 1,
+        "modifierGroupId": 1,
+        "name": "Tres cuartos",
+        "priceCents": 0,
+        "minQuantity": 0,
+        "maxQuantity": 1,
+        "defaultQuantity": 0
+      },
+      {
+        "modifierId": 2,
+        "modifierGroupId": 1,
+        "name": "Bien asada",
+        "priceCents": 0,
+        "minQuantity": 0,
+        "maxQuantity": 1,
+        "defaultQuantity": 0
+      },
+      {
+        "modifierId": 3,
+        "modifierGroupId": 1,
+        "name": "Medio",
+        "priceCents": 0,
+        "minQuantity": 0,
+        "maxQuantity": 1,
+        "defaultQuantity": 0
+      },
+      {
+        "modifierId": 4,
+        "modifierGroupId": 2,
+        "name": "Queso extra",
+        "priceCents": 300000,
+        "minQuantity": 0,
+        "maxQuantity": 1,
+        "defaultQuantity": 0
+      },
+      {
+        "modifierId": 5,
+        "modifierGroupId": 2,
+        "name": "Tocineta extra",
+        "priceCents": 400000,
+        "minQuantity": 0,
+        "maxQuantity": 1,
+        "defaultQuantity": 0
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 100,
+      "total": 4,
+      "totalPages": 1,
+      "hasNext": false,
+      "hasPrev": false
+    }
+  }
+}
