@@ -7,6 +7,7 @@ import areas from '../__fixtures__/areas.json';
 import areasNotOnline from '../__fixtures__/areasNotOnline.json';
 import cancelNotAllowed from '../__fixtures__/errors/cancelNotAllowed.json';
 import reservationInPast from '../__fixtures__/errors/reservationInPast.json';
+import reservedAtNotUtc from '../__fixtures__/errors/reservedAtNotUtc.json';
 import reservationCancelled from '../__fixtures__/reservationCancelled.json';
 import reservationCreated from '../__fixtures__/reservationCreated.json';
 import reservationDetail from '../__fixtures__/reservationDetail.json';
@@ -329,5 +330,61 @@ describe('restofy reservations — S7 cancel_reservation', () => {
       recordOwnershipKind: 'restofy:reservation',
       recordAction: 'cancel',
     });
+  });
+});
+
+describe('restofy reservations — reservedAt reaches Restofy in UTC (contract QA, 2026-11-19)', () => {
+  it('a time with its Colombian offset is sent as the same instant in UTC with Z, the only form Restofy takes', async () => {
+    const capture: Captured[] = [];
+    const provider = createRestofyProvider({
+      fetchImpl: fakeRestofy(
+        { 'reservations/create-reservation': { body: reservationCreated } },
+        capture,
+      ),
+    });
+
+    const r = await provider.callTool(
+      'mcp_restofy_create_reservation',
+      { partyId: 1, reservationAreaId: 1, guestCount: 2, reservedAt: '2026-11-22T20:00:00-05:00' },
+      ctx,
+    );
+
+    expect(r).toMatchObject({ kind: 'success' });
+    expect(sentBody(capture[0])).toMatchObject({ reservedAt: '2026-11-23T01:00:00.000Z' });
+  });
+
+  it("Restofy's refusal of a non-UTC time is its own sentence (recorded live)", async () => {
+    const provider = createRestofyProvider({
+      fetchImpl: fakeRestofy({
+        'reservations/create-reservation': { status: 400, body: reservedAtNotUtc },
+      }),
+    });
+
+    const r = await provider.callTool(
+      'mcp_restofy_create_reservation',
+      { partyId: 1, reservationAreaId: 1, guestCount: 2, reservedAt: '2026-11-23T01:00:00Z' },
+      ctx,
+    );
+
+    expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+  });
+});
+
+describe('restofy reservations — an unknown area says so (contract QA note)', () => {
+  it('slots for an area the restaurant does not have answer reason "unknown_area", not a silent empty list', async () => {
+    const provider = createRestofyProvider({
+      fetchImpl: fakeRestofy({
+        'tenants/get-tenant-info': { body: tenantInfo },
+        'reservation-areas/list-reservation-areas': { body: areas },
+      }),
+    });
+
+    const r = await provider.callTool(
+      'mcp_restofy_list_reservation_slots',
+      { areaUuid: '00000000-0000-4000-8000-000000000000', date: '2026-11-21' },
+      ctx,
+    );
+
+    expect(r).toMatchObject({ kind: 'success', data: { slots: [], reason: 'unknown_area' } });
   });
 });

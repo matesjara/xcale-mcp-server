@@ -88,7 +88,8 @@ export function buildReservationTools(client: RestofyClient): ToolDefinition[] {
         'with `iso` (UTC) and `isFull`, computed by Restofy from the restaurant’s own rules. Only ' +
         'areas the restaurant made bookable online have slots: otherwise `{ slots: [], reason: ' +
         '"not_bookable_online" }`; a restaurant with no public address answers `reason: ' +
-        '"no_public_address"`. A past date has no slots.',
+        '"no_public_address"`; an `areaUuid` the restaurant does not have, `reason: "unknown_area"`. A past ' +
+        'date has no slots.',
       input: z.object({ areaUuid: uuid, date: isoDate }).strict(),
       readOnly: true,
       audience: 'customer',
@@ -109,7 +110,8 @@ export function buildReservationTools(client: RestofyClient): ToolDefinition[] {
         const area = rowsOf(list.data, 'reservationAreas').find(
           (a) => a.reservationAreaUuid === areaUuid,
         );
-        if (area && !area.isOnlineBookable) return ok({ slots: [], reason: 'not_bookable_online' });
+        if (!area) return ok({ slots: [], reason: 'unknown_area' });
+        if (!area.isOnlineBookable) return ok({ slots: [], reason: 'not_bookable_online' });
 
         return toOutcome(
           await client.call('diner-reservation/list-reservation-slots', ctx.request, {
@@ -162,7 +164,7 @@ export function buildReservationTools(client: RestofyClient): ToolDefinition[] {
       name: `mcp_${SLUG}_create_reservation`,
       description:
         'Book a table for a contact (`partyId` from find_contact_by_phone or create_contact) in an area, ' +
-        'at `reservedAt` (ISO 8601 with its offset, e.g. 2026-11-21T20:00:00-05:00), for `guestCount` ' +
+        'at `reservedAt` (ISO 8601 with its offset, e.g. 2026-11-21T20:00:00-05:00; sent to Restofy as the same instant in UTC), for `guestCount` ' +
         'people, 90 minutes by default. Restofy CONFIRMS it at once and does NOT check the area’s ' +
         'capacity, its party size limits, its notice or the slot on this path: read list_reservation_areas ' +
         'and list_reservation_slots first. Restofy itself reminds the diner by WhatsApp before the time ' +
@@ -180,7 +182,14 @@ export function buildReservationTools(client: RestofyClient): ToolDefinition[] {
         .strict(),
       audience: 'customer',
       handler: async (args, ctx) =>
-        toOutcome(await client.call('reservations/create-reservation', ctx.request, { ...args })),
+        toOutcome(
+          await client.call('reservations/create-reservation', ctx.request, {
+            ...args,
+            // Restofy takes only UTC with a Z suffix (contract QA, observed 2026-11-19); the offset the
+            // agent gives names the same instant, so it is converted, never dropped.
+            reservedAt: new Date(args.reservedAt).toISOString(),
+          }),
+        ),
     }),
 
     defineTool({

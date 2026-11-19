@@ -41,7 +41,7 @@ export function buildRestofyTools(client: RestofyClient): ToolDefinition[] {
       description:
         "The restaurant's delivery channels for orders taken by an integration (delivery, takeout, " +
         'curbside…), each with its `fulfillmentUuid` — the id the menu and every order need — its fee ' +
-        'mode and, for delivery by zone, `deliveryZones`. Dine-in is never listed. An EMPTY ' +
+        'mode, and, beside the list, `deliveryZones` for channels that charge by zone. Dine-in is never listed. An EMPTY ' +
         '`fulfillments` means the restaurant has not created a delivery or takeout channel in Restofy, ' +
         'so no menu can be read and no order placed until it does.',
       input: z.object({ channelCode: z.string().min(1).max(60).optional() }).strict(),

@@ -1,0 +1,5 @@
+{
+  "success": false,
+  "message": "reservedAt debe ser fecha/hora ISO-8601 en formato UTC con sufijo Z (ej: 2026-04-21T14:30:00.000Z).",
+  "data": []
+}
