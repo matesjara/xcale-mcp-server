@@ -14,6 +14,8 @@
 - The stale picomatch audit exception (GHSA withdrawn 2026-11-18) is fixed in its own PR, matesjara/xcale-mcp-server#225; until it merges, CI on any PR fails the audit step.
 - `assets/restofy.svg` is a plain fork-and-knife glyph on the house tile: Restofy publishes no vector mark.
 
+- `get_business_profile` adds `tenant: { currency, slug, locale }` (from `tenants/get-tenant-info`), additive: the backend's shipping quote needs the currency every amount is in, and no other tool exposed it (2026-11-19).
+
 ## Ship Log
 
 ### Migrations

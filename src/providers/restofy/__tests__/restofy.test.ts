@@ -5,6 +5,7 @@ import { createRegistry } from '../../../core/registry';
 import { runProviderConformance } from '../../../core/testing/provider-conformance';
 import { createRestofyProvider, restofyProvider } from '../provider';
 import businessProfile from '../__fixtures__/businessProfile.json';
+import tenantInfo from '../__fixtures__/tenantInfo.json';
 import { type Captured, ctx, fakeRestofy, sentBody, sentHeader } from './helpers';
 
 // ---------------------------------------------------------------------------
@@ -47,7 +48,10 @@ describe('restofy provider — S1 get_business_profile', () => {
     const capture: Captured[] = [];
     const provider = createRestofyProvider({
       fetchImpl: fakeRestofy(
-        { 'business-profile/get-business-profile': { body: businessProfile } },
+        {
+          'business-profile/get-business-profile': { body: businessProfile },
+          'tenants/get-tenant-info': { body: tenantInfo },
+        },
         capture,
       ),
     });
@@ -55,11 +59,42 @@ describe('restofy provider — S1 get_business_profile', () => {
     const r = await provider.callTool('mcp_restofy_get_business_profile', {}, ctx);
 
     expect(r).toMatchObject({ kind: 'success', data: businessProfile.data });
-    expect(capture).toHaveLength(1);
     expect(capture[0]?.init.method).toBe('POST');
     expect(capture[0]?.url).toBe('https://restofy.pro/api/business-profile/get-business-profile');
     expect(sentHeader(capture[0], 'authorization')).toBe('Bearer minted-jwt');
     expect(sentBody(capture[0])).toEqual({});
+  });
+});
+
+describe('restofy provider — the account facts beside the profile (backend consumer, 2026-11-19)', () => {
+  it('adds the currency every amount is in, the public slug and the locale, from tenant info', async () => {
+    const provider = createRestofyProvider({
+      fetchImpl: fakeRestofy({
+        'business-profile/get-business-profile': { body: businessProfile },
+        'tenants/get-tenant-info': { body: tenantInfo },
+      }),
+    });
+
+    const r = await provider.callTool('mcp_restofy_get_business_profile', {}, ctx);
+
+    expect(r).toMatchObject({
+      kind: 'success',
+      data: { tenant: { currency: 'COP', slug: 'xcale-test-resto', locale: 'es-CO' } },
+    });
+  });
+
+  it('still answers the profile when tenant info fails, without the account facts', async () => {
+    const provider = createRestofyProvider({
+      fetchImpl: fakeRestofy({
+        'business-profile/get-business-profile': { body: businessProfile },
+        'tenants/get-tenant-info': { status: 503, body: 'down' },
+      }),
+    });
+
+    const r = await provider.callTool('mcp_restofy_get_business_profile', {}, ctx);
+
+    expect(r.kind).toBe('success');
+    expect((r as { data: object }).data).not.toHaveProperty('tenant');
   });
 });
 

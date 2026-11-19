@@ -28,12 +28,23 @@ export function buildRestofyTools(client: RestofyClient): ToolDefinition[] {
       name: `mcp_${SLUG}_get_business_profile`,
       description:
         "The restaurant's public profile, its weekly opening schedule, its timezone and whether it is " +
-        'open right now (`isOpenNow`). Read it before promising a delivery or a time.',
+        'open right now (`isOpenNow`), and `tenant`: the `currency` every amount is in (cents of it), ' +
+        'its public `slug` and `locale`. Read it before promising a delivery or a time.',
       input: NO_ARGS,
       readOnly: true,
       audience: 'customer',
-      handler: async (_args, ctx) =>
-        toOutcome(await client.call('business-profile/get-business-profile', ctx.request)),
+      handler: async (_args, ctx) => {
+        const profile = toOutcome(
+          await client.call('business-profile/get-business-profile', ctx.request),
+        );
+        if (!profile.ok) return profile;
+        // The account facts live on a second Restofy read (observed 2026-11-18). Best-effort: a
+        // failure there never costs the profile, it only leaves `tenant` out.
+        const tenant = toOutcome(await client.call('tenants/get-tenant-info', ctx.request));
+        if (!tenant.ok) return profile;
+        const { currency, slug, locale } = (tenant.data ?? {}) as Record<string, unknown>;
+        return ok({ ...(profile.data as object), tenant: { currency, slug, locale } });
+      },
     }),
 
     defineTool({
