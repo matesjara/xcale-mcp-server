@@ -1,12 +1,1 @@
-[
-  {
-    "id": "GHSA-fc5q-39xc-vjpf",
-    "package": "picomatch",
-    "scope": "dev",
-    "reason": "ReDoS via extglobs; reachable only through vitest -> vite/tinyglobby/fdir, whose patterns are globs we author; no patched version exists (latest 4.0.7, vulnerable <= 4.0.7).",
-    "added": "2026-11-17",
-    "expires": "2026-12-17",
-    "tracking": "https://github.com/matesjara/xcale-mcp-server/issues/218",
-    "decision": "https://github.com/matesjara/xcale-mcp-server/issues/217#issuecomment-6960934871"
-  }
-]
+[]
