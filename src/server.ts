@@ -13,6 +13,8 @@ import { type Config, credentialResolveUrlProblem, loadConfig } from './config';
 import { buildCatalog } from './core/catalog';
 import type { CredentialResolverDeps } from './core/credential/credential-resolver';
 import { createReferenceCredentialResolver } from './core/credential/reference-resolver';
+import { createMintRelay } from './core/credential/mint-relay';
+import type { FetchLike } from './core/http';
 import { createRegistry } from './core/registry';
 import { loggerOptions } from './logger';
 import { handleMcpRequest } from './protocol/http-mcp';
@@ -47,7 +49,14 @@ async function serveAsset(reply: import('fastify').FastifyReply, filename: strin
   }
 }
 
-export function buildApp(config: Config = loadConfig()): FastifyInstance {
+export interface BuildAppDeps {
+  /** Transport for the mint relay (default: global fetch). Injectable for tests. */
+  readonly fetchImpl?: FetchLike;
+  /** Where the logger writes (default: stdout). Injectable for tests. */
+  readonly logStream?: { write(line: string): void };
+}
+
+export function buildApp(config: Config = loadConfig(), deps: BuildAppDeps = {}): FastifyInstance {
   // The resolve URL is where the outbound callback secret goes: refuse anything but https.
   const resolveUrlProblem = credentialResolveUrlProblem(config.credentialResolveUrl);
   if (resolveUrlProblem) {
@@ -66,7 +75,12 @@ export function buildApp(config: Config = loadConfig()): FastifyInstance {
         }),
       }
     : {};
-  const app = Fastify({ logger: loggerOptions(config.logLevel) });
+  const app = Fastify({
+    logger: {
+      ...loggerOptions(config.logLevel),
+      ...(deps.logStream ? { stream: deps.logStream } : {}),
+    },
+  });
 
   // Public health/readiness — no auth.
   app.get('/health', async () => ({ status: 'ok' }));
@@ -94,6 +108,18 @@ export function buildApp(config: Config = loadConfig()): FastifyInstance {
 
   // Pillar: server/discover — the capability catalog. Hop B only; NEVER carries a provider token.
   app.get('/discover', async () => ({ providers: buildCatalog(registry) }));
+
+  // Mint relay — a login for a provider that binds its token to the login IP goes out from here. Hop B
+  // only (the guard above). Never logs or stores the request or the response.
+  app.post('/credential-exchange/relay', async (request, reply) => {
+    const mintRelay = createMintRelay({
+      registry,
+      ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
+      onRelayed: (info) => request.log.info(info, 'mint relay'),
+    });
+    const result = await mintRelay(request.body);
+    await reply.code(result.code).send(result.body);
+  });
 
   // Pillars: tools/list + tools/call over MCP (Streamable HTTP, stateless).
   app.post('/mcp', async (request, reply) => {

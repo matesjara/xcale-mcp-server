@@ -124,6 +124,14 @@ export type ProviderAuthDescriptor =
        */
       readonly tokenTtlSeconds?: number;
       /**
+       * The provider binds the minted token to the IP that logged in (Avirato), so the consumer's mint
+       * request must leave from this server's dedicated egress IPs: the consumer POSTs the login to
+       * `/credential-exchange/relay` instead of calling `tokenEndpoint` itself. Explicit opt-in per
+       * provider; absent means the relay refuses the provider. Custody, cache and single-flight stay
+       * with the consumer (ADR: credential-exchange-response-path-and-token-ttl).
+       */
+      readonly relayMint?: boolean;
+      /**
        * Non-secret static headers required on every call (e.g. Siigo `Partner-Id`). The header name
        * is knowledge; its VALUE comes from deployment config, never from this descriptor or the catalog.
        */
