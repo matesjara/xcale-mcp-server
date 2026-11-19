@@ -37,6 +37,14 @@ function messageOf(body: string): string | undefined {
 }
 
 /**
+ * True when Restofy refused with a 400 whose sentence starts with `prefix`. Restofy has no error codes,
+ * so its own words are the only way to tell "not found" from any other refusal (contract §A.3).
+ */
+export function refusedWith(result: RequestResult, prefix: string): boolean {
+  return !result.ok && result.status === 400 && (messageOf(result.body) ?? '').startsWith(prefix);
+}
+
+/**
  * The error code for a failed status. The core's map is the default, with one override: a 403 is a
  * permission the key's user lacks in Restofy's panel, which a fresh mint or a reconnect cannot fix, so
  * `PROVIDER_ERROR` rather than the core's `PROVIDER_AUTH_EXPIRED`. A 401 keeps `PROVIDER_AUTH_EXPIRED`.

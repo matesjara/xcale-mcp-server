@@ -1,0 +1,37 @@
+{
+  "success": true,
+  "message": "Operación realizada correctamente",
+  "data": {
+    "order": {
+      "orderUuid": null,
+      "orderCode": null,
+      "externalReference": "xcale-dryrun-1",
+      "lifecycleStatus": "open",
+      "paymentStatus": "unpaid",
+      "channelCode": "channel.staff.pos",
+      "fulfillmentUuid": "d859037e-2d9e-4ef3-a943-5bb9fcf28d97",
+      "fulfillmentTypeCode": "fulfillment.delivery",
+      "notes": null,
+      "subtotalCents": 8200000,
+      "discountCents": 0,
+      "taxCents": 0,
+      "tipCents": 0,
+      "deliveryFeeCents": 0,
+      "grandTotalCents": 8200000,
+      "paidCents": 0,
+      "balanceCents": 8200000,
+      "deliveryStatus": "pending",
+      "createdAt": "2026-11-19T00:50:38.000Z"
+    },
+    "items": [
+      { "itemUuid": "05975682-efe9-4bd2-82b0-406dff13ba43", "productId": 2, "name": "Hamburguesa de la casa", "qty": "2.0000", "unitPriceCents": 3200000, "modifiersTotalCents": 300000, "priceCents": 7000000, "lifecycleStatus": "confirmed", "note": null },
+      { "itemUuid": "d75ac982-e890-488e-9742-dbd92ed98499", "productId": 4, "name": "Limonada de coco", "qty": "1.0000", "unitPriceCents": 1200000, "modifiersTotalCents": 0, "priceCents": 1200000, "lifecycleStatus": "confirmed", "note": null }
+    ],
+    "itemModifiers": [
+      { "itemUuid": "05975682-efe9-4bd2-82b0-406dff13ba43", "modifierId": 3, "name": "Medio", "quantity": "1.0000", "unitPriceCents": 0, "totalCents": 0 },
+      { "itemUuid": "05975682-efe9-4bd2-82b0-406dff13ba43", "modifierId": 4, "name": "Queso extra", "quantity": "1.0000", "unitPriceCents": 300000, "totalCents": 300000 }
+    ],
+    "isExistingOrder": false,
+    "isDryRun": true
+  }
+}

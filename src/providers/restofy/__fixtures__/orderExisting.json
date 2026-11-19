@@ -1,0 +1,63 @@
+{
+  "success": true,
+  "message": "Operación realizada correctamente",
+  "data": {
+    "order": {
+      "orderUuid": "a7716445-7138-48cd-b9e2-9ef0d7c0dcb9",
+      "orderCode": "55J-M74",
+      "externalReference": "xcale-test-001",
+      "lifecycleStatus": "open",
+      "paymentStatus": "unpaid",
+      "channelCode": "channel.staff.pos",
+      "fulfillmentUuid": "e921fb7a-eee7-4836-b61c-c966ec6d0105",
+      "fulfillmentTypeCode": "fulfillment.takeout",
+      "notes": "Pedido de prueba xcale",
+      "subtotalCents": 3800000,
+      "discountCents": 0,
+      "taxCents": 0,
+      "tipCents": 0,
+      "deliveryFeeCents": 0,
+      "grandTotalCents": 3800000,
+      "paidCents": 0,
+      "balanceCents": 3800000,
+      "deliveryStatus": null,
+      "createdAt": "2026-11-19T01:19:14.000Z"
+    },
+    "items": [
+      {
+        "itemUuid": "d7383016-72af-44d9-820d-f7f1bebcf44f",
+        "productId": 2,
+        "name": "Hamburguesa de la casa",
+        "qty": "1.0000",
+        "unitPriceCents": 3200000,
+        "modifiersTotalCents": 0,
+        "priceCents": 3200000,
+        "lifecycleStatus": "confirmed",
+        "note": null
+      },
+      {
+        "itemUuid": "ca95fe40-2466-4746-8ebd-bbc4ad1d2f03",
+        "productId": 5,
+        "name": "Coca-Cola 400 ml",
+        "qty": "1.0000",
+        "unitPriceCents": 600000,
+        "modifiersTotalCents": 0,
+        "priceCents": 600000,
+        "lifecycleStatus": "confirmed",
+        "note": null
+      }
+    ],
+    "itemModifiers": [
+      {
+        "itemUuid": "d7383016-72af-44d9-820d-f7f1bebcf44f",
+        "modifierId": 1,
+        "name": "Tres cuartos",
+        "quantity": "1.0000",
+        "unitPriceCents": 0,
+        "totalCents": 0
+      }
+    ],
+    "isExistingOrder": true,
+    "isDryRun": false
+  }
+}
