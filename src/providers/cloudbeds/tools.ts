@@ -152,6 +152,68 @@ function sourceListOf(data: unknown): unknown {
 /** At most this many reservations per guest lookup — one `getReservation` call each. */
 const FIND_GUEST_RESERVATIONS_MAX = 10;
 
+const GUEST_LIST_CONCURRENCY = 3;
+const MIN_PHONE_DIGITS = 7;
+
+/**
+ * The forms a phone may be stored in. Each variant is a >=7-digit suffix of the guest's number — exactly
+ * what xcale-backend's identity gate (`sameSubject`, identity-gate.ts) already accepts as the same person —
+ * so the provider widens nothing beyond the consumer's identity rule. Fewer than 7 digits: only the value
+ * as given. No country table, no property read.
+ */
+function phoneVariants(value: string): string[] {
+  const given = value.trim();
+  const digits = given.replace(/\D/g, '');
+  if (digits.length < MIN_PHONE_DIGITS) return [given];
+  const out = [given, `+${digits}`, digits];
+  for (let n = 1; n <= 3; n++) {
+    const rest = digits.slice(n);
+    if (rest.length >= MIN_PHONE_DIGITS) out.push(rest);
+  }
+  return [...new Set(out)];
+}
+
+type GuestListField = 'guestPhone' | 'guestCellPhone' | 'guestEmail';
+
+/** One single-filter `getGuestList` query per (field, variant): combining filters is unobserved. */
+function guestListQueries(args: {
+  guestPhone?: string;
+  guestCellPhone?: string;
+  guestEmail?: string;
+}): { field: GuestListField; value: string }[] {
+  const out: { field: GuestListField; value: string }[] = [];
+  const seen = new Set<string>();
+  const add = (field: GuestListField, value: string) => {
+    const key = `${field}\u0000${value}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ field, value });
+  };
+  if (args.guestPhone) for (const v of phoneVariants(args.guestPhone)) add('guestPhone', v);
+  if (args.guestCellPhone)
+    for (const v of phoneVariants(args.guestCellPhone)) add('guestCellPhone', v);
+  if (args.guestEmail) add('guestEmail', args.guestEmail);
+  return out;
+}
+
+/** Runs `fn` over `items`, at most `limit` at a time, results in order; rejects as Promise.all does. */
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]!);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 /**
  * One row of `find_guest_reservations`: the stay of a `getReservation` answer and the contact fields of
  * the guest the search matched (`guestList[guestID]`). `null` when that guest is not on it.
@@ -984,10 +1046,13 @@ export function buildCloudbedsTools(
 
     // A person's reservations by the phone or email they hold — the record lookup of ADR 0023
     // (xcale-backend#1852). `getGuestList` filters by phone or email exactly on the stored string
-    // (sandbox 320754, 2026-10-22), but its rows carry neither the phone nor the stay, so each match is
+    // (sandbox 320754, 2026-10-22), and channels such as Booking.com store the phone in other forms (no
+    // `+`, no country code), so a phone is asked in its variants (`phoneVariants`), one single-filter
+    // query each, and the matches merged by reservation. Its rows carry neither the phone nor the stay, so each match is
     // read with `getReservation`, whose `guestList` holds the guest's own phone, cell phone and email.
     // Every returned row then names its person, whatever the filter matched. Bounded: at most
-    // FIND_GUEST_RESERVATIONS_MAX reservations, one getReservation each, in parallel. When Cloudbeds
+    // FIND_GUEST_RESERVATIONS_MAX reservations, one getReservation each, in parallel, and at most 13
+    // getGuestList calls (two phones x 6 variants + the email), 3 at a time. When Cloudbeds
     // holds more than was read, the answer says so (`hasMore`, `totalResults`) instead of reading as
     // the guest's whole history: the consumer shows what was found and that there may be more.
     tool({
@@ -1008,9 +1073,13 @@ export function buildCloudbedsTools(
         resultDateField: 'endDate',
       },
       description:
-        'Find the reservations of one guest by the exact phone, cell phone or email stored on their ' +
-        'profile. Each result carries the stay (room type, dates, status, party) and the guest’s own ' +
-        'contact fields. `hasMore: true` means the property holds more than the ones returned.',
+        'Find a guest’s reservations by phone, cell phone or exact email. A phone is matched with or ' +
+        'without the `+` and the country code. Each result carries the stay (room type, dates, status, ' +
+        'party) and the guest’s own contact fields. `hasMore: true` means the property holds more than ' +
+        'the ones returned. An empty list means no guest profile holds this phone in those forms, or ' +
+        'this email: bookings from channels such as Booking.com often carry the channel’s relay email and ' +
+        'the phone in another format or none, so an empty list does not mean the person has no ' +
+        'reservation — their confirmation number is the other way to find it.',
       input: z
         .object({
           // Trimmed, then required to hold something: Cloudbeds reads a blank filter as no filter and
@@ -1028,23 +1097,35 @@ export function buildCloudbedsTools(
             'guestPhone, guestCellPhone or guestEmail is required',
           );
         }
-        const list = await client.get('getGuestList', ctx.request, {
-          propertyIDs: ctx.metadata.propertyID,
-          pageNumber: 1,
-          pageSize: FIND_GUEST_RESERVATIONS_MAX,
-          guestPhone: args.guestPhone,
-          guestCellPhone: args.guestCellPhone,
-          guestEmail: args.guestEmail,
+        const queries = guestListQueries(args);
+        const pages = await mapLimit(queries, GUEST_LIST_CONCURRENCY, async (q) => {
+          const list = await client.get('getGuestList', ctx.request, {
+            propertyIDs: ctx.metadata.propertyID,
+            pageNumber: 1,
+            pageSize: FIND_GUEST_RESERVATIONS_MAX,
+            [q.field]: q.value,
+          });
+          return unwrap(list, 'getGuestList');
         });
-        const u = unwrap(list, 'getGuestList');
-        if (!u.ok) return err(u.code, u.message);
-        const rows = listOf(u, 'getGuestList');
-        if (!Array.isArray(rows)) return rows;
+        // Any failed query fails the lookup: a missing variant would read as "no reservation".
         const matches = new Map<string, string>();
-        for (const row of rows) {
-          const r = row as { reservationID?: unknown; guestID?: unknown };
-          if (typeof r.reservationID === 'string' && typeof r.guestID === 'string') {
-            if (!matches.has(r.reservationID)) matches.set(r.reservationID, r.guestID);
+        let pageHasMore = false;
+        for (const u of pages) {
+          if (!u.ok) return err(u.code, u.message);
+          const rows = listOf(u, 'getGuestList');
+          if (!Array.isArray(rows)) return rows;
+          if (
+            u.total !== undefined
+              ? u.total > rows.length
+              : rows.length >= FIND_GUEST_RESERVATIONS_MAX
+          ) {
+            pageHasMore = true;
+          }
+          for (const row of rows) {
+            const r = row as { reservationID?: unknown; guestID?: unknown };
+            if (typeof r.reservationID === 'string' && typeof r.guestID === 'string') {
+              if (!matches.has(r.reservationID)) matches.set(r.reservationID, r.guestID);
+            }
           }
         }
         const items = [];
@@ -1066,14 +1147,13 @@ export function buildCloudbedsTools(
           const item = guestReservationOf(r.data, guestID);
           if (item) items.push(item);
         }
-        // Read fewer than Cloudbeds holds: more rows than this page (by its `total`, or a full page when
-        // it gives none), or more reservations than the ceiling. Said, never a cut list that looks whole.
-        const hasMore =
-          (u.total !== undefined
-            ? u.total > rows.length
-            : rows.length >= FIND_GUEST_RESERVATIONS_MAX) ||
-          matches.size > FIND_GUEST_RESERVATIONS_MAX;
-        return ok({ items, ...(u.total !== undefined ? { totalResults: u.total } : {}), hasMore });
+        // Read fewer than Cloudbeds holds: some query's page holds more than it returned (by its `total`,
+        // or a full page when it gives none), or more reservations than the ceiling. Said, never a cut
+        // list that looks whole. `totalResults` is only emitted when exactly one query ran: with several
+        // overlapping queries no single total describes the merged set.
+        const hasMore = pageHasMore || matches.size > FIND_GUEST_RESERVATIONS_MAX;
+        const total = pages.length === 1 && pages[0]!.ok ? pages[0]!.total : undefined;
+        return ok({ items, ...(total !== undefined ? { totalResults: total } : {}), hasMore });
       },
     }),
 
