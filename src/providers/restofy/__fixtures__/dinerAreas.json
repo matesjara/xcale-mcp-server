@@ -1,0 +1,112 @@
+{
+  "success": true,
+  "message": "OperaciÃ³n realizada correctamente",
+  "data": {
+    "areas": [
+      {
+        "areaUuid": "c3778dbb-e3b0-11f1-a14a-0e75ecd64603",
+        "name": "SalÃ³n Principal",
+        "description": "Área central climatizada con mesas formales",
+        "minPartySize": 1,
+        "maxPartySize": 8,
+        "advance": null,
+        "days": [
+          {
+            "date": "2026-11-20",
+            "slots": [
+              {
+                "iso": "2026-11-21T00:00:00.000Z",
+                "isFull": false
+              },
+              {
+                "iso": "2026-11-21T00:30:00.000Z",
+                "isFull": false
+              },
+              {
+                "iso": "2026-11-21T01:00:00.000Z",
+                "isFull": false
+              },
+              {
+                "iso": "2026-11-21T01:30:00.000Z",
+                "isFull": false
+              },
+              {
+                "iso": "2026-11-21T02:00:00.000Z",
+                "isFull": false
+              },
+              {
+                "iso": "2026-11-21T02:30:00.000Z",
+                "isFull": false
+              },
+              {
+                "iso": "2026-11-21T03:00:00.000Z",
+                "isFull": false
+              },
+              {
+                "iso": "2026-11-21T03:30:00.000Z",
+                "isFull": false
+              },
+              {
+                "iso": "2026-11-21T04:00:00.000Z",
+                "isFull": false
+              }
+            ]
+          },
+          {
+            "date": "2026-11-21",
+            "slots": [
+              {
+                "iso": "2026-11-22T00:00:00.000Z",
+                "isFull": false
+              },
+              {
+                "iso": "2026-11-22T00:30:00.000Z",
+                "isFull": false
+              },
+              {
+                "iso": "2026-11-22T01:00:00.000Z",
+                "isFull": false
+              },
+              {
+                "iso": "2026-11-22T01:30:00.000Z",
+                "isFull": false
+              },
+              {
+                "iso": "2026-11-22T02:00:00.000Z",
+                "isFull": false
+              },
+              {
+                "iso": "2026-11-22T02:30:00.000Z",
+                "isFull": false
+              },
+              {
+                "iso": "2026-11-22T03:00:00.000Z",
+                "isFull": false
+              },
+              {
+                "iso": "2026-11-22T03:30:00.000Z",
+                "isFull": false
+              },
+              {
+                "iso": "2026-11-22T04:00:00.000Z",
+                "isFull": false
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "occasions": [
+      {
+        "guestOccasionId": 1,
+        "name": "CumpleaÃ±os",
+        "icon": "fa-solid fa-cake-candles"
+      },
+      {
+        "guestOccasionId": 2,
+        "name": "Aniversario",
+        "icon": "fa-solid fa-champagne-glasses"
+      }
+    ]
+  }
+}

@@ -12,7 +12,7 @@ import reservationCancelled from '../__fixtures__/reservationCancelled.json';
 import reservationCreated from '../__fixtures__/reservationCreated.json';
 import reservationDetail from '../__fixtures__/reservationDetail.json';
 import reservationsUpcoming from '../__fixtures__/reservationsUpcoming.json';
-import slots from '../__fixtures__/slots.json';
+import dinerAreas from '../__fixtures__/dinerAreas.json';
 import tenantInfo from '../__fixtures__/tenantInfo.json';
 import { type Captured, ctx, fakeRestofy, sentBody } from './helpers';
 
@@ -62,14 +62,14 @@ describe('restofy reservations — S6 list_reservation_areas', () => {
 describe('restofy reservations — S6 list_reservation_slots', () => {
   const day = { areaUuid: AREA_UUID, date: '2026-11-21' };
 
-  it("reads the day's slots by the restaurant's public address, as Restofy computes them", async () => {
+  it("reads the day's slots by the restaurant's public address, as Restofy computes them (observed 2026-11-20)", async () => {
     const capture: Captured[] = [];
     const provider = createRestofyProvider({
       fetchImpl: fakeRestofy(
         {
           'tenants/get-tenant-info': { body: tenantInfo },
           'reservation-areas/list-reservation-areas': { body: areas },
-          'diner-reservation/list-reservation-slots': { body: slots },
+          'diner-reservation/list-reservation-areas': { body: dinerAreas },
         },
         capture,
       ),
@@ -77,12 +77,28 @@ describe('restofy reservations — S6 list_reservation_slots', () => {
 
     const r = await provider.callTool('mcp_restofy_list_reservation_slots', day, ctx);
 
-    expect(r).toMatchObject({ kind: 'success', data: { slots: slots.data.slots } });
-    expect(sentBody(capture.at(-1))).toEqual({
-      slug: 'xcale-test-resto',
-      areaUuid: AREA_UUID,
-      date: '2026-11-21',
+    const [area] = dinerAreas.data.areas;
+    const theDay = area!.days.find((d) => d.date === '2026-11-21')!;
+    expect(r).toMatchObject({ kind: 'success', data: { slots: theDay.slots } });
+    expect(sentBody(capture.at(-1))).toEqual({ slug: 'xcale-test-resto', reservationToken: null });
+  });
+
+  it('a day the area does not open has no slots', async () => {
+    const provider = createRestofyProvider({
+      fetchImpl: fakeRestofy({
+        'tenants/get-tenant-info': { body: tenantInfo },
+        'reservation-areas/list-reservation-areas': { body: areas },
+        'diner-reservation/list-reservation-areas': { body: dinerAreas },
+      }),
     });
+
+    const r = await provider.callTool(
+      'mcp_restofy_list_reservation_slots',
+      { areaUuid: AREA_UUID, date: '2027-01-01' },
+      ctx,
+    );
+
+    expect(r).toMatchObject({ kind: 'success', data: { slots: [] } });
   });
 
   it('an area not bookable online has no slots, and says so as a fact', async () => {
@@ -271,6 +287,23 @@ describe('restofy reservations — S7 create_reservation', () => {
     const r = await provider.callTool(
       'mcp_restofy_create_reservation',
       { ...booking, reservedAt: '2026-11-20 20:00' },
+      ctx,
+    );
+
+    expect(r).toMatchObject({ kind: 'error', code: ProviderErrorCode.INVALID_INPUT });
+    expect(capture).toHaveLength(0);
+  });
+
+  it.each([
+    ['a day the month does not have', '2026-02-31T20:00:00-05:00'],
+    ['an hour the day does not have', '2026-11-21T25:99:00Z'],
+  ])('refuses %s, never booking another day nor throwing', async (_why, reservedAt) => {
+    const capture: Captured[] = [];
+    const provider = createRestofyProvider({ fetchImpl: fakeRestofy({}, capture) });
+
+    const r = await provider.callTool(
+      'mcp_restofy_create_reservation',
+      { ...booking, reservedAt },
       ctx,
     );
 

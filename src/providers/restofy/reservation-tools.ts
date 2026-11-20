@@ -6,15 +6,44 @@ import { toOutcome } from './errors';
 import { SLUG } from './manifest';
 import { e164, id, uuid } from './schemas';
 
-/** A calendar date, `YYYY-MM-DD`. */
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'a date as YYYY-MM-DD');
-/** An ISO 8601 date-time WITH its offset (or Z): the hour is never guessed in another timezone. */
+/** One open day of an area on Restofy's diner page: its half-hour slots, in UTC. */
+type DinerDay = { date: string; slots: { iso: string; isFull: boolean }[] };
+
+/**
+ * Whether the written date and clock exist: `Date` rolls 31 February into March and 25:99 into an
+ * error, so the fields are read back from a UTC instant built from them and must come back unchanged.
+ */
+function isRealDateTime(value: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?/.exec(value);
+  if (!m) return false;
+  const [y, mo, d, h = 0, mi = 0, s = 0] = m.slice(1).map((v) => (v === undefined ? 0 : Number(v)));
+  const at = new Date(Date.UTC(y!, mo! - 1, d!, h, mi, s));
+  return (
+    at.getUTCFullYear() === y &&
+    at.getUTCMonth() === mo! - 1 &&
+    at.getUTCDate() === d &&
+    at.getUTCHours() === h &&
+    at.getUTCMinutes() === mi &&
+    at.getUTCSeconds() === s
+  );
+}
+
+/** A calendar date that exists, `YYYY-MM-DD`. */
+const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'a date as YYYY-MM-DD')
+  .refine(isRealDateTime, 'a date that exists');
+/**
+ * An ISO 8601 date-time WITH its offset (or Z): the hour is never guessed in another timezone, and a
+ * day or hour that does not exist is refused rather than rolled into another (review of #224).
+ */
 const isoDateTime = z
   .string()
   .regex(
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/,
     'an ISO 8601 date-time with its offset',
-  );
+  )
+  .refine(isRealDateTime, 'a date and time that exist');
 const scope = z.enum(['today', 'upcoming', 'history']);
 
 /** At most this many areas are read in detail; a restaurant has a handful. */
@@ -113,13 +142,19 @@ export function buildReservationTools(client: RestofyClient): ToolDefinition[] {
         if (!area) return ok({ slots: [], reason: 'unknown_area' });
         if (!area.isOnlineBookable) return ok({ slots: [], reason: 'not_bookable_online' });
 
-        return toOutcome(
-          await client.call('diner-reservation/list-reservation-slots', ctx.request, {
+        // Restofy's diner page reads every area's open days and their half-hour slots in one call
+        // (observed 2026-11-20; the former `list-reservation-slots` action is gone). A day the area
+        // does not open is absent: no slots.
+        const diner = toOutcome(
+          await client.call('diner-reservation/list-reservation-areas', ctx.request, {
             slug,
-            areaUuid,
-            date,
+            reservationToken: null,
           }),
         );
+        if (!diner.ok) return diner;
+        const dinerArea = rowsOf(diner.data, 'areas').find((a) => a.areaUuid === areaUuid);
+        const days = Array.isArray(dinerArea?.days) ? (dinerArea.days as DinerDay[]) : [];
+        return ok({ slots: days.find((d) => d.date === date)?.slots ?? [] });
       },
     }),
 
