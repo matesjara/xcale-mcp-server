@@ -20,5 +20,5 @@ export const aviratoManifest: ProviderManifest = {
   // The house tile (black, rx 6, the mark in white), traced from Avirato's own app icon.
   logoUrl: `/assets/${SLUG}.svg`,
   schemaVersion: '2026-10-30',
-  providerVersion: '0.1.0',
+  providerVersion: '0.2.0',
 };

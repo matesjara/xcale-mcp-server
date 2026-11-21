@@ -88,6 +88,26 @@ export type ProviderAuthDescriptor =
       }>;
     }
   | {
+      /**
+       * Timestamped hash token (Autocore-class): the first IMPERATIVE auth variant. The materializer —
+       * still the only reveal — computes, for every HTTP request, `header: base64(key;ts;digest)` with
+       * `ts` the Unix time in whole seconds and `digest` the lowercase sha256 hex of `secret + ts`. The
+       * recipe is fixed by the variant, not declared; only the header name and the inputs are data.
+       *
+       * `fields` are label-only inputs, as for `basic`: the consumer (Rail A) composes them into one
+       * credential `fields[0]:fields[1]` (key:secret) and this server splits it at the first `:` after
+       * the reveal. ADR timestamped-hash-token-auth-scheme.
+       */
+      readonly type: 'timestamped_hash_token';
+      readonly credentialDelivery?: CredentialDelivery;
+      /** The request header that carries the token (e.g. `Auth-Token`). */
+      readonly header: string;
+      readonly fields: ReadonlyArray<{
+        readonly key: string;
+        readonly label: string;
+      }>;
+    }
+  | {
       readonly type: 'oauth2';
       readonly credentialDelivery?: CredentialDelivery;
       readonly authorizationUrl: string;
@@ -123,6 +143,14 @@ export type ProviderAuthDescriptor =
        * to reuse the token by.
        */
       readonly tokenTtlSeconds?: number;
+      /**
+       * The provider binds the minted token to the IP that logged in (Avirato), so the consumer's mint
+       * request must leave from this server's dedicated egress IPs: the consumer POSTs the login to
+       * `/credential-exchange/relay` instead of calling `tokenEndpoint` itself. Explicit opt-in per
+       * provider; absent means the relay refuses the provider. Custody, cache and single-flight stay
+       * with the consumer (ADR: credential-exchange-response-path-and-token-ttl).
+       */
+      readonly relayMint?: boolean;
       /**
        * Non-secret static headers required on every call (e.g. Siigo `Partner-Id`). The header name
        * is knowledge; its VALUE comes from deployment config, never from this descriptor or the catalog.

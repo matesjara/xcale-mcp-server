@@ -1,0 +1,53 @@
+{
+  "paginate_info": {
+    "start": 0,
+    "items": 10,
+    "total_items": 1,
+    "total_pages": 1,
+    "links": {
+      "first": "http://api-stg.autocore.pro/v2/hotels?offset=0&limit=10",
+      "previous": "http://api-stg.autocore.pro/v2/hotels?offset=0&limit=10",
+      "next": "http://api-stg.autocore.pro/v2/hotels?offset=10&limit=10",
+      "last": "http://api-stg.autocore.pro/v2/hotels?offset=10&limit=10"
+    }
+  },
+  "data": [
+    {
+      "id": 5,
+      "is_archived": false,
+      "is_active": true,
+      "name": "STG XCALE HOTEL",
+      "alias": "xcale_hotel",
+      "address": "PLACEHOLDER_ADDRESS",
+      "logo_url": null,
+      "contact_phone": "PLACEHOLDER_PHONE",
+      "currencies": [
+        {
+          "is_primary": true,
+          "currency": { "name": "Peso Colombiano", "symbol": "$", "code": "COP" }
+        },
+        {
+          "is_primary": false,
+          "currency": { "name": "Dólar estadounidense", "symbol": "$", "code": "USD" }
+        }
+      ],
+      "colors_schema": { "primary_color": "#000000" },
+      "company": { "id": 2, "legal_personality": "PLACEHOLDER_COMPANY" },
+      "hotel_services": [
+        {
+          "payment_method": { "code": "credit_card", "name": "Tarjeta de crédito" },
+          "main_service": { "code": "payment_link", "name": "Link de pago" },
+          "payment_gateway": { "code": "redeban", "name": "Redeban" },
+          "payment_gateway_options": null,
+          "commission": {
+            "local_fee_percent": 0,
+            "international_fee_percent": 0,
+            "fixed_fee_amount": 0,
+            "minimum_commission": 0,
+            "auto_collect": false
+          }
+        }
+      ]
+    }
+  ]
+}

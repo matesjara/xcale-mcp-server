@@ -83,6 +83,7 @@ describe('avirato provider — S1 discovery', () => {
       bodyFields: { email: 'email', password: 'password' },
       responseFields: { token: 'data.token' },
       tokenTtlSeconds: 900,
+      relayMint: true,
       tokenPlacement: 'bearer_header',
     });
   });

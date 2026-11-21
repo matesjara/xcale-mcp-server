@@ -25,5 +25,8 @@ export const aviratoAuth: ProviderAuthDescriptor = {
   bodyFields: { email: 'email', password: 'password' },
   responseFields: { token: 'data.token' },
   tokenTtlSeconds: 900,
+  // Avirato binds every token to the IP that logged in (observed 2026-11-19), so the mint goes out
+  // through this server's relay, from its dedicated egress IPs.
+  relayMint: true,
   tokenPlacement: 'bearer_header',
 };
