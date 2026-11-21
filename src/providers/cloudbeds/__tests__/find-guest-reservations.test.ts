@@ -56,6 +56,52 @@ function world(guestRows: unknown[], reservations: Record<string, unknown>, tota
   return { seen, provider: createCloudbedsProvider({ fetchImpl }) };
 }
 
+/**
+ * A Cloudbeds whose `getGuestList` matches a filter only on the exact stored string, as the real one does
+ * (sandbox 320754, 2026-10-22). `stored` maps a field value (phone, cell phone or email) to the rows it holds.
+ */
+function exactWorld(
+  stored: Record<string, { reservationID: string; guestID: string }[]>,
+  reservations: Record<string, unknown>,
+  opts: { failListOn?: string; total?: number } = {},
+) {
+  const seen: string[] = [];
+  const fetchImpl = (async (url: string | URL) => {
+    const u = new URL(url.toString());
+    seen.push(u.pathname.split('/').pop() + '?' + u.searchParams.toString());
+    if (u.pathname.endsWith('getGuestList')) {
+      const value =
+        u.searchParams.get('guestPhone') ??
+        u.searchParams.get('guestCellPhone') ??
+        u.searchParams.get('guestEmail') ??
+        '';
+      if (opts.failListOn !== undefined && value === opts.failListOn) {
+        return new Response(JSON.stringify({ success: false, message: 'boom' }), { status: 200 });
+      }
+      const data = stored[value] ?? [];
+      const body =
+        opts.total === undefined
+          ? { success: true, data }
+          : { success: true, data, total: opts.total };
+      return new Response(JSON.stringify(body), { status: 200 });
+    }
+    const r = reservations[u.searchParams.get('reservationID') ?? ''];
+    return new Response(
+      JSON.stringify(r ? { success: true, data: r } : { success: false, message: 'not found' }),
+      { status: 200 },
+    );
+  }) as FetchLike;
+  const lists = () => seen.filter((s) => s.startsWith('getGuestList'));
+  return { seen, lists, provider: createCloudbedsProvider({ fetchImpl }) };
+}
+
+const filtersOf = (call: string) => {
+  const q = new URLSearchParams(call.split('?')[1]);
+  return ['guestPhone', 'guestCellPhone', 'guestEmail'].filter((k) => q.get(k) !== null);
+};
+
+const R1 = { reservationID: 'R1', guestID: 'G1' };
+
 describe('cloudbeds find_guest_reservations', () => {
   it('searches by the exact phone, then reads each reservation for its stay and its guest', async () => {
     const { seen, provider } = world(
@@ -129,7 +175,7 @@ describe('cloudbeds find_guest_reservations', () => {
     const { provider } = world(rows, reservations, 14);
     const res = await provider.callTool(
       'mcp_cloudbeds_find_guest_reservations',
-      { guestPhone: '+573001112233' },
+      { guestEmail: 'ana@example.com' },
       ctx(),
     );
     expect(res.kind).toBe('success');
@@ -148,7 +194,7 @@ describe('cloudbeds find_guest_reservations', () => {
     );
     const res = await provider.callTool(
       'mcp_cloudbeds_find_guest_reservations',
-      { guestPhone: '+573001112233' },
+      { guestEmail: 'ana@example.com' },
       ctx(),
     );
     if (res.kind !== 'success') throw new Error('expected success');
@@ -232,6 +278,131 @@ describe('cloudbeds find_guest_reservations', () => {
     );
     if (res.kind !== 'success') throw new Error('expected success');
     expect((res.data as { items: unknown[] }).items).toEqual([]);
+  });
+
+  describe('phone variants (OTAs store the phone in other forms)', () => {
+    const call = (
+      provider: ReturnType<typeof exactWorld>['provider'],
+      args: Record<string, unknown>,
+    ) => provider.callTool('mcp_cloudbeds_find_guest_reservations', args, ctx());
+
+    it('finds stored 3001234567 from +573001234567', async () => {
+      const { provider } = exactWorld(
+        { '3001234567': [R1] },
+        { R1: reservation('R1', 'G1', '3001234567') },
+      );
+      const res = await call(provider, { guestPhone: '+573001234567' });
+      if (res.kind !== 'success') throw new Error('expected success');
+      expect(
+        (res.data as { items: { reservationID: string }[] }).items.map((i) => i.reservationID),
+      ).toEqual(['R1']);
+    });
+
+    it('finds stored 573001234567 from +573001234567', async () => {
+      const { provider } = exactWorld(
+        { '573001234567': [R1] },
+        { R1: reservation('R1', 'G1', '573001234567') },
+      );
+      const res = await call(provider, { guestPhone: '+573001234567' });
+      if (res.kind !== 'success') throw new Error('expected success');
+      expect((res.data as { items: unknown[] }).items).toHaveLength(1);
+    });
+
+    it('finds stored +573001234567 from 573001234567', async () => {
+      const { provider } = exactWorld(
+        { '+573001234567': [R1] },
+        { R1: reservation('R1', 'G1', '+573001234567') },
+      );
+      const res = await call(provider, { guestPhone: '573001234567' });
+      if (res.kind !== 'success') throw new Error('expected success');
+      expect((res.data as { items: unknown[] }).items).toHaveLength(1);
+    });
+
+    it('with fewer than 7 digits asks once, with the value as given', async () => {
+      const { lists, provider } = exactWorld({}, {});
+      await call(provider, { guestPhone: '12-34' });
+      expect(lists()).toHaveLength(1);
+      expect(new URLSearchParams(lists()[0]!.split('?')[1]).get('guestPhone')).toBe('12-34');
+    });
+
+    it('returns a reservation found by two variants once', async () => {
+      const { seen, provider } = exactWorld(
+        { '573001234567': [R1], '3001234567': [R1] },
+        { R1: reservation('R1', 'G1', '3001234567') },
+      );
+      const res = await call(provider, { guestPhone: '+573001234567' });
+      if (res.kind !== 'success') throw new Error('expected success');
+      expect((res.data as { items: unknown[] }).items).toHaveLength(1);
+      expect(seen.filter((s) => s.startsWith('getReservation'))).toHaveLength(1);
+    });
+
+    it('a failed getGuestList fails the lookup, never a list missing a variant', async () => {
+      const { provider } = exactWorld(
+        { '3001234567': [R1] },
+        { R1: reservation('R1', 'G1', '3001234567') },
+        {
+          failListOn: '573001234567',
+        },
+      );
+      const res = await call(provider, { guestPhone: '+573001234567' });
+      expect(res.kind).toBe('error');
+    });
+
+    it('a failed getReservation fails the lookup', async () => {
+      const { provider } = exactWorld({ '3001234567': [R1] }, {});
+      const res = await call(provider, { guestPhone: '+573001234567' });
+      expect(res.kind).toBe('error');
+    });
+
+    it('keeps the ceiling and hasMore across variants', async () => {
+      const rows = Array.from({ length: 6 }, (_, i) => ({ reservationID: `A${i}`, guestID: 'G1' }));
+      const rows2 = Array.from({ length: 6 }, (_, i) => ({
+        reservationID: `B${i}`,
+        guestID: 'G1',
+      }));
+      const reservations = Object.fromEntries(
+        [...rows, ...rows2].map((r) => [
+          r.reservationID,
+          reservation(r.reservationID, 'G1', '3001234567'),
+        ]),
+      );
+      const { seen, provider } = exactWorld(
+        { '573001234567': rows, '3001234567': rows2 },
+        reservations,
+      );
+      const res = await call(provider, { guestPhone: '+573001234567' });
+      if (res.kind !== 'success') throw new Error('expected success');
+      expect(seen.filter((s) => s.startsWith('getReservation'))).toHaveLength(10);
+      expect(res.data).toMatchObject({ hasMore: true });
+      expect((res.data as { items: unknown[] }).items).toHaveLength(10);
+    });
+
+    it('says hasMore when one variant holds more than it returned, and omits totalResults for several queries', async () => {
+      const { provider } = exactWorld(
+        { '3001234567': [R1] },
+        { R1: reservation('R1', 'G1', '3001234567') },
+        {
+          total: 25,
+        },
+      );
+      const res = await call(provider, { guestPhone: '+573001234567' });
+      if (res.kind !== 'success') throw new Error('expected success');
+      expect(res.data).toMatchObject({ hasMore: true });
+      expect(res.data).not.toHaveProperty('totalResults');
+    });
+
+    it('never makes more than 13 getGuestList calls, each with a single filter', async () => {
+      const { lists, provider } = exactWorld({}, {});
+      await call(provider, {
+        guestPhone: '+57 300 123 4567',
+        guestCellPhone: '+1 (415) 555-0132',
+        guestEmail: 'ana@example.com',
+      });
+      expect(lists().length).toBeLessThanOrEqual(13);
+      expect(lists().length).toBeGreaterThan(3);
+      for (const l of lists()) expect(filtersOf(l)).toHaveLength(1);
+      expect(lists().filter((l) => filtersOf(l)[0] === 'guestEmail')).toHaveLength(1);
+    });
   });
 
   it('publishes a complete record lookup (ADR 0023): result identities and a projection', () => {
