@@ -60,8 +60,11 @@ export const cloudbedsManifest: ProviderManifest = {
   // now publish a `subject-bound` policy with that id as the record field and the `recordAction` of
   // what they do with it (`read`, or `change` for the writes; `modify_reservation` declares none, as it
   // also cancels), and `assign_guest_to_room` publishes `subject-scoped`.
-  schemaVersion: '2026-10-27',
-  providerVersion: '0.16.0',
+  // Bumped again (xcale-backend#3728): `find_guest_reservations` matches a phone with or without the
+  // `+` and the country code, and its description says an empty list is not "no reservation", so a
+  // consumer's warm cache must not keep the old "exact" description.
+  schemaVersion: '2026-11-20',
+  providerVersion: '0.16.1',
   logoUrl: '/assets/cloudbeds.svg',
   capabilities: { pagination: true },
   // A Cloudbeds token is scoped to its property; discover the propertyID via getHotels instead of
