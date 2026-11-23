@@ -1,0 +1,9 @@
+{
+  "data": {
+    "id": "64f0000000000000000000a1",
+    "name": "Example Staff",
+    "role": "sales",
+    "isActive": true,
+    "assignedOffices": ["USA"]
+  }
+}

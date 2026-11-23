@@ -41,6 +41,11 @@ export interface Config {
    * real hotel. The consumer's pinned token endpoint must name the same host.
    */
   readonly aviratoBaseUrl?: string;
+  /**
+   * Cadenax's API base URL. Empty means production (`https://api-cofinet.cadenax.com/api`); a
+   * development deployment sets staging or a local Cadenax, where `cof_dev_` keys belong.
+   */
+  readonly cadenaxBaseUrl?: string;
   readonly himedSchedulingBaseUrl: string;
 }
 
@@ -79,6 +84,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     siigoPartnerId: env.SIIGO_PARTNER_ID ?? '',
     himedBaseUrl: env.HIMED_BASE_URL ?? '',
     aviratoBaseUrl: env.AVIRATO_BASE_URL ?? '',
+    cadenaxBaseUrl: env.CADENAX_BASE_URL ?? '',
     himedSchedulingBaseUrl: env.HIMED_SCHEDULING_BASE_URL ?? '',
   };
 }

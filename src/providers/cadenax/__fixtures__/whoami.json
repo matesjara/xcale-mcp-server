@@ -1,0 +1,18 @@
+{
+  "kind": "api_key",
+  "keyId": "64f000000000000000000001",
+  "name": "xcale agent (USA)",
+  "role": "sales",
+  "purpose": "agent",
+  "environment": "development",
+  "expiresAt": null,
+  "assignedOffices": [
+    {
+      "code": "USA",
+      "name": "Example Office USA",
+      "isActive": true,
+      "migrationState": "operational",
+      "defaultCurrency": "USD"
+    }
+  ]
+}
