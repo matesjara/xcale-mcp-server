@@ -1,0 +1,8 @@
+{
+  "success": true,
+  "data": [
+    { "_id": "64f0000000000000000000b1", "isActive": true },
+    { "_id": "64f0000000000000000000b2", "isActive": true }
+  ],
+  "pagination": { "page": 1, "limit": 25, "total": 40, "totalPages": 2 }
+}

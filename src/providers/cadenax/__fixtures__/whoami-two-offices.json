@@ -1,0 +1,25 @@
+{
+  "kind": "api_key",
+  "keyId": "64f000000000000000000002",
+  "name": "xcale reporting",
+  "role": "manager",
+  "purpose": "sync",
+  "environment": "development",
+  "expiresAt": null,
+  "assignedOffices": [
+    {
+      "code": "USA",
+      "name": "Example Office USA",
+      "isActive": true,
+      "migrationState": "operational",
+      "defaultCurrency": "USD"
+    },
+    {
+      "code": "EUROPE",
+      "name": "Example Office Europe",
+      "isActive": true,
+      "migrationState": "mirror",
+      "defaultCurrency": "EUR"
+    }
+  ]
+}
